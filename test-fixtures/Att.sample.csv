@@ -1,0 +1,13 @@
+No.,Date,Staff ID,Staff Name,Staff Email,Agency,Contract Type,Event ID,Matching Type,Gender,Department,Clock In Time,Clock Out Time,Actual Hours,Clock In Remark,Clock Out Remark,Slot Code,Workstation,Team,Station
+1,8/1/2026,Ops000001,NhanVien Mau 001,-,GRG,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:57:01,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+2,8/1/2026,Ops000002,NhanVien Mau 002,-,GRG,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:56:43,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+3,8/1/2026,Ops000003,NhanVien Mau 003,-,GRG,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:56:28,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+4,8/1/2026,Ops000004,NhanVien Mau 004,-,SKT,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:56:11,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+5,8/1/2026,Ops000005,NhanVien Mau 005,-,SKT,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:55:55,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+6,8/1/2026,Ops000006,NhanVien Mau 006,-,SKT,OS,VNO2029EVENT2608010004,Select Event,,SOC,7:55:42,,0,[2171666]huy.buitrong@spxexpress.com,,08:00-17:00,OBLoading,Outbound,HN2 SOC
+7,8/1/2026,Ops000007,NhanVien Mau 007,-,GRG,OS,VNO2029EVENT2607310007,,,SOC,,6:00:26,0,,,22:00-06:00,,,HN2 SOC
+8,8/1/2026,Ops000008,NhanVien Mau 008,-,FEX,OS,VNO2029EVENT2607310007,Select Event,,SOC,22:25:09,6:03:03,7.6,[2171505]vi.nguyenvan@spxexpress.com,[2171505]vi.nguyenvan@spxexpress.com,22:00-06:00,OBHandover,Outbound,HN2 SOC
+9,8/1/2026,Ops000009,NhanVien Mau 009,-,TPZ,OS,VNO2029EVENT2607310007,Select Event,,SOC,22:24:56,6:02:44,7.6,[2171505]vi.nguyenvan@spxexpress.com,[2171505]vi.nguyenvan@spxexpress.com,22:00-06:00,OBHandover,Outbound,HN2 SOC
+10,8/1/2026,Ops000010,NhanVien Mau 010,-,FEX,OS,VNO2029EVENT2607310007,Select Event,,SOC,22:24:42,6:03:10,7.6,[2171505]vi.nguyenvan@spxexpress.com,[2171505]vi.nguyenvan@spxexpress.com,22:00-06:00,OBHandover,Outbound,HN2 SOC
+11,8/1/2026,Ops000011,NhanVien Mau 011,-,GRG,OS,VNO2029EVENT2607310005,Select Event,,SOC,12:47:05,22:00:47,9.2,[2172116]huong.daovan@spxexpress.com,[2172116]huong.daovan@spxexpress.com,13:00-22:00,IBReceiving,Inbound,HN2 SOC
+12,8/1/2026,Ops000012,NhanVien Mau 012,-,GRG,OS,VNO2029EVENT2607310005,Select Event,,SOC,12:46:54,22:01:01,9.2,[2172116]huong.daovan@spxexpress.com,[2172116]huong.daovan@spxexpress.com,13:00-22:00,IBReceiving,Inbound,HN2 SOC

@@ -1,0 +1,22 @@
+# Credentials — TUYỆT ĐỐI không commit
+.clasprc.json
+*.clasprc.json
+
+# Node
+node_modules/
+
+# Dữ liệu chấm công THẬT (nhạy cảm) — chỉ commit bản ẩn danh trong test-fixtures/
+Att.csv
+*.csv
+!test-fixtures/Att.sample.csv
+
+# Hệ điều hành / editor
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Codegraph — index cục bộ (theo yêu cầu: không commit codegraph.json)
+codegraph.json
+.codegraph/

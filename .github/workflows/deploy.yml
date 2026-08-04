@@ -1,0 +1,31 @@
+name: Deploy to GAS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node + clasp
+        run: |
+          npm install -g @google/clasp
+
+      - name: Create .clasp.json (from secrets)
+        run: |
+          cat > .clasp.json << EOF
+          {"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"./"}
+          EOF
+
+      - name: Restore .clasprc.json (auth)
+        run: |
+          cat > ~/.clasprc.json << 'CLASPRC_EOF'
+          ${{ secrets.CLASPRC_JSON }}
+          CLASPRC_EOF
+
+      - name: Push to GAS
+        run: clasp push -f

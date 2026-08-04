@@ -1,0 +1,132 @@
+/**
+ * Config.gs — Hằng số toàn cục RollCall v2
+ * Cột sheet/file: tiếng Anh · Hiển thị web: tiếng Việt (UI_LABELS)
+ * KHÔNG hardcode string rải rác — mọi hằng số tập trung tại đây.
+ */
+
+// ===== Sheet names =====
+const SHEETS = {
+  CONFIG: 'Config',
+  STAFF_DATA: 'StaffData',
+  ATTENDANCE_TASK: 'AttendanceTask',
+  ATTENDANCE_LOG: 'AttendanceLog',
+};
+
+/**
+ * Spreadsheet chứa dữ liệu (user cung cấp — tạo bằng tài khoản cá nhân, sẽ đổi sau).
+ * Nếu để rỗng: Database tự tạo 'RollCall v2 DB' khi chạy lần đầu.
+ */
+const DEFAULT_SPREADSHEET_ID = '1NQQnLnVDITrUIII59ibk6vVfuDnMHKqsDtfGmHgjNYo';
+
+// ===== Header StaffData (giữ đúng header Att.csv — index theo thứ tự cột) =====
+// Sheet StaffData lưu nguyên cấu trúc csv hệ thống (1 dòng = 1 NV–1 ca–1 station).
+const STAFF_DATA_COLS = {
+  NO: 0,
+  DATE: 1,
+  STAFF_ID: 2,
+  STAFF_NAME: 3,
+  STAFF_EMAIL: 4,
+  AGENCY: 5,
+  CONTRACT_TYPE: 6,
+  EVENT_ID: 7,
+  MATCHING_TYPE: 8,
+  GENDER: 9,
+  DEPARTMENT: 10,
+  CARD_IN: 11,        // Clock In Time (csv) — chỉ hiển thị, không sửa
+  CARD_OUT: 12,       // Clock Out Time (csv) — chỉ hiển thị, không sửa
+  ACTUAL_HOURS: 13,
+  CARD_IN_REMARK: 14,
+  CARD_OUT_REMARK: 15,
+  SLOT_CODE: 16,      // text "08:00-17:00"
+  WORKSTATION: 17,
+  TEAM: 18,
+  STATION: 19,
+};
+const STAFF_DATA_COL_COUNT = 20;
+
+// ===== Cột AttendanceTask =====
+const TASK_COLS = {
+  TASK_ID: 0,
+  TASK_TYPE: 1,
+  STATION: 2,
+  SLOT_CODE: 3,
+  TEAM: 4,
+  STATUS: 5,
+  CREATED_AT: 6,
+  CREATED_BY: 7,
+  COMPLETED_AT: 8,
+};
+const TASK_COL_COUNT = 9;
+
+// ===== Cột AttendanceLog (1 dòng / NV) =====
+// Lưu ý: bỏ cardIn/cardOut (2026-08-03) — StaffData GIỮ NGUYÊN; log không copy 2 cột này nữa.
+const LOG_COLS = {
+  TASK_ID: 0,
+  STAFF_ID: 1,
+  STAFF_NAME: 2,
+  SLOT_CODE: 3,
+  STATION: 4,
+  TEAM: 5,
+  WORKSTATION: 6,
+  TIME_REF: 7,    // luồng 2 = taskCreated (pre-fill batch lúc tạo task)
+  TIME_SCAN: 8,   // giờ quét đối chiếu
+  STATUS: 9,
+  DATE: 10,       // ngày vào làm (copy từ StaffData) — hiển thị cột Date, khác TIME_REF (ngày task)
+};
+const LOG_COL_COUNT = 11;
+
+// ===== Trạng thái đối chiếu (badge — tiếng Việt) =====
+const STATUS = {
+  PENDING: '-',      // pre-fill khi tạo task — chưa xác định (chưa quét, task đang mở)
+  PRESENT: 'Có mặt',
+  ABSENT: 'Vắng',    // chỉ gán khi kết thúc task (dòng chưa quét)
+  EXTRA: 'Dư',
+};
+
+// ===== Trạng thái task =====
+const TASK_STATUS = {
+  OPEN: 'open',
+  DONE: 'done',
+};
+
+// ===== Loại task =====
+const TASK_TYPE = {
+  RECONCILE: 'reconcile', // Phase 0: chỉ có loại này (đối chiếu từ csv)
+};
+
+// ===== Cache TTL (giây) =====
+const CACHE_TTL = {
+  STAFF_INDEX: 5 * 60,       // 5m — index StaffData
+  FILTER_OPTIONS: 5 * 60,    // 5m — distinct station/slotCode/team
+  TASK_LIST: 30,             // 30s — danh sách task
+  TASK_DETAIL: 15,           // 15s — chi tiết task + log (invalidate khi ghi log/đổi status)
+  LOG_ROWS: 30,              // 30s — log rows theo taskId (đường quét — cập nhật incremental, không invalidate mỗi scan)
+  TASK_COUNTS: 30,           // 30s — counters theo taskId cho danh sách task (đếm 1 lần + cache)
+  TZ: 24 * 60 * 60,          // 24h — timezone (cache 1 lần, KHÔNG gọi trong loop)
+};
+
+// ===== Cache keys (version-key để invalidate dễ — v1 lesson) =====
+const CACHE_KEYS = {
+  STAFF_INDEX: 'rc2_staffIndex_v1',
+  FILTER_OPTIONS: 'rc2_filterOptions_v1',
+  TASK_LIST: 'rc2_taskList_v1',
+  TASK_DETAIL: 'rc2_taskDetail_v1_',  // prefix + taskId
+  LOG_ROWS: 'rc2_logRows_v1_',          // prefix + taskId — đường quét (incremental update)
+  TASK_COUNTS: 'rc2_taskCounts_v1_',      // prefix — counters theo taskId cho list (đếm 1 lần + cache 30s)
+  TZ: 'rc2_tz_v2',  // v2: bump sau khi sửa manifest timeZone NY→Asia/Ho_Chi_Minh (invalidate cache 24h)
+};
+
+// ===== Label UI (tiếng Việt) — CHỈ các message server trả về =====
+// Text giao diện khác đã hardcode trong index.html (client tự quản lý).
+const UI_LABELS = {
+  APP_TITLE: 'Điểm danh kho',
+  ALREADY_SCANNED: 'Đã điểm danh',
+  TASK_CLOSED: 'Task đã kết thúc',
+  STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
+  CREATE_FAILED_EMPTY: 'Không có nhân viên nào trong tổ hợp đã chọn',
+};
+
+// ===== Cấu hình WebApp =====
+const WEB_APP = {
+  PAGE_TITLE: 'RollCall v2 — Điểm danh kho',
+};

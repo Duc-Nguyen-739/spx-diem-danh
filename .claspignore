@@ -1,0 +1,42 @@
+# ===== Test & docs (never push to GAS) =====
+tests/**
+docs/**
+tasks/**
+test-fixtures/**
+scripts/**
+mock/**
+
+# ===== Node.js =====
+node_modules/**
+package.json
+package-lock.json
+
+# ===== Git / CI =====
+.git/**
+.github/**
+.gitignore
+
+# ===== Config / secrets =====
+.clasp.json
+.clasprc.json
+*.clasprc.json
+.env
+
+# ===== Data thật (không push lên GAS) =====
+Att.csv
+*.csv
+!test-fixtures/Att.sample.csv
+
+# ===== IDE / OS =====
+.idea/**
+.vscode/**
+.DS_Store
+Thumbs.db
+
+# ===== Misc =====
+*.log
+*.tmp
+
+# ===== Codegraph (cục bộ, không push) =====
+codegraph.json
+.codegraph/**
