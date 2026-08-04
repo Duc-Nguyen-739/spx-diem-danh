@@ -94,6 +94,9 @@ const TASK_TYPE = {
   RECONCILE: 'reconcile', // Phase 0: chỉ có loại này (đối chiếu từ csv)
 };
 
+// ===== Loại hợp đồng (filter khi tạo task) =====
+const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
+
 // ===== Cache TTL (giây) =====
 const CACHE_TTL = {
   STAFF_INDEX: 5 * 60,       // 5m — index StaffData
