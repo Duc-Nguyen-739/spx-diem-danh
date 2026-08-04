@@ -169,6 +169,7 @@ function readStaffListUncached_() {
       station: String(v[fieldOf.station] || '').trim(),
       slotCode: String(v[fieldOf.slotCode] || '').trim(),
       team: String(v[fieldOf.team] || '').trim(),
+      contractType: String(v[fieldOf.contractType] || '').trim(),
       workstation: String(v[fieldOf.workstation] || '').trim(),
       cardIn: String(v[fieldOf.cardIn] || '').trim(),
       cardOut: String(v[fieldOf.cardOut] || '').trim(),
