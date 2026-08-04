@@ -122,5 +122,109 @@ if (typeof module !== 'undefined' && module.exports) {
     findLogRow: findLogRow,
     computeCounters: computeCounters,
     buildExtraRow: buildExtraRow,
+    classifyMealMoveScan: classifyMealMoveScan,
+    buildMealMoveExtraRow: buildMealMoveExtraRow,
+  };
+}
+
+/**
+ * ScanLogic.gs — Bổ sung meal-move (2026-08-04)
+ *
+ * Meal-move: 2 mốc Ra (đi ra ngoài) → Vào (quay lại).
+ * - Lần 1 (chưa có Ra) → ghi Ra, status OUT
+ * - Lần 2 (có Ra, chưa Vào) → ghi Vào, status PRESENT + durationMinutes
+ * - Trùng trong 10s (DUPLICATE_WINDOW_MS) → reject 'duplicate'
+ * - Đã đủ Ra+Vào → reject 'already-scanned'
+ * - Task đóng → reject 'task-closed'
+ * - NV lạ (không trong roster) → append EXTRA (vẫn ghi giờ theo mode)
+ */
+
+/**
+ * Phân loại 1 lần quét meal-move.
+ * @param {Object} cfg — { STATUS, TASK_STATUS, DUPLICATE_WINDOW_MS }
+ * @param {Object} task — { taskId, status, taskType }
+ * @param {Array<Object>} logRows — dòng AttendanceLog của task
+ * @param {string} staffId — mã NV đã normalize
+ * @param {string} mode — 'ra' | 'vao' (từ client, server đã validate permission)
+ * @param {number} nowMs — Date.now() (truyền vào để test được trên Node)
+ * @returns {{action: 'update'|'append'|'reject', status: string|null, reason: string|null, row: Object|null, scanPhase: string|null}}
+ *   scanPhase: 'ra' | 'vao' — mốc vừa ghi (cho server biết cột nào để update)
+ */
+function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs) {
+  if (!task || task.status !== cfg.TASK_STATUS.OPEN) {
+    return { action: 'reject', status: null, reason: 'task-closed', row: null, scanPhase: null };
+  }
+  if (!staffId) {
+    return { action: 'reject', status: null, reason: 'empty-staff-id', row: null, scanPhase: null };
+  }
+
+  var row = findLogRow(logRows, staffId);
+  var now = nowMs || Date.now();
+
+  if (row) {
+    // NV có trong roster — kiểm tra tình trạng Ra/Vào
+    var hasRa = Number(row.timeRaEpoch) > 0;
+    var hasVao = Number(row.timeScanEpoch) > 0;
+
+    // Rule 10s: chống quét trùng — so với mốc cuối cùng (Ra hoặc Vào)
+    var lastEpoch = Math.max(Number(row.timeRaEpoch) || 0, Number(row.timeScanEpoch) || 0);
+    if (lastEpoch > 0 && (now - lastEpoch) < (cfg.DUPLICATE_WINDOW_MS || 10000)) {
+      return { action: 'reject', status: null, reason: 'duplicate', row: row, scanPhase: null };
+    }
+
+    if (hasRa && hasVao) {
+      // Đã đủ Ra + Vào
+      return { action: 'reject', status: null, reason: 'already-scanned', row: row, scanPhase: null };
+    }
+
+    if (mode === 'ra') {
+      if (!hasRa) {
+        // Ghi Ra lần đầu
+        return { action: 'update', status: cfg.STATUS.OUT, reason: null, row: row, scanPhase: 'ra' };
+      }
+      // Đã có Ra, mode vẫn Ra → reject (phải toutesing sang Vào)
+      return { action: 'reject', status: null, reason: 'already-scanned', row: row, scanPhase: null };
+    }
+
+    // mode === 'vao'
+    if (!hasRa) {
+      // Quên quét Ra → đánh Thừa (yêu cầu user: Vào không khớp = Thừa)
+      return { action: 'update', status: cfg.STATUS.EXTRA, reason: null, row: row, scanPhase: 'vao' };
+    }
+    // Có Ra, chưa Vào → ghi Vào → PRESENT
+    return { action: 'update', status: cfg.STATUS.PRESENT, reason: null, row: row, scanPhase: 'vao' };
+  }
+
+  // NV lạ (không trong roster) → append EXTRA (quét lạ = Dư)
+  return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: mode || 'ra' };
+}
+
+/**
+ * Tạo dòng mới cho NV quét lạ (meal-move append) — ghi giờ theo mode (Ra hoặc Vào).
+ * @param {Object} cfg — { STATUS, DUPLICATE_WINDOW_MS }
+ * @param {string} taskId
+ * @param {string} staffId
+ * @param {Object|null} staffInfo — từ staffIndex (có thể null)
+ * @param {string} mode — 'ra' | 'vao'
+ * @param {Date} now
+ * @returns {Object} row theo LOG_COLS (có timeRa/timeScan tùy mode)
+ */
+function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now) {
+  var nowMs = now ? now.getTime() : Date.now();
+  return {
+    taskId: taskId,
+    staffId: staffId,
+    staffName: staffInfo ? staffInfo.staffName : '',
+    slotCode: staffInfo ? staffInfo.slotCode : '',
+    station: staffInfo ? staffInfo.station : '',
+    team: staffInfo ? staffInfo.team : '',
+    workstation: staffInfo ? staffInfo.workstation : '',
+    agency: staffInfo ? staffInfo.agency : '',
+    timeRef: null,
+    timeRa: mode === 'ra' ? now : null,
+    timeRaEpoch: mode === 'ra' ? nowMs : 0,
+    timeScan: mode === 'vao' ? now : null,
+    timeScanEpoch: mode === 'vao' ? nowMs : 0,
+    status: cfg.STATUS.EXTRA,
   };
 }

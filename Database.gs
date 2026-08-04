@@ -54,14 +54,18 @@ function ensureSheets_() {
   ]);
   const logSheet = getSheet_(SHEETS.ATTENDANCE_LOG, [
     'taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
-    'timeRef', 'timeScan', 'status', 'date',
+    'timeRef', 'timeScan', 'status', 'date', 'timeRa', 'agency',
   ]);
   // Migration an toàn: sheet cũ tạo trước khi có cột date (LOG_COL_COUNT=11) vẫn còn
   // 10 cột → getSheet_ chỉ set header khi sheet trống, không tự thêm cột. Nếu thiếu,
   // thêm cột cuối + đặt header, nếu không batchInsertLogRows_ ghi 11 giá trị sẽ vỡ.
-  if (logSheet.getLastColumn() < LOG_COL_COUNT) {
+  // Migration: sheet cũ có thể thiếu cột date(11), timeRa(12), agency(13).
+  // Tự thêm cột cuối + đặt header cho từng cột thiếu — an toàn với mọi phiên bản cũ.
+  while (logSheet.getLastColumn() < LOG_COL_COUNT) {
+    var nextCol = logSheet.getLastColumn() + 1;
     logSheet.insertColumnAfter(logSheet.getLastColumn());
-    logSheet.getRange(1, LOG_COL_COUNT).setValue('date');
+    var headers = ['date', 'timeRa', 'agency']; // cột 11, 12, 13
+    logSheet.getRange(1, nextCol).setValue(headers[nextCol - 11]);
   }
 }
 
@@ -314,6 +318,7 @@ function invalidateTaskListCache_() {
 function logFromRow_(taskId, row) {
   const timeRef = row[LOG_COLS.TIME_REF] || null;
   const timeScan = row[LOG_COLS.TIME_SCAN] || null;
+  const timeRa = row[LOG_COLS.TIME_RA] || null;  // meal-move: giờ Ra
   return {
     taskId: taskId,
     staffId: String(row[LOG_COLS.STAFF_ID] || '').trim(),
@@ -322,6 +327,8 @@ function logFromRow_(taskId, row) {
     station: String(row[LOG_COLS.STATION] || ''),
     team: String(row[LOG_COLS.TEAM] || ''),
     workstation: String(row[LOG_COLS.WORKSTATION] || ''),
+    // meal-move: Nhà Thầu (agency copy từ StaffData)
+    agency: String(row[LOG_COLS.AGENCY] || ''),
     // KHÔNG trả Date qua google.script.run (serialize lỗi → null toàn bộ).
     // Chỉ trả text đã format theo TZ script — client hiển thị trực tiếp.
     timeRefText: formatTime_(timeRef),
@@ -329,12 +336,16 @@ function logFromRow_(taskId, row) {
     // Sort key số (epoch ms) — text "HH:mm:ss" mất ngày → sort chuỗi sai khi task
     // xuyên nửa đêm. Client sort theo con số này (chính xác tuyệt đối).
     timeScanEpoch: timeScan ? timeScan.getTime() : 0,
+    // meal-move: giờ Ra + epoch (sort/counter cho Ra)
+    timeRaText: formatTime_(timeRa),
+    timeRaEpoch: timeRa ? timeRa.getTime() : 0,
+    // meal-move: số phút giữa Ra→Vào (chỉ khi có cả 2)
+    durationMinutes: (timeRa && timeScan) ? Math.round((timeScan.getTime() - timeRa.getTime()) / 60000) : 0,
     status: String(row[LOG_COLS.STATUS] || ''),
     // Date = ngay vao lam (copy tu StaffData) — format yyyy-MM-dd (ISO) cho hien thi
     dateText: formatDateShort_(row[LOG_COLS.DATE]),
   };
 }
-
 /** Đọc toàn bộ dòng log của task (đọc tươi từ sheet — không cache). */
 function readLogRows_(taskId) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
@@ -371,8 +382,12 @@ function readLogRowsCached_(taskId) {
         slotCode: r.slotCode,
         station: r.station,
         team: r.team,
+        agency: r.agency,          // meal-move: Nhà Thầu
+        timeRaText: r.timeRaText,  // meal-move: giờ Ra
+        timeRaEpoch: r.timeRaEpoch, // meal-move: epoch Ra (sort + duplicate check)
         timeScanText: r.timeScanText,
         timeScanEpoch: r.timeScanEpoch,
+        durationMinutes: r.durationMinutes, // meal-move: số phút Ra→Vào
         status: r.status,
         dateText: r.dateText,
         _rowIndex: r._rowIndex,
@@ -401,6 +416,7 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
     return [
       taskId, s.staffId, s.staffName, s.slotCode, s.station, s.team, s.workstation,
       createdAt, '', STATUS.PENDING, s.date || '',
+      '', s.agency || '',  // timeRa (trống), agency (Nhà Thầu — meal-move)
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);
@@ -477,7 +493,9 @@ function transformLogStatuses_(taskId, mutate) {
 }
 
 /** Khi kết thúc task: chuyển dòng chưa quét (timeScan rỗng, status '-') thành 'Vắng'. */
-function markUnscannedAbsent_(taskId) {
+function markUnscannedAbsent_(taskId, taskType) {
+  // meal-move: thiếu Vào (timeScan rỗng) = Vắng — bất kể đã có Ra hay chưa
+  var isMealMove = taskType === TASK_TYPE.MEAL_MOVE;
   return transformLogStatuses_(taskId, function (status, timeScan) {
     if (timeScan && status === STATUS.PENDING) {
       // P1: insurance data-repair — dòng có timeScan nhưng status còn '-' (data legacy/
@@ -486,7 +504,11 @@ function markUnscannedAbsent_(taskId) {
       // thành Có mặt.
       return STATUS.PRESENT;
     }
-    if (!timeScan && status === STATUS.PENDING) return STATUS.ABSENT;
+    if (!timeScan) {
+      // Chưa có Vào — Vắng (cả reconcile lẫn meal-move)
+      // meal-move: NV đã Ra (OUT) nhưng chưa Vào cũng thành Vắng
+      if (status === STATUS.PENDING || (isMealMove && status === STATUS.OUT)) return STATUS.ABSENT;
+    }
     return null;
   });
 }
@@ -516,6 +538,10 @@ function updateLogRowScan_(row, timeScan, status) {
     r.status = status;
     r.timeScanText = formatTime_(timeScan);
     r.timeScanEpoch = timeScan.getTime();
+    // meal-move: nếu có timeRa → cập nhật durationMinutes
+    if (r.timeRaEpoch > 0 && r.timeScanEpoch > 0) {
+      r.durationMinutes = Math.round((r.timeScanEpoch - r.timeRaEpoch) / 60000);
+    }
   });
   return true;
 }
@@ -546,6 +572,7 @@ function appendLogRow_(row) {
   getSheet_(SHEETS.ATTENDANCE_LOG).appendRow([
     row.taskId, row.staffId, row.staffName, row.slotCode, row.station, row.team, row.workstation,
     row.timeRef || '', row.timeScan || '', row.status, row.date || '',
+    row.timeRa || '', row.agency || '',  // timeRa, agency (meal-move)
   ]);
   invalidateTaskDetailCache_(row.taskId);
   invalidateLogRows_(row.taskId); // U2: dòng mới append cuối — cache cũ thiếu dòng → xoá (tần suất thấp)
@@ -566,5 +593,87 @@ function overwriteStaffData_(staffList) {
   });
   sheet.getRange(2, 1, rows.length, STAFF_DATA_COL_COUNT).setValues(rows);
   invalidateStaffIndex_();
+  return rows.length;
+}
+
+// ===== Meal-move (2026-08-04) =====
+
+/**
+ * Cập nhật timeRa + status cho 1 dòng (theo _rowIndex) — ghi 2 ô riêng lẻ.
+ * TIME_RA (cột 12) và STATUS (cột 10) KHÔNG liền nhau → 2 setValue (tần suất thấp).
+ * @param {Object} row — từ readLogRows_/readLogRowsCached_ (có _rowIndex, taskId)
+ * @param {Date} timeRa
+ * @param {string} status — STATUS.OUT (Ra ngoài) hoặc STATUS.EXTRA
+ */
+function updateLogRowRa_(row, timeRa, status) {
+  const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+  sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setValue(timeRa);
+  sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1).setValue(status);
+  invalidateTaskDetailCache_(row.taskId);
+  updateLogRowCache_(row.taskId, row._rowIndex, function (r) {
+    r.status = status;
+    r.timeRaText = formatTime_(timeRa);
+    r.timeRaEpoch = timeRa.getTime();
+  });
+  return true;
+}
+
+/**
+ * Ghi hàng loạt cập nhật log cho 1 task (paste meal-move) — batch setValues 1 lần.
+ * Chỉ chạm 3 cột: STATUS, TIME_RA, TIME_SCAN. Đọc toàn bộ values → sửa trong
+ * memory → ghi cả cột (idempotent — dòng không thuộc update được ghi lại đúng).
+ * @param {string} taskId
+ * @param {Array<{_rowIndex:number, status:string, timeRa?:Date, timeScan?:Date}>} updates
+ * @returns {number} số dòng đã đổi
+ */
+function batchMealMoveLogUpdates_(taskId, updates) {
+  if (!updates || !updates.length) return 0;
+  const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+  const values = sheet.getDataRange().getValues();
+  const byRow = {};
+  updates.forEach(function (u) { byRow[u._rowIndex] = u; });
+  let anyChanged = false;
+  for (let i = 1; i < values.length; i++) {
+    const u = byRow[i];
+    if (!u) continue;
+    if (u.timeRa) { values[i][LOG_COLS.TIME_RA] = u.timeRa; anyChanged = true; }
+    if (u.timeScan) { values[i][LOG_COLS.TIME_SCAN] = u.timeScan; anyChanged = true; }
+    if (u.status && values[i][LOG_COLS.STATUS] !== u.status) {
+      values[i][LOG_COLS.STATUS] = u.status; anyChanged = true;
+    }
+  }
+  if (anyChanged) {
+    [LOG_COLS.STATUS, LOG_COLS.TIME_RA, LOG_COLS.TIME_SCAN].forEach(function (colIdx) {
+      const col = [];
+      for (let r = 1; r < values.length; r++) col.push([values[r][colIdx]]);
+      sheet.getRange(2, colIdx + 1, values.length - 1, 1).setValues(col);
+    });
+    invalidateTaskDetailCache_(taskId);
+    invalidateLogRows_(taskId);
+  }
+  return anyChanged ? updates.length : 0;
+}
+
+/**
+ * Append nhiều dòng log trong 1 batch (paste meal-move NV lạ) — KHÔNG appendRow loop.
+ * @param {Array<Object>} rows — mảng row object (buildMealMoveExtraRow)
+ * @returns {number}
+ */
+function batchAppendLogRows_(rows) {
+  if (!rows || !rows.length) return 0;
+  const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+  const startRow = sheet.getLastRow() + 1;
+  const payload = rows.map(function (row) {
+    return [
+      row.taskId, row.staffId, row.staffName, row.slotCode, row.station, row.team, row.workstation,
+      row.timeRef || '', row.timeScan || '', row.status, row.date || '',
+      row.timeRa || '', row.agency || '',
+    ];
+  });
+  sheet.getRange(startRow, 1, payload.length, LOG_COL_COUNT).setValues(payload);
+  const seen = {};
+  rows.forEach(function (r) {
+    if (!seen[r.taskId]) { seen[r.taskId] = true; invalidateTaskDetailCache_(r.taskId); invalidateLogRows_(r.taskId); }
+  });
   return rows.length;
 }

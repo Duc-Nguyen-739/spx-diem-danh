@@ -108,7 +108,8 @@ function completeTask(taskId) {
     // Nếu updateTaskStatus_ fail: task vẫn OPEN → retry, mark idempotent (dòng đã
     // ABSENT/PRESENT không chạm lại). Thứ tự cũ (DONE trước) → mark fail = task đã
     // đóng nhưng log chưa chuyển Vắng, retry bị chặn "Task đã kết thúc".
-    const absentCount = markUnscannedAbsent_(taskId);
+    // meal-move: taskType truyền vào để markUnscannedAbsent_ biết NV OUT (đã Ra, chưa Vào) cũng thành Vắng
+    const absentCount = markUnscannedAbsent_(taskId, task.taskType);
     updateTaskStatus_(taskId, TASK_STATUS.DONE, new Date(), task._rowIndex);
     return {
       ok: true,
@@ -145,6 +146,86 @@ function reopenTask(taskId) {
       ok: true,
       message: 'Đã mở lại task ' + taskId + (resetCount > 0 ? ' — ' + resetCount + ' NV Vắng được đặt lại Chưa điểm danh' : ''),
     };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Tạo task Đi ăn + Move (meal-move) — roster từ danh sách mã Ops (paste hoặc quét).
+ * KHÁC createReconcileTask: không lọc từ StaffData theo station/slot/team; nhận thẳng
+ * danh sách mã Ops do người tạo cung cấp, lookup staffIndex để lấy tên/agency.
+ * createdBy = EMAIL THẬT (Session.getActiveUser) — dùng để phân quyền Ra/Vào (3.2).
+ * @param {{staffIds: string[], createdBy?: string}} input
+ * @returns {{ok: boolean, taskId: string|null, count: number, message: string}}
+ */
+function createMealMoveTask(input) {
+  const raw = Array.isArray(input && input.staffIds) ? input.staffIds : [];
+  if (!raw.length) return { ok: false, taskId: null, count: 0, message: UI_LABELS.MEAL_NO_OPS };
+
+  // Chuẩn hóa + dedupe + bỏ mã không hợp lệ (chỉ nhận mã Ops)
+  const seen = {};
+  const ids = [];
+  raw.forEach(function (c) {
+    const id = normalizeStaffId(c);
+    if (!id || !isValidBarcodeId(id)) return;
+    if (seen[id]) return;
+    seen[id] = true;
+    ids.push(id);
+  });
+  if (!ids.length) return { ok: false, taskId: null, count: 0, message: UI_LABELS.MEAL_NO_OPS };
+
+  // Email người tạo — ưu tiên Session (server tự lấy, KHÔNG tin client)
+  let createdBy = 'web';
+  try {
+    const active = String(Session.getActiveUser().getEmail() || '').trim();
+    if (active) createdBy = active;
+  } catch (e) { /* fallback */ }
+  if (createdBy === 'web') createdBy = String((input && input.createdBy) || '').trim() || 'web';
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    // Lookup thông tin NV từ staffIndex (cache 5m) — lấy tên, agency, station...
+    const index = readStaffIndex_();
+    const staffList = ids.map(function (id) {
+      const info = index[id] || {};
+      return {
+        staffId: id,
+        staffName: info.staffName || '',
+        slotCode: info.slotCode || '',
+        station: info.station || '',
+        team: info.team || '',
+        workstation: info.workstation || '',
+        agency: info.agency || '',
+        date: info.date || '',
+      };
+    });
+
+    const now = new Date();
+    let taskId = 'M' + makeTaskId_(now);  // prefix M phân biệt meal-move (R = reconcile)
+    let suffix = 2;
+    while (readTask_(taskId)) {
+      taskId = 'M' + makeTaskId_(now) + '-' + suffix;
+      suffix++;
+    }
+
+    const task = {
+      taskId: taskId,
+      taskType: TASK_TYPE.MEAL_MOVE,
+      station: '',
+      slotCode: '',
+      team: '',
+      status: TASK_STATUS.OPEN,
+      createdAt: now,
+      createdBy: createdBy,
+      completedAt: null,
+    };
+    insertTask_(task);
+    // Pre-fill log: 1 dòng / NV, status PENDING, chưa có Ra/Vào
+    const count = batchInsertLogRows_(taskId, staffList, now);
+
+    return { ok: true, taskId: taskId, count: count, message: 'Tạo task Đi ăn + Move: ' + taskId };
   } finally {
     lock.releaseLock();
   }

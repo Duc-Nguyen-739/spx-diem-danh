@@ -72,8 +72,11 @@ const LOG_COLS = {
   TIME_SCAN: 8,   // giờ quét đối chiếu
   STATUS: 9,
   DATE: 10,       // ngày vào làm (copy từ StaffData) — hiển thị cột Date, khác TIME_REF (ngày task)
+  // Meal-move (2026-08-04): 2 mốc Ra/Vào + agency (Nhà Thầu)
+  TIME_RA: 11,    // giờ quét Ra (đi ra ngoài) — chỉ meal-move
+  AGENCY: 12,     // Nhà Thầu (copy từ StaffData cột Agency) — chỉ meal-move
 };
-const LOG_COL_COUNT = 11;
+const LOG_COL_COUNT = 13;
 
 // ===== Trạng thái đối chiếu (badge — tiếng Việt) =====
 const STATUS = {
@@ -81,6 +84,7 @@ const STATUS = {
   PRESENT: 'Có mặt',
   ABSENT: 'Vắng',    // chỉ gán khi kết thúc task (dòng chưa quét)
   EXTRA: 'Dư',
+  OUT: 'Ra ngoài',  // meal-move: đã quét Ra, chưa Vào (badge cam)
 };
 
 // ===== Trạng thái task =====
@@ -91,11 +95,15 @@ const TASK_STATUS = {
 
 // ===== Loại task =====
 const TASK_TYPE = {
-  RECONCILE: 'reconcile', // Phase 0: chỉ có loại này (đối chiếu từ csv)
+  RECONCILE: 'reconcile', // Phase 0: đối chiếu từ csv
+  MEAL_MOVE: 'meal-move', // 2026-08-04: Đi ăn + Move — paste/quét mã Ops, 2 mốc Ra/Vào
 };
 
 // ===== Loại hợp đồng (filter khi tạo task) =====
 const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
+
+// Meal-move: khoảng thời gian chống quét trùng (ms) — 2 lần quét cùng mã trong cửa này = 'Trùng mã'
+const DUPLICATE_WINDOW_MS = 10000;
 
 // ===== Cache TTL (giây) =====
 const CACHE_TTL = {
@@ -113,8 +121,8 @@ const CACHE_KEYS = {
   STAFF_INDEX: 'rc2_staffIndex_v1',
   FILTER_OPTIONS: 'rc2_filterOptions_v1',
   TASK_LIST: 'rc2_taskList_v1',
-  TASK_DETAIL: 'rc2_taskDetail_v1_',  // prefix + taskId
-  LOG_ROWS: 'rc2_logRows_v1_',          // prefix + taskId — đường quét (incremental update)
+  TASK_DETAIL: 'rc2_taskDetail_v2_',  // v2: meal-move thêm timeRa/agency/duration (schema log đổi)
+  LOG_ROWS: 'rc2_logRows_v2_',          // v2: schema slim thêm timeRaEpoch (meal-move)
   TASK_COUNTS: 'rc2_taskCounts_v1_',      // prefix — counters theo taskId cho list (đếm 1 lần + cache 30s)
   TZ: 'rc2_tz_v2',  // v2: bump sau khi sửa manifest timeZone NY→Asia/Ho_Chi_Minh (invalidate cache 24h)
 };
@@ -127,6 +135,10 @@ const UI_LABELS = {
   TASK_CLOSED: 'Task đã kết thúc',
   STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
   CREATE_FAILED_EMPTY: 'Không có nhân viên nào trong tổ hợp đã chọn',
+  // Meal-move (2026-08-04)
+  DUPLICATE_SCAN: 'Trùng mã — chờ 10 giây',
+  MEAL_NO_OPS: 'Không có mã Ops nào trong danh sách',
+  PASTE_TOO_MANY: 'Danh sách quá dài — tối đa 200 mã/lần',
 };
 
 // ===== Cấu hình WebApp =====

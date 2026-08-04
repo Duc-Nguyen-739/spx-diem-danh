@@ -7,7 +7,9 @@
  *   createReconcileTask(input)   → { ok, taskId, count, message }
  *   getTaskList()                → [{ taskId, station, slotCode, team, status, createdAt }]
  *   getTaskDetail(taskId)        → { ok, task, log, counters }
- *   scanStaff(taskId, staffId)   → { ok, message, status, counters }
+ *   scanStaff(taskId, staffId, mode) → { ok, message, status, scanPhase, counters }
+ *   createMealMoveTaskApi(input)     → { ok, taskId, count, message }
+ *   pasteMealMoveScanApi(taskId, codes, mode) → { ok, message, summary, counters }
  *   completeTask(taskId)         → { ok, message }
  *   syncFromCsv()                → { ok, count, message } — gọi từ editor (Phase 0)
  */
@@ -158,6 +160,16 @@ function createReconcileTaskApi(input) {
   return createReconcileTask(input);
 }
 
+/** Tạo task Đi ăn + Move — roster từ danh sách mã Ops (paste/quét); createdBy lấy server-side. */
+function createMealMoveTaskApi(input) {
+  return createMealMoveTask(input);
+}
+
+/** Paste hàng loạt mã Ops cho task meal-move — ghi Ra/Vào cả danh sách (tối đa 200 mã). */
+function pasteMealMoveScanApi(taskId, codes, mode) {
+  return pasteMealMoveScan(taskId, codes, mode);
+}
+
 /** Danh sách task. */
 function getTaskListApi() {
   return listTasks();
@@ -168,9 +180,9 @@ function getTaskDetailApi(taskId) {
   return getTaskDetail(taskId);
 }
 
-/** Quét NV. */
-function scanStaffApi(taskId, staffId) {
-  return scanStaff(taskId, staffId);
+/** Quét NV — meal-move: truyền mode 'ra'|'vao' (server tự validate permission, không tin client). */
+function scanStaffApi(taskId, staffId, mode) {
+  return scanStaff(taskId, staffId, mode);
 }
 
 /** Kết thúc task. */
