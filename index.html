@@ -551,6 +551,32 @@
     }
     .about-overlay.open .about-dialog { transform: scale(1); }
 
+    /* Chip filter (modal tạo task v2) — một chạm toggle, dễ dùng trên kiosk touch */
+    .chip-field { margin-top: 14px; }
+    .chip-field label { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .chip-count { font-size: 12px; font-weight: 500; color: var(--primary); }
+    .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.2;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .chip:hover { border-color: var(--primary); color: var(--primary-dark); }
+    .chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .chip.selected::before { content: "\2713  "; font-weight: 700; }
+    .chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
     /* P2: tôn trọng prefers-reduced-motion — tắt animation khi user yêu cầu */
     @media (prefers-reduced-motion: reduce) {
       .scan-input-wrap:focus-within::after { animation: none; }
@@ -768,27 +794,27 @@
   <div class="about-dialog" style="max-width:440px;">
     <h2 id="createModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task điểm danh</h2>
     <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Chọn nhóm nhân viên cho task — quét mã <b>Ops</b> để điểm danh.</p>
-    <div class="form-grid" style="grid-template-columns:1fr;">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
       <div>
         <label for="fStation">Station</label>
         <select id="fStation"></select>
       </div>
       <div>
-        <label for="fSlotCode">Ca (Slot Code) — chọn nhiều</label>
-        <select id="fSlotCode" multiple size="4"></select>
-      </div>
-      <div>
-        <label for="fTeam">Team — chọn nhiều</label>
-        <select id="fTeam" multiple size="2"></select>
-      </div>
-      <div>
-        <label for="fDate">Ngày vào làm (Date)</label>
+        <label for="fDate">Ngày vào làm</label>
         <select id="fDate"><option value="">-- Tất cả ngày --</option></select>
       </div>
-      <div>
-        <label for="fContractType">Loại hợp đồng — chọn nhiều</label>
-        <select id="fContractType" multiple size="3"></select>
-      </div>
+    </div>
+    <div class="chip-field">
+      <label>Ca (Slot Code) <span class="chip-count" id="countSlotCode"></span></label>
+      <div class="chip-group" id="fSlotCode"></div>
+    </div>
+    <div class="chip-field">
+      <label>Team <span class="chip-count" id="countTeam"></span></label>
+      <div class="chip-group" id="fTeam"></div>
+    </div>
+    <div class="chip-field">
+      <label>Loại hợp đồng <span class="chip-count" id="countContractType"></span></label>
+      <div class="chip-group" id="fContractType"></div>
     </div>
     <div id="createPreview" style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);">
       <div id="createPreviewCount">Chọn Station / Ca / Team để xem số lượng NV</div>
@@ -1051,10 +1077,11 @@
     var m = document.getElementById('createModal');
     if (!m) return;
     // P2: reset select về placeholder mỗi lần mở — không giữ giá trị ca cũ (tránh tạo nhầm task)
-    ['fStation', 'fSlotCode', 'fTeam', 'fDate', 'fContractType'].forEach(function (id) {
+    ['fStation', 'fDate'].forEach(function (id) {
       var s = document.getElementById(id);
       if (s) s.value = '';
     });
+    ['fSlotCode', 'fTeam', 'fContractType'].forEach(function (id) { resetChips(id); });
     m.setAttribute('aria-hidden', 'false');  // I10
     m.classList.add('open');
     var sel = document.getElementById('fStation');
@@ -1164,10 +1191,10 @@
       .withSuccessHandler(function (res) {
         if (!res.ok) { _releaseRefreshLock(); showToast(res.message, true); return; }
         fillSelect('fStation', res.stations, '-- Chọn station --');
-        fillSelect('fSlotCode', res.slotCodes, '-- Chọn ca --');
-        fillSelect('fTeam', res.teams, '-- Chọn team --');
+        fillChips('fSlotCode', res.slotCodes);
+        fillChips('fTeam', res.teams);
         fillSelect('fDate', res.dates, '-- Tất cả ngày --');
-        fillSelect('fContractType', res.contractTypes || [], '-- Chọn loại HĐ --');
+        fillChips('fContractType', res.contractTypes || []);
         var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
         document.getElementById('btnCreate').disabled = !canCreate;
         markServerOk();  // RPC success → server sống lại (netDot hồi phục — phủ cả trường hợp chỉ load options)
@@ -1181,10 +1208,10 @@
   var _previewTimer = null;
   function updateCreatePreview() {
     var station = document.getElementById('fStation').value;
-    var slotCode = multiVal('fSlotCode');
-    var team = multiVal('fTeam');
+    var slotCode = getSelectedChips('fSlotCode');
+    var team = getSelectedChips('fTeam');
     var date = document.getElementById('fDate').value;
-    var contractType = multiVal('fContractType');
+    var contractType = getSelectedChips('fContractType');
     var cntEl = document.getElementById('createPreviewCount');
     if (!cntEl) return;
     if (!station || !slotCode.length || !team.length) {
@@ -1203,7 +1230,7 @@
     }, 400);
   }
   function initCreatePreview() {
-    ['fStation', 'fSlotCode', 'fTeam', 'fDate', 'fContractType'].forEach(function (id) {
+    ['fStation', 'fDate'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('change', updateCreatePreview);
     });
@@ -1226,18 +1253,48 @@
       sel.appendChild(o);
     });
   }
-  // Đọc giá trị select (multiple → mảng, single → string) — cho fSlotCode/fTeam.
-  function multiVal(id) {
-    var sel = document.getElementById(id);
-    if (!sel) return '';
-    if (sel.multiple) {
-      var out = [];
-      for (var i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].selected && sel.options[i].value) out.push(sel.options[i].value);
-      }
-      return out;
+  // ===== Chip filter (modal tạo task v2) — một chạm toggle, dễ dùng trên kiosk touch =====
+  function fillChips(id, values) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    group.innerHTML = '';
+    (values || []).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = v;
+      b.dataset.value = v;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        b.classList.toggle('selected');
+        b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
+        updateChipCount(id);
+        updateCreatePreview();
+      });
+      group.appendChild(b);
+    });
+  }
+  function getSelectedChips(id) {
+    var group = document.getElementById(id);
+    if (!group) return [];
+    var out = [];
+    var chips = group.querySelectorAll('.chip.selected');
+    for (var i = 0; i < chips.length; i++) out.push(chips[i].dataset.value);
+    return out;
+  }
+  function updateChipCount(id) {
+    var countEl = document.getElementById('count' + id.slice(1));
+    if (countEl) {
+      var n = getSelectedChips(id).length;
+      countEl.textContent = n ? 'Đã chọn: ' + n : '';
     }
-    return sel.value;
+  }
+  function resetChips(id) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    var chips = group.querySelectorAll('.chip.selected');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('selected');
+    updateChipCount(id);
   }
 
   function loadTaskList() {
@@ -1302,10 +1359,10 @@
     if (BUSY) return;
     var input = {
       station: document.getElementById('fStation').value,
-      slotCode: multiVal('fSlotCode'),
-      team: multiVal('fTeam'),
+      slotCode: getSelectedChips('fSlotCode'),
+      team: getSelectedChips('fTeam'),
       date: document.getElementById('fDate').value,
-      contractType: multiVal('fContractType')
+      contractType: getSelectedChips('fContractType')
     };
     if (!input.station || !input.slotCode.length || !input.team.length) {
       showToast('Vui lòng chọn đủ Station, Team và Ca', true);
