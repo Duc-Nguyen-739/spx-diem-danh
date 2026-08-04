@@ -55,20 +55,39 @@ function normalizeStaffId(id) {
 
 /**
  * Chuẩn hóa ngày vào làm (StaffData 'Date') về yyyy-MM-dd (ISO — sort string đúng
- * thứ tự). StaffData xuất raw "8/1/2026" hoặc "26-07-2026" — đây là STRING, không
- * phải Date object; normalize NGAY tại nguồn parse để dropdown/filter/log nhất quán.
+ * thứ tự). StaffData có 3 dạng:
+ *  - Date object thật (cell sheet là ngày → getValues trả Date): "Mon Aug 03 2026..."
+ *  - String "8/1/2026" / "26-07-2026"
+ * normalize NGAY tại nguồn parse để dropdown/filter/log nhất quán.
+ * KHÔNG dùng Utilities.formatDate (CsvUtil pure — Node test chạy được).
  * @param {*} date
  * @returns {string}
  */
 function normalizeStaffDate_(date) {
   if (date === undefined || date === null) return '';
+  // Dạng 1: Date object thật — format trực tiếp (getFullYear/getMonth/getDate local)
+  if (date instanceof Date && !isNaN(date.getTime())) {
+    return date.getFullYear() + '-'
+      + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
+      + ('0' + date.getDate()).slice(-2);
+  }
   const s = String(date).trim();
+  // Dạng 2: "8/1/2026" / "26-07-2026" / "2026-01-08"
   const m = s.match(/^(\d{1,2})[/\-.]?(\d{1,2})[/\-.]?(\d{2,4})$/);
-  if (!m) return s;
-  const dd = ('0' + m[1]).slice(-2);
-  const mm = ('0' + m[2]).slice(-2);
-  const yy = m[3].length === 2 ? '20' + m[3] : m[3];
-  return yy + '-' + mm + '-' + dd;
+  if (m) {
+    const dd = ('0' + m[1]).slice(-2);
+    const mm = ('0' + m[2]).slice(-2);
+    const yy = m[3].length === 2 ? '20' + m[3] : m[3];
+    return yy + '-' + mm + '-' + dd;
+  }
+  // Dạng 3: string kiểu JS "Mon Aug 03 2026 00:00:00 GMT+0700 (Indochina Time)"
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    return dt.getFullYear() + '-'
+      + ('0' + (dt.getMonth() + 1)).slice(-2) + '-'
+      + ('0' + dt.getDate()).slice(-2);
+  }
+  return s;
 }
 
 /**

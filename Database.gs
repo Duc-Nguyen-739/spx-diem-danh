@@ -113,16 +113,10 @@ function formatDateTime_(date) {
 /** Date = ngày vào làm (StaffData) — format yyyy-MM-dd (ISO — sort string đúng thứ tự). */
 function formatDateShort_(date) {
   if (!date) return '';
-  // Cột DATE ghi STRING từ StaffData (vd "8/1/2026") — KHÔNG phải Date object
-  // (khác timeRef/timeScan là Date). Utilities.formatDate yêu cầu Date — string sẽ
-  // throw/đổi ngày-tháng → pass-through: parse [ngày][tháng][năm] → yyyy-MM-dd.
-  const s = String(date).trim();
-  const m = s.match(/^(\d{1,2})[/\-.]?(\d{1,2})[/\-.]?(\d{2,4})$/);
-  if (!m) return s;
-  const dd = ('0' + m[1]).slice(-2);
-  const mm = ('0' + m[2]).slice(-2);
-  const yy = m[3].length === 2 ? '20' + m[3] : m[3];
-  return yy + '-' + mm + '-' + dd;
+  // Ủy quyền cho normalizeStaffDate_ (CsvUtil) — xử lý cả Date object thật (dữ liệu
+  // cũ trong sheet: "Mon Aug 03 2026 00:00:00 GMT+0700") lẫn string "8/1/2026".
+  // 1 nguồn sự thật — tránh 2 bộ regex lệch nhau.
+  return normalizeStaffDate_(date);
 }
 
 // ===== Config =====
