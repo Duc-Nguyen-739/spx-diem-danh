@@ -262,13 +262,16 @@ function filterStaffByGroup(staffList, group) {
   const slots = toFilterArray_(group && group.slotCode);
   const teams = toFilterArray_(group && group.team);
   const date = String((group && group.date) || '').trim();  // ngay vao lam (optional)
+  const contractTypes = toFilterArray_(group && group.contractType);
   return staffList.filter(function (s) {
     if (String(s.station || '').trim() !== station) return false;
     const sSlot = String(s.slotCode || '').trim();
     const sTeam = String(s.team || '').trim();
+    const sContract = String(s.contractType || '').trim();
     if (slots.length && slots.indexOf(sSlot) === -1) return false;
     if (teams.length && teams.indexOf(sTeam) === -1) return false;
     if (date && String(s.date || '').trim() !== date) return false;
+    if (contractTypes.length && contractTypes.indexOf(sContract) === -1) return false;
     return true;
   });
 }
