@@ -13,10 +13,10 @@ const SHEETS = {
 };
 
 /**
- * Spreadsheet chứa dữ liệu (user cung cấp — tạo bằng tài khoản cá nhân, sẽ đổi sau).
+ * Spreadsheet chứa dữ liệu (sheet mới user cung cấp 2026-08-04).
  * Nếu để rỗng: Database tự tạo 'RollCall v2 DB' khi chạy lần đầu.
  */
-const DEFAULT_SPREADSHEET_ID = '1NQQnLnVDITrUIII59ibk6vVfuDnMHKqsDtfGmHgjNYo';
+const DEFAULT_SPREADSHEET_ID = '1kL4Jr3E70NzU3l7wAr3oLve5rBAZ9AqdbvcvmABuVi0';
 
 // ===== Header StaffData (giữ đúng header Att.csv — index theo thứ tự cột) =====
 // Sheet StaffData lưu nguyên cấu trúc csv hệ thống (1 dòng = 1 NV–1 ca–1 station).
