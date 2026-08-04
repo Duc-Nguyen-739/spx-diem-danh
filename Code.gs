@@ -131,7 +131,7 @@ function getFilterOptions() {
     slotCodes: distinctValues(staffList, 'slotCode'),
     teams: distinctValues(staffList, 'team'),
     dates: distinctValues(staffList, 'date'),  // ngay vao lam — dropdown modal
-    contractTypes: distinctValues(staffList, 'contractType'),
+    contractTypes: CONTRACT_TYPES,
   };
 }
 
