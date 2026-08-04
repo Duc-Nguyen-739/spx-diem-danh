@@ -785,6 +785,10 @@
         <label for="fDate">Ngày vào làm (Date)</label>
         <select id="fDate"><option value="">-- Tất cả ngày --</option></select>
       </div>
+      <div>
+        <label for="fContractType">Loại hợp đồng — chọn nhiều</label>
+        <select id="fContractType" multiple size="3"></select>
+      </div>
     </div>
     <div id="createPreview" style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);">
       <div id="createPreviewCount">Chọn Station / Ca / Team để xem số lượng NV</div>
@@ -1047,7 +1051,7 @@
     var m = document.getElementById('createModal');
     if (!m) return;
     // P2: reset select về placeholder mỗi lần mở — không giữ giá trị ca cũ (tránh tạo nhầm task)
-    ['fStation', 'fSlotCode', 'fTeam', 'fDate'].forEach(function (id) {
+    ['fStation', 'fSlotCode', 'fTeam', 'fDate', 'fContractType'].forEach(function (id) {
       var s = document.getElementById(id);
       if (s) s.value = '';
     });
@@ -1163,6 +1167,7 @@
         fillSelect('fSlotCode', res.slotCodes, '-- Chọn ca --');
         fillSelect('fTeam', res.teams, '-- Chọn team --');
         fillSelect('fDate', res.dates, '-- Tất cả ngày --');
+        fillSelect('fContractType', res.contractTypes || [], '-- Chọn loại HĐ --');
         var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
         document.getElementById('btnCreate').disabled = !canCreate;
         markServerOk();  // RPC success → server sống lại (netDot hồi phục — phủ cả trường hợp chỉ load options)
@@ -1179,6 +1184,7 @@
     var slotCode = multiVal('fSlotCode');
     var team = multiVal('fTeam');
     var date = document.getElementById('fDate').value;
+    var contractType = multiVal('fContractType');
     var cntEl = document.getElementById('createPreviewCount');
     if (!cntEl) return;
     if (!station || !slotCode.length || !team.length) {
@@ -1193,11 +1199,11 @@
           cntEl.textContent = 'Số NV khớp: ' + res.count;
         })
         .withFailureHandler(function (err) { markServerFail(); cntEl.textContent = 'Lỗi preview: ' + err.message; })
-        .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date });
+        .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date, contractType: contractType });
     }, 400);
   }
   function initCreatePreview() {
-    ['fStation', 'fSlotCode', 'fTeam', 'fDate'].forEach(function (id) {
+    ['fStation', 'fSlotCode', 'fTeam', 'fDate', 'fContractType'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('change', updateCreatePreview);
     });
@@ -1298,7 +1304,8 @@
       station: document.getElementById('fStation').value,
       slotCode: multiVal('fSlotCode'),
       team: multiVal('fTeam'),
-      date: document.getElementById('fDate').value
+      date: document.getElementById('fDate').value,
+      contractType: multiVal('fContractType')
     };
     if (!input.station || !input.slotCode.length || !input.team.length) {
       showToast('Vui lòng chọn đủ Station, Team và Ca', true);
