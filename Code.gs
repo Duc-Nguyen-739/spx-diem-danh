@@ -131,6 +131,7 @@ function getFilterOptions() {
     slotCodes: distinctValues(staffList, 'slotCode'),
     teams: distinctValues(staffList, 'team'),
     dates: distinctValues(staffList, 'date'),  // ngay vao lam — dropdown modal
+    contractTypes: distinctValues(staffList, 'contractType'),
   };
 }
 
@@ -142,6 +143,7 @@ function previewStaffApi(input) {
     slotCode: input && input.slotCode,
     team: input && input.team,
     date: input && input.date,
+    contractType: input && input.contractType,
   });
   // Tái dùng dedupeStaffByGroup (đã test) — đảm bảo count preview khớp count tạo task thật.
   const deduped = dedupeStaffByGroup(filtered);
