@@ -40,7 +40,12 @@ function createReconcileTask(input) {
     ? (input.contractType).map(String).join(', ')
     : String((input && input.contractType) || '').trim();
   const filterContractTypes = Array.isArray(input && input.contractType) ? input.contractType : (contractType ? [contractType] : []);
-  const createdBy = String((input && input.createdBy) || '').trim() || 'web';
+  let createdBy = 'web';
+  try {
+    const active = String(Session.getActiveUser().getEmail() || '').trim();
+    if (active) createdBy = active;
+  } catch (e) { /* fallback */ }
+  if (createdBy === 'web') createdBy = String((input && input.createdBy) || '').trim() || 'web';
 
   if (!station || !filterSlots.length || !filterTeams.length) {
     return { ok: false, taskId: null, count: 0, message: 'Thiếu station/slotCode/team' };

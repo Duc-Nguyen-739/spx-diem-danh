@@ -1508,11 +1508,9 @@
     if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
     var pasteWrap = document.getElementById('mealPasteWrap');
     if (pasteWrap) pasteWrap.style.display = isMealMove ? '' : 'none';
-    // Reconcile (Điểm Danh Ca): ẩn meal-move columns (Giờ Ra, Giờ Vào, Nhà Thầu, Số phút)
-    var mmCols = document.querySelectorAll('.mm-col');
-    for (var ci = 0; ci < mmCols.length; ci++) {
-      mmCols[ci].style.display = isMealMove ? '' : 'none';
-    }
+    // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
+    // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
+    renderScanHeader(isMealMove);
     if (isMealMove) {
       // Permission: chỉ creator được mode 'ra'; người khác → khóa 'vao'
       var creator = String(data.task.createdBy || '').trim().toLowerCase();
@@ -1611,6 +1609,39 @@
     // Counter "Ra ngoài"
     var wrap = document.getElementById('cOutWrap');
     if (wrap) wrap.style.display = show ? '' : 'none';
+  }
+
+  // Render header bảng scan theo loại task — đảm bảo header khớp body
+  // (reconcile = 7 cột: Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh;
+  //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Nhà Thầu/Số phút).
+  function renderScanHeader(isMealMove) {
+    var thead = document.querySelector('#scanTable thead');
+    if (!thead) return;
+    if (isMealMove) {
+      thead.innerHTML = '<tr>' +
+        '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
+        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Vào</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Nhà Thầu</th>' +
+        '<th scope="col" data-sort="8" class="sortable" aria-sort="none">Số phút</th>' +
+        '<th scope="col" data-sort="9" class="sortable" aria-sort="none">Trạng thái</th>' +
+        '</tr>';
+    } else {
+      thead.innerHTML = '<tr>' +
+        '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
+        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Trạng thái</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ điểm danh</th>' +
+        '</tr>';
+    }
+    updateSortIndicators();
   }
 
   // meal-move: set mode Ra/Vào — toggle UI + state
