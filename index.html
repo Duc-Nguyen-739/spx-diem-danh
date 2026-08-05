@@ -1499,13 +1499,20 @@
       esc(TT_LABEL[data.task.taskType] || 'Task') +
       (isMealMove ? '' : ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team)) +
       (isMealMove && data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '') +
-      (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở');
-    // meal-move: hiện cột Giờ Ra / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
+      (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
+      // Hiện email creator cho mọi loại task (giống meal-move)
+      (data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '');
+    // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài" + paste box
     toggleMealColumns(isMealMove);
     var toggleWrap = document.getElementById('mealToggleWrap');
     if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
     var pasteWrap = document.getElementById('mealPasteWrap');
     if (pasteWrap) pasteWrap.style.display = isMealMove ? '' : 'none';
+    // Reconcile (Điểm Danh Ca): ẩn meal-move columns (Giờ Ra, Giờ Vào, Nhà Thầu, Số phút)
+    var mmCols = document.querySelectorAll('.mm-col');
+    for (var ci = 0; ci < mmCols.length; ci++) {
+      mmCols[ci].style.display = isMealMove ? '' : 'none';
+    }
     if (isMealMove) {
       // Permission: chỉ creator được mode 'ra'; người khác → khóa 'vao'
       var creator = String(data.task.createdBy || '').trim().toLowerCase();
@@ -1622,7 +1629,7 @@
 
   // C3: state lọc + sort bảng scan — mặc định "Giờ quét" MỚI NHẤT lên đầu (col 5, desc).
   var SCAN_FILTER = { q: '', status: '' };
-  var SCAN_SORT = { col: 7, asc: false };  // Giờ quét (mới nhất lên đầu) — col 7 sau khi thêm Station(4)/Date(5)
+  var SCAN_SORT = { col: 5, asc: false };  // Trạng thái (mới nhất lên đầu) — col 5 cho reconcile, col 9 cho meal-move
   var STATUS_ORDER = {};  // P3: dựng từ STATUS_C — tránh hardcode label
   STATUS_ORDER[STATUS_C.PENDING] = 0;
   STATUS_ORDER[''] = 0;
@@ -1648,32 +1655,30 @@
       out.push(r);
     });
     var col = SCAN_SORT.col, asc = SCAN_SORT.asc;
+    var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
     out.sort(function (a, b) {
       var va, vb;
-      if (col === 9) {
-        va = statusRank(a.status);
-        vb = statusRank(b.status);
-      } else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
-      else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
-      else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
-      else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
-      else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
-      else if (col === 5) {
-        // Giờ Ra — sort theo timeRaEpoch (số) CHÍNH XÁC; chưa có Ra = epoch 0
-        va = Number(a.timeRaEpoch) || 0;
-        vb = Number(b.timeRaEpoch) || 0;
-      } else if (col === 6) {
-        // Giờ Vào — sort theo timeScanEpoch (số) CHÍNH XÁC; chưa có Vào = epoch 0
-        va = Number(a.timeScanEpoch) || 0;
-        vb = Number(b.timeScanEpoch) || 0;
-      } else if (col === 7) {
-        // Nhà Thầu — sort alphabetically
-        va = String(a.agency || '');
-        vb = String(b.agency || '');
-      } else if (col === 8) {
-        // Số phút — sort theo số
-        va = Number(a.durationMinutes) || 0;
-        vb = Number(b.durationMinutes) || 0;
+      if (isMealMove) {
+        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Giờ Ra, 6=Giờ Vào, 7=Nhà Thầu, 8=Số phút, 9=Trạng thái
+        if (col === 9) { va = statusRank(a.status); vb = statusRank(b.status); }
+        else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
+        else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
+        else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 5) { va = Number(a.timeRaEpoch) || 0; vb = Number(b.timeRaEpoch) || 0; }
+        else if (col === 6) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
+        else if (col === 7) { va = String(a.agency || ''); vb = String(b.agency || ''); }
+        else if (col === 8) { va = Number(a.durationMinutes) || 0; vb = Number(b.durationMinutes) || 0; }
+      } else {
+        // Reconcile (Điểm Danh Ca) columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Trạng Thái, 6=Giờ điểm danh
+        if (col === 5) { va = statusRank(a.status); vb = statusRank(b.status); }
+        else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
+        else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
+        else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 6) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
       }
       if (va === vb) return 0;
       var cmp = va < vb ? -1 : 1;
@@ -1746,18 +1751,34 @@
 
   function scanRowCells(r) {
     var badge = badgeFor(r.status);
-    var cells = [
-      '<td><b>' + esc(r.staffId) + '</b></td>',
-      '<td>' + esc(r.staffName || '') + '</td>',
-      '<td>' + esc(r.slotCode || '') + '</td>',
-      '<td>' + esc(r.team || '') + '</td>',
-      '<td>' + esc(r.station || '') + '</td>',
-      '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
-      '<td class="mm-col">' + esc(r.timeScanText || '') + '</td>',
-      '<td class="mm-col">' + esc(r.agency || '') + '</td>',
-      '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
-      '<td>' + badge + '</td>'
-    ];
+    var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
+    var cells;
+    if (isMealMove) {
+      // Meal-move: Mã NV | Tên NV | Ca | Team | Station | Giờ Ra | Giờ Vào | Nhà Thầu | Số phút | Trạng Thái
+      cells = [
+        '<td><b>' + esc(r.staffId) + '</b></td>',
+        '<td>' + esc(r.staffName || '') + '</td>',
+        '<td>' + esc(r.slotCode || '') + '</td>',
+        '<td>' + esc(r.team || '') + '</td>',
+        '<td>' + esc(r.station || '') + '</td>',
+        '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
+        '<td class="mm-col">' + esc(r.timeScanText || '') + '</td>',
+        '<td class="mm-col">' + esc(r.agency || '') + '</td>',
+        '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
+        '<td>' + badge + '</td>'
+      ];
+    } else {
+      // Reconcile (Điểm Danh Ca): Mã NV | Tên NV | Ca | Team | Station | Trạng Thái | Giờ điểm danh
+      cells = [
+        '<td><b>' + esc(r.staffId) + '</b></td>',
+        '<td>' + esc(r.staffName || '') + '</td>',
+        '<td>' + esc(r.slotCode || '') + '</td>',
+        '<td>' + esc(r.team || '') + '</td>',
+        '<td>' + esc(r.station || '') + '</td>',
+        '<td>' + badge + '</td>',
+        '<td>' + esc(r.timeScanText || '') + '</td>'
+      ];
+    }
     return cells;
   }
 
