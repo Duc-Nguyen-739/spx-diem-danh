@@ -718,7 +718,7 @@
         <div class="task-title" id="scanTaskTitle"></div>
         <div class="task-meta" id="scanTaskMeta"></div>
       </div>
-      <button class="btn btn-danger" id="btnFinish" onclick="finishTask()" aria-label="Kết thúc task">Kết thúc</button>
+      <button class="btn" id="btnFinish" onclick="finishTask()" aria-label="Hoàn thành task">Hoàn Thành</button>
     </div>
 
     <!-- Layout 2 cột: trái = quét + counters + scan card, phải = bảng NV -->
@@ -789,9 +789,10 @@
                 <th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>
                 <th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>
                 <th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>
-                <th scope="col" data-sort="6" class="sortable" aria-sort="none">Nhà Thầu</th>
-                <th scope="col" data-sort="7" class="sortable" aria-sort="none">Số phút</th>
-                <th scope="col" class="sortable" data-sort="8" aria-sort="none">Trạng thái</th>
+                <th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Vào</th>
+                <th scope="col" data-sort="7" class="sortable" aria-sort="none">Nhà Thầu</th>
+                <th scope="col" data-sort="8" class="sortable" aria-sort="none">Số phút</th>
+                <th scope="col" class="sortable" data-sort="9" aria-sort="none">Trạng thái</th>
                 </tr>
               </thead>
               <tbody id="scanTableBody"></tbody>
@@ -1649,7 +1650,7 @@
     var col = SCAN_SORT.col, asc = SCAN_SORT.asc;
     out.sort(function (a, b) {
       var va, vb;
-      if (col === 8) {
+      if (col === 9) {
         va = statusRank(a.status);
         vb = statusRank(b.status);
       } else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
@@ -1662,10 +1663,14 @@
         va = Number(a.timeRaEpoch) || 0;
         vb = Number(b.timeRaEpoch) || 0;
       } else if (col === 6) {
+        // Giờ Vào — sort theo timeScanEpoch (số) CHÍNH XÁC; chưa có Vào = epoch 0
+        va = Number(a.timeScanEpoch) || 0;
+        vb = Number(b.timeScanEpoch) || 0;
+      } else if (col === 7) {
         // Nhà Thầu — sort alphabetically
         va = String(a.agency || '');
         vb = String(b.agency || '');
-      } else if (col === 7) {
+      } else if (col === 8) {
         // Số phút — sort theo số
         va = Number(a.durationMinutes) || 0;
         vb = Number(b.durationMinutes) || 0;
@@ -1748,6 +1753,7 @@
       '<td>' + esc(r.team || '') + '</td>',
       '<td>' + esc(r.station || '') + '</td>',
       '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
+      '<td class="mm-col">' + esc(r.timeScanText || '') + '</td>',
       '<td class="mm-col">' + esc(r.agency || '') + '</td>',
       '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
       '<td>' + badge + '</td>'
@@ -2170,6 +2176,34 @@
     } else {
       btn.disabled = !CURRENT_TASK || CURRENT_TASK.status !== TASK_STATUS_C.OPEN;
       btn.title = '';
+    }
+    // Cập nhật label nút theo trạng thái task:
+    // OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ); DONE → "Mở lại" (xám)
+    if (btn && CURRENT_TASK) {
+      var hasRa = false;
+      (CURRENT_LOG || []).forEach(function (r) {
+        if (Number(r.timeRaEpoch) > 0) hasRa = true;
+      });
+      var isDone = CURRENT_TASK.status === TASK_STATUS_C.DONE;
+      if (isDone) {
+        btn.textContent = 'Mở lại';
+        btn.className = 'btn btn-ghost';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      } else if (hasRa) {
+        btn.textContent = 'Kết Thúc';
+        btn.className = 'btn btn-danger';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      } else {
+        btn.textContent = 'Hoàn Thành';
+        btn.className = 'btn';
+        btn.style.background = '#2e7d32';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#2e7d32';
+      }
     }
     updateQueueFullState();
   }
