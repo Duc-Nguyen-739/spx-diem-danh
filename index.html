@@ -576,6 +576,14 @@
     .chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
     .chip.selected::before { content: "\2713  "; font-weight: 700; }
     .chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  /* ===== Meal-move UI ===== */
+  .badge.out { background: #fff3e0; color: #e65100; border: 1px solid #ffab40; }
+  .meal-toggle-btn { font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; padding: 4px 12px; border-radius: var(--card-radius); font-size: 13px; }
+  .meal-toggle-btn.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .meal-toggle-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .counter.out .num { color: #e65100; }
+  .counter.out .lbl { color: #e65100; }
+  .mm-col { font-size: 12px; }
 
     /* P2: tôn trọng prefers-reduced-motion — tắt animation khi user yêu cầu */
     @media (prefers-reduced-motion: reduce) {
@@ -659,6 +667,7 @@
       <div class="task-list-toolbar">
         <h2 class="section-heading">+ ĐỐI CHIẾU DANH SÁCH</h2>
         <button class="btn" id="btnCreate" onclick="openCreateModal()">+ Tạo task</button>
+        <button class="btn btn-ghost" id="btnCreateMeal" onclick="openCreateMealModal()">Đi ăn + Move</button>
       </div>
       <p style="color:var(--muted);font-size:14px;margin:0;">Tạo task mới: chọn <b>Station / Ca / Team</b> trong popup — NV thuộc nhóm sẽ được đối chiếu khi quét.</p>
     </div>
@@ -718,12 +727,19 @@
         <div class="card">
           <div class="counters">
             <div class="counter scanned"><div class="num" id="cScanned">0</div><div class="lbl">Đã quét</div></div>
+            <div class="counter out" id="cOutWrap" style="display:none;"><div class="num" id="cOut">0</div><div class="lbl">Ra ngoài</div></div>
             <div class="counter absent"><div class="num" id="cAbsent">0</div><div class="lbl">Chưa điểm danh</div></div>
             <div class="counter extra"><div class="num" id="cExtra">0</div><div class="lbl">Dư</div></div>
           </div>
         </div>
 
         <div class="card">
+          <div class="meal-toggle-wrap" id="mealToggleWrap" style="display:none;align-items:center;gap:10px;margin-bottom:10px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text);">Mode:</span>
+            <button class="btn btn-sm meal-toggle-btn selected" id="btnMealModeRa" onclick="setMealMode('ra')" style="min-width:60px;">Ra</button>
+            <button class="btn btn-sm meal-toggle-btn" id="btnMealModeVao" onclick="setMealMode('vao')" style="min-width:60px;">Vào</button>
+            <small id="mealCreatorLock" style="color:var(--muted);font-size:12px;display:none;">Chỉ người tạo task được quét Ra — bạn đang ở chế độ Vào</small>
+          </div>
           <div class="scan-row">
             <div class="scan-input-wrap">
               <input type="text" id="scanInput" placeholder="Quét mã nhân viên…" aria-label="Quét mã nhân viên" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -766,7 +782,10 @@
                 <th scope="col" data-sort="5" class="sortable" aria-sort="none">Date</th>
                 <th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ có mặt</th>
                 <th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ quét</th>
-                <th scope="col" data-sort="8" class="sortable" aria-sort="none">Trạng thái</th>
+                <th scope="col" id="thTimeRa" class="mm-col" data-sort="8" aria-sort="none" style="display:none;">Giờ Ra</th>
+                <th scope="col" id="thAgency" class="mm-col" data-sort="9" aria-sort="none" style="display:none;">Nhà Thầu</th>
+                <th scope="col" id="thDuration" class="mm-col" data-sort="10" aria-sort="none" style="display:none;">Số phút</th>
+                <th scope="col" class="sortable" data-sort="11" aria-sort="none">Trạng thái</th>
                 </tr>
               </thead>
               <tbody id="scanTableBody"></tbody>
@@ -826,6 +845,28 @@
   </div>
 </div>
 
+
+<!-- ===== Modal tạo task meal-move (Đi ăn + Move) — paste danh sách mã Ops ===== -->
+<div id="createMealModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="createMealModalTitle" onclick="if(event.target===this)closeCreateMealModal()">
+  <div class="about-dialog" style="max-width:520px;">
+    <h2 id="createMealModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task Đi ăn + Move</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Dán danh sách mã <b>Ops</b> (mỗi dòng 1 mã) — NV có trong DB sẽ được đối chiếu, mã lạ vẫn ghi nhận.</p>
+    <div class="chip-field" style="margin-top:0;">
+      <label for="mealOpsInput">Danh sách mã Ops <span class="chip-count" id="mealOpsCount" style="color:var(--muted);font-weight:400;"></span></label>
+      <textarea id="mealOpsInput" rows="8" style="width:100%;font:inherit;padding:10px;border:1px solid var(--border);border-radius:var(--card-radius);box-sizing:border-box;resize:vertical;font-family:monospace;font-size:13px;line-height:1.5;" placeholder="OpsGHN00123&#10;OpsHCM00456&#10;OpsDN00789&#10;…" aria-label="Dán danh sách mã Ops"></textarea>
+      <small style="color:var(--muted);display:block;margin-top:4px;">Mỗi dòng 1 mã. Tự động bỏ trùng. Chỉ chấp nhận mã bắt đầu "Ops".</small>
+    </div>
+    <div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);">
+      <div id="mealPreviewCount">Dán mã Ops để xem số lượng hợp lệ</div>
+      <div id="mealPreviewDupes" style="margin-top:2px;font-size:12px;color:var(--danger,#e55);"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="closeCreateMealModal()">Huỷ</button>
+      <button class="btn" id="btnMealSubmit" onclick="createMealMoveTask()">+ Tạo task</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal confirm dùng chung (thay alert/confirm trình duyệt — giữ UX đồng nhất) -->
 <div id="confirmModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="confirmModalTitle" onclick="if(event.target===this)closeConfirmModal()">
   <div class="about-dialog" style="max-width:380px;">
@@ -856,7 +897,10 @@
 
   // P3: hằng số status — KHÔNG hardcode chuỗi tiếng Việt trong logic (đổi label = vỡ logic).
   // Khớp STATUS trong Config.gs; label hiển thị badge dùng đúng chuỗi này.
-  var STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư' };
+  var STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' };
+  // meal-move: mode quét hiện tại ('ra' | 'vao'); mặc định 'ra' (creator tạo task)
+  var MEAL_MODE = 'ra';
+  var TT_LABEL_MEAL = { 'meal-move': 'Đi ăn + Move' };
   // Task status — khớp TASK_STATUS trong Config.gs
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 
@@ -1096,6 +1140,11 @@
   function anyModalOpen() {
     return document.querySelector('.about-overlay.open') !== null;
   }
+  // Cập nhật preview meal-move khi gõ
+  document.addEventListener('DOMContentLoaded', function () {
+    var ta = document.getElementById('mealOpsInput');
+    if (ta) ta.addEventListener('input', updateMealPreview);
+  });
   // Modal confirm dùng chung — thay alert/confirm trình duyệt.
   // showConfirm(title, message, onConfirm): mở modal, bấm "Đồng ý" → chạy onConfirm.
   var confirmOnOk = null;
@@ -1122,6 +1171,8 @@
     if (e.key === 'Escape') {
       var m = document.getElementById('createModal');
       if (m && m.classList.contains('open')) { closeCreateModal(); return; }
+      m = document.getElementById('createMealModal');
+      if (m && m.classList.contains('open')) { closeCreateMealModal(); return; }
       m = document.getElementById('confirmModal');
       if (m && m.classList.contains('open')) { closeConfirmModal(); return; }
       m = document.getElementById('aboutModal');
@@ -1442,10 +1493,26 @@
     CURRENT_LOG = data.log || [];
     document.getElementById('scanTaskTitle').textContent = data.task.taskId;
     var metaEl = document.getElementById('scanTaskMeta');
-    var TT_LABEL = { reconcile: 'Đối chiếu' };
+    var TT_LABEL = { reconcile: 'Đối chiếu', 'meal-move': TT_LABEL_MEAL['meal-move'] };
+    var isMealMove = data.task.taskType === 'meal-move';
     metaEl.innerHTML =
-      esc(TT_LABEL[data.task.taskType] || 'Task') + ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team) +
+      esc(TT_LABEL[data.task.taskType] || 'Task') +
+      (isMealMove ? '' : ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team)) +
+      (isMealMove && data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '') +
       (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở');
+    // meal-move: hiện cột Giờ Ra / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
+    toggleMealColumns(isMealMove);
+    var toggleWrap = document.getElementById('mealToggleWrap');
+    if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
+    if (isMealMove) {
+      // Permission: chỉ creator được mode 'ra'; người khác → khóa 'vao'
+      var creator = String(data.task.createdBy || '').trim().toLowerCase();
+      var me = '';
+      try { me = String(google.script.run || ''); } catch (e) {}
+      // Tạm thời: không biết email client (server validate) → mặc định 'ra' cho tất cả;
+      // Server resolveMealMoveMode_ sẽ ép 'vao' nếu không phải creator.
+      setMealMode(MEAL_MODE || 'ra');
+    }
     if (skel) skel.style.display = 'none';
     if (tbl) tbl.style.display = '';
     renderScanTable(data.log);
@@ -1516,11 +1583,38 @@
     document.getElementById('cScanned').textContent = c.scanned || 0;
     document.getElementById('cAbsent').textContent = c.absent || 0;
     document.getElementById('cExtra').textContent = c.extra || 0;
+    var outEl = document.getElementById('cOut');
+    if (outEl) outEl.textContent = c.out || 0;
     // Label động theo trạng thái task: đang mở → "Chưa điểm danh" (chưa quét ≠ vắng);
     // đã kết thúc → "Vắng" (markUnscannedAbsent_ đã chốt trạng thái).
     var lbl = document.querySelector('.counter.absent .lbl');
     if (lbl) {
       lbl.textContent = (!CURRENT_TASK || CURRENT_TASK.status === TASK_STATUS_C.OPEN) ? 'Chưa điểm danh' : 'Vắng';
+    }
+  }
+
+  // meal-move: hiện/ẩn cột Giờ Ra / Nhà Thầu / Số phút trong bảng scan
+  function toggleMealColumns(show) {
+    var cols = document.querySelectorAll('.mm-col');
+    for (var i = 0; i < cols.length; i++) {
+      cols[i].style.display = show ? '' : 'none';
+    }
+    // Counter "Ra ngoài"
+    var wrap = document.getElementById('cOutWrap');
+    if (wrap) wrap.style.display = show ? '' : 'none';
+  }
+
+  // meal-move: set mode Ra/Vào — toggle UI + state
+  function setMealMode(mode) {
+    MEAL_MODE = mode;
+    var btnRa = document.getElementById('btnMealModeRa');
+    var btnVao = document.getElementById('btnMealModeVao');
+    if (btnRa) { btnRa.classList.toggle('selected', mode === 'ra'); }
+    if (btnVao) { btnVao.classList.toggle('selected', mode === 'vao'); }
+    // Cập nhật placeholder scan
+    var inp = document.getElementById('scanInput');
+    if (inp) {
+      inp.placeholder = mode === 'ra' ? 'Quét mã — ghi Ra…' : 'Quét mã — ghi Vào…';
     }
   }
 
@@ -1641,7 +1735,7 @@
 
   function scanRowCells(r) {
     var badge = badgeFor(r.status);
-    return [
+    var cells = [
       '<td><b>' + esc(r.staffId) + '</b></td>',
       '<td>' + esc(r.staffName) + '</td>',
       '<td>' + esc(r.slotCode) + '</td>',
@@ -1650,8 +1744,12 @@
       '<td>' + esc(r.dateText || '') + '</td>',
       '<td>' + esc(r.timeRefText || '') + '</td>',
       '<td>' + esc(r.timeScanText || '') + '</td>',
+      '<td class="mm-col" style="display:none;">' + esc(r.timeRaText || '') + '</td>',
+      '<td class="mm-col" style="display:none;">' + esc(r.agency || '') + '</td>',
+      '<td class="mm-col" style="display:none;">' + esc(r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
       '<td>' + badge + '</td>'
     ];
+    return cells;
   }
 
   function updateSortIndicators() {
@@ -1670,6 +1768,7 @@
     if (status === STATUS_C.PRESENT) return '<span class="badge present">Có mặt</span>';
     if (status === STATUS_C.ABSENT) return '<span class="badge absent">Vắng</span>';
     if (status === STATUS_C.EXTRA) return '<span class="badge extra">Dư</span>';
+    if (status === STATUS_C.OUT) return '<span class="badge out">Ra ngoài</span>';
     return esc(status || '');
   }
 
@@ -1688,16 +1787,269 @@
   // đếm theo status text: tránh lệch khi dòng có timeScan nhưng status chưa cập nhật.
   // Dùng cho: optimistic bump (submitScan), rollback/sync (processScanQueue).
   function recountFromLog() {
-    var s = 0, e = 0, a = 0;
+    var s = 0, e = 0, a = 0, out = 0;
     (CURRENT_LOG || []).forEach(function (r) {
       // P2: epoch là nguồn sự thật duy nhất (khớp server computeCounters)
       var hasScan = Number(r.timeScanEpoch) > 0;
+      if (r.status === STATUS_C.OUT) { out++; return; }
       if (hasScan) s++;
       if (r.status === STATUS_C.EXTRA) e++;
       else if (!hasScan) a++;
     });
-    CURRENT_COUNTERS = { scanned: s, absent: a, extra: e };
+    // meal-move: scanned = đã có Vào; out = đã Ra chưa Vào
+    CURRENT_COUNTERS = { scanned: s, absent: a, extra: e, out: out };
     renderCounters(CURRENT_COUNTERS);
+  }
+
+  // ===== Meal-move: modal tạo task + preview + handlers =====
+  function openCreateMealModal() {
+    var m = document.getElementById('createMealModal');
+    if (!m) return;
+    // Reset
+    var ta = document.getElementById('mealOpsInput');
+    if (ta) ta.value = '';
+    var dupes = document.getElementById('mealPreviewDupes');
+    if (dupes) dupes.textContent = '';
+    updateMealPreview();
+    m.setAttribute('aria-hidden', 'false');
+    m.classList.add('open');
+    if (ta) ta.focus();
+  }
+  function closeCreateMealModal() {
+    var m = document.getElementById('createMealModal');
+    if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+    var btn = document.getElementById('btnCreateMeal');
+    if (btn && btn.focus) btn.focus();
+  }
+  function updateMealPreview() {
+    var ta = document.getElementById('mealOpsInput');
+    if (!ta) return;
+    var lines = ta.value.split(/[\n,;\t]/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var seen = {}, valid = [], dupes = 0;
+    lines.forEach(function (c) {
+      if (!/^ops/i.test(c)) return;
+      var id = c.toUpperCase();
+      if (seen[id]) { dupes++; return; }
+      seen[id] = true;
+      valid.push(id);
+    });
+    var cnt = document.getElementById('mealOpsCount');
+    if (cnt) cnt.textContent = valid.length ? (valid.length + ' mã hợp lệ') : '';
+    var preview = document.getElementById('mealPreviewCount');
+    if (preview) {
+      preview.textContent = valid.length
+        ? valid.length + ' mã Ops hợp lệ' + (lines.length > valid.length ? ' (+' + (lines.length - valid.length - dupes) + ' không hợp lệ)' : '')
+        : 'Dán mã Ops để xem số lượng hợp lệ';
+    }
+    var dupesEl = document.getElementById('mealPreviewDupes');
+    if (dupesEl) dupesEl.textContent = dupes > 0 ? ('Bỏ trùng: ' + dupes + ' mã') : '';
+    var btn = document.getElementById('btnMealSubmit');
+    if (btn) btn.disabled = valid.length === 0;
+  }
+  function createMealMoveTask() {
+    if (BUSY) return;
+    var ta = document.getElementById('mealOpsInput');
+    if (!ta) return;
+    var lines = ta.value.split(/[\n,;\t]/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!lines.length) { showToast('Dán ít nhất 1 mã Ops', true); return; }
+    BUSY = true;
+    var btn = document.getElementById('btnMealSubmit');
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          closeCreateMealModal();
+          showToast(res.message + ' — ' + res.count + ' NV', false);
+          loadTaskList();
+          openScan(res.taskId);
+        } else {
+          showToast(res.message, true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        showToast('Lỗi tạo task: ' + err.message, true);
+      })
+      .createMealMoveTaskApi({ staffIds: lines, createdBy: '' });
+  }
+
+  // ===== Meal-move: submitScan branch (Ra/Vào mode + 10s rule + optimistic) =====
+  function submitScanMealMove(input, staffId, target) {
+    // 10s rule client-side: quét cùng mã trong 10s → "Trùng mã"
+    if (target && target.timeRaEpoch && MEAL_MODE === 'ra') {
+      var diffRa = Date.now() - Number(target.timeRaEpoch);
+      if (diffRa < 10000) {
+        showToast('Trùng mã — quét lại sau 10 giây', true);
+        playBeep('error');
+        showScanCard('Trùng mã', target, true);
+        input.value = '';
+        input.focus();
+        return;
+      }
+    }
+    if (target && target.timeScanEpoch && MEAL_MODE === 'vao') {
+      var diffVao = Date.now() - Number(target.timeScanEpoch);
+      if (diffVao < 10000) {
+        showToast('Trùng mã — quét lại sau 10 giây', true);
+        playBeep('error');
+        showScanCard('Trùng mã', target, true);
+        input.value = '';
+        input.focus();
+        return;
+      }
+    }
+    // Đã đủ Ra+Vào → reject
+    if (target && target.timeRaText && target.timeScanText) {
+      showToast('Đã điểm danh — đủ Ra + Vào', true);
+      playBeep('error');
+      showScanCard('Đã điểm danh', target, true);
+      input.value = '';
+      input.focus();
+      return;
+    }
+
+    input.value = '';
+    input.focus();
+
+    var item = {
+      staffId: staffId,
+      taskId: CURRENT_TASK.taskId,
+      target: target,
+      mode: MEAL_MODE,  // 'ra' | 'vao'
+      optimisticNew: false,
+      oldStatus: null,
+      oldTimeRaText: null,
+      oldTimeRaEpoch: null,
+      oldTimeScanText: null,
+      oldTimeScanEpoch: null,
+    };
+
+    if (target) {
+      item.oldStatus = target.status;
+      item.oldTimeRaText = target.timeRaText;
+      item.oldTimeRaEpoch = target.timeRaEpoch;
+      item.oldTimeScanText = target.timeScanText;
+      item.oldTimeScanEpoch = target.timeScanEpoch;
+
+      if (MEAL_MODE === 'ra') {
+        // Ra: ghi timeRa, status OUT
+        target.status = STATUS_C.OUT;
+        target.timeRaText = fmtDate(new Date());
+        target.timeRaEpoch = Date.now();
+      } else {
+        // Vào: ghi timeScan, status PRESENT + duration
+        target.status = STATUS_C.PRESENT;
+        target.timeScanText = fmtDate(new Date());
+        target.timeScanEpoch = Date.now();
+        if (target.timeRaEpoch) {
+          target.durationMinutes = Math.round((target.timeScanEpoch - target.timeRaEpoch) / 60000);
+        }
+      }
+    } else {
+      // NV lạ → append EXTRA (meal-move cũng append mã lạ)
+      item.optimisticNew = true;
+      target = {
+        staffId: staffId, staffName: '…', slotCode: '', station: '', team: '',
+        agency: '', timeRefText: '', timeRaText: '', timeScanText: '',
+        timeRaEpoch: 0, timeScanEpoch: 0, durationMinutes: null,
+        status: MEAL_MODE === 'ra' ? STATUS_C.OUT : STATUS_C.EXTRA,
+      };
+      if (MEAL_MODE === 'ra') {
+        target.timeRaText = fmtDate(new Date());
+        target.timeRaEpoch = Date.now();
+      } else {
+        target.timeScanText = fmtDate(new Date());
+        target.timeScanEpoch = Date.now();
+      }
+      item.target = target;
+      CURRENT_LOG.push(target);
+    }
+
+    item.scanSeq = ++SCAN_CARD_SEQ;
+    item.optimisticStatus = target.status;
+    playBeep('scan');
+    showToast(item.optimisticStatus, false);
+    showScanCard(item.optimisticStatus, target, false);
+    recountFromLog();
+    renderScanTable(CURRENT_LOG);
+    SCAN_QUEUE.push(item);
+    updateFinishBtnState();
+    processScanQueueMealMove();
+  }
+
+  // Meal-move: process queue — gọi scanStaffApi với mode
+  function processScanQueueMealMove() {
+    if (SCAN_PROCESSING || !SCAN_QUEUE.length) return;
+    SCAN_PROCESSING = true;
+    var item = SCAN_QUEUE.shift();
+    updateFinishBtnState();
+
+    function rollback() {
+      if (item.target && !item.optimisticNew) {
+        item.target.status = item.oldStatus;
+        item.target.timeRaText = item.oldTimeRaText || '';
+        item.target.timeRaEpoch = item.oldTimeRaEpoch || 0;
+        item.target.timeScanText = item.oldTimeScanText || '';
+        item.target.timeScanEpoch = item.oldTimeScanEpoch || 0;
+        item.target.durationMinutes = null;
+      } else if (item.target && item.optimisticNew) {
+        var idx = CURRENT_LOG.indexOf(item.target);
+        if (idx >= 0) CURRENT_LOG.splice(idx, 1);
+      }
+    }
+
+    function syncCounters(serverCounters) {
+      if (SCAN_QUEUE.length > 0) { recountFromLog(); return; }
+      if (serverCounters) { CURRENT_COUNTERS = serverCounters; renderCounters(serverCounters); }
+      else { recountFromLog(); }
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        SCAN_PROCESSING = false;
+        if (!CURRENT_TASK || CURRENT_TASK.taskId !== item.taskId) {
+          processScanQueueMealMove();
+          return;
+        }
+        if (res.ok) {
+          if (item.target) {
+            item.target.status = res.status;
+            item.target.staffName = res.staffName || item.target.staffName;
+            if (res.timeRaText) item.target.timeRaText = res.timeRaText;
+            if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+            if (res.agency) item.target.agency = res.agency;
+            if (res.durationMinutes != null) item.target.durationMinutes = res.durationMinutes;
+          }
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.status || item.optimisticStatus, item.target, false); }
+          syncCounters(res.counters);
+          renderScanTable(CURRENT_LOG);
+        } else {
+          // Reject: rollback + toast
+          rollback();
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.message || 'Lỗi', item.target, true); }
+          showToast(res.message || 'Lỗi quét', true);
+          playBeep('error');
+          syncCounters(res.counters);
+          renderScanTable(CURRENT_LOG);
+        }
+        processScanQueueMealMove();
+      })
+      .withFailureHandler(function (err) {
+        SCAN_PROCESSING = false;
+        if (CURRENT_TASK && CURRENT_TASK.taskId === item.taskId) {
+          rollback();
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard('Lỗi mạng', item.target, true); }
+          showToast('Lỗi quét: ' + err.message, true);
+          playBeep('error');
+          syncCounters(null);
+          renderScanTable(CURRENT_LOG);
+        }
+        processScanQueueMealMove();
+      })
+      .scanStaffApi(item.taskId, item.staffId, item.mode);
   }
 
   function submitScan() {
@@ -1745,6 +2097,11 @@
       if (!target && String(r.staffId).toUpperCase() === norm) { target = r; }
     });
 
+    // meal-move: nếu task là meal-move → logic Ra/Vào khác reconcile
+    var isMealMove = CURRENT_TASK.taskType === 'meal-move';
+    if (isMealMove) {
+      return submitScanMealMove(input, staffId, target);
+    }
     // Đã quét (Có mặt/Dư) → chặn NGAY ở client, không gọi server (tránh toast lặp)
     if (target && (target.status === STATUS_C.PRESENT || target.status === STATUS_C.EXTRA)) {
       showToast('Đã điểm danh', true);
