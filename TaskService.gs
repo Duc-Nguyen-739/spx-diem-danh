@@ -161,9 +161,9 @@ function reopenTask(taskId) {
  */
 function createMealMoveTask(input) {
   const raw = Array.isArray(input && input.staffIds) ? input.staffIds : [];
-  if (!raw.length) return { ok: false, taskId: null, count: 0, message: UI_LABELS.MEAL_NO_OPS };
 
   // Chuẩn hóa + dedupe + bỏ mã không hợp lệ (chỉ nhận mã Ops)
+  // Cho phép danh sách rỗng — tạo task trống, paste/quét mã bên trong task
   const seen = {};
   const ids = [];
   raw.forEach(function (c) {
@@ -173,7 +173,6 @@ function createMealMoveTask(input) {
     seen[id] = true;
     ids.push(id);
   });
-  if (!ids.length) return { ok: false, taskId: null, count: 0, message: UI_LABELS.MEAL_NO_OPS };
 
   // Email người tạo — ưu tiên Session (server tự lấy, KHÔNG tin client)
   let createdBy = 'web';
