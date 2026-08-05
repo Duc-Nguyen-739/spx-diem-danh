@@ -147,10 +147,11 @@ if (typeof module !== 'undefined' && module.exports) {
  * @param {string} staffId — mã NV đã normalize
  * @param {string} mode — 'ra' | 'vao' (từ client, server đã validate permission)
  * @param {number} nowMs — Date.now() (truyền vào để test được trên Node)
+ * @param {Object|null} staffInfo — thông tin NV từ StaffData (lookup bên ngoài); null = không có trong DB
  * @returns {{action: 'update'|'append'|'reject', status: string|null, reason: string|null, row: Object|null, scanPhase: string|null}}
  *   scanPhase: 'ra' | 'vao' — mốc vừa ghi (cho server biết cột nào để update)
  */
-function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs) {
+function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInfo) {
   if (!task || task.status !== cfg.TASK_STATUS.OPEN) {
     return { action: 'reject', status: null, reason: 'task-closed', row: null, scanPhase: null };
   }
@@ -195,8 +196,20 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs) {
     return { action: 'update', status: cfg.STATUS.PRESENT, reason: null, row: row, scanPhase: 'vao' };
   }
 
-  // NV lạ (không trong roster) → append EXTRA (quét lạ = Dư)
-  return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: mode || 'ra' };
+  // NV không trong log — phân biệt có/không trong StaffData:
+  //  - CÓ trong StaffData → append mode Ra→OUT (ghi Ra), mode Vào→EXTRA (thiếu Ra)
+  //  - KHÔNG trong StaffData → append EXTRA (Dư)
+  var isKnownStaff = !!(staffInfo && staffInfo.staffId);
+  if (isKnownStaff) {
+    if (mode === 'ra') {
+      // NV hợp lệ, paste Ra lần đầu → append dòng mới + ghi Ra (OUT)
+      return { action: 'append', status: cfg.STATUS.OUT, reason: null, row: null, scanPhase: 'ra', staffInfo: staffInfo };
+    }
+    // mode Vào nhưng chưa có Ra → EXTRA (thiếu Ra)
+    return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: 'vao', staffInfo: staffInfo };
+  }
+  // NV lạ (không trong StaffData) → Dư
+  return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: mode || 'ra', staffInfo: null };
 }
 
 /**
@@ -209,8 +222,9 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs) {
  * @param {Date} now
  * @returns {Object} row theo LOG_COLS (có timeRa/timeScan tùy mode)
  */
-function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now) {
+function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now, status) {
   var nowMs = now ? now.getTime() : Date.now();
+  var rowStatus = status || cfg.STATUS.EXTRA;  // caller quyết định: OUT (Ra hợp lệ) hoặc EXTRA (Dư)
   return {
     taskId: taskId,
     staffId: staffId,
@@ -225,6 +239,6 @@ function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now) {
     timeRaEpoch: mode === 'ra' ? nowMs : 0,
     timeScan: mode === 'vao' ? now : null,
     timeScanEpoch: mode === 'vao' ? nowMs : 0,
-    status: cfg.STATUS.EXTRA,
+    status: rowStatus,
   };
 }

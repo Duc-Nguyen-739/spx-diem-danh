@@ -47,13 +47,20 @@ function scanStaff(taskId, rawStaffId, mode) {
     );
     // Meal-move: branch riêng — 2 mốc Ra/Vào + mode + permission
     const isMealMove = task && task.taskType === TASK_TYPE.MEAL_MOVE;
+    // Meal-move: cần staffInfo để phân biệt NV hợp lệ (có trong StaffData) vs NV lạ
+    // khi task trống (log rỗng) — không phải mọi mã "không trong log" đều là Dư.
+    var mmStaffInfo = null;
+    if (isMealMove) {
+      mmStaffInfo = (readStaffIndex_())[staffId] || null;
+    }
     const resultMM = isMealMove ? classifyMealMoveScan(
       { STATUS: STATUS, TASK_STATUS: TASK_STATUS, DUPLICATE_WINDOW_MS: DUPLICATE_WINDOW_MS },
       task,
       logRows,
       staffId,
       resolveMealMoveMode_(task, mode),
-      Date.now()
+      Date.now(),
+      mmStaffInfo
     ) : null;
     const effectiveResult = isMealMove ? resultMM : result;
 
@@ -111,7 +118,8 @@ function scanStaff(taskId, rawStaffId, mode) {
       const staffInfo = (readStaffIndex_())[staffId] || null;
       let extraRow;
       if (isMealMove) {
-        extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, staffId, staffInfo, effectiveResult.scanPhase || 'ra', now);
+        // status từ classify: OUT (Ra hợp lệ) hoặc EXTRA (Dư/thiếu Ra)
+        extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, staffId, staffInfo, effectiveResult.scanPhase || 'ra', now, effectiveResult.status);
       } else {
         extraRow = buildExtraRow({ STATUS: STATUS }, taskId, staffId, staffInfo, now);
       }
@@ -212,15 +220,19 @@ function pasteMealMoveScan(taskId, codes, mode) {
     const newRows = [];   // NV lạ cần append
     var summary = { total: normCodes.length, ra: 0, vao: 0, extra: 0, duplicate: 0, already: 0 };
 
+    // Lookup staffIndex 1 lần cho cả batch (cache 5m)
+    const staffIndex = readStaffIndex_();
     // Phân loại TUẦN TỰ — mỗi mã nhìn vào state đã cập nhật của các mã trước trong batch
     normCodes.forEach(function (id) {
+      const staffInfo = staffIndex[id] || null;
       const r = classifyMealMoveScan(
         { STATUS: STATUS, TASK_STATUS: TASK_STATUS, DUPLICATE_WINDOW_MS: DUPLICATE_WINDOW_MS },
         task,
         logRows,
         id,
         effMode,
-        nowMs
+        nowMs,
+        staffInfo
       );
       if (r.action === 'reject') {
         if (r.reason === 'duplicate') summary.duplicate++;
@@ -243,13 +255,14 @@ function pasteMealMoveScan(taskId, codes, mode) {
           else summary.vao++;
         }
       } else if (r.action === 'append') {
-        const staffInfo = (readStaffIndex_())[id] || null;
-        const extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, id, staffInfo, r.scanPhase || effMode, now);
+        // staffInfo đã lookup ở đầu forEach — dùng r.staffInfo nếu có
+        const si = r.staffInfo || staffInfo || null;
+        const extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, id, si, r.scanPhase || effMode, now, r.status);
         newRows.push(extraRow);
         logRows.push(extraRow); // để mã sau trong batch nhìn thấy
-        if (r.scanPhase === 'ra') summary.ra++;
-        else summary.vao++;
-        summary.extra++;
+        if (r.status === STATUS.OUT) summary.ra++;
+        else if (r.status === STATUS.PRESENT) summary.vao++;
+        else summary.extra++;
       }
     });
 

@@ -189,14 +189,35 @@ test('meal-move: quên quét Ra, mode Vào → đánh Thừa (EXTRA)', () => {
   assert.equal(r.scanPhase, 'vao');
 });
 
-test('meal-move: NV lạ (không trong roster) → append EXTRA', () => {
+test('meal-move: NV lạ (không trong roster, không trong StaffData) → append EXTRA', () => {
   const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
   const rows = [mmRow({ staffId: 'OPS000001' })];
-  // Quét mã khác không có trong rows
-  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS999999', 'ra', 1000000);
+  // Quét mã khác không có trong rows + KHÔNG trong StaffData (staffInfo=null)
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS999999', 'ra', 1000000, null);
   assert.equal(r.action, 'append');
   assert.equal(r.status, MM_CFG.STATUS.EXTRA);
   assert.equal(r.scanPhase, 'ra');
+});
+
+test('meal-move: NV hợp lệ (trong StaffData) paste Ra vào task trống → append OUT (ghi Ra)', () => {
+  const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
+  const rows = [];  // task trống — log rỗng
+  const staffInfo = { staffId: 'OPS7562', staffName: 'NGUYỄN VĂN ĐỨC', slotCode: '13:00-22:00', station: 'HN2 SOC', team: 'Inbound', agency: 'SPX' };
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS7562', 'ra', 1000000, staffInfo);
+  assert.equal(r.action, 'append');
+  assert.equal(r.status, MM_CFG.STATUS.OUT);  // Ra hợp lệ → OUT, KHÔNG phải EXTRA
+  assert.equal(r.scanPhase, 'ra');
+  assert.equal(r.staffInfo, staffInfo);
+});
+
+test('meal-move: NV hợp lệ paste Vào vào task trống (chưa có Ra) → append EXTRA (thiếu Ra)', () => {
+  const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
+  const rows = [];
+  const staffInfo = { staffId: 'OPS123', staffName: 'NV Test', agency: 'SPX' };
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS123', 'vao', 1000000, staffInfo);
+  assert.equal(r.action, 'append');
+  assert.equal(r.status, MM_CFG.STATUS.EXTRA);  // thiếu Ra → Thừa
+  assert.equal(r.scanPhase, 'vao');
 });
 
 test('meal-move: task đóng → reject task-closed', () => {
@@ -216,11 +237,11 @@ test('meal-move: đã có Ra, mode vẫn Ra → reject already-scanned', () => {
   assert.equal(r.reason, 'already-scanned');
 });
 
-test('meal-move: buildMealMoveExtraRow mode Ra → có timeRa, không timeScan', () => {
+test('meal-move: buildMealMoveExtraRow mode Ra + status OUT → có timeRa, không timeScan', () => {
   const now = new Date('2026-08-04T12:00:00');
   const staffInfo = { staffName: 'NV Test', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'T1', agency: 'SPX' };
-  const row = ScanLogic.buildMealMoveExtraRow(MM_CFG, 'M1', 'OPS099', staffInfo, 'ra', now);
-  assert.equal(row.status, MM_CFG.STATUS.EXTRA);
+  const row = ScanLogic.buildMealMoveExtraRow(MM_CFG, 'M1', 'OPS099', staffInfo, 'ra', now, MM_CFG.STATUS.OUT);
+  assert.equal(row.status, MM_CFG.STATUS.OUT);
   assert.equal(row.timeRa, now);
   assert.equal(row.timeRaEpoch, now.getTime());
   assert.equal(row.timeScan, null);
