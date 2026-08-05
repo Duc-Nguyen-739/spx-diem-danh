@@ -788,13 +788,10 @@
                 <th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>
                 <th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>
                 <th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>
-                <th scope="col" data-sort="5" class="sortable" aria-sort="none">Date</th>
-                <th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ có mặt</th>
-                <th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ quét</th>
-                <th scope="col" id="thTimeRa" class="mm-col" data-sort="8" aria-sort="none" style="display:none;">Giờ Ra</th>
-                <th scope="col" id="thAgency" class="mm-col" data-sort="9" aria-sort="none" style="display:none;">Nhà Thầu</th>
-                <th scope="col" id="thDuration" class="mm-col" data-sort="10" aria-sort="none" style="display:none;">Số phút</th>
-                <th scope="col" class="sortable" data-sort="11" aria-sort="none">Trạng thái</th>
+                <th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>
+                <th scope="col" data-sort="6" class="sortable" aria-sort="none">Nhà Thầu</th>
+                <th scope="col" data-sort="7" class="sortable" aria-sort="none">Số phút</th>
+                <th scope="col" class="sortable" data-sort="8" aria-sort="none">Trạng thái</th>
                 </tr>
               </thead>
               <tbody id="scanTableBody"></tbody>
@@ -1660,13 +1657,18 @@
       else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
       else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
       else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
-      else if (col === 5) { va = String(a.dateText || ''); vb = String(b.dateText || ''); }
-      else if (col === 6) { va = String(a.timeRefText || ''); vb = String(b.timeRefText || ''); }
-      else {
-        // col 7 = Giờ quét — sort theo epoch (số) CHÍNH XÁC cả khi xuyên nửa đêm;
-        // timeScanText "HH:mm:ss" mất ngày → sort chuỗi sai. Chưa quét = epoch 0.
-        va = Number(a.timeScanEpoch) || 0;
-        vb = Number(b.timeScanEpoch) || 0;
+      else if (col === 5) {
+        // Giờ Ra — sort theo timeRaEpoch (số) CHÍNH XÁC; chưa có Ra = epoch 0
+        va = Number(a.timeRaEpoch) || 0;
+        vb = Number(b.timeRaEpoch) || 0;
+      } else if (col === 6) {
+        // Nhà Thầu — sort alphabetically
+        va = String(a.agency || '');
+        vb = String(b.agency || '');
+      } else if (col === 7) {
+        // Số phút — sort theo số
+        va = Number(a.durationMinutes) || 0;
+        vb = Number(b.durationMinutes) || 0;
       }
       if (va === vb) return 0;
       var cmp = va < vb ? -1 : 1;
@@ -1741,16 +1743,13 @@
     var badge = badgeFor(r.status);
     var cells = [
       '<td><b>' + esc(r.staffId) + '</b></td>',
-      '<td>' + esc(r.staffName) + '</td>',
-      '<td>' + esc(r.slotCode) + '</td>',
-      '<td>' + esc(r.team) + '</td>',
+      '<td>' + esc(r.staffName || '') + '</td>',
+      '<td>' + esc(r.slotCode || '') + '</td>',
+      '<td>' + esc(r.team || '') + '</td>',
       '<td>' + esc(r.station || '') + '</td>',
-      '<td>' + esc(r.dateText || '') + '</td>',
-      '<td>' + esc(r.timeRefText || '') + '</td>',
-      '<td>' + esc(r.timeScanText || '') + '</td>',
-      '<td class="mm-col" style="display:none;">' + esc(r.timeRaText || '') + '</td>',
-      '<td class="mm-col" style="display:none;">' + esc(r.agency || '') + '</td>',
-      '<td class="mm-col" style="display:none;">' + esc(r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
+      '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
+      '<td class="mm-col">' + esc(r.agency || '') + '</td>',
+      '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
       '<td>' + badge + '</td>'
     ];
     return cells;
