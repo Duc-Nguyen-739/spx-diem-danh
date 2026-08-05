@@ -1633,12 +1633,13 @@
     } else {
       thead.innerHTML = '<tr>' +
         '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
-        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
-        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>' +
-        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>' +
-        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
-        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Trạng thái</th>' +
-        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ điểm danh</th>' +
+        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Vender</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Tên NV</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Trạng thái</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ điểm danh</th>' +
         '</tr>';
     }
     updateSortIndicators();
@@ -1660,7 +1661,7 @@
 
   // C3: state lọc + sort bảng scan — mặc định "Giờ quét" MỚI NHẤT lên đầu (col 5, desc).
   var SCAN_FILTER = { q: '', status: '' };
-  var SCAN_SORT = { col: 5, asc: false };  // Trạng thái (mới nhất lên đầu) — col 5 cho reconcile, col 9 cho meal-move
+  var SCAN_SORT = { col: 6, asc: false };  // Trạng thái (mới nhất lên đầu) — col 6 cho reconcile, col 9 cho meal-move
   var STATUS_ORDER = {};  // P3: dựng từ STATUS_C — tránh hardcode label
   STATUS_ORDER[STATUS_C.PENDING] = 0;
   STATUS_ORDER[''] = 0;
@@ -1702,14 +1703,15 @@
         else if (col === 7) { va = String(a.agency || ''); vb = String(b.agency || ''); }
         else if (col === 8) { va = Number(a.durationMinutes) || 0; vb = Number(b.durationMinutes) || 0; }
       } else {
-        // Reconcile (Điểm Danh Ca) columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Trạng Thái, 6=Giờ điểm danh
-        if (col === 5) { va = statusRank(a.status); vb = statusRank(b.status); }
+        // Reconcile (Điểm Danh Ca) columns: 0=Mã NV, 1=Vender, 2=Tên NV, 3=Ca, 4=Team, 5=Station, 6=Trạng Thái, 7=Giờ điểm danh
+        if (col === 6) { va = statusRank(a.status); vb = statusRank(b.status); }
         else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
-        else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
-        else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
-        else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
-        else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
-        else if (col === 6) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
+        else if (col === 1) { va = String(a.agency || '').toUpperCase(); vb = String(b.agency || '').toUpperCase(); }
+        else if (col === 2) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
+        else if (col === 3) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 4) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 5) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 7) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
       }
       if (va === vb) return 0;
       var cmp = va < vb ? -1 : 1;
@@ -1799,9 +1801,10 @@
         '<td>' + badge + '</td>'
       ];
     } else {
-      // Reconcile (Điểm Danh Ca): Mã NV | Tên NV | Ca | Team | Station | Trạng Thái | Giờ điểm danh
+      // Reconcile (Điểm Danh Ca): Mã NV | Vender | Tên NV | Ca | Team | Station | Trạng Thái | Giờ điểm danh
       cells = [
         '<td><b>' + esc(r.staffId) + '</b></td>',
+        '<td>' + esc(r.agency || '') + '</td>',
         '<td>' + esc(r.staffName || '') + '</td>',
         '<td>' + esc(r.slotCode || '') + '</td>',
         '<td>' + esc(r.team || '') + '</td>',

@@ -177,6 +177,7 @@ function readStaffListUncached_() {
       workstation: String(v[fieldOf.workstation] || '').trim(),
       cardIn: String(v[fieldOf.cardIn] || '').trim(),
       cardOut: String(v[fieldOf.cardOut] || '').trim(),
+      agency: String(v[fieldOf.agency] || '').trim(),  // Nhà Thầu (Vendor) — lấy từ cột Agency StaffData
       date: normalizeStaffDate_(v[fieldOf.date]),  // ngay vao lam (StaffData Date) — chuẩn yyyy-MM-dd
     });
   }
