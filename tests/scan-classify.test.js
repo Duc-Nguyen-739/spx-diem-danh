@@ -189,14 +189,25 @@ test('meal-move: quên quét Ra, mode Vào → đánh Thừa (EXTRA)', () => {
   assert.equal(r.scanPhase, 'vao');
 });
 
-test('meal-move: NV lạ (không trong roster, không trong StaffData) → append EXTRA', () => {
+test('meal-move: NV lạ (không trong StaffData) paste Ra → append OUT (không Dư — Ra luôn hợp lệ)', () => {
   const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
   const rows = [mmRow({ staffId: 'OPS000001' })];
   // Quét mã khác không có trong rows + KHÔNG trong StaffData (staffInfo=null)
+  // Ra → luôn OUT (ghi Ra), không bao giờ Dư
   const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS999999', 'ra', 1000000, null);
   assert.equal(r.action, 'append');
-  assert.equal(r.status, MM_CFG.STATUS.EXTRA);
+  assert.equal(r.status, MM_CFG.STATUS.OUT);  // Ra = luôn hợp lệ
   assert.equal(r.scanPhase, 'ra');
+});
+
+test('meal-move: NV lạ (không trong StaffData) paste Vào (chưa có Ra) → append EXTRA (Dư)', () => {
+  const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
+  const rows = [mmRow({ staffId: 'OPS000001' })];
+  // Vào + chưa có Ra → Dư (logic Dư chỉ áp dụng khi quét Vào)
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS999999', 'vao', 1000000, null);
+  assert.equal(r.action, 'append');
+  assert.equal(r.status, MM_CFG.STATUS.EXTRA);  // Vào không trùng Ra = Dư
+  assert.equal(r.scanPhase, 'vao');
 });
 
 test('meal-move: NV hợp lệ (trong StaffData) paste Ra vào task trống → append OUT (ghi Ra)', () => {

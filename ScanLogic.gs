@@ -196,20 +196,17 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInf
     return { action: 'update', status: cfg.STATUS.PRESENT, reason: null, row: row, scanPhase: 'vao' };
   }
 
-  // NV không trong log — phân biệt có/không trong StaffData:
-  //  - CÓ trong StaffData → append mode Ra→OUT (ghi Ra), mode Vào→EXTRA (thiếu Ra)
-  //  - KHÔNG trong StaffData → append EXTRA (Dư)
-  var isKnownStaff = !!(staffInfo && staffInfo.staffId);
-  if (isKnownStaff) {
-    if (mode === 'ra') {
-      // NV hợp lệ, paste Ra lần đầu → append dòng mới + ghi Ra (OUT)
-      return { action: 'append', status: cfg.STATUS.OUT, reason: null, row: null, scanPhase: 'ra', staffInfo: staffInfo };
-    }
-    // mode Vào nhưng chưa có Ra → EXTRA (thiếu Ra)
-    return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: 'vao', staffInfo: staffInfo };
+  // NV không trong log — 2 trường hợp:
+  //  - mode Ra → luôn OUT (ghi Ra) — kể cả NV không trong StaffData (quét Ra = luôn hợp lệ;
+  //    nếu là NV lạ thì staffInfo=null → thông tin rỗng nhưng vẫn ghi Ra)
+  //  - mode Vào + CHƯA có Ra → EXTRA (Dư) — quét Vào mà không trùng danh sách Ra = lạ
+  //  - mode Vào + ĐÃ có Ra → đã xử lý ở nhánh update phía trên
+  if (mode === 'ra') {
+    // Paste/quét Ra → luôn ghi Ra (OUT), không bao giờ Dư
+    return { action: 'append', status: cfg.STATUS.OUT, reason: null, row: null, scanPhase: 'ra', staffInfo: staffInfo || null };
   }
-  // NV lạ (không trong StaffData) → Dư
-  return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: mode || 'ra', staffInfo: null };
+  // mode Vào, chưa có Ra → Dư (quét Vào mà không có trong danh sách Ra)
+  return { action: 'append', status: cfg.STATUS.EXTRA, reason: null, row: null, scanPhase: 'vao', staffInfo: staffInfo || null };
 }
 
 /**
@@ -224,7 +221,9 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInf
  */
 function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now, status) {
   var nowMs = now ? now.getTime() : Date.now();
-  var rowStatus = status || cfg.STATUS.EXTRA;  // caller quyết định: OUT (Ra hợp lệ) hoặc EXTRA (Dư)
+  var rowStatus = status || cfg.STATUS.EXTRA;
+  // mode Ra → ghi timeRa (Date + epoch); mode Vào → ghi timeScan (Date + epoch)
+  var isRa = mode === 'ra';
   return {
     taskId: taskId,
     staffId: staffId,
@@ -235,10 +234,11 @@ function buildMealMoveExtraRow(cfg, taskId, staffId, staffInfo, mode, now, statu
     workstation: staffInfo ? staffInfo.workstation : '',
     agency: staffInfo ? staffInfo.agency : '',
     timeRef: null,
-    timeRa: mode === 'ra' ? now : null,
-    timeRaEpoch: mode === 'ra' ? nowMs : 0,
-    timeScan: mode === 'vao' ? now : null,
-    timeScanEpoch: mode === 'vao' ? nowMs : 0,
+    timeRa: isRa ? now : null,
+    timeRaEpoch: isRa ? nowMs : 0,
+    timeScan: !isRa ? now : null,
+    timeScanEpoch: !isRa ? nowMs : 0,
     status: rowStatus,
+    durationMinutes: 0,
   };
 }

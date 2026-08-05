@@ -646,7 +646,12 @@ function batchMealMoveLogUpdates_(taskId, updates) {
     [LOG_COLS.STATUS, LOG_COLS.TIME_RA, LOG_COLS.TIME_SCAN].forEach(function (colIdx) {
       const col = [];
       for (let r = 1; r < values.length; r++) col.push([values[r][colIdx]]);
-      sheet.getRange(2, colIdx + 1, values.length - 1, 1).setValues(col);
+      const colRange = sheet.getRange(2, colIdx + 1, values.length - 1, 1);
+      colRange.setValues(col);
+      // Ép format HH:mm:ss cho cột thời gian (Date object hiển thị đúng)
+      if (colIdx === LOG_COLS.TIME_RA || colIdx === LOG_COLS.TIME_SCAN) {
+        colRange.setNumberFormat('HH:mm:ss');
+      }
     });
     invalidateTaskDetailCache_(taskId);
     invalidateLogRows_(taskId);
@@ -670,7 +675,14 @@ function batchAppendLogRows_(rows) {
       row.timeRa || '', row.agency || '',
     ];
   });
-  sheet.getRange(startRow, 1, payload.length, LOG_COL_COUNT).setValues(payload);
+  const range = sheet.getRange(startRow, 1, payload.length, LOG_COL_COUNT);
+  range.setValues(payload);
+  // Meal-move: ép format HH:mm:ss cho cột TIME_SCAN(8) + TIME_RA(12) — đảm bảo
+  // Date object hiển thị đúng (cell Text format → Date bị serialize thành string ≠ HH:mm:ss).
+  var fmtRange = sheet.getRange(startRow, LOG_COLS.TIME_SCAN + 1, payload.length, 1);
+  fmtRange.setNumberFormat('HH:mm:ss');
+  var fmtRangeRa = sheet.getRange(startRow, LOG_COLS.TIME_RA + 1, payload.length, 1);
+  fmtRangeRa.setNumberFormat('HH:mm:ss');
   const seen = {};
   rows.forEach(function (r) {
     if (!seen[r.taskId]) { seen[r.taskId] = true; invalidateTaskDetailCache_(r.taskId); invalidateLogRows_(r.taskId); }

@@ -257,11 +257,12 @@ function pasteMealMoveScan(taskId, codes, mode) {
       } else if (r.action === 'append') {
         // staffInfo đã lookup ở đầu forEach — dùng r.staffInfo nếu có
         const si = r.staffInfo || staffInfo || null;
-        const extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, id, si, r.scanPhase || effMode, now, r.status);
+        // build row với status đúng: Ra→OUT, Vào(thiếu Ra)→EXTRA
+        const appendStatus = (r.scanPhase || effMode) === 'ra' ? STATUS.OUT : STATUS.EXTRA;
+        const extraRow = buildMealMoveExtraRow({ STATUS: STATUS }, taskId, id, si, r.scanPhase || effMode, now, appendStatus);
         newRows.push(extraRow);
         logRows.push(extraRow); // để mã sau trong batch nhìn thấy
-        if (r.status === STATUS.OUT) summary.ra++;
-        else if (r.status === STATUS.PRESENT) summary.vao++;
+        if (appendStatus === STATUS.OUT) summary.ra++;
         else summary.extra++;
       }
     });
