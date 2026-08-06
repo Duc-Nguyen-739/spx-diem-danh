@@ -635,7 +635,7 @@ function batchMealMoveLogUpdates_(taskId, updates) {
   updates.forEach(function (u) { byRow[u._rowIndex] = u; });
   let anyChanged = false;
   for (let i = 1; i < values.length; i++) {
-    const u = byRow[i];
+    const u = byRow[i + 1]; // FIX: off-by-one — _rowIndex 1-based, i 0-based → i+1 = sheet row
     if (!u) continue;
     if (u.timeRa) { values[i][LOG_COLS.TIME_RA] = u.timeRa; anyChanged = true; }
     if (u.timeScan) { values[i][LOG_COLS.TIME_SCAN] = u.timeScan; anyChanged = true; }
