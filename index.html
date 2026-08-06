@@ -742,20 +742,11 @@
           </div>
           <div class="scan-row">
             <div class="scan-input-wrap">
-              <input type="text" id="scanInput" placeholder="Quét mã nhân viên…" aria-label="Quét mã nhân viên" autocomplete="off" autocapitalize="off" spellcheck="false">
+              <input type="text" id="scanInput" placeholder="Quét hoặc dán mã nhân viên…" aria-label="Quét mã nhân viên" autocomplete="off" autocapitalize="off" spellcheck="false">
             </div>
             <button class="btn" id="btnScan" onclick="submitScan()">Quét</button>
           </div>
-          <div class="scan-hint">Quét mã NV bằng máy quét hoặc gõ mã rồi nhấn Enter</div>
-          <!-- Meal-move: ô Dán hàng loạt mã Ops (chỉ hiện khi meal-move) -->
-          <div id="mealPasteWrap" style="display:none;margin-top:10px;">
-            <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">Dán hàng loạt mã Ops</label>
-            <textarea id="mealPasteInput" rows="4" style="width:100%;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:var(--card-radius);box-sizing:border-box;resize:vertical;font-family:monospace;font-size:13px;line-height:1.5;" placeholder="OpsGHN00123&#10;OpsHCM00456&#10;OpsDN00789&#10;…" aria-label="Dán hàng loạt mã Ops"></textarea>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-              <button class="btn btn-sm" id="btnMealPaste" onclick="submitPasteMealMove()" style="background:#2e7d32;color:#fff;border-color:#2e7d32;">Dán</button>
-              <span id="mealPasteCount" style="font-size:12px;color:var(--muted);"></span>
-            </div>
-          </div>
+          <div class="scan-hint">Quét mã NV bằng máy quét hoặc dán hàng loạt mã Ops rồi nhấn Enter</div>
           <div id="scanCard" class="scan-card" role="status" aria-live="polite">
             <div class="sc-empty">Chưa có lượt quét</div>
           </div>
@@ -1502,12 +1493,10 @@
       (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
       // Hiện email creator cho mọi loại task (giống meal-move)
       (data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '');
-    // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài" + paste box
+    // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
     toggleMealColumns(isMealMove);
     var toggleWrap = document.getElementById('mealToggleWrap');
     if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
-    var pasteWrap = document.getElementById('mealPasteWrap');
-    if (pasteWrap) pasteWrap.style.display = isMealMove ? '' : 'none';
     // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
     // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
     renderScanHeader(isMealMove);
@@ -1529,7 +1518,7 @@
     renderCounters(CURRENT_COUNTERS);
     var canScan = data.task.status === TASK_STATUS_C.OPEN;
     document.getElementById('scanInput').disabled = !canScan;
-    document.getElementById('scanInput').placeholder = canScan ? 'Quét mã nhân viên…' : 'Task đã kết thúc';
+    document.getElementById('scanInput').placeholder = canScan ? 'Quét hoặc dán mã nhân viên…' : 'Task đã kết thúc';
     updateFinishBtnState();
     if (canScan) {
       document.getElementById('scanInput').focus();
@@ -1655,7 +1644,7 @@
     // Cập nhật placeholder scan
     var inp = document.getElementById('scanInput');
     if (inp) {
-      inp.placeholder = mode === 'ra' ? 'Quét mã — ghi Ra…' : 'Quét mã — ghi Vào…';
+      inp.placeholder = mode === 'ra' ? 'Quét hoặc dán mã — ghi Ra…' : 'Quét hoặc dán mã — ghi Vào…';
     }
   }
 
@@ -1908,24 +1897,26 @@
   }
 
 
-  // Meal-move: paste hàng loạt mã Ops → gọi pasteMealMoveScanApi (batch 1 RPC)
-  function submitPasteMealMove() {
-    if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'meal-move') return;
-    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) { showToast('Task đã kết thúc', true); return; }
-    var ta = document.getElementById('mealPasteInput');
-    if (!ta) return;
-    var lines = ta.value.split(/[\n,;\t]/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (!lines.length) { showToast('Dán ít nhất 1 mã Ops', true); return; }
-    var btn = document.getElementById('btnMealPaste');
-    if (btn) btn.disabled = true;
-    var cntEl = document.getElementById('mealPasteCount');
-    if (cntEl) cntEl.textContent = 'Đang xử lý ' + lines.length + ' mã…';
+  // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
+  // Dùng chung cho luồng batch từ submitScan; PASTE_BUSY chống submit chồng.
+  var PASTE_BUSY = false;
+  function submitPasteMealMoveBatch(codes) {
+    if (PASTE_BUSY) {
+      showToast('Đang xử lý dán mã — chờ giây lát', true);
+      return false;
+    }
+    if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'meal-move') return false;
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) { showToast('Task đã kết thúc', true); return false; }
+    var lines = (codes || []).map(function (s) { return String(s).trim(); }).filter(Boolean);
+    if (!lines.length) { showToast('Dán ít nhất 1 mã Ops', true); return false; }
+    PASTE_BUSY = true;
+    var inp = document.getElementById('scanInput');
+    if (inp) inp.disabled = true;  // chống quét tay đè lên batch
     google.script.run
       .withSuccessHandler(function (res) {
-        if (btn) btn.disabled = false;
+        PASTE_BUSY = false;
+        if (inp) inp.disabled = false;
         if (res.ok) {
-          ta.value = '';
-          if (cntEl) cntEl.textContent = '';
           var s = res.summary || {};
           var msg = 'Paste: ' + (s.ra || 0) + ' Ra, ' + (s.vao || 0) + ' Vào' +
             (s.extra ? ', ' + s.extra + ' Dư' : '') +
@@ -1935,16 +1926,16 @@
           // Reload task detail to sync table
           loadTaskDetail(CURRENT_TASK.taskId);
         } else {
-          if (cntEl) cntEl.textContent = '';
           showToast(res.message || 'Lỗi paste', true);
         }
       })
       .withFailureHandler(function (err) {
-        if (btn) btn.disabled = false;
-        if (cntEl) cntEl.textContent = '';
+        PASTE_BUSY = false;
+        if (inp) inp.disabled = false;
         showToast('Lỗi paste: ' + err.message, true);
       })
       .pasteMealMoveScanApi(CURRENT_TASK.taskId, lines, MEAL_MODE);
+    return true;
   }
 
   // ===== Meal-move: submitScan branch (Ra/Vào mode + 10s rule + optimistic) =====
@@ -2135,6 +2126,26 @@
       return;
     }
     var input = document.getElementById('scanInput');
+    var raw = input.value.trim();
+    if (!raw) return;
+
+    // Meal-move: dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/dấu phẩy/chấm phẩy;
+    // >1 mã → batch 1 RPC (pasteMealMoveScanApi). Reconcile: giữ nguyên hành vi 1 mã.
+    if (CURRENT_TASK.taskType === 'meal-move') {
+      var codes = raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (codes.length > 1) {
+        if (PASTE_BUSY) {
+          showToast('Đang xử lý dán mã — chờ giây lát', true);
+          playBeep('error');
+          return;
+        }
+        input.value = '';
+        input.focus();
+        submitPasteMealMoveBatch(codes);
+        return;
+      }
+    }
+
     // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
     if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
       input.value = '';  // I8: không giữ backlog — xoá ngay
@@ -2142,8 +2153,7 @@
       playBeep('error');
       return;
     }
-    var staffId = input.value.trim();
-    if (!staffId) return;
+    var staffId = raw;
     SCAN_CARD_SEQ++;  // F7: bump 1 lần sau guard — phủ mọi path (sai mã / đã điểm danh / enqueue)
 
     // Chỉ chấp nhận mã barcode nhân viên bắt đầu "Ops" (case-insensitive).
