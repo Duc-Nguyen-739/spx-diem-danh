@@ -4,6 +4,7 @@
 
 # Node
 node_modules/
+dist/
 
 # Dữ liệu chấm công THẬT (nhạy cảm) — chỉ commit bản ẩn danh trong test-fixtures/
 Att.csv
