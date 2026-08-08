@@ -2129,11 +2129,12 @@
     var raw = input.value.trim();
     if (!raw) return;
 
-    // Meal-move: dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/dấu phẩy/chấm phẩy;
-    // >1 mã → batch 1 RPC (pasteMealMoveScanApi). Reconcile: giữ nguyên hành vi 1 mã.
-    if (CURRENT_TASK.taskType === 'meal-move') {
-      var codes = raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
-      if (codes.length > 1) {
+    // Dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/dấu phẩy/chấm phẩy.
+    // Meal-move: >1 mã → batch 1 RPC (pasteMealMoveScanApi).
+    // Reconcile: >1 mã → enqueue từng mã vào SCAN_QUEUE (mỗi mã 1 dòng, xử lý tuần tự).
+    var codes = raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (codes.length > 1) {
+      if (CURRENT_TASK.taskType === 'meal-move') {
         if (PASTE_BUSY) {
           showToast('Đang xử lý dán mã — chờ giây lát', true);
           playBeep('error');
@@ -2144,16 +2145,34 @@
         submitPasteMealMoveBatch(codes);
         return;
       }
+      // Reconcile: chặn khi queue không đủ chỗ cho cả lô — tránh backlog tăng mãi
+      if (SCAN_QUEUE.length + codes.length > SCAN_QUEUE_MAX) {
+        input.value = '';  // I8: không giữ backlog — xoá ngay
+        showToast('Hàng đợi đang đầy — chờ giây lát', true);
+        playBeep('error');
+        return;
+      }
+      input.value = '';
+      input.focus();
+      for (var i = 0; i < codes.length; i++) {
+        enqueueScan(input, codes[i]);
+      }
+      return;
     }
 
+    enqueueScan(input, codes.length ? codes[0] : raw);
+  }
+
+  // Enqueue 1 mã NV vào SCAN_QUEUE → processScanQueue xử lý tuần tự.
+  // Dùng chung cho quét tay và luồng dán nhiều mã (reconcile): mỗi mã 1 item → 1 dòng.
+  function enqueueScan(input, staffId) {
     // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
     if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
       input.value = '';  // I8: không giữ backlog — xoá ngay
       showToast('Hàng đợi đang đầy — chờ giây lát', true);
       playBeep('error');
-      return;
+      return false;
     }
-    var staffId = raw;
     SCAN_CARD_SEQ++;  // F7: bump 1 lần sau guard — phủ mọi path (sai mã / đã điểm danh / enqueue)
 
     // Chỉ chấp nhận mã barcode nhân viên bắt đầu "Ops" (case-insensitive).
@@ -2164,7 +2183,7 @@
       showScanCard('Sai mã', { staffId: staffId }, true);
       input.value = '';
       input.focus();
-      return;
+      return false;
     }
 
     // ---- Capture ngay: clear + focus + optimistic + toast tức thì (0ms) ----
@@ -2188,7 +2207,7 @@
       showToast('Đã điểm danh', true);
       playBeep('error');
       showScanCard('Đã điểm danh', target, true);
-      return;
+      return false;
     }
 
     var item = {
@@ -2229,6 +2248,7 @@
     SCAN_QUEUE.push(item);
     updateFinishBtnState();
     processScanQueue();
+    return true;
   }
 
   // P1: không cho Kết thúc khi còn lượt quét chờ server (task-closed sẽ mất scan).
