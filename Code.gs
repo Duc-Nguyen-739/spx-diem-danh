@@ -155,6 +155,29 @@ function previewStaffApi(input) {
   };
 }
 
+/** Tra cứu nhanh NV theo mã Ops (header search) — trả hồ sơ NV khớp mã, không tạo gì cả. */
+function searchStaffApi(code) {
+  const q = String(code || '').trim().toUpperCase();
+  if (!q) return { ok: false, message: 'Nhập mã Ops để tìm' };
+  const staffList = readStaffList_();
+  const matches = staffList.filter(function (s) {
+    return String(s.staffId || '').toUpperCase() === q;
+  });
+  if (!matches.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
+  const s = matches[0];
+  const staff = {
+    staffId: s.staffId,
+    staffName: s.staffName,
+    slotCode: s.slotCode,
+    team: s.team,
+    station: s.station,
+  };
+  if (s.agency) staff.agency = s.agency;
+  if (s.date) staff.date = s.date;
+  if (s.contractType) staff.contractType = s.contractType;
+  return { ok: true, staff: staff };
+}
+
 /** Tạo task đối chiếu + pre-fill. */
 function createReconcileTaskApi(input) {
   return createReconcileTask(input);

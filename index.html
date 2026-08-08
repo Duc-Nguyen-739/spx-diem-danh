@@ -497,6 +497,45 @@
     header .brand .spx-logo {
       height: 26px; width: auto; display: block;
     }
+
+    /* ===== Header: tìm kiếm mã Ops (giữa hàng logo) ===== */
+    header .header-search {
+      position: relative; flex: 1 1 auto; max-width: 460px; margin: 0 auto;
+      display: flex; align-items: center; gap: 8px;
+      background: #141b28; border: 1px solid #2a3142; border-radius: 10px;
+      padding: 8px 12px; transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    header .header-search:focus-within { border-color: var(--warning); box-shadow: 0 0 0 3px rgba(227, 116, 0, .18); }
+    header .header-search-ic { color: #7f8ea3; font-size: 15px; line-height: 1; }
+    header .header-search input {
+      flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+      color: #e2e8f0; font-size: 13.5px; font-family: inherit;
+    }
+    header .header-search input::placeholder { color: #56637a; }
+    header .header-search-clear {
+      display: none; width: 20px; height: 20px; border-radius: 50%; border: none;
+      background: #2a3142; color: #9aa7bd; font-size: 10px; line-height: 1; cursor: pointer;
+      align-items: center; justify-content: center; flex: 0 0 auto;
+    }
+    header .header-search-clear.show { display: flex; }
+    header .header-search-clear:hover { background: #ff8a5c; color: #0d111a; }
+    header .header-search-res {
+      position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 300;
+      background: #141b28; border: 1px solid #2a3142; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+    }
+    header .header-search-res[hidden] { display: none; }
+    header .search-card { padding: 14px 16px; }
+    header .search-card .sc-id { font-family: Consolas, 'Courier New', monospace; font-size: 16px; font-weight: 800; color: #ff8a5c; }
+    header .search-card .sc-name { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-top: 2px; }
+    header .search-card .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; margin-top: 11px; }
+    header .search-card .sc-grid div { font-size: 11.5px; color: #8b98ab; }
+    header .search-card .sc-grid b { display: block; color: #e2e8f0; font-weight: 600; font-size: 12px; }
+    header .search-card.sc-empty, header .search-card.sc-err { text-align: center; color: #8b98ab; font-size: 13px; padding: 18px; }
+    header .search-card.sc-err { color: #ff6b5e; }
+    @media (max-width: 600px) {
+      header .header-search { order: 3; flex-basis: 100%; max-width: none; margin: 2px 0 0; }
+    }
     header .btn-icon-dark.muted { color: #ef4444; border-color: #fecaca; }
 
     /* ===== Toolbar danh sách task (tham khảo v1) ===== */
@@ -629,6 +668,96 @@
     .chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
     .chip.selected::before { content: "\2713  "; font-weight: 700; }
     .chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+    /* ===== Modal tạo task điểm danh — Dark Industrial HUD (mẫu 01) ===== */
+    .create-dialog {
+      max-width: 480px; padding: 0; background: #10161f; color: #e8edf5;
+      border: 1px solid #232c3a; box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+    }
+    .create-dialog .hud-bar { display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: #0d131b; border-bottom: 1px solid #232c3a; }
+    .create-dialog .hud-dot { width: 8px; height: 8px; border-radius: 50%; background: #2bd576; box-shadow: 0 0 8px #2bd576; flex: 0 0 auto; }
+    .create-dialog .hud-module { font-family: Consolas, 'Courier New', monospace; font-size: 11px; letter-spacing: 1px; color: #8b98ab; }
+    .create-dialog .hud-station { margin-left: auto; font-family: Consolas, 'Courier New', monospace; font-size: 11px; color: #ff8a5c; }
+    .create-dialog .create-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px 0; }
+    .create-dialog .create-dialog-head h2 { font-size: 17px; margin: 0 0 4px; color: #fff; }
+    .create-dialog .create-dialog-head p { color: #8b98ab; font-size: 13px; margin: 0; }
+    .create-dialog .dialog-close {
+      flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid #232c3a; background: #131b26; color: #8b98ab;
+      font-size: 13px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all .15s ease;
+    }
+    .create-dialog .dialog-close:hover { background: #2a1410; color: #ff8a5c; border-color: #7a2f1c; transform: rotate(90deg); }
+    .create-dialog .create-section { padding: 0 20px; margin-top: 14px; }
+    .create-dialog .create-section-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+      color: #8b98ab; margin-bottom: 10px;
+    }
+    .create-dialog .create-step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff;
+      font-size: 11.5px; font-weight: 800; line-height: 20px; text-align: center;
+      display: inline-block; flex: 0 0 auto;
+    }
+    .create-dialog .create-grid { grid-template-columns: 1fr 1fr; }
+    .create-dialog label { color: #8b98ab; }
+    .create-dialog select {
+      width: 100%; padding: 10px 12px; border: 1px solid #232c3a; border-radius: 10px;
+      font-size: 14px; background: #0d131b; color: #e8edf5; font-family: inherit;
+    }
+    .create-dialog select:focus { outline: 2px solid rgba(255, 138, 92, .45); border-color: #ff8a5c; }
+    .create-dialog .chip-field { margin-top: 12px; }
+    .create-dialog .chip-field:first-of-type { margin-top: 0; }
+    .create-dialog .chip-field label {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12.5px; font-weight: 600; color: #8b98ab; margin-bottom: 8px;
+    }
+    .create-dialog .chip-count { font-size: 11px; font-weight: 700; color: #ff8a5c; background: rgba(255, 138, 92, .14); border-radius: 999px; padding: 2px 9px; }
+    .create-dialog .chip-count:empty { display: none; }
+    .create-dialog .chip {
+      border: 1px solid #232c3a; background: #131b26; color: #b6c2d3;
+      border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500;
+      line-height: 1.2; min-height: 36px; display: inline-flex; align-items: center;
+      cursor: pointer; user-select: none; transition: all .16s ease;
+    }
+    .create-dialog .chip:hover { border-color: #ff8a5c; color: #ff8a5c; }
+    .create-dialog .chip.selected { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); border-color: #ee4d2d; color: #fff; box-shadow: 0 3px 10px rgba(238, 77, 45, .35); }
+    .create-dialog .chip:focus-visible { outline: 2px solid rgba(255, 138, 92, .45); outline-offset: 2px; }
+    .create-dialog .hud-stats { display: flex; gap: 8px; padding: 0 20px; margin-top: 14px; }
+    .create-dialog .hud-stat { flex: 1; background: #0d131b; border: 1px solid #232c3a; border-radius: 10px; padding: 9px 12px; }
+    .create-dialog .hud-stat b { display: block; font-family: Consolas, 'Courier New', monospace; font-size: 17px; color: #ff8a5c; line-height: 1.2; }
+    .create-dialog .hud-stat span { font-size: 10.5px; color: #8b98ab; letter-spacing: .4px; text-transform: uppercase; }
+    .create-dialog .create-preview {
+      display: flex; align-items: center; gap: 12px; margin: 16px 20px 0; padding: 13px 15px;
+      border: 1px solid #232c3a; border-radius: 12px; background: #151c27; transition: all .25s ease;
+    }
+    .create-dialog .create-preview-ic {
+      flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: #0d131b;
+      border: 1px solid #232c3a; display: flex; align-items: center; justify-content: center;
+      font-size: 17px; transition: all .25s ease;
+    }
+    .create-dialog .create-preview-body { min-width: 0; }
+    .create-dialog .create-preview-count { font-size: 13px; font-weight: 600; color: #8b98ab; font-family: Consolas, 'Courier New', monospace; }
+    .create-dialog .create-preview-hint { font-size: 11.5px; color: #6d7a8f; margin-top: 2px; font-family: Consolas, 'Courier New', monospace; }
+    .create-dialog .create-preview[data-state="loading"] .create-preview-ic { animation: hud-pulse 1s ease-in-out infinite; }
+    .create-dialog .create-preview[data-state="ok"] { border-color: #1e4d33; background: rgba(43, 213, 118, .08); }
+    .create-dialog .create-preview[data-state="ok"] .create-preview-ic { border-color: #2bd576; }
+    .create-dialog .create-preview[data-state="ok"] .create-preview-count { color: #2bd576; font-weight: 700; }
+    .create-dialog .create-preview[data-state="err"] { border-color: #5c2a22; background: rgba(217, 48, 37, .08); }
+    .create-dialog .create-preview[data-state="err"] .create-preview-ic { border-color: #d93025; }
+    .create-dialog .create-preview[data-state="err"] .create-preview-count { color: #ff6b5e; }
+    @keyframes hud-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+    .create-dialog .create-actions {
+      display: flex; gap: 10px; justify-content: flex-end; padding: 14px 20px; margin-top: 18px;
+      border-top: 1px solid #232c3a; background: #0d131b;
+    }
+    .create-dialog .btn { border-radius: 10px; padding: 10px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: all .16s ease; font-family: inherit; }
+    .create-dialog .btn.btn-ghost { background: transparent; color: #8b98ab; border: 1px solid #232c3a; }
+    .create-dialog .btn.btn-ghost:hover { background: #131b26; }
+    .create-dialog .btn.btn-create-submit { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; box-shadow: 0 4px 14px rgba(238, 77, 45, .35); }
+    .create-dialog .btn.btn-create-submit:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .create-dialog .btn.btn-create-submit:active { transform: scale(.97); }
+    .create-dialog .btn.btn-create-submit:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
   /* ===== Meal-move UI ===== */
   .badge.out { background: #fff3e0; color: #e65100; border: 1px solid #ffab40; }
   .meal-toggle-btn { font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; padding: 4px 12px; border-radius: var(--card-radius); font-size: 13px; }
@@ -719,6 +848,12 @@
     <path d="M6.91737 30L10.1751 25.8334H18.9126L15.6549 30H6.91737Z" fill="#EE4D2D"/>
     </svg>
     <span class="title"><span class="accent">R</span>OLLCALL · <span id="brandTitle" style="color:#7f8ea3">ĐIỂM DANH KHO</span></span>
+  </div>
+  <div class="header-search" id="headerSearchWrap">
+    <span class="header-search-ic">⌕</span>
+    <input type="search" id="headerSearchInput" placeholder="Tìm mã Ops…" aria-label="Tìm kiếm mã Ops" autocomplete="off" spellcheck="false">
+    <button class="header-search-clear" id="headerSearchClear" title="Xoá" aria-label="Xoá tìm kiếm">✕</button>
+    <div class="header-search-res" id="headerSearchResult" hidden></div>
   </div>
   <div class="header-right">
     <span class="net-dot" id="netDot" title="Trạng thái mạng"></span>
@@ -893,37 +1028,67 @@
 
 <!-- Modal tạo task (kiểu v1: popup chọn Station/Ca/Team) -->
 <div id="createModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="createModalTitle" onclick="if(event.target===this)closeCreateModal()">
-  <div class="about-dialog" style="max-width:440px;">
-    <h2 id="createModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task điểm danh</h2>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Chọn nhóm nhân viên cho task — quét mã <b>Ops</b> để điểm danh.</p>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+  <div class="about-dialog create-dialog">
+    <div class="hud-bar">
+      <span class="hud-dot"></span>
+      <span class="hud-module">TASK-CREATE · RECONCILE</span>
+      <span class="hud-station" id="hudStation">KHO —</span>
+    </div>
+    <div class="create-dialog-head">
       <div>
-        <label for="fStation">Station</label>
-        <select id="fStation"></select>
+        <h2 id="createModalTitle">+ Tạo task điểm danh</h2>
+        <p>Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
       </div>
-      <div>
-        <label for="fDate">Ngày vào làm</label>
-        <select id="fDate"><option value="">-- Tất cả ngày --</option></select>
+      <button type="button" class="dialog-close" onclick="closeCreateModal()" aria-label="Đóng hộp thoại">✕</button>
+    </div>
+
+    <div class="create-section">
+      <div class="create-section-label"><span class="create-step-num">1</span> Phạm vi task</div>
+      <div class="form-grid create-grid">
+        <div>
+          <label for="fStation">Station</label>
+          <select id="fStation"></select>
+        </div>
+        <div>
+          <label for="fDate">Ngày vào làm</label>
+          <select id="fDate"><option value="">-- Tất cả ngày --</option></select>
+        </div>
       </div>
     </div>
-    <div class="chip-field">
-      <label>Ca (Slot Code) <span class="chip-count" id="countSlotCode"></span></label>
-      <div class="chip-group" id="fSlotCode"></div>
+
+    <div class="hud-stats" id="hudStats">
+      <div class="hud-stat"><b id="statNv">—</b><span>NV khớp</span></div>
+      <div class="hud-stat"><b id="statCa">0</b><span>Ca chọn</span></div>
+      <div class="hud-stat"><b id="statTeam">0</b><span>Team</span></div>
     </div>
-    <div class="chip-field">
-      <label>Team <span class="chip-count" id="countTeam"></span></label>
-      <div class="chip-group" id="fTeam"></div>
+
+    <div class="create-section">
+      <div class="create-section-label"><span class="create-step-num">2</span> Nhóm nhân viên</div>
+      <div class="chip-field">
+        <label for="fSlotCode">Ca (Slot Code) <span class="chip-count" id="countSlotCode"></span></label>
+        <div class="chip-group" id="fSlotCode"></div>
+      </div>
+      <div class="chip-field">
+        <label for="fTeam">Team <span class="chip-count" id="countTeam"></span></label>
+        <div class="chip-group" id="fTeam"></div>
+      </div>
+      <div class="chip-field">
+        <label for="fContractType">Loại hợp đồng <span class="chip-count" id="countContractType"></span></label>
+        <div class="chip-group" id="fContractType"></div>
+      </div>
     </div>
-    <div class="chip-field">
-      <label>Loại hợp đồng <span class="chip-count" id="countContractType"></span></label>
-      <div class="chip-group" id="fContractType"></div>
+
+    <div id="createPreview" class="create-preview" data-state="idle">
+      <span class="create-preview-ic" id="createPreviewIc">👥</span>
+      <div class="create-preview-body">
+        <div class="create-preview-count" id="createPreviewCount">Chọn Station, Ca và Team để xem số NV</div>
+        <div class="create-preview-hint" id="createPreviewHint"></div>
+      </div>
     </div>
-    <div id="createPreview" style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);">
-      <div id="createPreviewCount">Chọn Station / Ca / Team để xem số lượng NV</div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
-      <button class="btn btn-ghost" onclick="closeCreateModal()">Huỷ</button>
-      <button class="btn" id="btnCreateSubmit" onclick="createTask()">+ Tạo task</button>
+
+    <div class="create-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeCreateModal()">Huỷ</button>
+      <button type="button" class="btn btn-create-submit" id="btnCreateSubmit" onclick="createTask()">+ Tạo task</button>
     </div>
   </div>
 </div>
@@ -994,6 +1159,7 @@
     });
     initNetworkStatus();
     initCreatePreview();
+    initHeaderSearch();
     startAutoFocusLoop();
     initScanTopbarStuck();
     initScanFilters();
@@ -1197,6 +1363,68 @@
     if (aboutFocusBack && aboutFocusBack.focus) aboutFocusBack.focus();
     aboutFocusBack = null;
   }
+  // ===== Header: tìm kiếm nhanh mã Ops (giữa hàng logo) =====
+  var _headerSearchTimer = null;
+  function initHeaderSearch() {
+    var input = document.getElementById('headerSearchInput');
+    var clearBtn = document.getElementById('headerSearchClear');
+    if (!input) return;
+    function doSearch() {
+      var q = input.value.trim();
+      if (!q) { hideSearchResult(); return; }
+      google.script.run
+        .withSuccessHandler(function (res) { renderSearchResult(res, q); })
+        .withFailureHandler(function (err) { markServerFail(); renderSearchMessage('Lỗi: ' + err.message, true); })
+        .searchStaffApi(q);
+    }
+    input.addEventListener('input', function () {
+      clearBtn.classList.toggle('show', !!input.value);
+      clearTimeout(_headerSearchTimer);
+      var q = input.value.trim();
+      if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 350);
+      else hideSearchResult();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+      if (e.key === 'Escape') clearHeaderSearch();
+    });
+    clearBtn.addEventListener('click', clearHeaderSearch);
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('#headerSearchWrap')) hideSearchResult();
+    });
+  }
+  function renderSearchResult(res, q) {
+    var box = document.getElementById('headerSearchResult');
+    if (!box) return;
+    if (!res.ok) { renderSearchMessage(res.message || ('Không tìm thấy mã ' + q), true); return; }
+    var s = res.staff || {};
+    function row(k, v) { return '<div><b>' + esc(k) + '</b>' + esc(v || '—') + '</div>'; }
+    box.hidden = false;
+    box.innerHTML = '<div class="search-card">' +
+      '<div class="sc-id">' + esc(s.staffId || q) + '</div>' +
+      '<div class="sc-name">' + esc(s.staffName || '') + '</div>' +
+      '<div class="sc-grid">' +
+        row('Ca', s.slotCode) + row('Team', s.team) + row('Station', s.station) + row('Hợp đồng', s.contractType) +
+      '</div></div>';
+  }
+  function renderSearchMessage(msg, isErr) {
+    var box = document.getElementById('headerSearchResult');
+    if (!box) return;
+    box.hidden = false;
+    box.innerHTML = '<div class="search-card ' + (isErr ? 'sc-err' : 'sc-empty') + '">' + esc(msg) + '</div>';
+  }
+  function hideSearchResult() {
+    var box = document.getElementById('headerSearchResult');
+    if (box) box.hidden = true;
+  }
+  function clearHeaderSearch() {
+    var input = document.getElementById('headerSearchInput');
+    var clearBtn = document.getElementById('headerSearchClear');
+    if (input) input.value = '';
+    if (clearBtn) clearBtn.classList.remove('show');
+    hideSearchResult();
+    if (input && input.focus) input.focus();
+  }
   // ===== TASK-MENU-START =====
   // ===== Nút +Task: menu chọn loại task (reconcile / meal-move) =====
   function toggleTaskMenu(ev) {
@@ -1242,6 +1470,14 @@
       if (s) s.value = '';
     });
     ['fSlotCode', 'fTeam', 'fContractType'].forEach(function (id) { resetChips(id); });
+    var box = document.getElementById('createPreview');
+    if (box) box.setAttribute('data-state', 'idle');
+    var cntEl = document.getElementById('createPreviewCount');
+    if (cntEl) cntEl.textContent = 'Chọn Station, Ca và Team để xem số NV';
+    var hintEl = document.getElementById('createPreviewHint');
+    if (hintEl) hintEl.textContent = '';
+    updateHud('', '—', 0, 0);
+    updateCreateSubmitState();
     m.setAttribute('aria-hidden', 'false');  // I10
     m.classList.add('open');
     var sel = document.getElementById('fStation');
@@ -1362,6 +1598,7 @@
         fillChips('fContractType', res.contractTypes || []);
         var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
         document.getElementById('btnCreateTask').disabled = !canCreate;
+        updateCreateSubmitState();
         markServerOk();  // RPC success → server sống lại (netDot hồi phục — phủ cả trường hợp chỉ load options)
         _releaseRefreshLock();
       })
@@ -1377,22 +1614,64 @@
     var team = getSelectedChips('fTeam');
     var date = document.getElementById('fDate').value;
     var contractType = getSelectedChips('fContractType');
+    var box = document.getElementById('createPreview');
     var cntEl = document.getElementById('createPreviewCount');
-    if (!cntEl) return;
-    if (!station || !slotCode.length || !team.length) {
-      cntEl.textContent = 'Chọn Station / Ca / Team để xem số lượng NV';
+    var hintEl = document.getElementById('createPreviewHint');
+    if (!cntEl || !box) return;
+    updateCreateSubmitState();
+    var missing = [];
+    if (!station) missing.push('Station');
+    if (!slotCode.length) missing.push('Ca');
+    if (!team.length) missing.push('Team');
+    if (missing.length) {
+      box.setAttribute('data-state', 'idle');
+      cntEl.textContent = 'Chưa đủ bộ lọc để xem số NV';
+      hintEl.textContent = 'Cần chọn: ' + missing.join(', ');
+      updateHud(station, '—', slotCode.length, team.length);
       return;
     }
+    box.setAttribute('data-state', 'loading');
+    cntEl.textContent = 'Đang kiểm tra…';
+    hintEl.textContent = '';
+    updateHud(station, '…', slotCode.length, team.length);
     clearTimeout(_previewTimer);
     _previewTimer = setTimeout(function () {  // debounce 400ms — tranh spam RPC khi doi select lien tuc
       google.script.run
         .withSuccessHandler(function (res) {
-          if (!res || !res.ok) { cntEl.textContent = 'Không tải được preview'; return; }
-          cntEl.textContent = 'Số NV khớp: ' + res.count;
+          if (!res || !res.ok) {
+            box.setAttribute('data-state', 'err');
+            cntEl.textContent = 'Không tải được preview';
+            updateHud(station, '—', slotCode.length, team.length);
+            return;
+          }
+          box.setAttribute('data-state', 'ok');
+          cntEl.textContent = 'Số NV khớp: ' + res.count + ' người';
+          var scope = station;
+          if (date) scope += ' · ' + date;
+          scope += ' · ' + slotCode.length + ' ca · ' + team.length + ' team';
+          hintEl.textContent = scope;
+          updateHud(station, res.count, slotCode.length, team.length);
         })
-        .withFailureHandler(function (err) { markServerFail(); cntEl.textContent = 'Lỗi preview: ' + err.message; })
+        .withFailureHandler(function (err) { markServerFail(); box.setAttribute('data-state', 'err'); cntEl.textContent = 'Lỗi preview: ' + err.message; updateHud(station, '—', slotCode.length, team.length); })
         .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date, contractType: contractType });
     }, 400);
+  }
+  // HUD stat (Dark Industrial): NV khớp / Ca chọn / Team
+  function updateHud(stationName, nv, ca, team) {
+    var hs = document.getElementById('hudStation');
+    if (hs) hs.textContent = stationName ? stationName : 'KHO —';
+    var e1 = document.getElementById('statNv'); if (e1) e1.textContent = nv;
+    var e2 = document.getElementById('statCa'); if (e2) e2.textContent = ca;
+    var e3 = document.getElementById('statTeam'); if (e3) e3.textContent = team;
+  }
+  // Nút "+ Tạo task" chỉ bấm được khi đủ Station + ≥1 Ca + ≥1 Team (khớp validate createTask)
+  function updateCreateSubmitState() {
+    var btn = document.getElementById('btnCreateSubmit');
+    if (!btn) return;
+    var station = document.getElementById('fStation').value;
+    var slotCode = getSelectedChips('fSlotCode');
+    var team = getSelectedChips('fTeam');
+    btn.disabled = !(station && slotCode.length && team.length);
   }
   function initCreatePreview() {
     ['fStation', 'fDate'].forEach(function (id) {
@@ -1434,6 +1713,7 @@
         b.classList.toggle('selected');
         b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
         updateChipCount(id);
+        updateCreateSubmitState();
         updateCreatePreview();
       });
       group.appendChild(b);
@@ -1451,7 +1731,7 @@
     var countEl = document.getElementById('count' + id.slice(1));
     if (countEl) {
       var n = getSelectedChips(id).length;
-      countEl.textContent = n ? 'Đã chọn: ' + n : '';
+      countEl.textContent = n ? n : '';
     }
   }
   function resetChips(id) {

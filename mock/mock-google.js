@@ -116,6 +116,18 @@
       var count = 8;
       return { ok: true, count: count };
     },
+    searchStaffApi: function (code) {
+      // mock: tra cuu NV theo ma Ops — khop contract server searchStaffApi
+      var q = String(code || '').trim().toUpperCase();
+      if (!q) return { ok: false, message: 'Nhập mã Ops để tìm' };
+      var hit = null;
+      MOCK_DATA.staff.forEach(function (s) { if (String(s.staffId).toUpperCase() === q) hit = s; });
+      if (!hit) return { ok: false, message: 'Không tìm thấy mã ' + q };
+      return {
+        ok: true,
+        staff: { staffId: hit.staffId, staffName: hit.staffName, slotCode: hit.slotCode, team: hit.team, station: hit.station, workstation: hit.workstation },
+      };
+    },
     getTaskListApi: function () {
       return MOCK_DATA.tasks.slice();
     },
