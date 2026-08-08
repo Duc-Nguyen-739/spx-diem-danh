@@ -218,6 +218,11 @@ function reopenTaskApi(taskId) {
   return reopenTask(taskId);
 }
 
+/** Cập nhật ghi chú của task (sửa trong task — open/done đều được). */
+function updateTaskNoteApi(taskId, note) {
+  return updateTaskNote(taskId, note);
+}
+
 /**
  * Gate editor-only — kiosk anonymous.
  * USER_DEPLOYING: getEffectiveUser() = deployer (user sở hữu script); getActiveUser()

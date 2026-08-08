@@ -758,6 +758,45 @@
     .create-dialog .btn.btn-create-submit:hover { filter: brightness(1.08); transform: translateY(-1px); }
     .create-dialog .btn.btn-create-submit:active { transform: scale(.97); }
     .create-dialog .btn.btn-create-submit:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+    .create-dialog textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #232c3a; border-radius: 10px;
+      font-size: 13.5px; background: #0d131b; color: #e8edf5; font-family: inherit;
+      resize: vertical; min-height: 52px; line-height: 1.45;
+    }
+    .create-dialog textarea:focus { outline: 2px solid rgba(255, 138, 92, .45); border-color: #ff8a5c; }
+    .create-dialog textarea::placeholder { color: #56637a; }
+    .create-dialog .note-optional { font-weight: 400; color: #56637a; text-transform: none; letter-spacing: 0; }
+    /* ===== Ghi chú trong màn hình quét (dưới task-meta) ===== */
+    .task-note {
+      display: flex; align-items: flex-start; gap: 10px; text-align: left;
+      margin: 10px 0 12px; padding: 10px 14px;
+      background: #fef7e0; border: 1px solid #f5d78e; border-radius: 10px;
+      font-size: 13.5px; color: #5c4400;
+    }
+    .task-note .tn-ic { flex: 0 0 auto; font-size: 14px; line-height: 1.4; }
+    .task-note .tn-text { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+    .task-note .tn-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+    .btn-note-edit {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #fff; color: #b45309; border: 1px solid #f0c36d;
+      border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .14s ease; white-space: nowrap;
+    }
+    .btn-note-edit:hover { background: #fff7e0; border-color: #e3a93c; }
+    .btn-note-edit:active { transform: scale(.96); }
+    .task-note-empty {
+      display: flex; align-items: center; gap: 8px; margin: 10px 0 12px;
+    }
+    .task-note-empty .tn-note { font-size: 12.5px; color: var(--muted); }
+    .task-note-editbox { margin: 10px 0 12px; }
+    .task-note-editbox textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+      font-size: 14px; font-family: inherit; resize: vertical; min-height: 60px; line-height: 1.5;
+      background: #fff; color: var(--text);
+    }
+    .task-note-editbox textarea:focus { outline: 2px solid var(--focus-ring); border-color: var(--warning); }
+    .task-note-editbox .tne-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .task-note-editbox .btn { padding: 7px 14px; font-size: 13px; }
   /* ===== Meal-move UI ===== */
   .badge.out { background: #fff3e0; color: #e65100; border: 1px solid #ffab40; }
   .meal-toggle-btn { font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; padding: 4px 12px; border-radius: var(--card-radius); font-size: 13px; }
@@ -937,6 +976,7 @@
       <div class="scan-topbar-title">
         <div class="task-title" id="scanTaskTitle"></div>
         <div class="task-meta" id="scanTaskMeta"></div>
+        <div id="taskNoteWrap"></div>
       </div>
       <button class="btn" id="btnFinish" onclick="finishTask()" aria-label="Hoàn thành task">Hoàn Thành</button>
     </div>
@@ -1086,6 +1126,11 @@
       </div>
     </div>
 
+    <div class="create-section" id="noteSectionReconcile">
+      <div class="create-section-label"><span class="create-step-num">✎</span> Ghi chú <span class="note-optional">(không bắt buộc)</span></div>
+      <textarea id="noteInput" rows="2" placeholder="VD: Ca đặc biệt, tổ hợp chuyển kho, NV thêm giờ…" aria-label="Ghi chú task"></textarea>
+    </div>
+
     <div class="create-actions">
       <button type="button" class="btn btn-ghost" onclick="closeCreateModal()">Huỷ</button>
       <button type="button" class="btn btn-create-submit" id="btnCreateSubmit" onclick="createTask()">+ Tạo task</button>
@@ -1094,20 +1139,56 @@
 </div>
 
 
-<!-- ===== Modal tạo task meal-move (Điểm danh Ra/Vào) — tạo task trống, paste/quét bên trong ===== -->
+<!-- ===== Modal tạo task meal-move (Điểm danh Ra/Vào) — bắt buộc Station + Team, tạo task trống rồi paste/quét bên trong ===== -->
 <div id="createMealModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="createMealModalTitle" onclick="if(event.target===this)closeCreateMealModal()">
-  <div class="about-dialog" style="max-width:440px;">
-    <h2 id="createMealModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task Điểm danh Ra/Vào</h2>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Tạo task trống — dán/quét mã <b>Ops</b> bên trong task (ô Dán hàng loạt hoặc ô Quét).</p>
-    <div style="margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);line-height:1.6;">
-      Sau khi tạo, bạn sẽ vào	task để:<br>
-      • <b>Dán hàng loạt</b> mã Ops (ô bên dưới ô Quét)<br>
-      • <b>Quét từng mã</b> (ô Quét — Ra/Vào)<br>
-      • <b>Kết thúc task</b> → NV chưa Vào = Vắng
+  <div class="about-dialog create-dialog">
+    <div class="hud-bar">
+      <span class="hud-dot"></span>
+      <span class="hud-module">TASK-CREATE · MEAL-MOVE</span>
+      <span class="hud-station" id="hudMealStation">KHO —</span>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
-      <button class="btn btn-ghost" onclick="closeCreateMealModal()">Huỷ</button>
-      <button class="btn btn-meal" id="btnMealSubmit" onclick="createMealMoveTask()" style="background:#2e7d32;color:#fff;border-color:#2e7d32;">+ Tạo task</button>
+    <div class="create-dialog-head">
+      <div>
+        <h2 id="createMealModalTitle">+ Tạo task Điểm danh Ra/Vào</h2>
+        <p>Chọn <b>Station + Team</b> — sau đó dán/quét mã <b>Ops</b> để ghi Ra/Vào.</p>
+      </div>
+      <button type="button" class="dialog-close" onclick="closeCreateMealModal()" aria-label="Đóng hộp thoại">✕</button>
+    </div>
+
+    <div class="create-section">
+      <div class="create-section-label"><span class="create-step-num">1</span> Phạm vi task</div>
+      <div class="form-grid create-grid">
+        <div>
+          <label for="mealStation">Station <span style="color:#ff8a5c;">*</span></label>
+          <select id="mealStation" onchange="updateMealPreview()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="create-section">
+      <div class="create-section-label"><span class="create-step-num">2</span> Nhóm nhân viên</div>
+      <div class="chip-field">
+        <label for="mealTeam">Team <span style="color:#ff8a5c;">*</span> <span class="chip-count" id="countMealTeam"></span></label>
+        <div class="chip-group" id="mealTeam"></div>
+      </div>
+    </div>
+
+    <div id="mealPreview" class="create-preview" data-state="idle">
+      <span class="create-preview-ic" id="mealPreviewIc">⇄</span>
+      <div class="create-preview-body">
+        <div class="create-preview-count" id="mealPreviewCount">Chọn Station và Team để xem số NV</div>
+        <div class="create-preview-hint" id="mealPreviewHint"></div>
+      </div>
+    </div>
+
+    <div class="create-section" id="noteSectionMeal">
+      <div class="create-section-label"><span class="create-step-num">✎</span> Ghi chú <span class="note-optional">(không bắt buộc)</span></div>
+      <textarea id="noteMealInput" rows="2" placeholder="VD: Đợt nghỉ trưa, ca đặc biệt…" aria-label="Ghi chú task"></textarea>
+    </div>
+
+    <div class="create-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeCreateMealModal()">Huỷ</button>
+      <button type="button" class="btn btn-create-submit" id="btnMealSubmit" onclick="createMealMoveTask()" disabled>+ Tạo task</button>
     </div>
   </div>
 </div>
@@ -1802,12 +1883,14 @@
 
   function createTask() {
     if (BUSY) return;
+    var noteEl = document.getElementById('noteInput');
     var input = {
       station: document.getElementById('fStation').value,
       slotCode: getSelectedChips('fSlotCode'),
       team: getSelectedChips('fTeam'),
       date: document.getElementById('fDate').value,
-      contractType: getSelectedChips('fContractType')
+      contractType: getSelectedChips('fContractType'),
+      note: noteEl ? noteEl.value.trim() : ''
     };
     if (!input.station || !input.slotCode.length || !input.team.length) {
       showToast('Vui lòng chọn đủ Station, Team và Ca', true);
@@ -1896,6 +1979,7 @@
       (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
       // Hiện email creator cho mọi loại task (giống meal-move)
       (data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '');
+    renderTaskNote(data.task);
     // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
     toggleMealColumns(isMealMove);
     var toggleWrap = document.getElementById('mealToggleWrap');
@@ -2006,6 +2090,71 @@
   // Render header bảng scan theo loại task — đảm bảo header khớp body
   // (reconcile = 7 cột: Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh;
   //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Nhà Thầu/Số phút).
+  // ===== Ghi chú task: hiển thị dưới task-meta + nút "Sửa ghi chú" nhỏ màu =====
+  function renderTaskNote(task) {
+    var wrap = document.getElementById('taskNoteWrap');
+    if (!wrap) return;
+    var note = String((task && task.note) || '').trim();
+    var canEdit = true; // mọi trạng thái task đều sửa được ghi chú
+    if (note) {
+      wrap.innerHTML =
+        '<div class="task-note" id="taskNoteBox">' +
+          '<span class="tn-ic">📝</span>' +
+          '<div class="tn-text">' + esc(note) + '</div>' +
+          (canEdit ? '<div class="tn-actions"><button type="button" class="btn-note-edit" onclick="editTaskNote()">✎ Sửa ghi chú</button></div>' : '') +
+        '</div>';
+    } else {
+      wrap.innerHTML =
+        '<div class="task-note-empty">' +
+          (canEdit ? '<button type="button" class="btn-note-edit" onclick="editTaskNote()">＋ Ghi chú</button>' : '') +
+        '</div>';
+    }
+  }
+  // Chuyển khối ghi chú sang chế độ chỉnh sửa (textarea + Lưu/Huỷ)
+  function editTaskNote() {
+    var wrap = document.getElementById('taskNoteWrap');
+    if (!wrap || !CURRENT_TASK) return;
+    var note = String((CURRENT_TASK && CURRENT_TASK.note) || '').trim();
+    wrap.innerHTML =
+      '<div class="task-note-editbox">' +
+        '<textarea id="taskNoteEdit" rows="2" placeholder="Ghi chú cho task…" aria-label="Ghi chú task">' + esc(note) + '</textarea>' +
+        '<div class="tne-actions">' +
+          '<button type="button" class="btn" onclick="saveTaskNote()">Lưu</button>' +
+          '<button type="button" class="btn btn-ghost" onclick="cancelTaskNote()">Huỷ</button>' +
+        '</div>' +
+      '</div>';
+    var ta = document.getElementById('taskNoteEdit');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+  function cancelTaskNote() {
+    renderTaskNote(CURRENT_TASK);
+  }
+  function saveTaskNote() {
+    if (!CURRENT_TASK) return;
+    var ta = document.getElementById('taskNoteEdit');
+    var note = ta ? ta.value : '';
+    var btn = document.querySelector('.task-note-editbox .btn');
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        var b2 = document.querySelector('.task-note-editbox .btn');
+        if (b2) b2.disabled = false;
+        if (res && res.ok) {
+          CURRENT_TASK.note = String(note || '').trim();
+          renderTaskNote(CURRENT_TASK);
+          showToast(res.message, false);
+        } else {
+          showToast((res && res.message) || 'Lỗi lưu ghi chú', true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        var b3 = document.querySelector('.task-note-editbox .btn');
+        if (b3) b3.disabled = false;
+        showToast('Lỗi lưu ghi chú: ' + err.message, true);
+      })
+      .updateTaskNoteApi(CURRENT_TASK.taskId, note);
+  }
+
   function renderScanHeader(isMealMove) {
     var thead = document.querySelector('#scanTable thead');
     if (!thead) return;
@@ -2258,13 +2407,21 @@
   }
 
   // ===== Meal-move: modal tạo task + preview + handlers =====
+  // MEAL-CREATE-START
+  var _mealFilterOptions = null;  // cache options (stations/teams) — dùng chung cả 2 modal
+  var _mealPreviewTimer = null;
+
   function openCreateMealModal() {
     var m = document.getElementById('createMealModal');
     if (!m) return;
+    resetMealCreate();
+    if (_mealFilterOptions) { fillMealOptions(_mealFilterOptions); }
+    else { loadMealOptions(); }
+    updateMealSubmitState();
     m.setAttribute('aria-hidden', 'false');
     m.classList.add('open');
-    var btn = document.getElementById('btnMealSubmit');
-    if (btn && btn.focus) btn.focus();
+    var sel = document.getElementById('mealStation');
+    if (sel && sel.focus) sel.focus();
   }
   function closeCreateMealModal() {
     var m = document.getElementById('createMealModal');
@@ -2272,8 +2429,130 @@
     var btn = document.getElementById('btnCreateTask');
     if (btn && btn.focus) btn.focus();
   }
+  // Đọc options (stations/teams) riêng cho modal meal-move — tái dùng getFilterOptions.
+  function loadMealOptions() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showToast('Lỗi tải options: ' + (res && res.message), true); return; }
+        _mealFilterOptions = res;
+        fillMealOptions(res);
+      })
+      .withFailureHandler(function (err) { showToast('Lỗi tải options: ' + err.message, true); })
+      .getFilterOptions();
+  }
+  function fillMealOptions(opt) {
+    fillSelect('mealStation', opt.stations || [], '-- Chọn station --');
+    fillMealTeamChips('mealTeam', opt.teams || []);
+  }
+  // Chip Team riêng cho modal meal-move (handler gọi updateMealSubmitState/updateMealPreview —
+  // KHÔNG dùng fillChips chung: fillChips hardcode handler của modal reconcile).
+  function fillMealTeamChips(id, values) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    group.innerHTML = '';
+    (values || []).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = v;
+      b.dataset.value = v;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        b.classList.toggle('selected');
+        b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
+        var cnt = document.getElementById('countMealTeam');
+        if (cnt) cnt.textContent = String(getSelectedChips('mealTeam').length || '');
+        updateMealSubmitState();
+        updateMealPreview();
+      });
+      group.appendChild(b);
+    });
+  }
+  // Reset bộ lọc meal mỗi lần mở — tránh tạo nhầm task với lựa chọn cũ.
+  function resetMealCreate() {
+    var noteEl = document.getElementById('noteMealInput');
+    if (noteEl) noteEl.value = '';
+    var sel = document.getElementById('mealStation');
+    if (sel) sel.value = '';
+    var grp = document.getElementById('mealTeam');
+    if (grp) {
+      var cs = grp.querySelectorAll('.chip.selected');
+      for (var i = 0; i < cs.length; i++) cs[i].classList.remove('selected');
+    }
+    var cnt = document.getElementById('countMealTeam');
+    if (cnt) cnt.textContent = '';
+    var box = document.getElementById('mealPreview');
+    if (box) box.setAttribute('data-state', 'idle');
+    var cntEl = document.getElementById('mealPreviewCount');
+    if (cntEl) cntEl.textContent = 'Chọn Station và Team để xem số NV';
+    var hintEl = document.getElementById('mealPreviewHint');
+    if (hintEl) hintEl.textContent = '';
+    var btn = document.getElementById('btnMealSubmit');
+    if (btn) btn.disabled = true;
+  }
+  // Logic thuần (test được): task Điểm danh Ra/Vào BẮT BUỘC Station + ≥1 Team.
+  function canSubmitMealCreate(station, teams) {
+    return !!(station && teams && teams.length);
+  }
+  function buildMealCreateInput(station, teams, note) {
+    return { station: station || '', team: teams || [], staffIds: [], createdBy: '', note: String(note || '').trim() };
+  }
+  // Nút "+ Tạo task" chỉ bấm được khi đủ Station + ≥1 Team.
+  function updateMealSubmitState() {
+    var btn = document.getElementById('btnMealSubmit');
+    if (!btn) return;
+    var sel = document.getElementById('mealStation');
+    var station = sel ? sel.value : '';
+    btn.disabled = !canSubmitMealCreate(station, getSelectedChips('mealTeam'));
+  }
+  // Preview số NV khớp Station + Team (debounce 400ms — chống spam RPC).
+  function updateMealPreview() {
+    var sel = document.getElementById('mealStation');
+    var station = sel ? sel.value : '';
+    var teams = getSelectedChips('mealTeam');
+    var box = document.getElementById('mealPreview');
+    var cntEl = document.getElementById('mealPreviewCount');
+    var hintEl = document.getElementById('mealPreviewHint');
+    if (!cntEl || !box) return;
+    updateMealSubmitState();
+    if (!canSubmitMealCreate(station, teams)) {
+      box.setAttribute('data-state', 'idle');
+      cntEl.textContent = 'Chưa đủ bộ lọc để xem số NV';
+      hintEl.textContent = 'Cần chọn: ' + (!station ? 'Station' : '') + (!teams.length ? (station ? ', ' : '') + 'Team' : '');
+      return;
+    }
+    box.setAttribute('data-state', 'loading');
+    cntEl.textContent = 'Đang kiểm tra…';
+    hintEl.textContent = '';
+    clearTimeout(_mealPreviewTimer);
+    _mealPreviewTimer = setTimeout(function () {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) {
+            box.setAttribute('data-state', 'err');
+            cntEl.textContent = 'Không tải được preview';
+            return;
+          }
+          box.setAttribute('data-state', 'ok');
+          cntEl.textContent = 'Số NV khớp: ' + res.count + ' người';
+          hintEl.textContent = station + ' · ' + teams.length + ' team';
+        })
+        .withFailureHandler(function (err) {
+          box.setAttribute('data-state', 'err');
+          cntEl.textContent = 'Lỗi preview: ' + err.message;
+        })
+        .previewStaffApi({ station: station, team: teams });
+    }, 400);
+  }
   function createMealMoveTask() {
     if (BUSY) return;
+    var sel = document.getElementById('mealStation');
+    var noteEl = document.getElementById('noteMealInput');
+    var input = buildMealCreateInput(sel ? sel.value : '', getSelectedChips('mealTeam'), noteEl ? noteEl.value : '');
+    if (!canSubmitMealCreate(input.station, input.team)) {
+      showToast('Vui lòng chọn đủ Station và Team', true);
+      return;
+    }
     BUSY = true;
     var btn = document.getElementById('btnMealSubmit');
     if (btn) btn.disabled = true;
@@ -2296,9 +2575,9 @@
         if (btn) btn.disabled = false;
         showToast('Lỗi tạo task: ' + err.message, true);
       })
-      .createMealMoveTaskApi({ staffIds: [], createdBy: '' });
+      .createMealMoveTaskApi(input);
   }
-
+  // MEAL-CREATE-END
 
   // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
   // Dùng chung cho luồng batch từ submitScan; PASTE_BUSY chống submit chồng.

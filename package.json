@@ -5,7 +5,7 @@
   "description": "RollCall v2 — GAS WebApp điểm danh kiểm-soát có/vắng/trễ cho kho chuyển phát nhanh",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/batch-meal-move.test.js tests/csv-normalize.test.js tests/scan-classify.test.js tests/scan-logic.test.js tests/task-menu.test.js",
+    "test": "node --test tests/batch-meal-move.test.js tests/csv-normalize.test.js tests/meal-create.test.js tests/scan-classify.test.js tests/scan-logic.test.js tests/task-menu.test.js",
     "dev": "node scripts/serve.js",
     "build": "node scripts/build-static.js"
   },

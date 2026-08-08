@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>10 Mẫu Modal Tạo Task ĐIỂM DANH RA/VÀO — SPX RollCall</title>
+<style>
+  /* ============================================================
+     GALLERY BASE
+  ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #eef0f4; color: #1f1f1f; line-height: 1.5;
+  }
+  .gal-head {
+    background: #0d111a; color: #e2e8f0; padding: 22px 24px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 1px solid #2a3142;
+  }
+  .gal-logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; }
+  .gal-logo .spx-badge {
+    background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff;
+    font-size: 13px; font-weight: 800; letter-spacing: .5px;
+    padding: 5px 11px; border-radius: 7px;
+  }
+  .gal-logo small { color: #7f8ea3; font-weight: 600; }
+  .gal-head h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  .gal-head p { color: #9aa7bd; font-size: 13px; }
+  .gal-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid #e2e6ec;
+    display: flex; gap: 6px; padding: 10px 24px; overflow-x: auto; flex-wrap: wrap;
+  }
+  .gal-nav a {
+    text-decoration: none; color: #303844; font-size: 12.5px; font-weight: 600;
+    border: 1px solid #e2e6ec; border-radius: 999px; padding: 5px 12px;
+    transition: all .15s ease; white-space: nowrap;
+  }
+  .gal-nav a:hover { border-color: #ee4d2d; color: #ee4d2d; }
+  .gal-hint {
+    max-width: 1120px; margin: 18px auto 0; padding: 0 20px;
+    color: #5f6368; font-size: 13.5px;
+  }
+  .gal-hint b { color: #ee4d2d; }
+  .back-link { display: inline-block; margin-top: 8px; font-size: 12.5px; color: #0b57d0; text-decoration: none; font-weight: 600; }
+  .back-link:hover { text-decoration: underline; }
+  main { max-width: 1120px; margin: 0 auto; padding: 14px 20px 80px; display: grid; gap: 26px; }
+
+  .sample { display: grid; gap: 10px; }
+  .sample-head { display: flex; gap: 14px; align-items: flex-start; padding: 4px 2px; }
+  .sample-num {
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px;
+    background: #0d111a; color: #ff8a5c; font-size: 15px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; letter-spacing: .5px;
+  }
+  .sample-head h2 { font-size: 17px; font-weight: 700; }
+  .sample-head p { color: #5f6368; font-size: 13px; margin-top: 2px; max-width: 720px; }
+  .sample-head .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    background: #e7f4ea; color: #1e6b33; border: 1px solid #bcddbb; border-radius: 999px;
+    padding: 2px 10px; margin-top: 6px;
+  }
+  .stage {
+    border-radius: 18px; padding: 34px 22px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e2e6ec; background: #f8f9fb; min-height: 380px;
+    background-image: radial-gradient(circle at 20% 15%, rgba(238,77,45,.05), transparent 42%),
+                      radial-gradient(circle at 85% 85%, rgba(46,125,50,.05), transparent 42%);
+  }
+  .stage.dark { background: #141a26; border-color: #262d3d; }
+  .stage.grad { background: linear-gradient(135deg, #0b57d0 0%, #4b2bb3 55%, #8a2be2 100%); border-color: transparent; }
+  .stage.glass { background:
+      radial-gradient(circle at 15% 20%, rgba(255,107,61,.35), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(72,118,255,.35), transparent 45%),
+      linear-gradient(135deg, #1e2a4a, #141a2e); border-color: #2a3352; }
+
+  /* ============================================================
+     SHARED FORM PRIMITIVES (biến --acc theo từng mẫu)
+  ============================================================ */
+  .sh {
+    width: 100%; max-width: 500px; border-radius: 16px; background: var(--card, #fff);
+    box-shadow: 0 18px 50px rgba(10, 20, 45, .16); overflow: hidden;
+  }
+  .sh-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .sh-head h3 { font-size: 16px; font-weight: 700; margin: 0; }
+  .sh-head p { font-size: 12.5px; color: var(--mut, #5f6368); margin-top: 2px; }
+  .sh-x {
+    flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--bd, #e2e6ec);
+    background: #fff; color: #7f8694; font-size: 12px; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s ease;
+  }
+  .sh-x:hover { background: #fdecea; color: #d3461e; border-color: #f2b8ad; transform: rotate(90deg); }
+  .sh-body { padding: 16px 20px; }
+  .fld { margin-top: 13px; }
+  .fld:first-of-type, .fld.first { margin-top: 0; }
+  .fld > label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--mut, #5f6368); margin-bottom: 7px; }
+  .fld .req { color: #d93025; }
+  .fld select, .fld input[type="text"] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--bd, #e2e6ec); border-radius: 10px;
+    font-size: 14px; background: #fff; color: #1f1f1f; font-family: inherit;
+  }
+  .fld select:focus, .fld input:focus { outline: 2px solid var(--ring, rgba(238,77,45,.35)); border-color: var(--acc, #ee4d2d); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chip {
+    border: 1px solid var(--bd, #e2e6ec); background: #fff; color: #1f1f1f;
+    border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 500;
+    cursor: pointer; user-select: none; transition: all .16s ease; line-height: 1.2;
+  }
+  .chip:hover { border-color: var(--acc, #ee4d2d); color: var(--acc, #ee4d2d); }
+  .chip.on { background: var(--acc, #ee4d2d); border-color: var(--acc, #ee4d2d); color: #fff; box-shadow: 0 3px 10px var(--acc-shadow, rgba(238,77,45,.35)); }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .cnt {
+    font-size: 11px; font-weight: 700; color: var(--acc, #ee4d2d);
+    background: var(--cnt-bg, #fdeeea); border-radius: 999px; padding: 2px 9px;
+  }
+  .cnt:empty { display: none; }
+  .pv {
+    display: flex; align-items: center; gap: 12px; margin-top: 15px; padding: 13px 15px;
+    border: 1px solid var(--bd, #e2e6ec); border-radius: 12px;
+    background: var(--pv-bg, #f1f3f4); transition: all .25s ease;
+  }
+  .pv-ic {
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: #fff;
+    border: 1px solid var(--bd, #e2e6ec); display: flex; align-items: center; justify-content: center;
+    font-size: 17px; transition: all .25s ease;
+  }
+  .pv-b { min-width: 0; }
+  .pv-t { font-size: 13px; font-weight: 600; color: var(--mut, #5f6368); }
+  .pv-s { font-size: 11.5px; color: var(--mut, #5f6368); opacity: .85; margin-top: 2px; }
+  .pv[data-state="ok"] { border-color: #b7dfc2; background: #e6f4ea; }
+  .pv[data-state="ok"] .pv-t { color: #188038; font-weight: 700; }
+  .pv[data-state="loading"] .pv-ic { animation: ppulse 1s ease-in-out infinite; }
+  .pv[data-state="err"] { border-color: #f0b3ae; background: #fce8e6; }
+  .pv[data-state="err"] .pv-t { color: #d93025; }
+  @keyframes ppulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  .acts { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid var(--bd, #e2e6ec); background: var(--act-bg, #fafbfc); }
+  .btn {
+    border: none; border-radius: 10px; padding: 10px 18px; font-size: 13.5px; font-weight: 700;
+    cursor: pointer; transition: all .16s ease; font-family: inherit;
+  }
+  .btn.ghost { background: transparent; color: var(--mut, #5f6368); border: 1px solid var(--bd, #e2e6ec); }
+  .btn.ghost:hover { background: #f0f1f3; }
+  .btn.pri { background: var(--acc, #ee4d2d); color: #fff; box-shadow: 0 4px 14px var(--acc-shadow, rgba(238,77,45,.35)); }
+  .btn.pri:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn.pri:active { transform: scale(.97); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .mm-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .mm-badge.ra { background: #fff3e0; color: #e65100; border: 1px solid #ffab40; }
+  .mm-badge.vao { background: #e6f4ea; color: #188038; border: 1px solid #b7dfc2; }
+
+  /* ============================================================
+     MẪU 1 — DARK INDUSTRIAL HUD (cam SPX — đồng bộ app hiện tại)
+  ============================================================ */
+  .m1.sh { --card: #10161f; --bd: #232c3a; --mut: #8b98ab; --acc: #ff8a5c; --acc-shadow: rgba(255,138,92,.3); --ring: rgba(255,138,92,.45); --pv-bg: #151c27; --act-bg: #0d131b; color: #e8edf5; box-shadow: 0 24px 60px rgba(0,0,0,.5); border: 1px solid #232c3a; }
+  .m1.sh .sh-head h3 { color: #fff; }
+  .m1 .fld select, .m1 .fld input { background: #0d131b; color: #e8edf5; border-color: #232c3a; }
+  .m1 .chip { background: #131b26; color: #b6c2d3; border-color: #232c3a; }
+  .m1 .chip.on { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; }
+  .m1 .pv { background: #151c27; border-color: #232c3a; }
+  .m1 .pv-ic { background: #0d131b; border-color: #232c3a; }
+  .m1 .acts { background: #0d131b; }
+  .m1 .sh-x { background: #131b26; color: #8b98ab; border-color: #232c3a; }
+  .m1 .mono { font-family: Consolas, "Courier New", monospace; }
+  .m1 .hud-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #0d131b; border-bottom: 1px solid #232c3a; }
+  .m1 .hud-dot { width: 8px; height: 8px; border-radius: 50%; background: #2bd576; box-shadow: 0 0 8px #2bd576; }
+
+  /* ============================================================
+     MẪU 2 — LIGHT MINIMAL · MATERIAL 3
+  ============================================================ */
+  .m2.sh { --acc: #0b57d0; --acc-shadow: rgba(11,87,208,.3); --ring: rgba(11,87,208,.35); --cnt-bg: #e8f0fe; border-radius: 20px; max-width: 460px; }
+  .m2 .sh-body { padding: 20px 22px; }
+  .m2 .fld select { border-radius: 12px; padding: 12px 14px; font-size: 14.5px; }
+  .m2 .chip { border-radius: 12px; padding: 9px 14px; font-size: 13px; }
+  .m2 .chips { gap: 8px; }
+  .m2 .pv { border-radius: 14px; background: #f8fafd; }
+  .m2 .acts { border-radius: 0 0 20px 20px; }
+  .m2 .btn.pri { border-radius: 999px; padding: 11px 22px; }
+
+  /* ============================================================
+     MẪU 3 — WIZARD STEPPER 2 BƯỚC (Station → Team)
+  ============================================================ */
+  .m3.sh { --acc: #ee4d2d; --acc-shadow: rgba(238,77,45,.3); --ring: rgba(238,77,45,.4); max-width: 480px; }
+  .m3 .steps { display: flex; align-items: center; gap: 6px; padding: 16px 20px 0; }
+  .m3 .step { display: flex; align-items: center; gap: 7px; flex: 1; }
+  .m3 .step .dot {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid #d9dce1; color: #9aa0ab;
+    font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+    transition: all .25s ease; flex: 0 0 auto;
+  }
+  .m3 .step .lbl { font-size: 11px; font-weight: 600; color: #9aa0ab; white-space: nowrap; }
+  .m3 .step .bar { flex: 1; height: 2px; background: #e2e6ec; border-radius: 2px; transition: background .3s ease; }
+  .m3 .step.active .dot { background: var(--acc); border-color: var(--acc); color: #fff; box-shadow: 0 3px 10px var(--acc-shadow); }
+  .m3 .step.active .lbl { color: #1f1f1f; }
+  .m3 .step.done .dot { background: #188038; border-color: #188038; color: #fff; }
+  .m3 .step.done .bar { background: #188038; }
+  .m3 .wpanel { display: none; }
+  .m3 .wpanel.on { display: block; animation: wfade .25s ease; }
+  @keyframes wfade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .m3 .wfoot { display: flex; justify-content: space-between; gap: 10px; }
+  .m3 .wfoot .right { display: flex; gap: 8px; }
+
+  /* ============================================================
+     MẪU 4 — SEGMENTED + CARD SELECT (xanh lá Ra/Vào)
+  ============================================================ */
+  .m4.sh { --acc: #2e7d32; --acc-shadow: rgba(46,125,50,.3); --ring: rgba(46,125,50,.35); --cnt-bg: #e6f4ea; max-width: 480px; }
+  .m4 .segs { display: flex; gap: 6px; background: #eef0f3; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .m4 .seg {
+    flex: 1; border: none; background: transparent; border-radius: 9px; padding: 9px 6px;
+    font-size: 12.5px; font-weight: 600; color: #5f6368; cursor: pointer; font-family: inherit;
+    transition: all .2s ease;
+  }
+  .m4 .seg.on { background: #fff; color: var(--acc); box-shadow: 0 2px 8px rgba(10,20,45,.12); }
+  .m4 .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .m4 .opt-card {
+    border: 1.5px solid #e2e6ec; border-radius: 12px; padding: 11px 12px; cursor: pointer; background: #fff;
+    transition: all .18s ease; text-align: left; font-family: inherit;
+  }
+  .m4 .opt-card b { display: block; font-size: 13.5px; }
+  .m4 .opt-card span { font-size: 11px; color: #7f8694; }
+  .m4 .opt-card .tick {
+    float: right; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #d9dce1; color: transparent;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;
+    transition: all .18s ease;
+  }
+  .m4 .opt-card.on { border-color: var(--acc); background: #f0f7f0; }
+  .m4 .opt-card.on .tick { background: var(--acc); border-color: var(--acc); color: #fff; }
+
+  /* ============================================================
+     MẪU 5 — SPLIT PANEL LIVE PREVIEW
+  ============================================================ */
+  .m5.sh { --acc: #ee4d2d; --acc-shadow: rgba(238,77,45,.3); --ring: rgba(238,77,45,.4); max-width: 640px; }
+  .m5 .split { display: grid; grid-template-columns: 1fr 1fr; }
+  .m5 .split .left { padding: 16px 18px; border-right: 1px solid #eef0f3; }
+  .m5 .split .right { padding: 16px 18px; background: #fafbfc; }
+  .m5 .live-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: #5f6368; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+  .m5 .live-head .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #2bd576; box-shadow: 0 0 6px #2bd576; }
+  .m5 .mini-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px dashed #e8eaee; font-size: 12px; }
+  .m5 .mini-row:last-child { border-bottom: none; }
+  .m5 .mini-row .av { width: 24px; height: 24px; border-radius: 50%; background: #e7f4ea; color: #1e6b33; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .m5 .mini-row b { font-family: Consolas, monospace; font-size: 11.5px; }
+  .m5 .mini-row .st { margin-left: auto; font-size: 10.5px; font-weight: 700; color: #188038; }
+  .m5 .mini-empty { text-align: center; color: #9aa0ab; font-size: 12.5px; padding: 22px 0; }
+
+  /* ============================================================
+     MẪU 6 — BOTTOM SHEET (mobile/kiosk)
+  ============================================================ */
+  .m6-wrap { width: 100%; max-width: 420px; }
+  .m6-launch {
+    width: 100%; border: none; border-radius: 14px; padding: 14px;
+    font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit;
+    background: linear-gradient(135deg, #2e7d32, #1b5e20);
+    box-shadow: 0 10px 26px rgba(46, 125, 50, .35); transition: all .18s ease;
+  }
+  .m6-launch:hover { transform: translateY(-2px); }
+  .m6-overlay {
+    position: fixed; inset: 0; z-index: 60; background: rgba(10, 15, 30, .5); backdrop-filter: blur(3px);
+    display: flex; align-items: flex-end; justify-content: center; opacity: 0; visibility: hidden;
+    transition: opacity .28s ease, visibility .28s;
+  }
+  .m6-overlay.open { opacity: 1; visibility: visible; }
+  .m6-sheet {
+    width: 100%; max-width: 480px; background: #fff; border-radius: 22px 22px 0 0;
+    transform: translateY(100%); transition: transform .32s cubic-bezier(.2, .8, .3, 1.05);
+    padding: 10px 20px 20px; box-shadow: 0 -12px 40px rgba(10, 20, 45, .25); max-height: 82vh; overflow: auto;
+  }
+  .m6-overlay.open .m6-sheet { transform: translateY(0); }
+  .m6-grab { width: 40px; height: 4px; border-radius: 4px; background: #d9dce1; margin: 4px auto 14px; }
+  .m6-sheet .sh-head h3 { font-size: 15px; }
+  .m6-sheet .mm-badges { display: flex; gap: 6px; margin-top: 6px; }
+
+  /* ============================================================
+     MẪU 7 — GLASSMORPHISM (trend 2025-2026)
+  ============================================================ */
+  .m7.sh {
+    --acc: #7dd3fc; --acc-shadow: rgba(125,211,252,.35); --ring: rgba(125,211,252,.5);
+    --cnt-bg: rgba(255,255,255,.16);
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    color: #f3f6ff; box-shadow: 0 24px 60px rgba(0,0,0,.45); border-radius: 22px;
+  }
+  .m7.sh .sh-head h3 { color: #fff; }
+  .m7 .fld select { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); color: #fff; }
+  .m7 .fld select option { color: #1f1f1f; }
+  .m7 .chip { background: rgba(255,255,255,.12); color: #e6edff; border-color: rgba(255,255,255,.3); }
+  .m7 .chip.on { background: linear-gradient(135deg, #38bdf8, #6366f1); border-color: transparent; color: #fff; }
+  .m7 .pv { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24); }
+  .m7 .pv-ic { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.28); }
+  .m7 .acts { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.2); }
+  .m7 .btn.pri { background: linear-gradient(135deg, #38bdf8, #6366f1); }
+  .m7 .sh-x { background: rgba(255,255,255,.14); color: #dbe4ff; border-color: rgba(255,255,255,.3); }
+  .m7 .mm-badge.ra { background: rgba(255,179,71,.2); color: #ffd08a; border-color: rgba(255,179,71,.4); }
+  .m7 .mm-badge.vao { background: rgba(74,222,128,.18); color: #86efac; border-color: rgba(74,222,128,.4); }
+
+  /* ============================================================
+     MẪU 8 — TERMINAL SCAN HUD
+  ============================================================ */
+  .m8.sh { --card: #0b0f0d; --bd: #1f3327; --mut: #7ecf9b; --acc: #34d399; --acc-shadow: rgba(52,211,153,.3); --ring: rgba(52,211,153,.45); --pv-bg: #0e1712; --act-bg: #081009; color: #d9fbe6; font-family: Consolas, "Courier New", monospace; box-shadow: 0 24px 60px rgba(0,0,0,.5); border: 1px solid #1f3327; }
+  .m8 .term-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #081009; border-bottom: 1px solid #1f3327; font-size: 11px; color: #7ecf9b; letter-spacing: .5px; }
+  .m8 .term-bar .dots span { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .m8 .fld select { background: #0e1712; color: #d9fbe6; border-color: #1f3327; }
+  .m8 .chip { background: #0e1712; color: #9fe0b8; border-color: #1f3327; }
+  .m8 .chip.on { background: #34d399; color: #06281a; }
+  .m8 .pv { background: #0e1712; border-color: #1f3327; }
+  .m8 .pv-ic { background: #081009; border-color: #1f3327; }
+  .m8 .acts { background: #081009; }
+  .m8 .sh-x { background: #0e1712; color: #7ecf9b; border-color: #1f3327; }
+  .m8 .prompt-line { font-size: 12px; color: #7ecf9b; }
+  .m8 .prompt-line .caret { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ============================================================
+     MẪU 9 — KIOSK GIANT TOUCH (màn cảm ứng lớn, đeo găng tay)
+  ============================================================ */
+  .m9.sh { --acc: #ee4d2d; --acc-shadow: rgba(238,77,45,.3); --ring: rgba(238,77,45,.4); max-width: 560px; border-radius: 24px; }
+  .m9 .sh-body { padding: 26px 30px; }
+  .m9 .sh-head h3 { font-size: 24px; }
+  .m9 .sh-head p { font-size: 15px; }
+  .m9 .fld > label { font-size: 16px; margin-bottom: 10px; }
+  .m9 .fld select { padding: 16px 18px; font-size: 19px; border-radius: 14px; min-height: 60px; }
+  .m9 .chip { padding: 14px 24px; font-size: 17px; border-radius: 16px; min-height: 58px; }
+  .m9 .chips { gap: 12px; }
+  .m9 .pv { padding: 18px 20px; border-radius: 16px; margin-top: 20px; }
+  .m9 .pv-ic { width: 52px; height: 52px; border-radius: 14px; font-size: 24px; }
+  .m9 .pv-t { font-size: 17px; }
+  .m9 .pv-s { font-size: 14px; }
+  .m9 .acts { padding: 20px 30px; }
+  .m9 .btn { padding: 18px 34px; font-size: 18px; border-radius: 14px; }
+  .m9 .btn.pri { min-width: 200px; }
+
+  /* ============================================================
+     MẪU 10 — OPS CONSOLE PANEL
+  ============================================================ */
+  .m10.sh { --acc: #0b57d0; --acc-shadow: rgba(11,87,208,.3); --ring: rgba(11,87,208,.35); --cnt-bg: #e8f0fe; max-width: 600px; border-radius: 18px; }
+  .m10 .console-top { display: flex; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg, #0d111a, #16203a); color: #fff; }
+  .m10 .console-top h3 { font-size: 15px; }
+  .m10 .console-top p { font-size: 12px; color: #9aa7bd; }
+  .m10 .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; padding: 14px 18px; border-bottom: 1px solid #eef0f3; }
+  .m10 .kpi { background: #f6f8fb; border: 1px solid #e6eaf0; border-radius: 12px; padding: 10px 12px; }
+  .m10 .kpi b { display: block; font-size: 20px; font-family: Consolas, monospace; color: #0b57d0; }
+  .m10 .kpi span { font-size: 10.5px; color: #7f8694; text-transform: uppercase; letter-spacing: .4px; }
+  .m10 .kpi.green b { color: #188038; }
+  .m10 .kpi.amber b { color: #e37400; }
+  .m10 .fld select { border-radius: 10px; }
+  .m10 .acts { background: #fff; }
+
+  @media (max-width: 640px) {
+    .stage { padding: 22px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="gal-head">
+  <div class="gal-logo"><span class="spx-badge">SPX Express</span><small>RollCall · Kiosk</small></div>
+  <div style="margin-left:auto;text-align:right;">
+    <h1>10 MẪU MODAL TẠO TASK — ĐIỂM DANH RA/VÀO</h1>
+    <p>Thiết kế theo ngành logistics / kho bãi / kiosk quét mã — BẮT BUỘC Station + Team</p>
+  </div>
+</header>
+
+<nav class="gal-nav">
+  <a href="#mm1">1 · Dark HUD</a><a href="#mm2">2 · Light Minimal</a><a href="#mm3">3 · Wizard 2 bước</a>
+  <a href="#mm4">4 · Segmented Cards</a><a href="#mm5">5 · Split Live</a><a href="#mm6">6 · Bottom Sheet</a>
+  <a href="#mm7">7 · Glassmorphism</a><a href="#mm8">8 · Terminal</a><a href="#mm9">9 · Kiosk Touch</a>
+  <a href="#mm10">10 · Ops Console</a>
+</nav>
+
+<p class="gal-hint">Mỗi mẫu là 1 phong cách <b>modal tạo task Điểm danh Ra/Vào</b> (chỉ cần <b>Station</b> + <b>Team</b> — không cần Ca/Ngày/Loại HD). Thử chọn Station và bấm chip Team để xem: nút <b>+ Tạo task</b> chỉ sáng khi đủ cả 2. Màu cam <b>#EE4D2D</b> = thương hiệu SPX.<br>
+<a class="back-link" href="index.html">← Xem gallery 10 mẫu modal ĐIỂM DANH CA</a></p>
+
+<main>
+
+  <!-- ========== MẪU 1 ========== -->
+  <section class="sample" id="mm1">
+    <div class="sample-head">
+      <span class="sample-num">01</span>
+      <div>
+        <h2>Dark Industrial HUD</h2>
+        <p>Nền tối, accent cam SPX, chữ monospace — đồng bộ với modal "Điểm danh ca" hiện tại của app. HUD bar + preview NV khớp kiểu màn hình điều khiển thiết bị kho.</p>
+        <span class="tag">Kiosk kho · Dark · Đồng bộ app</span>
+      </div>
+    </div>
+    <div class="stage dark">
+      <div class="sh m1" data-sample>
+        <div class="hud-bar"><span class="hud-dot"></span><span class="mono" style="font-size:11px;color:#8b98ab;letter-spacing:1px;">TASK-CREATE · MEAL-MOVE</span><span style="margin-left:auto;font-size:11px;color:#8b98ab;">RA / VÀO</span></div>
+        <div class="sh-body">
+          <div class="sh-head">
+            <div><h3>+ Tạo task Điểm danh Ra/Vào</h3><p>Chọn <b>Station + Team</b> — dán/quét mã <b>Ops</b> để ghi Ra/Vào</p></div>
+            <button class="sh-x">✕</button>
+          </div>
+          <div class="fld first"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option><option>SG1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>KHO-A</button><button class="chip" data-team>KHO-B</button><button class="chip" data-team>KHO-C</button></div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 2 ========== -->
+  <section class="sample" id="mm2">
+    <div class="sample-head">
+      <span class="sample-num">02</span>
+      <div>
+        <h2>Light Minimal · Material 3</h2>
+        <p>Trắng thoáng, xanh primary, bo góc 20px, nút pill — dễ dùng nhất cho NV mới, không gây cảm giác "máy móc".</p>
+        <span class="tag">Light · Material 3 · Thân thiện</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m2" data-sample>
+        <div class="sh-body">
+          <div class="sh-head">
+            <div><h3>+ Tạo task Điểm danh Ra/Vào</h3><p>Chọn Station và Team cho task</p></div>
+            <button class="sh-x">✕</button>
+          </div>
+          <div class="fld first"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>Inbound</button><button class="chip" data-team>Outbound</button><button class="chip" data-team>Move</button></div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">👥</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 3 ========== -->
+  <section class="sample" id="mm3">
+    <div class="sample-head">
+      <span class="sample-num">03</span>
+      <div>
+        <h2>Wizard Stepper 2 bước</h2>
+        <p>Chọn Station → Chọn Team → Xác nhận. Mỗi bước 1 việc duy nhất, giảm tải nhận thức, ít bấm nhầm trên kiosk.</p>
+        <span class="tag">Wizard · Stepper · Ít sai sót</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m3" data-sample>
+        <div class="steps">
+          <div class="step active" data-step="0"><span class="dot">1</span><span class="lbl">Station</span><span class="bar"></span></div>
+          <div class="step" data-step="1"><span class="dot">2</span><span class="lbl">Team</span><span class="bar"></span></div>
+        </div>
+        <div class="sh-body">
+          <div class="wpanel on" data-panel="0">
+            <div class="fld first"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option><option>SG1 HUB</option></select></div>
+          </div>
+          <div class="wpanel" data-panel="1">
+            <div class="fld first"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+              <div class="chips" data-chips><button class="chip" data-team>KHO-A</button><button class="chip" data-team>KHO-B</button><button class="chip" data-team>KHO-C</button></div>
+            </div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts wfoot">
+          <button class="btn ghost" data-back disabled>← Quay lại</button>
+          <div class="right">
+            <button class="btn pri" data-submit disabled>+ Tạo task</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 4 ========== -->
+  <section class="sample" id="mm4">
+    <div class="sample-head">
+      <span class="sample-num">04</span>
+      <div>
+        <h2>Segmented + Card Select</h2>
+        <p>Segment Ra/Vào gợi nhắc mục đích task, Team chọn bằng thẻ lớn có tick — tối ưu cảm ứng, phản hồi rõ ràng.</p>
+        <span class="tag">Segmented · Card select · Cảm ứng</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m4" data-sample>
+        <div class="sh-body">
+          <div class="sh-head">
+            <div><h3>+ Tạo task Điểm danh Ra/Vào</h3><p>Quét Ra / Vào theo nhà thầu</p></div>
+            <button class="sh-x">✕</button>
+          </div>
+          <div class="segs" style="margin-top:14px;">
+            <button class="seg on">Ra ⇄ Vào</button><button class="seg">Theo nhà thầu</button>
+          </div>
+          <div class="fld first" style="margin-top:14px;"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>SG1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span></label>
+            <div class="opt-grid" data-chips>
+              <button class="opt-card" data-team><span class="tick">✓</span><b>Inbound</b><span>Nhận hàng vào</span></button>
+              <button class="opt-card" data-team><span class="tick">✓</span><b>Outbound</b><span>Chuyển hàng ra</span></button>
+              <button class="opt-card" data-team><span class="tick">✓</span><b>Move</b><span>Di chuyển nội kho</span></button>
+            </div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 5 ========== -->
+  <section class="sample" id="mm5">
+    <div class="sample-head">
+      <span class="sample-num">05</span>
+      <div>
+        <h2>Split Panel Live Preview</h2>
+        <p>Trái chọn Station/Team, phải xem danh sách NV khớp realtime — dành quản lý muốn kiểm tra nhóm trước khi tạo.</p>
+        <span class="tag">Split panel · Live preview · Quản lý</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m5" data-sample>
+        <div class="split">
+          <div class="left">
+            <div class="sh-head">
+              <div><h3>+ Tạo task Ra/Vào</h3><p>Chọn nhóm NV</p></div>
+              <button class="sh-x">✕</button>
+            </div>
+            <div class="fld first" style="margin-top:14px;"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn --</option><option>HN2 SOC</option><option>HN1 HUB</option></select></div>
+            <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+              <div class="chips" data-chips><button class="chip" data-team>Inbound</button><button class="chip" data-team>Outbound</button></div>
+            </div>
+          </div>
+          <div class="right">
+            <div class="live-head"><span><span class="live-dot"></span> NV KHỚP</span><span data-live-count>0</span></div>
+            <div class="mini-empty" data-live-empty>Chọn Station + Team để xem NV</div>
+            <div data-live-list></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 6 ========== -->
+  <section class="sample" id="mm6">
+    <div class="sample-head">
+      <span class="sample-num">06</span>
+      <div>
+        <h2>Bottom Sheet</h2>
+        <p>Trượt từ dưới lên như app điện thoại — quen thuộc trên tablet/mobile, kéo tay hoặc bấm ra ngoài để đóng.</p>
+        <span class="tag">Bottom sheet · Mobile · Tablet</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="m6-wrap">
+        <button class="m6-launch">+ Tạo task Điểm danh Ra/Vào (mở sheet)</button>
+        <div class="m6-overlay" id="m6overlay">
+          <div class="m6-sheet" data-sample>
+            <div class="m6-grab"></div>
+            <div class="sh-head">
+              <div><h3>+ Tạo task Điểm danh Ra/Vào</h3>
+                <div class="mm-badges"><span class="mm-badge ra">Ra</span><span class="mm-badge vao">Vào</span></div>
+              </div>
+              <button class="sh-x" data-sheet-close>✕</button>
+            </div>
+            <div class="fld first" style="margin-top:14px;"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>SG1 HUB</option></select></div>
+            <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+              <div class="chips" data-chips><button class="chip" data-team>KHO-A</button><button class="chip" data-team>KHO-B</button></div>
+            </div>
+            <div class="pv" data-pv data-state="idle">
+              <span class="pv-ic">⇄</span>
+              <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+            </div>
+            <div class="acts" style="padding:14px 0 0;border-top:none;background:transparent;">
+              <button class="btn ghost" data-sheet-close>Huỷ</button>
+              <button class="btn pri" data-submit disabled>+ Tạo task</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 7 ========== -->
+  <section class="sample" id="mm7">
+    <div class="sample-head">
+      <span class="sample-num">07</span>
+      <div>
+        <h2>Glassmorphism</h2>
+        <p>Kính mờ + gradient xanh dương-tím — trend 2025–2026, tạo cảm giác hiện đại, nhẹ nhàng trên nền tối.</p>
+        <span class="tag">Glass · Gradient · Trend 2026</span>
+      </div>
+    </div>
+    <div class="stage glass">
+      <div class="sh m7" data-sample>
+        <div class="sh-body">
+          <div class="sh-head">
+            <div><h3>+ Tạo task Điểm danh Ra/Vào</h3><p>Chọn Station + Team cho task</p></div>
+            <button class="sh-x">✕</button>
+          </div>
+          <div class="fld first"><label>Station <span class="req" style="color:#fda4af;">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req" style="color:#fda4af;">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>Inbound</button><button class="chip" data-team>Outbound</button><button class="chip" data-team>Move</button></div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 8 ========== -->
+  <section class="sample" id="mm8">
+    <div class="sample-head">
+      <span class="sample-num">08</span>
+      <div>
+        <h2>Terminal Scan HUD</h2>
+        <p>Terminal đen-xanh lục, prompt <span style="font-family:Consolas,monospace;">&gt;</span> — "cool factor" ngành quét mã, NV kho thích cảm giác chuyên nghiệp.</p>
+        <span class="tag">Terminal · Dark green · Scan</span>
+      </div>
+    </div>
+    <div class="stage dark">
+      <div class="sh m8" data-sample>
+        <div class="term-bar"><span class="dots"><span style="background:#ff5f57;"></span><span style="background:#febc2e;"></span><span style="background:#28c840;"></span></span>rollcall://meal-move</div>
+        <div class="sh-body">
+          <div class="prompt-line">$ spx create-task --type ra-vao <span class="caret">▊</span></div>
+          <div class="fld first" style="margin-top:16px;"><label>Station <span class="req">*</span></label><select data-station><option value="">-- chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>KHO-A</button><button class="chip" data-team>KHO-B</button><button class="chip" data-team>KHO-C</button></div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 9 ========== -->
+  <section class="sample" id="mm9">
+    <div class="sample-head">
+      <span class="sample-num">09</span>
+      <div>
+        <h2>Kiosk Giant Touch</h2>
+        <p>Chữ và nút to 17–24px, mục tiêu chạm ≥58px — tối ưu màn cảm ứng 55" đeo găng tay, người đứng cách 1–2m.</p>
+        <span class="tag">Kiosk 55" · Touch lớn · Găng tay</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m9" data-sample>
+        <div class="sh-body">
+          <div class="sh-head">
+            <div><h3>+ Tạo task Điểm danh Ra/Vào</h3><p>Chọn Station và Team</p></div>
+            <button class="sh-x">✕</button>
+          </div>
+          <div class="fld first"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option><option>SG1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>KHO-A</button><button class="chip" data-team>KHO-B</button><button class="chip" data-team>KHO-C</button></div>
+          </div>
+          <div class="pv" data-pv data-state="idle">
+            <span class="pv-ic">⇄</span>
+            <div class="pv-b"><div class="pv-t" data-pv-t>Chọn Station và Team để xem số NV</div><div class="pv-s" data-pv-s></div></div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Huỷ</button>
+          <button class="btn pri" data-submit disabled>+ Tạo task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MẪU 10 ========== -->
+  <section class="sample" id="mm10">
+    <div class="sample-head">
+      <span class="sample-num">10</span>
+      <div>
+        <h2>Ops Console Panel</h2>
+        <p>Header gradient tối kiểu bảng điều khiển vận hành + hàng KPI (NV khớp / Team chọn) — dành quản lý muốn thấy mọi chỉ số trước khi tạo task.</p>
+        <span class="tag">Dashboard · KPI · Ops console</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="sh m10" data-sample>
+        <div class="console-top">
+          <div>
+            <h3>+ Tạo task Điểm danh Ra/Vào</h3>
+            <p>Chọn <b style="color:#ff8a5c;">Station + Team</b> — dán/quét mã Ops để ghi Ra/Vào</p>
+          </div>
+          <button class="sh-x" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3);">✕</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><b data-kpi-nv>—</b><span>NV khớp</span></div>
+          <div class="kpi green"><b data-kpi-team>0</b><span>Team chọn</span></div>
+          <div class="kpi amber"><b data-kpi-mode>Ra/Vào</b><span>Chế độ</span></div>
+        </div>
+        <div class="sh-body">
+          <div class="fld first"><label>Station <span class="req">*</span></label><select data-station><option value="">-- Chọn station --</option><option>HN2 SOC</option><option>HN1 HUB</option></select></div>
+          <div class="fld"><label>Team <span class="req">*</span> <span class="cnt" data-count></span></label>
+            <div class="chips" data-chips><button class="chip" data-team>Kho A</button><button class="chip" data-team>Kho B</button><button class="chip" data-team>Kho C</button></div>
+          </div>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri" data-submit disabled>+ Tạo task</button></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // ---- Segmented toggle (m4) ----
+  document.querySelectorAll('.segs').forEach(function (segs) {
+    segs.addEventListener('click', function (e) {
+      var seg = e.target.closest('.seg');
+      if (!seg) return;
+      segs.querySelectorAll('.seg').forEach(function (s) { s.classList.remove('on'); });
+      seg.classList.add('on');
+    });
+  });
+
+  // ---- Bottom sheet (m6) ----
+  document.querySelectorAll('.m6-launch').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('m6overlay').classList.add('open');
+    });
+  });
+  document.querySelectorAll('[data-sheet-close]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var ov = b.closest('.m6-overlay');
+      if (ov) ov.classList.remove('open');
+    });
+  });
+  document.getElementById('m6overlay').addEventListener('click', function (e) {
+    if (e.target === this) this.classList.remove('open');
+  });
+
+  // ---- Wizard stepper (m3): bước Team chỉ mở khi đã chọn Station ----
+  document.querySelectorAll('.m3[data-sample]').forEach(function (sample) {
+    var steps = sample.querySelectorAll('.step');
+    var panels = sample.querySelectorAll('.wpanel');
+    var backBtn = sample.querySelector('[data-back]');
+    var stationSel = sample.querySelector('[data-station]');
+    function render() {
+      var cur = 0;
+      steps.forEach(function (s, i) {
+        var active = s.dataset.step == i && (i === 0 || stationSel.value);
+        s.classList.toggle('active', i === 0 ? true : (i === 1 && !!stationSel.value));
+        s.classList.toggle('done', false);
+        if (i === 1 && stationSel.value) { s.classList.add('active'); }
+      });
+      panels.forEach(function (p) { p.classList.toggle('on', p.dataset.panel == 0 || (p.dataset.panel == 1 && stationSel.value)); });
+      backBtn.disabled = true;
+    }
+    stationSel.addEventListener('change', render);
+    render();
+  });
+
+  // ---- Chip / opt-card toggle + preview + submit state (mọi mẫu) ----
+  function previewFor(sample) {
+    var stationSel = sample.querySelector('[data-station]');
+    var chips = sample.querySelectorAll('[data-team]');
+    var pv = sample.querySelector('[data-pv]');
+    var pvT = sample.querySelector('[data-pv-t]');
+    var pvS = sample.querySelector('[data-pv-s]');
+    var submit = sample.querySelector('[data-submit]');
+    var count = sample.querySelector('[data-count]');
+    var liveCount = sample.querySelector('[data-live-count]');
+    var liveEmpty = sample.querySelector('[data-live-empty]');
+    var liveList = sample.querySelector('[data-live-list]');
+    var kpiNv = sample.querySelector('[data-kpi-nv]');
+    var kpiTeam = sample.querySelector('[data-kpi-team]');
+
+    var station = stationSel ? stationSel.value : '';
+    var teams = Array.prototype.filter.call(chips, function (c) { return c.classList.contains('on'); });
+    var nTeams = teams.length;
+
+    if (count) count.textContent = nTeams ? nTeams : '';
+    if (submit) submit.disabled = !(station && nTeams > 0);
+    if (kpiTeam) kpiTeam.textContent = nTeams;
+
+    if (!station || nTeams === 0) {
+      if (pv) { pv.setAttribute('data-state', 'idle'); }
+      if (pvT) pvT.textContent = 'Chưa đủ bộ lọc để xem số NV';
+      if (pvS) pvS.textContent = 'Cần chọn: ' + (!station ? 'Station' : '') + (nTeams === 0 ? (station ? ', ' : '') + 'Team' : '');
+      if (kpiNv) kpiNv.textContent = '—';
+      if (liveCount) liveCount.textContent = '0';
+      if (liveEmpty) liveEmpty.style.display = '';
+      if (liveList) liveList.innerHTML = '';
+      return;
+    }
+    if (pv) pv.setAttribute('data-state', 'loading');
+    if (pvT) pvT.textContent = 'Đang kiểm tra…';
+    if (pvS) pvS.textContent = '';
+    clearTimeout(sample._t);
+    sample._t = setTimeout(function () {
+      var n = 6 + Math.floor(Math.random() * 24);
+      if (pv) pv.setAttribute('data-state', 'ok');
+      if (pvT) pvT.textContent = 'Số NV khớp: ' + n + ' người';
+      if (pvS) pvS.textContent = station + ' · ' + nTeams + ' team';
+      if (kpiNv) kpiNv.textContent = n;
+      if (liveCount) liveCount.textContent = n;
+      if (liveEmpty) liveEmpty.style.display = 'none';
+      if (liveList) {
+        var names = ['NV Minh', 'NV Trang', 'NV Đức', 'NV Lan', 'NV Hùng', 'NV Phương'];
+        liveList.innerHTML = '';
+        var shown = names.slice(0, Math.min(4, n));
+        shown.forEach(function (nm, i) {
+          var row = document.createElement('div');
+          row.className = 'mini-row';
+          row.innerHTML = '<span class="av">' + (i + 1) + '</span><b>Ops' + (110000 + i * 137) + '</b><span>' + nm + '</span><span class="st">✓</span>';
+          liveList.appendChild(row);
+        });
+        if (n > shown.length) {
+          var more = document.createElement('div');
+          more.className = 'mini-empty';
+          more.textContent = '… +' + (n - shown.length) + ' NV khác';
+          liveList.appendChild(more);
+        }
+      }
+    }, 450);
+  }
+
+  // Gắn handler cho mọi mẫu
+  document.querySelectorAll('[data-sample]').forEach(function (sample) {
+    var stationSel = sample.querySelector('[data-station]');
+    if (stationSel) stationSel.addEventListener('change', function () { previewFor(sample); });
+    sample.querySelectorAll('[data-team]').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        if (chip.hasAttribute('data-team') && chip.classList.contains('opt-card')) {
+          // card select (m4): single-select
+          var grp = chip.closest('.opt-grid');
+          grp.querySelectorAll('.opt-card').forEach(function (c) { c.classList.remove('on'); });
+          chip.classList.add('on');
+        } else {
+          chip.classList.toggle('on');
+        }
+        previewFor(sample);
+      });
+    });
+    // Chip toggle cho m4 opt-card qua .chips chung (data-chips chứa opt-grid)
+    sample.querySelectorAll('[data-chips] .opt-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        card.classList.toggle('on');
+        previewFor(sample);
+      });
+    });
+    previewFor(sample);
+  });
+</script>
+</body>
+</html>

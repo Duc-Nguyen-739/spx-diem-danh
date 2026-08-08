@@ -55,8 +55,9 @@ const TASK_COLS = {
   CREATED_AT: 6,
   CREATED_BY: 7,
   COMPLETED_AT: 8,
+  NOTE: 9,    // Ghi chú của task (người tạo thêm; sửa được trong task) — 2026-08-08
 };
-const TASK_COL_COUNT = 9;
+const TASK_COL_COUNT = 10;
 
 // ===== Cột AttendanceLog (1 dòng / NV) =====
 // Lưu ý: bỏ cardIn/cardOut (2026-08-03) — StaffData GIỮ NGUYÊN; log không copy 2 cột này nữa.

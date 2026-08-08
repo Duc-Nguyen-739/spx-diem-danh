@@ -1,0 +1,287 @@
+/**
+ * tests/meal-create.test.js — Node thuần (không cần GAS, không cần browser)
+ * Test modal tạo task "Điểm danh Ra/Vào" (meal-move) ở CLIENT (index.html):
+ *   - canSubmitMealCreate / buildMealCreateInput (logic thuần — BẮT BUỘC Station + ≥1 Team)
+ *   - updateMealSubmitState (nút submit chỉ bấm được khi đủ điều kiện)
+ *   - openCreateMealModal (mở modal + load options + reset)
+ *   - updateMealPreview (idle khi thiếu; gọi previewStaffApi với {station, team} khi đủ)
+ *   - createMealMoveTask (chặn khi thiếu; gửi input đúng station/team khi đủ)
+ *
+ * Cách load: khối hàm meal trong index.html được đánh dấu bằng marker
+ * "MEAL-CREATE-START"/"MEAL-CREATE-END". Test trích khối đó, chạy trong vm
+ * (cùng realm) với DOM stub + google.script.run stub → test ĐÚNG code deploy.
+ */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+// ---- Load khối meal-create từ index.html ----
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const m = html.match(/MEAL-CREATE-START([\s\S]*?)MEAL-CREATE-END/);
+assert.ok(m, 'index.html phải chứa khối MEAL-CREATE (đánh dấu MEAL-CREATE-START/END)');
+const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ MEAL-CREATE-END.*$/, '');
+
+// ---- Stub state chung ----
+let lastCall = null;        // lần gọi google.script.run cuối (fn + args)
+let openedModal = null;
+let toastMsg = null;
+let openedScanId = null;
+let filterOptions = { ok: true, stations: ['HN2 SOC', 'SG1 HUB'], teams: ['Inbound', 'Outbound'] };
+
+// ---- DOM stub (đủ cho khối meal-create) ----
+function makeClassList() {
+  const set = new Set();
+  return {
+    contains: (c) => set.has(c),
+    add: (c) => set.add(c),
+    remove: (c) => set.delete(c),
+    toggle: (c, force) => {
+      if (force === undefined) { if (set.has(c)) { set.delete(c); return false; } set.add(c); return true; }
+      if (force) set.add(c); else set.delete(c);
+      return force;
+    },
+  };
+}
+function makeEl(init) {
+  const el = Object.assign({
+    _classes: new Set(),
+    classList: null,
+    attrs: {},
+    value: '',
+    textContent: '',
+    disabled: false,
+    innerHTML: '',
+    children: [],
+    chips: [],
+    focusCount: 0,
+    setAttribute(k, v) { el.attrs[k] = v; },
+    getAttribute(k) { return el.attrs[k] ?? null; },
+    focus() { el.focusCount++; },
+    appendChild(c) { el.children.push(c); if (c && c.dataset && c.dataset.value) el.chips.push(c); return c; },
+    querySelectorAll(sel) {
+      if (sel === '.chip.selected') return el.chips.filter((c) => c.classList.contains('selected'));
+      return [];
+    },
+  }, init || {});
+  el.classList = el.classList || makeClassList();
+  return el;
+}
+function makeChipButton(value) {
+  const b = makeEl({ dataset: { value } });
+  b._click = null;
+  b.addEventListener = (ev, fn) => { if (ev === 'click') b._click = fn; };
+  b.click = () => { if (b._click) b._click(); };
+  return b;
+}
+
+let els = {};
+function resetEls() {
+  els = {
+    createMealModal: makeEl(),
+    mealStation: makeEl(),
+    mealTeam: makeEl(),
+    countMealTeam: makeEl(),
+    mealPreview: makeEl(),
+    mealPreviewCount: makeEl(),
+    mealPreviewHint: makeEl(),
+    btnMealSubmit: makeEl(),
+    btnCreateTask: makeEl(),
+    noteMealInput: makeEl(),
+  };
+  els.mealTeam.querySelectorAll = function (sel) {
+    if (sel === '.chip.selected') return els.mealTeam.chips.filter((c) => c.classList.contains('selected'));
+    return [];
+  };
+  lastCall = null;
+  openedModal = null;
+  toastMsg = null;
+  openedScanId = null;
+}
+resetEls();
+
+global.document = {
+  getElementById: (id) => els[id] || null,
+  createElement: (tag) => (tag === 'button' ? makeChipButton('') : makeEl()),
+};
+global.BUSY = false;
+global.getSelectedChips = (id) => (els[id] ? els[id].chips.filter((c) => c.classList.contains('selected')).map((c) => c.dataset.value) : []);
+global.fillSelect = (id, values) => { if (els[id]) els[id]._options = values || []; };
+global.showToast = (msg) => { toastMsg = msg; };
+global.loadTaskList = () => {};
+global.openScan = (taskId) => { openedScanId = taskId; };
+global.markServerFail = () => {};
+global.markServerOk = () => {};
+
+// ---- google.script.run stub: chain đồng bộ + ghi lại lần gọi cuối ----
+// LƯU Ý: withSuccessHandler/withFailureHandler phải trả về CHÍNH proxy (không phải
+// target) để chain tiếp .getFilterOptions()/.previewStaffApi()/... hoạt động.
+function makeRunStub() {
+  const target = { _success: null, _failure: null };
+  const proxy = new Proxy(target, {
+    get(t, fn) {
+      if (fn === 'withSuccessHandler') return (h) => { t._success = h; return proxy; };
+      if (fn === 'withFailureHandler') return (h) => { t._failure = h; return proxy; };
+      return function (...args) {
+        lastCall = { fn: String(fn), args };
+        const result = fnHandler(fn, ...args);
+        if (result && result.__failure) { if (t._failure) t._failure(result.__failure); }
+        else if (t._success) t._success(result);
+        return proxy;
+      };
+    },
+  });
+  return proxy;
+}
+global.google = {
+  script: { run: makeRunStub() },
+};
+// Handler kết quả cho từng API — có thể override trong test (apiResults)
+let apiResults = {};
+function fnHandler(fn, ...args) {
+  if (apiResults[fn] !== undefined) return typeof apiResults[fn] === 'function' ? apiResults[fn](...args) : apiResults[fn];
+  if (fn === 'getFilterOptions') return filterOptions;
+  if (fn === 'previewStaffApi') return { ok: true, count: 12 };
+  if (fn === 'createMealMoveTaskApi') {
+    const inp = args[0] || {};
+    if (!inp.station || !inp.team || !inp.team.length) return { ok: false, message: 'Vui lòng chọn Station và Team để tạo task' };
+    return { ok: true, taskId: 'M-TEST-1', count: 0, message: 'Tạo task Điểm danh Ra/Vào: M-TEST-1' };
+  }
+  return { ok: true };
+}
+
+// ---- Chạy khối trong CÙNG realm (runInThisContext) ----
+const api = vm.runInThisContext(
+  '(function () {\n' + block + '\nreturn { openCreateMealModal, closeCreateMealModal, canSubmitMealCreate, buildMealCreateInput, updateMealSubmitState, updateMealPreview, createMealMoveTask, fillMealOptions, fillMealTeamChips, resetMealCreate };\n})()'
+);
+
+// ================= TESTS =================
+
+test('logic thuần: canSubmitMealCreate bắt buộc Station + ≥1 Team', () => {
+  assert.equal(api.canSubmitMealCreate('', ['Outbound']), false, 'thiếu Station → false');
+  assert.equal(api.canSubmitMealCreate('HN2 SOC', []), false, 'thiếu Team → false');
+  assert.equal(api.canSubmitMealCreate('HN2 SOC', null), false);
+  assert.equal(api.canSubmitMealCreate('HN2 SOC', ['Outbound']), true);
+  assert.equal(api.canSubmitMealCreate('HN2 SOC', ['Inbound', 'Outbound']), true);
+});
+
+test('buildMealCreateInput: trả đúng payload {station, team, staffIds, createdBy, note}', () => {
+  const inp = api.buildMealCreateInput('HN2 SOC', ['Outbound']);
+  assert.equal(inp.station, 'HN2 SOC');
+  assert.deepEqual(inp.team, ['Outbound']);
+  assert.deepEqual(inp.staffIds, []);
+  assert.equal(inp.createdBy, '');
+  assert.equal(inp.note, '');
+});
+
+test('buildMealCreateInput: giữ và trim ghi chú khi truyền vào', () => {
+  const inp = api.buildMealCreateInput('HN2 SOC', ['Outbound'], '  Ca đặc biệt  ');
+  assert.equal(inp.note, 'Ca đặc biệt');
+});
+
+test('updateMealSubmitState: nút submit disabled khi thiếu Station/Team, enabled khi đủ', () => {
+  resetEls();
+  api.updateMealSubmitState();
+  assert.equal(els.btnMealSubmit.disabled, true, 'chưa chọn gì → disabled');
+
+  els.mealStation.value = 'HN2 SOC';
+  api.updateMealSubmitState();
+  assert.equal(els.btnMealSubmit.disabled, true, 'chỉ Station → vẫn disabled');
+
+  const chip = makeChipButton('Outbound');
+  els.mealTeam.appendChild(chip);
+  chip.classList.add('selected');
+  api.updateMealSubmitState();
+  assert.equal(els.btnMealSubmit.disabled, false, 'Station + ≥1 Team → enabled');
+});
+
+test('openCreateMealModal: mở modal, load options, reset submit', () => {
+  resetEls();
+  api.openCreateMealModal();
+  assert.ok(els.createMealModal.classList.contains('open'), 'modal mở');
+  assert.equal(els.createMealModal.attrs['aria-hidden'], 'false');
+  assert.equal(lastCall && lastCall.fn, 'getFilterOptions', 'load options qua getFilterOptions');
+  assert.equal(els.btnMealSubmit.disabled, true, 'submit reset về disabled');
+  assert.equal(els.mealPreview.attrs['data-state'], 'idle');
+  assert.equal(els.mealPreviewCount.textContent, 'Chọn Station và Team để xem số NV');
+});
+
+test('openCreateMealModal với options đã cache: fill station + team chips', () => {
+  resetEls();
+  global._mealFilterOptions = null;  // đảm bảo nhánh load
+  // Mô phỏng cache đã có: gọi fillMealOptions trực tiếp rồi mở lại
+  api.fillMealOptions(filterOptions);
+  assert.ok(els.mealStation._options.length >= 2, 'station đã fill');
+  assert.ok(els.mealTeam.chips.length >= 2, 'team chips đã fill');
+});
+
+test('updateMealPreview: chưa đủ → idle + hint liệt kê thiếu', () => {
+  resetEls();
+  api.updateMealPreview();
+  assert.equal(els.mealPreview.attrs['data-state'], 'idle');
+  assert.equal(els.mealPreviewCount.textContent, 'Chưa đủ bộ lọc để xem số NV');
+  assert.ok(els.mealPreviewHint.textContent.includes('Station'));
+  assert.ok(els.mealPreviewHint.textContent.includes('Team'));
+  assert.equal(lastCall, null, 'chưa đủ → KHÔNG gọi previewStaffApi');
+});
+
+test('updateMealPreview: đủ Station + Team → loading + gọi previewStaffApi với {station, team}', async (t) => {
+  resetEls();
+  els.mealStation.value = 'HN2 SOC';
+  const chip = makeChipButton('Outbound');
+  els.mealTeam.appendChild(chip);
+  chip.classList.add('selected');
+  api.updateMealPreview();
+  assert.equal(els.mealPreview.attrs['data-state'], 'loading');
+  // preview có debounce 400ms → đợi RPC thật chạy
+  await new Promise((r) => setTimeout(r, 460));
+  assert.equal(lastCall.fn, 'previewStaffApi');
+  assert.deepEqual(lastCall.args[0], { station: 'HN2 SOC', team: ['Outbound'] });
+  assert.equal(els.mealPreview.attrs['data-state'], 'ok');
+  assert.ok(els.mealPreviewCount.textContent.includes('12'));
+});
+
+test('createMealMoveTask: thiếu Station/Team → chặn, toast, KHÔNG gọi API', () => {
+  resetEls();
+  api.createMealMoveTask();
+  assert.equal(toastMsg, 'Vui lòng chọn đủ Station và Team');
+  assert.equal(lastCall, null, 'không gọi createMealMoveTaskApi');
+});
+
+test('createMealMoveTask: đủ điều kiện → gửi input {station, team, staffIds:[], createdBy:""} + mở scan', () => {
+  resetEls();
+  els.mealStation.value = 'HN2 SOC';
+  els.noteMealInput.value = '  Ca đặc biệt  ';
+  const chip = makeChipButton('Outbound');
+  els.mealTeam.appendChild(chip);
+  chip.classList.add('selected');
+  api.createMealMoveTask();
+  assert.equal(lastCall.fn, 'createMealMoveTaskApi');
+  assert.deepEqual(lastCall.args[0], { station: 'HN2 SOC', team: ['Outbound'], staffIds: [], createdBy: '', note: 'Ca đặc biệt' });
+  assert.equal(openedScanId, 'M-TEST-1', 'thành công → openScan task mới');
+  assert.ok(!els.createMealModal.classList.contains('open'), 'modal đóng sau khi tạo');
+});
+
+test('createMealMoveTask: server từ chối thiếu điều kiện → toast lỗi, không mở scan', () => {
+  resetEls();
+  apiResults.createMealMoveTaskApi = { ok: false, message: 'Vui lòng chọn Station và Team để tạo task' };
+  els.mealStation.value = 'HN2 SOC';
+  const chip = makeChipButton('Outbound');
+  els.mealTeam.appendChild(chip);
+  chip.classList.add('selected');
+  api.createMealMoveTask();
+  assert.equal(toastMsg, 'Vui lòng chọn Station và Team để tạo task');
+  assert.equal(openedScanId, null, 'không mở scan khi server từ chối');
+  apiResults.createMealMoveTaskApi = undefined;
+});
+
+test('closeCreateMealModal: đóng modal + trả focus về nút +Task', () => {
+  resetEls();
+  els.createMealModal.classList.add('open');
+  const before = els.btnCreateTask.focusCount;
+  api.closeCreateMealModal();
+  assert.ok(!els.createMealModal.classList.contains('open'));
+  assert.equal(els.createMealModal.attrs['aria-hidden'], 'true');
+  assert.equal(els.btnCreateTask.focusCount, before + 1);
+});

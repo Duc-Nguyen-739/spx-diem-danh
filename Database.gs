@@ -50,7 +50,7 @@ function ensureSheets_() {
   getSheet_(SHEETS.CONFIG, ['Key', 'Value']);
   getSheet_(SHEETS.STAFF_DATA, []); // header giữ nguyên như csv — syncFromCsv() sẽ ghi
   getSheet_(SHEETS.ATTENDANCE_TASK, [
-    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt',
+    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note',
   ]);
   const logSheet = getSheet_(SHEETS.ATTENDANCE_LOG, [
     'taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
@@ -66,6 +66,13 @@ function ensureSheets_() {
     logSheet.insertColumnAfter(logSheet.getLastColumn());
     var headers = ['date', 'timeRa', 'agency']; // cột 11, 12, 13
     logSheet.getRange(1, nextCol).setValue(headers[nextCol - 11]);
+  }
+  // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
+  // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
+  const taskSheet = getSheet_(SHEETS.ATTENDANCE_TASK);
+  if (taskSheet.getLastColumn() < TASK_COL_COUNT) {
+    taskSheet.insertColumnAfter(taskSheet.getLastColumn());
+    taskSheet.getRange(1, TASK_COL_COUNT).setValue('note');
   }
 }
 
@@ -202,6 +209,7 @@ function taskFromRow_(row) {
     createdBy: String(row[TASK_COLS.CREATED_BY] || ''),
     createdAtText: formatDateTime_(createdAt),
     completedAtText: formatDateTime_(completedAt),
+    note: String(row[TASK_COLS.NOTE] || ''),
   };
 }
 
@@ -223,12 +231,31 @@ function readTask_(taskId) {
 function insertTask_(task) {
   getSheet_(SHEETS.ATTENDANCE_TASK).appendRow([
     task.taskId, task.taskType, task.station, task.slotCode, task.team,
-    task.status, task.createdAt, task.createdBy, task.completedAt || '',
+    task.status, task.createdAt, task.createdBy, task.completedAt || '', task.note || '',
   ]);
   invalidateTaskListCache_();
   // F5: phá negative-cache (readTaskDetailCached_ cache null 15s nếu getTaskDetail gọi
   // trước khi task tồn tại — taskId dạng giờ-tạo có thể trùng giữa 2 lần create gần nhau).
   invalidateTaskDetailCache_(task.taskId);
+}
+
+/** Cập nhật ghi chú của task (cột NOTE). Gọi sau khi tạo (insertTask_ đã lưu note) để sửa. */
+function updateTaskNote_(taskId, note, rowIndex) {
+  const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
+  const write = function (r) {
+    sheet.getRange(r, TASK_COLS.NOTE + 1).setValue(note || '');
+    invalidateTaskListCache_();
+    invalidateTaskDetailCache_(taskId);
+    return true;
+  };
+  if (rowIndex) return write(rowIndex);
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][TASK_COLS.TASK_ID] || '').trim() === taskId) {
+      return write(i + 1);
+    }
+  }
+  return false;
 }
 
 /** Cập nhật trạng thái task (status, completedAt). */

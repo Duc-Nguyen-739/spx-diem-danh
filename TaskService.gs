@@ -19,7 +19,7 @@ function makeTaskId_(now) {
 
 /**
  * Tạo task đối chiếu (reconcile) + pre-fill log.
- * @param {{station: string, slotCode: string, team: string, createdBy: string}} input
+ * @param {{station: string, slotCode: string, team: string, createdBy: string, note?: string}} input
  * @returns {{ok: boolean, taskId: string|null, count: number, message: string}}
  */
 function createReconcileTask(input) {
@@ -46,6 +46,8 @@ function createReconcileTask(input) {
     if (active) createdBy = active;
   } catch (e) { /* fallback */ }
   if (createdBy === 'web') createdBy = String((input && input.createdBy) || '').trim() || 'web';
+  // Ghi chú (optional) — người tạo thêm khi tạo task; sửa được sau qua updateTaskNote.
+  const note = String((input && input.note) || '').trim();
 
   if (!station || !filterSlots.length || !filterTeams.length) {
     return { ok: false, taskId: null, count: 0, message: 'Thiếu station/slotCode/team' };
@@ -82,6 +84,7 @@ function createReconcileTask(input) {
       createdAt: now,
       createdBy: createdBy,
       completedAt: null,
+      note: note,
     };
     insertTask_(task);
     const count = batchInsertLogRows_(taskId, deduped, now);
@@ -161,10 +164,20 @@ function reopenTask(taskId) {
  * KHÁC createReconcileTask: không lọc từ StaffData theo station/slot/team; nhận thẳng
  * danh sách mã Ops do người tạo cung cấp, lookup staffIndex để lấy tên/agency.
  * createdBy = EMAIL THẬT (Session.getActiveUser) — dùng để phân quyền Ra/Vào (3.2).
- * @param {{staffIds: string[], createdBy?: string}} input
+ * @param {{staffIds: string[], createdBy?: string, note?: string}} input
  * @returns {{ok: boolean, taskId: string|null, count: number, message: string}}
  */
 function createMealMoveTask(input) {
+  // 2026-08-08: task Điểm danh Ra/Vào GIỜ BẮT BUỘC chọn Station + Team (kiosk biết
+  // task thuộc khu nào / nhóm nào). Giống createReconcileTask: team nhận mảng → nối ', '
+  // cho cột task sheet; filter dùng mảng gốc.
+  const station = String((input && input.station) || '').trim();
+  const team = Array.isArray(input && input.team)
+    ? (input.team).map(String).join(', ')
+    : String((input && input.team) || '').trim();
+  if (!station || !team) {
+    return { ok: false, taskId: null, count: 0, message: 'Vui lòng chọn Station và Team để tạo task' };
+  }
   const raw = Array.isArray(input && input.staffIds) ? input.staffIds : [];
 
   // Chuẩn hóa + dedupe + bỏ mã không hợp lệ (chỉ nhận mã Ops)
@@ -186,6 +199,8 @@ function createMealMoveTask(input) {
     if (active) createdBy = active;
   } catch (e) { /* fallback */ }
   if (createdBy === 'web') createdBy = String((input && input.createdBy) || '').trim() || 'web';
+  // Ghi chú (optional) — người tạo thêm khi tạo task; sửa được sau qua updateTaskNote.
+  const note = String((input && input.note) || '').trim();
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -217,19 +232,20 @@ function createMealMoveTask(input) {
     const task = {
       taskId: taskId,
       taskType: TASK_TYPE.MEAL_MOVE,
-      station: '',
+      station: station,
       slotCode: '',
-      team: '',
+      team: team,
       status: TASK_STATUS.OPEN,
       createdAt: now,
       createdBy: createdBy,
       completedAt: null,
+      note: note,
     };
     insertTask_(task);
     // Pre-fill log: 1 dòng / NV, status PENDING, chưa có Ra/Vào
     const count = batchInsertLogRows_(taskId, staffList, now);
 
-    return { ok: true, taskId: taskId, count: count, message: 'Tạo task Đi ăn + Move: ' + taskId };
+    return { ok: true, taskId: taskId, count: count, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
   } finally {
     lock.releaseLock();
   }
@@ -238,6 +254,28 @@ function createMealMoveTask(input) {
 /** Lấy danh sách task (cho getTaskList API). */
 function listTasks() {
   return readTaskList_();
+}
+
+/**
+ * Cập nhật ghi chú của task (sửa trong task — mọi trạng thái open/done đều được).
+ * @param {string} taskId
+ * @param {string} note
+ * @returns {{ok: boolean, message: string}}
+ */
+function updateTaskNote(taskId, note) {
+  if (!taskId) return { ok: false, message: 'Thiếu taskId' };
+  const clean = String(note || '').trim();
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const task = readTask_(taskId);
+    if (!task) return { ok: false, message: 'Không tìm thấy task' };
+    updateTaskNote_(taskId, clean, task._rowIndex);
+    return { ok: true, message: clean ? 'Đã lưu ghi chú' : 'Đã xoá ghi chú' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Lấy chi tiết task + toàn bộ log (cho getTaskDetail API) — có cache 15s. */

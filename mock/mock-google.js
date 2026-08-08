@@ -143,10 +143,34 @@
       var task = {
         taskId: taskId, taskType: 'reconcile', station: input.station, slotCode: input.slotCode,
         team: input.team, date: (input && input.date) || '', status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00:00',
+        note: String((input && input.note) || ''),
       };
       MOCK_DATA.tasks.unshift(task);
       var log = getLog(taskId);
       return { ok: true, taskId: taskId, count: log.length, message: 'Tạo task thành công: ' + taskId };
+    },
+    updateTaskNoteApi: function (taskId, note) {
+      var hit = null;
+      MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) hit = t; });
+      if (!hit) return { ok: false, message: 'Không tìm thấy task' };
+      hit.note = String(note || '').trim();
+      return { ok: true, message: hit.note ? 'Đã lưu ghi chú' : 'Đã xoá ghi chú' };
+    },
+    createMealMoveTaskApi: function (input) {
+      // 2026-08-08: khớp server mới — task Điểm danh Ra/Vào bắt buộc Station + Team
+      var station = String((input && input.station) || '').trim();
+      var team = Array.isArray(input && input.team) ? input.team.join(', ') : String((input && input.team) || '').trim();
+      if (!station || !team) {
+        return { ok: false, taskId: null, count: 0, message: 'Vui lòng chọn Station và Team để tạo task' };
+      }
+      var taskId = 'M' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-0' + (MOCK_DATA.tasks.length + 1);
+      var task = {
+        taskId: taskId, taskType: 'meal-move', station: station, slotCode: '',
+        team: team, status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00:00',
+        note: String((input && input.note) || ''),
+      };
+      MOCK_DATA.tasks.unshift(task);
+      return { ok: true, taskId: taskId, count: 0, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
     },
     scanStaffApi: function (taskId, staffId) {
       var log = getLog(taskId);
