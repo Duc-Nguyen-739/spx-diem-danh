@@ -171,7 +171,7 @@
        (URL external) + netText — tiết cứng header 1 dòng, tránh layout shift/tràn. */
     @media (max-width: 600px) {
       header { padding: 8px 12px; flex-wrap: wrap; row-gap: 6px; }
-      header .brand img { display: none; }  /* logo external — ẩn trên màn nhỏ, tránh load/tràn */
+      header .brand img, header .brand .spx-logo { display: none; }  /* logo — ẩn trên màn nhỏ, tránh tràn */
       header #netText { display: none; }    /* giữ net-dot, ẩn chữ — tiết chiều ngang */
       header .brand .title { font-size: 15px; letter-spacing: .5px; }
       header .btn-icon-dark { padding: 4px 9px; min-height: 28px; font-size: 13px; }
@@ -494,9 +494,8 @@
       border-color: var(--warning); color: var(--warning);
       background: rgba(227,116,0,.08);
     }
-    header .brand img {
+    header .brand .spx-logo {
       height: 26px; width: auto; display: block;
-      filter: brightness(0) invert(1);
     }
     header .btn-icon-dark.muted { color: #ef4444; border-color: #fecaca; }
 
@@ -515,6 +514,60 @@
       font-size: 13px; font-weight: 600; color: var(--muted);
       background: #e9ecf2; padding: 2px 10px; border-radius: 20px; line-height: 1.5;
     }
+    /* ===== Nút +Task — menu chọn loại task (reconcile / meal-move) ===== */
+    .task-create { position: relative; display: inline-block; }
+    .btn-create {
+      position: relative; z-index: 110;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff; border: none; border-radius: 10px;
+      padding: 10px 18px; font-size: 15px; font-weight: 700; line-height: 1;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(11, 87, 208, .25);
+      transition: transform .15s ease, box-shadow .2s ease, filter .15s ease;
+    }
+    .btn-create:hover { filter: brightness(1.08); box-shadow: 0 4px 14px rgba(11, 87, 208, .35); transform: translateY(-1px); }
+    .btn-create:active { transform: translateY(0) scale(.96); }
+    .btn-create:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-create-plus { font-size: 18px; font-weight: 800; line-height: 1; }
+    .btn-create-caret { font-size: 11px; opacity: .85; transition: transform .2s ease; }
+    .btn-create[aria-expanded="true"] .btn-create-caret { transform: rotate(180deg); }
+    .task-menu-backdrop {
+      position: fixed; inset: 0; z-index: 90; background: transparent;
+      display: none;
+    }
+    .task-menu-backdrop.show { display: block; }
+    .task-menu {
+      position: absolute; top: calc(100% + 10px); right: 0; z-index: 100;
+      min-width: 320px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      box-shadow: 0 16px 40px rgba(15, 30, 70, .18);
+      opacity: 0; visibility: hidden;
+      transform: translateY(-8px) scale(.96); transform-origin: top right;
+      transition: opacity .18s ease, transform .18s cubic-bezier(.2, .8, .3, 1.1), visibility .18s;
+    }
+    .task-menu.show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+    .task-menu-item {
+      display: flex; align-items: center; gap: 12px; width: 100%;
+      background: none; border: none; border-radius: 10px;
+      padding: 10px 12px; cursor: pointer; text-align: left; color: var(--text);
+      transition: background .13s ease, transform .13s ease;
+    }
+    .task-menu-item:hover { background: var(--surface-muted); }
+    .task-menu-item:active { transform: scale(.985); }
+    .task-menu-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+    .task-menu-ic {
+      width: 40px; height: 40px; border-radius: 11px; flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 800; color: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+    }
+    .task-menu-ic-reconcile { background: linear-gradient(135deg, #1a6be0, var(--primary-dark)); }
+    .task-menu-ic-meal { background: linear-gradient(135deg, #43a047, #2e7d32); }
+    .task-menu-txt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+    .task-menu-txt b { font-size: 14.5px; color: var(--text); }
+    .task-menu-txt small { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .task-menu-arrow { color: #c3c9d4; font-size: 17px; flex: 0 0 auto; transition: transform .15s ease, color .15s ease; }
+    .task-menu-item:hover .task-menu-arrow { transform: translateX(3px); color: var(--primary); }
 
     /* ===== Spin loading overlay (tham khảo v1) ===== */
     #loadingOverlay {
@@ -648,7 +701,23 @@
 
 <header>
   <div class="brand">
-    <img src="https://spx.vn/new_static/assets/images/sea-logo.svg" alt="SPX logo" width="74" height="26" onerror="this.style.display='none'">
+    <svg class="spx-logo" width="75" height="30" viewBox="0 0 75 30" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SPX Express">
+    <path d="M48.4047 0H55.0203L60.3236 11.147L45.5493 30H39.4477L54.0501 11.4707L48.4047 0Z" fill="#EE4D2D"/>
+    <path d="M63.0829 0H69.2842L61.1044 10.1756L58.8317 5.3986L63.0829 0Z" fill="#EE4D2D"/>
+    <path d="M41.1705 25.8334L37.9128 30L17.0385 30L20.2962 25.8334H41.1705Z" fill="#EE4D2D"/>
+    <path d="M56.9186 17.299L60.8657 12.2865L66.5178 24.1667H60.2986L56.9186 17.299Z" fill="#EE4D2D"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M36.1317 16.1201C42.0614 16.1201 46.2625 13.0382 47.0992 8.06599C47.8748 3.45685 44.7537 0 38.3359 0H30.2631L26.4777 24.1667L31.8258 24.198L33.0366 16.1201H36.1317ZM37.2095 4.53675C40.757 4.60914 41.5124 5.70657 41.1604 7.79877C40.7918 9.98599 38.7329 11.3142 35.7641 11.3142H33.8936L34.8527 4.53712L37.2095 4.53675Z" fill="#EE4D2D"/>
+    <path d="M25.3914 2.55788C25.112 2.27742 24.7417 1.99247 24.2959 1.71831C23.8237 1.40374 23.2606 1.11941 22.6371 0.877431C22.0135 0.611253 21.2931 0.399521 20.5121 0.254333C19.7251 0.0849472 18.8594 0.000254313 17.9332 0.000254313C16.5408 0.000254313 15.2815 0.199888 14.1979 0.587055C13.1385 0.950025 12.2183 1.44608 11.4676 2.05708C10.7169 2.66808 10.1054 3.35772 9.65139 4.11996C9.22762 4.85195 8.94308 5.60209 8.81595 6.34012C8.62828 7.48953 8.68882 8.49979 8.99151 9.34067C9.29421 10.1755 9.76036 10.9014 10.3779 11.4943C11.0075 12.0811 11.7461 12.5832 12.5754 13.0006C13.3867 13.3817 14.2221 13.7447 15.0454 14.0835L16.2502 14.6279C16.7163 14.8034 17.1462 15.0272 17.5397 15.2873L17.6123 15.3357C18.0179 15.5777 18.3509 15.862 18.5931 16.1826L18.6354 16.231C18.8897 16.5275 18.9805 16.8481 18.9018 17.2353C18.8534 17.5619 18.7202 17.8342 18.4901 18.0701C18.248 18.3181 17.9453 18.5359 17.576 18.7113C17.2067 18.8747 16.7829 19.0017 16.3289 19.0925C15.893 19.1651 15.439 19.1953 14.9667 19.1953C13.8347 19.1711 12.7873 18.9715 11.849 18.5964C10.9348 18.1971 10.0328 17.6164 9.16708 16.8662L9.04327 16.7587L5.94658 20.691C6.9862 21.7624 8.21474 22.6266 9.60296 23.2485C11.0075 23.8776 12.7389 24.1982 14.7428 24.1982C16.232 24.1982 17.5457 24.0107 18.6596 23.6477C19.7675 23.2606 20.7301 22.7403 21.505 22.1051C22.2859 21.4699 22.9034 20.7379 23.3393 19.9273C23.7752 19.0985 24.0598 18.2455 24.1808 17.3865C24.3382 16.2794 24.2474 15.3055 23.9145 14.4948C23.6118 13.66 23.1335 12.922 22.5039 12.311L22.5099 12.3231C21.8864 11.6879 21.1418 11.1495 20.2942 10.7079C19.483 10.2541 18.6294 9.83673 17.7576 9.47376L17.3157 9.29833L16.0201 8.72362C15.6206 8.53609 15.2513 8.33646 14.9365 8.13077C14.6277 7.90089 14.3735 7.65286 14.1858 7.38669C14.0102 7.13261 13.9436 6.86038 13.9921 6.53371C14.0284 6.11629 14.319 5.72308 14.8517 5.37825C15.4268 5.01529 16.2865 4.858 17.3944 4.90034C17.8363 4.92454 18.2964 4.98504 18.7565 5.07578C19.2166 5.16652 19.6707 5.28751 20.1005 5.42665C20.5303 5.56579 20.9299 5.72308 21.287 5.88641C21.6382 6.04975 21.9288 6.21913 22.1528 6.40062L22.2843 6.50349L25.3914 2.55788Z" fill="#EE4D2D"/>
+    <path d="M68.2109 29.3825L68.779 28.7188C68.93 28.8478 69.086 28.9451 69.2469 29.0097C69.4078 29.0742 69.5878 29.1092 69.788 29.1124C69.8591 29.1124 69.9271 29.1048 69.9919 29.0906C70.0567 29.0764 70.1151 29.0545 70.1681 29.025C70.2211 28.9954 70.2644 28.9594 70.298 28.9156C70.3315 28.8719 70.351 28.8205 70.3563 28.7625C70.3661 28.7002 70.3528 28.6445 70.3164 28.5963C70.28 28.5482 70.2336 28.5056 70.1773 28.4684C70.121 28.4312 70.0592 28.3974 69.993 28.3678C69.9267 28.3383 69.8658 28.3132 69.8104 28.2924C69.6723 28.2377 69.5321 28.1765 69.3888 28.1076C69.2455 28.0387 69.12 27.9523 69.0134 27.8485C68.9068 27.7446 68.8268 27.6178 68.7723 27.4701C68.7179 27.3225 68.7143 27.1399 68.7617 26.9224C68.7901 26.7977 68.8414 26.6709 68.9146 26.544C68.989 26.4172 69.0916 26.3002 69.2236 26.1941C69.3545 26.0881 69.5135 26.0017 69.6996 25.9339C69.8856 25.8672 70.0996 25.8333 70.3414 25.8333C70.4957 25.8333 70.64 25.8475 70.773 25.8771C70.906 25.9066 71.0247 25.9448 71.13 25.993C71.2354 26.0411 71.3286 26.0925 71.4098 26.146C71.491 26.2007 71.5547 26.2521 71.6009 26.3024L71.0353 26.953C70.9456 26.8863 70.8295 26.825 70.686 26.7682C70.5424 26.7113 70.3941 26.6796 70.2411 26.6709C70.0553 26.6577 69.9169 26.6851 69.825 26.7518C69.733 26.8185 69.6794 26.8852 69.6652 26.9519C69.6554 27.0142 69.6632 27.0689 69.6898 27.1148C69.7164 27.1607 69.7551 27.2012 69.8082 27.2373C69.8612 27.2733 69.923 27.3061 69.9925 27.3378C70.0631 27.3696 70.1327 27.4013 70.2032 27.4352L70.2793 27.4669C70.427 27.5336 70.5714 27.6068 70.7112 27.6855C70.8511 27.7643 70.9732 27.8572 71.0776 27.9644C71.182 28.0704 71.2587 28.1951 71.3067 28.3361C71.3558 28.4783 71.3629 28.6423 71.3291 28.8303C71.3027 28.9725 71.249 29.1124 71.1689 29.2524C71.0889 29.3923 70.9796 29.517 70.8443 29.6274C70.7078 29.7379 70.5455 29.8275 70.3572 29.8964C70.1689 29.9653 69.9517 29.9992 69.7054 29.9992C69.3541 30.0036 69.0596 29.9456 68.8219 29.8275C68.5842 29.7083 68.3809 29.5596 68.2132 29.3803L68.2109 29.3825Z" fill="#EE4D2D"/>
+    <path d="M53.2184 25.8333H50.3737L49.7278 29.9994H52.5725L52.7091 29.1209H50.7996L50.9075 28.4245H52.7789L52.9131 27.5585L51.0306 27.5517L51.1561 26.738H53.0779L53.2184 25.8333Z" fill="#EE4D2D"/>
+    <path d="M54.6986 27.8777L53.6697 25.8333H54.849L55.4282 26.9721L56.3677 25.8333H57.528L55.8737 27.864L56.9526 29.9994H55.7677L55.1441 28.7696L54.1393 29.9994H52.9667L54.6986 27.8777Z" fill="#EE4D2D"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M58.0689 25.8333H59.5238C59.6134 25.8333 59.7029 25.8356 59.7924 25.8402C60.0006 25.8493 60.1893 25.8868 60.3584 25.9539C60.5275 26.021 60.667 26.1188 60.778 26.2473C60.8878 26.3758 60.967 26.5328 61.0121 26.7193C61.0582 26.9058 61.0614 27.1231 61.0237 27.3699C60.9848 27.6167 60.914 27.8339 60.8102 28.0204C60.7063 28.207 60.5794 28.3628 60.4294 28.489C60.2795 28.6153 60.1099 28.712 59.9195 28.7791C59.7302 28.8462 59.5291 28.8837 59.3184 28.8928C59.2321 28.8973 59.1436 28.8996 59.0518 28.8996H58.5108L58.3403 29.9994H57.4241L58.0689 25.8333ZM58.6514 27.9875H59.161C59.2147 27.9875 59.2651 27.9875 59.3122 27.984C59.3593 27.9806 59.3985 27.9806 59.4277 27.9806C59.6003 27.9715 59.7512 27.9215 59.8804 27.8282C60.0108 27.735 60.0917 27.5826 60.1243 27.3699C60.1569 27.1617 60.1225 27.0082 60.0222 26.9104C59.9219 26.8126 59.7873 26.7603 59.6172 26.7512C59.5579 26.7466 59.4695 26.7432 59.353 26.7409C59.2355 26.7387 59.1414 26.7375 59.0686 26.7375H58.8446L58.6514 27.9863L58.6514 27.9875Z" fill="#EE4D2D"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M62.016 29.9994H61.0987L61.7446 25.8333H63.1995C63.2891 25.8333 63.3786 25.8356 63.4681 25.8402C63.6763 25.8493 63.865 25.8868 64.0341 25.9539C64.2032 26.021 64.3427 26.1189 64.4537 26.2474C64.5635 26.376 64.6427 26.533 64.6878 26.7196C64.7339 26.9061 64.7371 27.1234 64.6993 27.3703C64.6454 27.7218 64.5286 28.0108 64.3501 28.2361C64.1717 28.4613 63.9549 28.6308 63.6977 28.7435L64.3937 29.9994H63.3364L62.7376 28.8993H62.1865L62.016 29.9994ZM62.3271 27.9881H62.8367C62.8904 27.9881 62.9408 27.9881 62.9879 27.9846C63.035 27.9812 63.0742 27.9812 63.1033 27.9812C63.276 27.9721 63.4269 27.9221 63.5561 27.8288C63.6864 27.7355 63.7674 27.583 63.8 27.3703C63.8326 27.1621 63.7982 27.0085 63.6979 26.9107C63.5976 26.8129 63.463 26.7605 63.2929 26.7514C63.2336 26.7469 63.1452 26.7435 63.0287 26.7412C62.9112 26.7389 62.8171 26.7378 62.7443 26.7378H62.5203L62.3271 27.9869L62.3271 27.9881Z" fill="#EE4D2D"/>
+    <path d="M65.4763 25.8333H68.321L68.1806 26.738H66.2576L66.1321 27.5517L68.0147 27.5585L67.8805 28.4245H66.009L65.9011 29.1209H67.8107L67.674 29.9994H64.8293L65.4763 25.8333Z" fill="#EE4D2D"/>
+    <path d="M72.178 28.7188L71.61 29.3825L71.6122 29.3803C71.78 29.5596 71.9832 29.7083 72.2209 29.8275C72.4586 29.9456 72.7531 30.0036 73.1045 29.9992C73.3507 29.9992 73.568 29.9653 73.7562 29.8964C73.9445 29.8275 74.1069 29.7379 74.2433 29.6274C74.3787 29.517 74.488 29.3923 74.568 29.2524C74.648 29.1124 74.7018 28.9725 74.7282 28.8303C74.762 28.6423 74.7549 28.4783 74.7058 28.3361C74.6578 28.1951 74.5811 28.0704 74.4767 27.9644C74.3723 27.8572 74.2502 27.7643 74.1103 27.6855C73.9704 27.6068 73.8261 27.5336 73.6784 27.4669L73.6023 27.4352C73.5317 27.4013 73.4622 27.3696 73.3916 27.3378C73.3221 27.3061 73.2603 27.2733 73.2072 27.2373C73.1542 27.2012 73.1155 27.1607 73.0889 27.1148C73.0623 27.0689 73.0545 27.0142 73.0642 26.9519C73.0785 26.8852 73.1321 26.8185 73.2241 26.7518C73.316 26.6851 73.4543 26.6577 73.6402 26.6709C73.7932 26.6796 73.9415 26.7113 74.085 26.7682C74.2285 26.825 74.3446 26.8863 74.4343 26.953L75 26.3024C74.9538 26.2521 74.89 26.2007 74.8089 26.146C74.7277 26.0925 74.6344 26.0411 74.5291 25.993C74.4237 25.9448 74.3051 25.9066 74.1721 25.8771C74.039 25.8475 73.8948 25.8333 73.7405 25.8333C73.4986 25.8333 73.2847 25.8672 73.0986 25.9339C72.9126 26.0017 72.7535 26.0881 72.6227 26.1941C72.4907 26.3002 72.388 26.4172 72.3137 26.544C72.2405 26.6709 72.1891 26.7977 72.1608 26.9224C72.1134 27.1399 72.1169 27.3225 72.1714 27.4701C72.2259 27.6178 72.3058 27.7446 72.4124 27.8485C72.5191 27.9523 72.6446 28.0387 72.7879 28.1076C72.9312 28.1765 73.0714 28.2377 73.2094 28.2924C73.2649 28.3132 73.3258 28.3383 73.392 28.3678C73.4583 28.3974 73.5201 28.4312 73.5764 28.4684C73.6327 28.5056 73.679 28.5482 73.7154 28.5963C73.7519 28.6445 73.7652 28.7002 73.7554 28.7625C73.75 28.8205 73.7306 28.8719 73.697 28.9156C73.6635 28.9594 73.6202 28.9954 73.5672 29.025C73.5141 29.0545 73.4558 29.0764 73.391 29.0906C73.3262 29.1048 73.2582 29.1124 73.1871 29.1124C72.9869 29.1092 72.8069 29.0742 72.646 29.0097C72.4851 28.9451 72.3291 28.8478 72.178 28.7188Z" fill="#EE4D2D"/>
+    <path d="M3.33578 25.8334H8.7915L5.53379 30H0L3.33578 25.8334Z" fill="#EE4D2D"/>
+    <path d="M6.91737 30L10.1751 25.8334H18.9126L15.6549 30H6.91737Z" fill="#EE4D2D"/>
+    </svg>
     <span class="title"><span class="accent">R</span>OLLCALL · <span id="brandTitle" style="color:#7f8ea3">ĐIỂM DANH KHO</span></span>
   </div>
   <div class="header-right">
@@ -666,10 +735,26 @@
     <div class="card">
       <div class="task-list-toolbar">
         <h2 class="section-heading">+ ĐỐI CHIẾU DANH SÁCH</h2>
-        <button class="btn" id="btnCreate" onclick="openCreateModal()">+ Task Điểm Danh Ca</button>
-        <button class="btn btn-meal" id="btnCreateMeal" onclick="openCreateMealModal()" style="background:#2e7d32;color:#fff;border-color:#2e7d32;">+ Task Đi ăn + Move</button>
+        <div class="task-create" id="taskCreateWrap">
+          <button class="btn-create" id="btnCreateTask" type="button" onclick="toggleTaskMenu(event)" aria-haspopup="true" aria-expanded="false" aria-controls="taskMenu">
+            <span class="btn-create-plus">＋</span>Task<span class="btn-create-caret">▾</span>
+          </button>
+          <div class="task-menu" id="taskMenu" role="menu" aria-hidden="true" aria-labelledby="btnCreateTask">
+            <button class="task-menu-item" type="button" role="menuitem" onclick="chooseTaskType('reconcile')">
+              <span class="task-menu-ic task-menu-ic-reconcile"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M2 4h3v16H2zm5 0h1v16H7zm3 0h3v16h-3zm5 0h1v16h-1zm3 0h3v16h-3z"/></svg></span>
+              <span class="task-menu-txt"><b>Điểm danh ca</b><small>Đối chiếu NV theo Station / Ca / Team</small></span>
+              <span class="task-menu-arrow">›</span>
+            </button>
+            <button class="task-menu-item" type="button" role="menuitem" onclick="chooseTaskType('meal-move')">
+              <span class="task-menu-ic task-menu-ic-meal"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg></span>
+              <span class="task-menu-txt"><b>Điểm danh Ra/Vào</b><small>Quét Ra / Vào theo nhà thầu</small></span>
+              <span class="task-menu-arrow">›</span>
+            </button>
+          </div>
+          <div class="task-menu-backdrop" id="taskMenuBackdrop"></div>
+        </div>
       </div>
-      <p style="color:var(--muted);font-size:14px;margin:0;">Tạo task mới: chọn <b>Station / Ca / Team</b> trong popup — NV thuộc nhóm sẽ được đối chiếu khi quét.</p>
+      <p style="color:var(--muted);font-size:14px;margin:0;">Tạo task mới: bấm <b>+Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — NV thuộc nhóm sẽ được đối chiếu khi quét.</p>
     </div>
 
     <div class="card">
@@ -844,10 +929,10 @@
 </div>
 
 
-<!-- ===== Modal tạo task meal-move (Đi ăn + Move) — tạo task trống, paste/quét bên trong ===== -->
+<!-- ===== Modal tạo task meal-move (Điểm danh Ra/Vào) — tạo task trống, paste/quét bên trong ===== -->
 <div id="createMealModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="createMealModalTitle" onclick="if(event.target===this)closeCreateMealModal()">
   <div class="about-dialog" style="max-width:440px;">
-    <h2 id="createMealModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task Đi ăn + Move</h2>
+    <h2 id="createMealModalTitle" style="font-size:17px;margin:0 0 4px;">+ Tạo task Điểm danh Ra/Vào</h2>
     <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Tạo task trống — dán/quét mã <b>Ops</b> bên trong task (ô Dán hàng loạt hoặc ô Quét).</p>
     <div style="margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:var(--card-radius);background:var(--surface-muted);font-size:13px;color:var(--muted);line-height:1.6;">
       Sau khi tạo, bạn sẽ vào	task để:<br>
@@ -895,7 +980,7 @@
   var STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' };
   // meal-move: mode quét hiện tại ('ra' | 'vao'); mặc định 'ra' (creator tạo task)
   var MEAL_MODE = 'ra';
-  var TT_LABEL_MEAL = { 'meal-move': 'Đi ăn + Move' };
+  var TT_LABEL_MEAL = { 'meal-move': 'Điểm danh Ra/Vào' };
   // Task status — khớp TASK_STATUS trong Config.gs
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 
@@ -1112,6 +1197,42 @@
     if (aboutFocusBack && aboutFocusBack.focus) aboutFocusBack.focus();
     aboutFocusBack = null;
   }
+  // ===== TASK-MENU-START =====
+  // ===== Nút +Task: menu chọn loại task (reconcile / meal-move) =====
+  function toggleTaskMenu(ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var menu = document.getElementById('taskMenu');
+    if (!menu) return;
+    var open = !menu.classList.contains('show');
+    menu.classList.toggle('show', open);
+    menu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    var btn = document.getElementById('btnCreateTask');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var back = document.getElementById('taskMenuBackdrop');
+    if (back) back.classList.toggle('show', open);
+    if (open) {
+      var first = menu.querySelector('.task-menu-item');
+      if (first && first.focus) first.focus();
+    }
+  }
+  function closeTaskMenu(returnFocus) {
+    var menu = document.getElementById('taskMenu');
+    if (menu) {
+      menu.classList.remove('show');
+      menu.setAttribute('aria-hidden', 'true');
+    }
+    var btn = document.getElementById('btnCreateTask');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    var back = document.getElementById('taskMenuBackdrop');
+    if (back) back.classList.remove('show');
+    if (returnFocus !== false && btn && btn.focus) btn.focus();
+  }
+  function chooseTaskType(type) {
+    closeTaskMenu(false);
+    if (type === 'meal-move') openCreateMealModal();
+    else openCreateModal();
+  }
+  // ===== TASK-MENU-END =====
   function openCreateModal() {
     var m = document.getElementById('createModal');
     if (!m) return;
@@ -1129,7 +1250,7 @@
   function closeCreateModal() {
     var m = document.getElementById('createModal');
     if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
-    var btn = document.getElementById('btnCreate');
+    var btn = document.getElementById('btnCreateTask');
     if (btn && btn.focus) btn.focus();
   }
   function anyModalOpen() {
@@ -1160,6 +1281,8 @@
   document.addEventListener('keydown', function (e) {
     // P3: Escape đóng modal (focus trap cơ bản)
     if (e.key === 'Escape') {
+      var tm = document.getElementById('taskMenu');
+      if (tm && tm.classList.contains('show')) { closeTaskMenu(); return; }
       var m = document.getElementById('createModal');
       if (m && m.classList.contains('open')) { closeCreateModal(); return; }
       m = document.getElementById('createMealModal');
@@ -1238,7 +1361,7 @@
         fillSelect('fDate', res.dates, '-- Tất cả ngày --');
         fillChips('fContractType', res.contractTypes || []);
         var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
-        document.getElementById('btnCreate').disabled = !canCreate;
+        document.getElementById('btnCreateTask').disabled = !canCreate;
         markServerOk();  // RPC success → server sống lại (netDot hồi phục — phủ cả trường hợp chỉ load options)
         _releaseRefreshLock();
       })
@@ -1866,7 +1989,7 @@
   function closeCreateMealModal() {
     var m = document.getElementById('createMealModal');
     if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
-    var btn = document.getElementById('btnCreateMeal');
+    var btn = document.getElementById('btnCreateTask');
     if (btn && btn.focus) btn.focus();
   }
   function createMealMoveTask() {
@@ -2114,6 +2237,47 @@
       .scanStaffApi(item.taskId, item.staffId, item.mode);
   }
 
+  // ===== PURE-LOGIC-START =====
+  // Logic thuần tách/quyết định mã dán — không phụ thuộc DOM/server. Khối này được
+  // trích ra và test bởi tests/scan-logic.test.js (đọc marker, chạy trong vm sandbox)
+  // → test ĐÚNG code được deploy, không có bản sao lệch nhau.
+  // Tách chuỗi dán thành danh sách mã: khoảng trắng/tab/xuống dòng/phẩy/chấm phẩy.
+  function splitScanCodes(raw) {
+    return raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  // Mã barcode nhân viên hợp lệ: bắt đầu "Ops" (case-insensitive) — khớp chuẩn server.
+  function isValidBarcodeId(code) {
+    return /^ops/i.test(code);
+  }
+
+  // Quyết định cách xử lý 1 lần submit từ ô quét. Trả về:
+  //  - mode 'empty'           : không có mã nào (chuỗi rỗng / toàn dấu phân tách)
+  //  - mode 'meal-move-batch' : meal-move + >1 mã → gửi 1 RPC batch (pasteMealMoveScanApi)
+  //  - mode 'reconcile-batch' : đối chiếu + >1 mã → enqueue từng mã hợp lệ, bỏ qua mã rác
+  //  - mode 'single'          : đúng 1 mã → đường quét đơn
+  // Kèm: codes (mọi mã), validCodes (mã hợp lệ), invalidCount (số mã rác bị bỏ qua).
+  function planScanSubmit(raw, isMealMove) {
+    var codes = splitScanCodes(raw);
+    if (!codes.length) {
+      return { mode: 'empty', codes: codes, validCodes: [], invalidCount: 0 };
+    }
+    if (isMealMove && codes.length > 1) {
+      return { mode: 'meal-move-batch', codes: codes, validCodes: codes, invalidCount: 0 };
+    }
+    if (!isMealMove && codes.length > 1) {
+      var validCodes = [];
+      var invalidCount = 0;
+      codes.forEach(function (c) {
+        if (isValidBarcodeId(c)) validCodes.push(c);
+        else invalidCount++;
+      });
+      return { mode: 'reconcile-batch', codes: codes, validCodes: validCodes, invalidCount: invalidCount };
+    }
+    return { mode: 'single', codes: codes, validCodes: codes, invalidCount: 0 };
+  }
+  // ===== PURE-LOGIC-END =====
+
   function submitScan() {
     if (!CURRENT_TASK) return;
     // P2 (audit): chặn sớm khi task đã đóng (tab khác kết thúc task giữa chừng) —
@@ -2129,43 +2293,47 @@
     var raw = input.value.trim();
     if (!raw) return;
 
-    // Dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/dấu phẩy/chấm phẩy.
-    // Meal-move: >1 mã → batch 1 RPC (pasteMealMoveScanApi).
-    // Reconcile: >1 mã → enqueue từng mã vào SCAN_QUEUE (mỗi mã 1 dòng, xử lý tuần tự).
-    var codes = raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (codes.length > 1) {
-      if (CURRENT_TASK.taskType === 'meal-move') {
-        if (PASTE_BUSY) {
-          showToast('Đang xử lý dán mã — chờ giây lát', true);
-          playBeep('error');
-          return;
-        }
-        input.value = '';
-        input.focus();
-        submitPasteMealMoveBatch(codes);
-        return;
-      }
-      // Reconcile: chặn khi queue không đủ chỗ cho cả lô — tránh backlog tăng mãi
-      if (SCAN_QUEUE.length + codes.length > SCAN_QUEUE_MAX) {
-        input.value = '';  // I8: không giữ backlog — xoá ngay
-        showToast('Hàng đợi đang đầy — chờ giây lát', true);
+    // Dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/tab/xuống dòng/phẩy/chấm phẩy.
+    // Meal-move: >1 mã → batch 1 RPC (pasteMealMoveScanApi) — giữ nguyên hành vi cũ.
+    var plan = planScanSubmit(raw, CURRENT_TASK.taskType === 'meal-move');
+    if (plan.mode === 'meal-move-batch') {
+      if (PASTE_BUSY) {
+        showToast('Đang xử lý dán mã — chờ giây lát', true);
         playBeep('error');
         return;
       }
       input.value = '';
       input.focus();
-      for (var i = 0; i < codes.length; i++) {
-        enqueueScan(input, codes[i]);
-      }
+      submitPasteMealMoveBatch(plan.codes);
       return;
     }
 
-    enqueueScan(input, codes.length ? codes[0] : raw);
+    // P3 (fix 2026-08-08): task ĐỐI CHIẾU cũng được dán hàng loạt — trước đây cả khối
+    // dán bị xem là 1 mã → 1 dòng Dư với cả loạt mã nằm ngang trong cột Mã NV. Nay
+    // planScanSubmit tách từng mã → enqueue qua queue (optimistic + rollback như quét tay).
+    if (plan.mode === 'reconcile-batch') {
+      if (plan.invalidCount > 0) {
+        showToast(plan.invalidCount + ' mã không hợp lệ — đã bỏ qua', true);
+        playBeep('error');
+      }
+      input.value = '';
+      input.focus();
+      if (!plan.validCodes.length) return;
+      for (var bi = 0; bi < plan.validCodes.length; bi++) {
+        if (!submitScanSingle(input, plan.validCodes[bi])) break;  // queue đầy → dừng loạt
+      }
+      return;
+    }
+    if (plan.mode === 'empty') return;  // lý thuyết: raw đã trim non-empty → luôn ≥1 mã
+
+    // Một mã (quét tay / paste 1 mã) → đường quét đơn đã tách riêng
+    submitScanSingle(input, plan.codes[0]);
   }
 
-  // Enqueue 1 mã NV vào SCAN_QUEUE → processScanQueue xử lý tuần tự.
-  // Dùng chung cho quét tay và luồng dán nhiều mã (reconcile): mỗi mã 1 item → 1 dòng.
-  function enqueueScan(input, staffId) {
+  // P3 (fix 2026-08-08): tách từ submitScan — xử lý 1 mã, dùng cho cả quét tay và
+  // từng mã trong loạt dán của task đối chiếu. Trả false khi phải DỪNG loạt
+  // (queue đầy / mã sai); true khi xử lý xong (kể cả reject nhẹ như Đã điểm danh).
+  function submitScanSingle(input, staffId) {
     // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
     if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
       input.value = '';  // I8: không giữ backlog — xoá ngay
@@ -2200,14 +2368,15 @@
     // meal-move: nếu task là meal-move → logic Ra/Vào khác reconcile
     var isMealMove = CURRENT_TASK.taskType === 'meal-move';
     if (isMealMove) {
-      return submitScanMealMove(input, staffId, target);
+      submitScanMealMove(input, staffId, target);
+      return true;
     }
     // Đã quét (Có mặt/Dư) → chặn NGAY ở client, không gọi server (tránh toast lặp)
     if (target && (target.status === STATUS_C.PRESENT || target.status === STATUS_C.EXTRA)) {
       showToast('Đã điểm danh', true);
       playBeep('error');
       showScanCard('Đã điểm danh', target, true);
-      return false;
+      return true;  // batch: mã trùng chỉ bỏ qua, không dừng cả loạt
     }
 
     var item = {
