@@ -552,6 +552,34 @@
       text-transform: uppercase; letter-spacing: .5px;
       display: flex; align-items: center; gap: 8px;
     }
+    /* ===== MẪU 10 — Glassmorphism: phần giới thiệu Đối chiếu danh sách ===== */
+    .intro-m10 { position: relative; overflow: hidden; }
+    .intro-m10::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(120deg, rgba(238,77,45,.25), rgba(238,77,45,.05) 55%, rgba(255,255,255,.04));
+    }
+    .intro-m10::after {
+      content: ''; position: absolute; top: -40px; right: -30px; pointer-events: none;
+      width: 120px; height: 120px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,95,46,.45), transparent 70%);
+    }
+    .intro-m10 > * { position: relative; z-index: 1; }
+    .intro-m10 .task-list-toolbar { margin-bottom: 2px; }
+    .intro-m10-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10.5px; font-weight: 800; letter-spacing: 1px;
+      color: #fff; text-transform: uppercase;
+      background: linear-gradient(135deg, #ff5f2e, #ee4d2d 55%, #d43b1f);
+      padding: 3px 10px; border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(238,77,45,.4);
+    }
+    .intro-m10-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .intro-m10-head .section-heading { color: #fff; }
+    .intro-m10-desc {
+      font-size: 13px; color: #cbd5e1; margin: 12px 0 0;
+      line-height: 1.7; padding-left: 2px;
+    }
+    .intro-m10-desc b { color: #ff8a6b; font-weight: 700; }
     .task-count-badge {
       font-family: Consolas, 'Courier New', monospace;
       font-size: 13px; font-weight: 600; color: var(--muted);
@@ -956,9 +984,12 @@
 <main id="main-content" tabindex="-1">
   <!-- ================= VIEW 1: Tạo task / danh sách ================= -->
   <section id="viewList">
-    <div class="card">
+    <div class="card intro-m10">
       <div class="task-list-toolbar">
-        <h2 class="section-heading">+ ĐỐI CHIẾU DANH SÁCH</h2>
+        <div class="intro-m10-head">
+          <span class="intro-m10-badge">SPX · ĐIỂM DANH</span>
+          <h2 class="section-heading">ĐỐI CHIẾU DANH SÁCH</h2>
+        </div>
         <div class="task-create" id="taskCreateWrap">
           <button class="btn-create" id="btnCreateTask" type="button" onclick="toggleTaskMenu(event)" aria-haspopup="true" aria-expanded="false" aria-controls="taskMenu">
             <span class="btn-create-plus">＋</span>Task<span class="btn-create-caret">▾</span>
@@ -978,7 +1009,7 @@
           <div class="task-menu-backdrop" id="taskMenuBackdrop"></div>
         </div>
       </div>
-      <p style="color:var(--muted);font-size:14px;margin:0;">Tạo task mới: bấm <b>+Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — NV thuộc nhóm sẽ được đối chiếu khi quét.</p>
+      <p class="intro-m10-desc">Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét</b> mã.</p>
     </div>
 
     <div class="card">
