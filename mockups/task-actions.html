@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Quét / Xem / Mở Lại / Kết Thúc</title>
+<style>
+  :root {
+    --spx: #ee4d2d;
+    --spx-dark: #d43b1f;
+    --spx-light: rgba(238, 77, 45, .12);
+    --bg: #0b1120;
+    --panel: #131b2e;
+    --panel-2: #0e1626;
+    --line: rgba(148, 163, 184, .14);
+    --text: #e2e8f0;
+    --muted: #8b98ab;
+    --green: #22c55e;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  .banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(238,77,45,.18), rgba(238,77,45,.05));
+    border: 1px solid rgba(238,77,45,.35);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 18px;
+    font-size: 13px; color: #fde8e3;
+  }
+  .banner b { color: #ff8a6b; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .sub code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 2px 8px; border-radius: 6px; color: #ff8a6b;
+  }
+
+  /* ===== Card task ===== */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .card-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .card-info { flex: 1; min-width: 200px; }
+  .task-code { font-weight: 800; font-size: 15px; letter-spacing: .3px; }
+  .task-meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .status-open { background: rgba(34,197,94,.14); color: #4ade80; }
+  .status-done { background: rgba(148,163,184,.16); color: #94a3b8; }
+
+  /* ===== Nút hành động ===== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13px; font-weight: 700;
+    padding: 8px 16px; border-radius: 10px; border: 1.5px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: all .15s ease;
+    font-family: inherit;
+  }
+  .btn:active { transform: scale(.96); }
+
+  .btn-scan {
+    background: linear-gradient(135deg, #ff5f2e, var(--spx) 55%, var(--spx-dark));
+    color: #fff;
+    box-shadow: 0 3px 12px rgba(238,77,45,.35);
+  }
+  .btn-scan:hover { box-shadow: 0 5px 18px rgba(238,77,45,.5); transform: translateY(-1px); }
+
+  .btn-view {
+    background: var(--panel-2); color: var(--text);
+    border-color: rgba(148,163,184,.35);
+  }
+  .btn-view:hover { border-color: #94a3b8; background: rgba(148,163,184,.1); }
+
+  .btn-reopen {
+    background: var(--spx-light); color: var(--spx);
+    border-color: var(--spx);
+  }
+  .btn-reopen:hover { background: rgba(238,77,45,.2); transform: translateY(-1px); }
+
+  .btn-finish { background: var(--green); color: #052e12; }
+  .btn-finish:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(34,197,94,.35); }
+  .btn-end { background: var(--red); color: #fff; }
+  .btn-end:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(239,68,68,.35); }
+
+  .btn-sm { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+
+  /* ===== Màn chi tiết task ===== */
+  .detail {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    margin-top: 20px;
+    display: none;
+    animation: fadeIn .2s ease;
+  }
+  .detail.show { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .detail-title { font-size: 17px; font-weight: 800; }
+  .btn-back {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); font-size: 12.5px; font-weight: 600;
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  .btn-back:hover { color: var(--text); border-color: #94a3b8; }
+
+  .detail-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+  }
+  .detail-bar .label { color: var(--muted); font-size: 12.5px; }
+  .detail-bar .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .note {
+    font-size: 12.5px; color: var(--muted); line-height: 1.6;
+    background: var(--panel-2); border: 1px dashed var(--line);
+    border-radius: 10px; padding: 10px 14px;
+  }
+  .note b { color: var(--text); }
+  .note .hl { color: #ff8a6b; font-weight: 700; }
+
+  /* ===== Legend ===== */
+  .legend {
+    margin-top: 26px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 16px;
+    font-size: 12.5px; color: var(--muted); line-height: 1.9;
+  }
+  .legend b { color: var(--text); }
+  .legend .row { display: flex; gap: 8px; align-items: baseline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <span>🧪</span>
+    <div><b>Mockup demo — Cột hành động task.</b> Bấm trực tiếp để thử luồng: task đang mở → nút <b>Quét</b> · task đã kết thúc → nút <b>Xem</b> → trong task kết thúc có <b>Mở Lại</b> · vừa mở lại mới có <b>Kết Thúc</b>.</div>
+  </div>
+
+  <h1>DANH SÁCH TASK</h1>
+  <div class="sub">Cột hành động tự đổi theo trạng thái · bấm <code>Quét</code> hoặc <code>Xem</code> để vào task</div>
+
+  <div id="taskList"></div>
+
+  <!-- ===== Chi tiết task ===== -->
+  <div class="detail" id="detail">
+    <div class="detail-head">
+      <button class="btn-back" onclick="goBack()">← Quay lại danh sách</button>
+      <span class="detail-title" id="detailTitle"></span>
+      <span class="status-badge" id="detailStatus"></span>
+    </div>
+
+    <div class="detail-bar">
+      <span class="label">Màn quét mã:</span>
+      <span id="detailScanInfo" style="font-size:13px; font-weight:600;">—</span>
+      <span class="actions" id="detailActions"></span>
+    </div>
+
+    <div class="note">
+      <b>Luồng đang mô phỏng:</b><br>
+      1. Task <span class="hl">chưa kết thúc</span> → chỉ có nút <span class="hl">Quét</span> ở danh sách · màn quét chỉ có <span class="hl">Kết Thúc</span>.<br>
+      2. Task <span class="hl">đã kết thúc</span> → danh sách chỉ có nút <span class="hl">Xem</span> · bấm Xem mở task dạng đọc (không quét).<br>
+      3. Trong task đã kết thúc → nút <span class="hl">↺ Mở Lại</span> thay chỗ nút Kết Thúc.<br>
+      4. Vừa <span class="hl">Mở Lại</span> → task quay về đang mở → <span class="hl">Kết Thúc</span> hiện lại, được quét tiếp.
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="row"><b>🟢 Đang mở (OPEN):</b> danh sách = nút Quét · trong task = nút Kết Thúc</div>
+    <div class="row"><b>⚪ Đã kết thúc (DONE):</b> danh sách = nút Xem · trong task = nút ↺ Mở Lại</div>
+    <div class="row"><b>↺ Vừa Mở Lại:</b> quay về OPEN — Kết Thúc hiện lại, danh sách hiện nút Quét</div>
+  </div>
+
+</div>
+
+<script>
+// ===== Dữ liệu giả =====
+const TASKS = [
+  { id: 'M20260808-01', name: 'Điểm danh Ra/Vào', type: 'meal', status: 'open',  ra: 12, vao: 8,  doneAt: null },
+  { id: 'M20260808-02', name: 'Điểm danh Ra/Vào', type: 'meal', status: 'done',  ra: 20, vao: 20, doneAt: '08:42' },
+  { id: 'M20260808-03', name: 'Điểm danh Ra/Vào', type: 'meal', status: 'done',  ra: 15, vao: 12, doneAt: '10:15' },
+  { id: 'M20260808-04', name: 'Điểm danh Ra/Vào', type: 'meal', status: 'open',  ra: 3,  vao: 0,  doneAt: null },
+  { id: 'M20260808-05', name: 'Điểm danh Ra/Vào', type: 'meal', status: 'done',  ra: 9,  vao: 9,  doneAt: '11:02' }
+];
+
+let currentId = null;
+
+// ===== Render danh sách =====
+function renderList() {
+  const el = document.getElementById('taskList');
+  el.innerHTML = TASKS.map(t => {
+    const open = t.status === 'open';
+    const statusHtml = open
+      ? '<span class="status-badge status-open">● Đang mở</span>'
+      : '<span class="status-badge status-done">● Kết thúc ' + t.doneAt + '</span>';
+    const actionHtml = open
+      ? '<button class="btn btn-scan btn-sm" onclick="openTask(\'' + t.id + '\')">📷 Quét</button>'
+      : '<button class="btn btn-view btn-sm" onclick="openTask(\'' + t.id + '\')">👁 Xem</button>';
+    return '<div class="card"><div class="card-row">' +
+      '<div class="card-info">' +
+        '<div class="task-code">' + t.id + ' · ' + t.name + '</div>' +
+        '<div class="task-meta"><span>Ra: ' + t.ra + '</span><span>·</span><span>Vào: ' + t.vao + '</span></div>' +
+      '</div>' +
+      '<span>' + statusHtml + '</span>' +
+      '<span>' + actionHtml + '</span>' +
+    '</div></div>';
+  }).join('');
+}
+
+// ===== Mở task =====
+function openTask(id) {
+  currentId = id;
+  const t = TASKS.find(x => x.id === id);
+  document.getElementById('detailTitle').textContent = t.id + ' · ' + t.name;
+
+  const st = document.getElementById('detailStatus');
+  if (t.status === 'open') {
+    st.className = 'status-badge status-open';
+    st.textContent = '● Đang mở';
+  } else {
+    st.className = 'status-badge status-done';
+    st.textContent = '● Đã kết thúc';
+  }
+
+  document.getElementById('detailScanInfo').textContent =
+    t.status === 'open' ? 'Đang quét mã Ops — bấm Kết Thúc khi xong' : 'Chế độ XEM — chỉ đọc, không quét được';
+
+  renderDetailActions(t);
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderDetailActions(t) {
+  const box = document.getElementById('detailActions');
+  if (t.status === 'open') {
+    box.innerHTML =
+      '<button class="btn btn-end btn-sm" onclick="finishTask()">⏹ Kết Thúc</button>';
+  } else {
+    box.innerHTML =
+      '<button class="btn btn-reopen btn-sm" onclick="reopenTask()">↺ Mở Lại</button>';
+  }
+}
+
+// ===== Kết thúc =====
+function finishTask() {
+  const t = TASKS.find(x => x.id === currentId);
+  t.status = 'done';
+  t.doneAt = new Date().toTimeString().slice(0, 5);
+  alert('✅ Đã kết thúc task ' + t.id + ' — quay về danh sách, task giờ chỉ còn nút Xem.');
+  goBack();
+}
+
+// ===== Mở lại =====
+function reopenTask() {
+  const t = TASKS.find(x => x.id === currentId);
+  t.status = 'open';
+  alert('↺ Đã Mở Lại task ' + t.id + ' — task quay về Đang mở, nút Kết Thúc hiện lại.');
+  // refresh ngay view đang xem (không cần quay về danh sách)
+  openTask(t.id);
+}
+
+// ===== Quay lại danh sách =====
+function goBack() {
+  currentId = null;
+  document.getElementById('detail').classList.remove('show');
+  renderList();
+  document.querySelector('#taskList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+renderList();
+</script>
+</body>
+</html>

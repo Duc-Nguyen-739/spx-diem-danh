@@ -384,7 +384,7 @@ function renderTaskList(tasks) {
       '<td>' + esc(t.createdBy || '') + '</td>' +
       '<td>' + (t.status === 'open'
         ? '<button class="btn-quet" onclick="showToast(\'Mở task ' + esc(t.taskId) + ' để quét\')">Quét</button>'
-        : '<button class="btn-xem" onclick="showToast(\'Xem task ' + esc(t.taskId) + '\')">Xem</button> <button class="btn-xem" onclick="showToast(\'Mở lại ' + esc(t.taskId) + '\')">Mở lại</button>') + '</td>';
+        : '<button class="btn-xem" onclick="showToast(\'Xem task ' + esc(t.taskId) + ' — nút Mở Lại nằm ở topbar màn quét\')">Xem</button>') + '</td>';
     body.appendChild(tr);
   });
 }

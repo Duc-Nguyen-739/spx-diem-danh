@@ -1029,6 +1029,7 @@
         <div id="taskNoteWrap"></div>
       </div>
       <button class="btn btn-meal-switch" id="btnMealSwitch" type="button" onclick="toggleMealMode()" hidden aria-label="Chuyển Quét Điểm Danh / Lấy Danh Sách">Chuyển Quét Điểm Danh</button>
+      <button class="btn btn-ghost" id="btnReopen" type="button" onclick="reopenCurrentTask()" hidden aria-label="Mở lại task">↺ Mở Lại</button>
       <button class="btn" id="btnFinish" onclick="finishTask()" aria-label="Hoàn thành task">Hoàn Thành</button>
     </div>
 
@@ -1958,7 +1959,7 @@
         '<td>' + statusBadge + '</td>' +
         '<td>' + esc(t.createdAtText || t.createdAt || '') + '</td>' +
         '<td>' + esc(t.createdBy || '') + '</td>' +
-        '<td>' + (t.status === TASK_STATUS_C.OPEN ? '<button class="btn btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>' : '<button class="btn btn-ghost btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button> <button class="btn btn-sm" onclick="reopenTask(\'' + escAttr(t.taskId) + '\')">Mở lại</button>') + '</td>';
+        '<td>' + (t.status === TASK_STATUS_C.OPEN ? '<button class="btn btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>' : '<button class="btn btn-ghost btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>') + '</td>';
       body.appendChild(tr);
     });
   }
@@ -3122,28 +3123,26 @@
   function updateFinishBtnState() {
     var btn = document.getElementById('btnFinish');
     if (!btn) return;
+    var isOpen = !!(CURRENT_TASK && CURRENT_TASK.status === TASK_STATUS_C.OPEN);
+    var isDone = !!(CURRENT_TASK && CURRENT_TASK.status === TASK_STATUS_C.DONE);
+    // DONE → ẩn nút Kết Thúc, hiện nút "Mở Lại"; OPEN → ngược lại
+    var reopenBtn = document.getElementById('btnReopen');
+    if (reopenBtn) reopenBtn.hidden = !isDone;
+    btn.hidden = !isOpen;
     if (scanBusy()) {
       btn.disabled = true;
       btn.title = 'Đang xử lý quét — chờ xong rồi kết thúc';
     } else {
-      btn.disabled = !CURRENT_TASK || CURRENT_TASK.status !== TASK_STATUS_C.OPEN;
+      btn.disabled = !isOpen;
       btn.title = '';
     }
-    // Cập nhật label nút theo trạng thái task:
-    // OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ); DONE → "Mở lại" (xám)
-    if (btn && CURRENT_TASK) {
+    // Nhãn nút Kết Thúc: OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ)
+    if (btn && CURRENT_TASK && isOpen) {
       var hasRa = false;
       (CURRENT_LOG || []).forEach(function (r) {
         if (Number(r.timeRaEpoch) > 0) hasRa = true;
       });
-      var isDone = CURRENT_TASK.status === TASK_STATUS_C.DONE;
-      if (isDone) {
-        btn.textContent = 'Mở lại';
-        btn.className = 'btn btn-ghost';
-        btn.style.background = '';
-        btn.style.color = '';
-        btn.style.borderColor = '';
-      } else if (hasRa) {
+      if (hasRa) {
         btn.textContent = 'Kết Thúc';
         btn.className = 'btn btn-danger';
         btn.style.background = '';
@@ -3158,6 +3157,12 @@
       }
     }
     updateQueueFullState();
+  }
+
+  // "Mở Lại" từ màn xem task đã kết thúc — dùng task đang mở trong view
+  function reopenCurrentTask() {
+    if (!CURRENT_TASK) return;
+    reopenTask(CURRENT_TASK.taskId);
   }
 
   // I8: báo hiệu queue đầy — viền đỏ nhấp nháy quanh ô quét
@@ -3271,7 +3276,12 @@
           .withSuccessHandler(function (res) {
             BUSY = false;
             showToast(res.message, !res.ok);
-            loadTaskList();
+            // Đang xem chính task vừa mở lại → refresh view để hiện nút Kết Thúc
+            if (CURRENT_TASK && CURRENT_TASK.taskId === taskId) {
+              loadTaskDetail(taskId);
+            } else {
+              loadTaskList();
+            }
           })
           .withFailureHandler(function (err) {
             markServerFail();
