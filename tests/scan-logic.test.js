@@ -24,8 +24,8 @@ const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== PURE-LOGIC-
 // Chạy trong CÙNG realm (runInThisContext) để array/prototype khớp với assert/strict
 // (vm.createContext tạo realm riêng → deepStrictEqual fail dù nội dung bằng nhau).
 // Wrapper function → không ô nhiễm global.
-const { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode } = vm.runInThisContext(
-  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode };\n})()'
+const { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName } = vm.runInThisContext(
+  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName };\n})()'
 );
 
 test('khối PURE-LOGIC không phụ thuộc DOM/server (giữ thuần để test được)', () => {
@@ -78,6 +78,24 @@ test('nextMealMode: đang vao → ra (quay lại phần Ra)', () => {
 
 test('nextMealMode: mode undefined → vao (mặc định an toàn)', () => {
   assert.equal(nextMealMode(undefined), 'vao');
+});
+
+// ===== creatorName — cột "Người tạo" chỉ lấy tên email (bỏ @domain) =====
+test('creatorName: email đầy đủ → chỉ lấy phần tên', () => {
+  assert.equal(creatorName('nhanvien01@spx.com'), 'nhanvien01');
+});
+
+test('creatorName: email có dấu chấm trước @ → giữ nguyên', () => {
+  assert.equal(creatorName('nguyen.van.a@spx.vn'), 'nguyen.van.a');
+});
+
+test('creatorName: rỗng/undefined → chuỗi rỗng', () => {
+  assert.equal(creatorName(undefined), '');
+  assert.equal(creatorName(''), '');
+});
+
+test('creatorName: chuỗi không có @ → trả nguyên chuỗi', () => {
+  assert.equal(creatorName('nhanvien01'), 'nhanvien01');
 });
 
 // ===== planScanSubmit: quyết định đường xử lý 1 lần submit =====

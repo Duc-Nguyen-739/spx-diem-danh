@@ -464,6 +464,19 @@
     }
     header .brand {
       display: flex; align-items: center; gap: 10px;
+      position: relative; overflow: hidden;
+    }
+    /* ===== MẪU 9: xe tải cam SPX chạy dưới logo (SPX Express) ===== */
+    header .brand .spx-truck {
+      position: absolute; bottom: -5px; left: -70px;
+      width: 46px; height: auto; z-index: 2;
+      animation: truckRun 5s linear infinite;
+      filter: drop-shadow(0 2px 4px rgba(238,77,45,.55));
+      pointer-events: none;
+    }
+    @keyframes truckRun {
+      0% { left: -70px; }
+      100% { left: calc(100% + 30px); }
     }
     header .brand .title {
       font-size: 18px; font-weight: 700; letter-spacing: 1px;
@@ -496,7 +509,7 @@
       background: rgba(227,116,0,.08);
     }
     header .brand .spx-logo {
-      height: 26px; width: auto; display: block;
+      height: 34px; width: auto; display: block;
     }
 
     /* ===== Header: tìm kiếm mã Ops — gọn giữa, viền cam SPX #EE4D2D ===== */
@@ -553,15 +566,15 @@
       display: flex; align-items: center; gap: 8px;
     }
     /* ===== MẪU 10 — Glassmorphism: phần giới thiệu Đối chiếu danh sách ===== */
-    .intro-m10 { position: relative; overflow: hidden; }
+    .intro-m10 { position: relative; }  /* KHÔNG overflow:hidden — sẽ cắt menu +Task (dropdown) */
     .intro-m10::before {
       content: ''; position: absolute; inset: 0; pointer-events: none;
       background: linear-gradient(120deg, rgba(255,95,46,.14), rgba(255,255,255,.72) 60%, rgba(255,255,255,.5));
     }
     .intro-m10::after {
-      content: ''; position: absolute; top: -40px; right: -30px; pointer-events: none;
-      width: 120px; height: 120px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,95,46,.28), transparent 70%);
+      content: ''; position: absolute; top: 4px; right: 4px; pointer-events: none;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,95,46,.26), transparent 70%);
     }
     .intro-m10 > * { position: relative; z-index: 1; }
     .intro-m10 .task-list-toolbar { margin-bottom: 2px; }
@@ -964,7 +977,7 @@
     <path d="M3.33578 25.8334H8.7915L5.53379 30H0L3.33578 25.8334Z" fill="#EE4D2D"/>
     <path d="M6.91737 30L10.1751 25.8334H18.9126L15.6549 30H6.91737Z" fill="#EE4D2D"/>
     </svg>
-    <span class="title"><span class="accent">R</span>OLLCALL · <span id="brandTitle" style="color:#7f8ea3">ĐIỂM DANH KHO</span></span>
+    <span class="title"><span id="brandTitle" style="color:#fff">ĐIỂM DANH KHO</span></span><svg class="spx-truck" viewBox="0 0 70 34" width="46" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="1" y="5" width="36" height="17" rx="2" fill="#EE4D2D"/><rect x="1" y="11" width="36" height="3" fill="rgba(255,255,255,.4)"/><path d="M41 8 h9 a7 7 0 0 1 7 7 v5 h-16 z" fill="#FF5F2E"/><rect x="41" y="13" width="9" height="4" rx="1.5" fill="rgba(255,255,255,.35)"/><circle cx="17" cy="24" r="5" fill="#1a1f2e"/><circle cx="17" cy="24" r="2.2" fill="#ffd166"/><circle cx="49" cy="24" r="5" fill="#1a1f2e"/><circle cx="49" cy="24" r="2.2" fill="#ffd166"/><text x="18" y="18.5" font-size="9.5" font-weight="800" fill="#fff" font-family="Arial, sans-serif">SPX</text></svg>
   </div>
   <div class="header-search" id="headerSearchWrap">
     <span class="header-search-ic">⌕</span>
@@ -1989,7 +2002,7 @@
         '<td class="num">' + (t.extra || 0) + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td>' + esc(t.createdAtText || t.createdAt || '') + '</td>' +
-        '<td>' + esc(t.createdBy || '') + '</td>' +
+        '<td>' + esc(creatorName(t.createdBy)) + '</td>' +
         '<td>' + (t.status === TASK_STATUS_C.OPEN ? '<button class="btn btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>' : '<button class="btn btn-ghost btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>') + '</td>';
       body.appendChild(tr);
     });
@@ -2117,10 +2130,10 @@
     metaEl.innerHTML =
       esc(TT_LABEL[data.task.taskType] || 'Task') +
       (isMealMove ? '' : ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team)) +
-      (isMealMove && data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '') +
+      (isMealMove && data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '') +
       (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
       // Hiện email creator cho mọi loại task (giống meal-move)
-      (data.task.createdBy ? ' · ' + esc(data.task.createdBy) : '');
+      (data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '');
     renderTaskNote(data.task);
     // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
     toggleMealColumns(isMealMove);
@@ -3005,6 +3018,13 @@
   // Đang 'ra' (đã quét Ra) → chuyển sang 'vao'; đang 'vao' → quay lại 'ra'.
   function nextMealMode(mode) {
     return mode === 'vao' ? 'ra' : 'vao';
+  }
+  // Cột "Người tạo": hiển thị email nhưng chỉ lấy phần tên (trước @), bỏ "@domain".
+  // Logic thuần — test trong scan-logic.test.js cùng PURE-LOGIC block.
+  function creatorName(email) {
+    var s = String(email || '').trim();
+    if (!s) return '';
+    return s.split('@')[0].trim();
   }
   // ===== PURE-LOGIC-END =====
 
