@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mockup — Dashboard sidebar MẪU 3 (Glassmorphism + Station + gập/mở)</title>
+<title>Mockup — Dashboard MẪU 3 (filter hoạt động)</title>
 <style>
   :root {
     --spx: #ee4d2d; --spx-light: #ff5f2e; --spx-dark: #d43b1f;
@@ -13,7 +13,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 24px 16px 70px; }
-  .wrap { max-width: 960px; margin: 0 auto; }
+  .wrap { max-width: 980px; margin: 0 auto; }
 
   .banner {
     display: flex; align-items: center; gap: 10px;
@@ -27,7 +27,6 @@
   .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
   .sub code { background: var(--panel-2); border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; color: #ff8a6b; }
 
-  /* ===== App frame ===== */
   .frame { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel-2); }
   .frame-head {
     display: flex; align-items: center; gap: 10px; padding: 11px 16px;
@@ -40,11 +39,11 @@
   }
   .frame-head .ftitle { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #fff; }
   .frame-head .fsearch { margin-left: auto; font-size: 11px; color: var(--muted); background: #0a0f18; border: 1.5px solid rgba(238,77,45,.5); border-radius: 999px; padding: 4px 12px; }
-  .frame-body { display: flex; align-items: stretch; min-height: 430px; }
+  .frame-body { display: flex; align-items: stretch; min-height: 470px; }
 
-  /* ===== Sidebar MẪU 3: Glassmorphism cam ===== */
+  /* ===== Sidebar MẪU 3 ===== */
   .sb {
-    position: relative; width: 250px; min-width: 250px; padding: 16px 14px;
+    position: relative; width: 255px; min-width: 255px; padding: 16px 14px;
     display: flex; flex-direction: column; gap: 8px;
     background: linear-gradient(160deg, rgba(238,77,45,.2), rgba(238,77,45,.05) 55%, rgba(238,77,45,.02));
     border-right: 1px solid rgba(238,77,45,.3);
@@ -56,7 +55,6 @@
     pointer-events: none;
   }
   .sb > * { position: relative; z-index: 1; }
-
   .sb-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #ffb59e; font-weight: 800; margin-bottom: 2px; }
 
   .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 4px; }
@@ -64,7 +62,6 @@
   .kpi .v { font-size: 16px; font-weight: 800; color: #ff8a6b; }
   .kpi .k { font-size: 9.5px; color: #9fb0c6; }
 
-  /* ===== Nhóm filter gập/mở ===== */
   .fgroup { border: 1px solid rgba(238,77,45,.25); border-radius: 10px; background: rgba(255,255,255,.04); overflow: hidden; }
   .fgroup .fhead {
     display: flex; align-items: center; gap: 8px; width: 100%;
@@ -94,12 +91,21 @@
   .content { flex: 1; padding: 16px; min-width: 0; }
   .content h4 { font-size: 13px; margin-bottom: 12px; color: #fff; letter-spacing: .5px; }
   .content h4 b { color: var(--spx); }
-  .tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-  .tbl th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  .tbl td { padding: 7px 8px; border-bottom: 1px solid rgba(148,163,184,.08); }
+  .content h4 .flt-tag {
+    font-size: 10px; font-weight: 700; color: #ff8a6b; background: rgba(238,77,45,.14);
+    border: 1px solid rgba(238,77,45,.4); padding: 2px 9px; border-radius: 999px; margin-left: 6px; vertical-align: 2px;
+  }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; background: var(--panel-2); }
+  .tbl th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--line); background: rgba(148,163,184,.05); white-space: nowrap; }
+  .tbl td { padding: 8px; border-bottom: 1px solid rgba(148,163,184,.08); white-space: nowrap; }
+  .tbl tr:hover td { background: rgba(238,77,45,.04); }
   .b { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
-  .b-open { background: rgba(34,197,94,.14); color: #4ade80; }
-  .b-done { background: rgba(148,163,184,.16); color: #94a3b8; }
+  .b-open { background: rgba(46,204,113,.14); color: #2ecc71; }
+  .b-done { background: rgba(127,142,163,.14); color: #8b98ab; }
+  .b-type-ca { background: rgba(11,87,208,.14); color: #7ab3ff; }
+  .b-type-move { background: rgba(255,184,77,.14); color: #ffb84d; }
+  .empty { text-align: center; color: #56637a; padding: 34px 10px; font-size: 13px; }
 
   .hint {
     margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.7;
@@ -114,11 +120,11 @@
 
   <div class="banner">
     <span>📊</span>
-    <div><b>MẪU 3 đã chốt — Dashboard sidebar Glassmorphism cam.</b> Đã thêm filter <b>Station</b> + tất cả nhóm filter <b>gập/mở khi click</b>: bấm vào tên nhóm là sổ danh sách ra, bấm lần nữa thu gọn lại. Bấm thử ngay trên sidebar bên dưới.</div>
+    <div><b>MẪU 3 — Dashboard Glassmorphism cam (đã chốt).</b> Giờ có <b>filter hoạt động thật</b>: chọn Trạng thái / Loại / Ngày / Station / Ca → bảng + KPI + số đếm tự lọc theo. Bấm thử!</div>
   </div>
 
-  <h1>Dashboard sidebar — MẪU 3 (Glassmorphism cam)</h1>
-  <div class="sub">KPI + 5 nhóm filter gập/mở: <code>Trạng thái · Loại task · Khoảng ngày · Station · Ca/Team</code></div>
+  <h1>Dashboard MẪU 3 — filter hoạt động</h1>
+  <div class="sub">Dữ liệu giả 12 task · KPI và đếm cập nhật theo lựa chọn</div>
 
   <div class="frame">
     <div class="frame-head">
@@ -130,20 +136,20 @@
       <aside class="sb">
         <div class="sb-title">📊 Dashboard</div>
 
-        <div class="kpis">
-          <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
-          <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
-          <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
-          <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+        <div class="kpis" id="kpis">
+          <div class="kpi"><div class="v" id="kTotal">0</div><div class="k">Tổng task</div></div>
+          <div class="kpi"><div class="v" id="kOpen">0</div><div class="k">Đang mở</div></div>
+          <div class="kpi"><div class="v" id="kDone">0</div><div class="k">Đã xong</div></div>
+          <div class="kpi"><div class="v" id="kScan">0</div><div class="k">Lượt quét</div></div>
         </div>
 
-        <!-- Trạng thái (mở sẵn) -->
+        <!-- Trạng thái -->
         <div class="fgroup open" id="g-status">
           <button class="fhead" onclick="toggleGroup('g-status')">● Trạng thái <span class="caret">▾</span></button>
           <div class="fbody">
-            <label class="opt on"><input type="radio" name="st" checked> Tất cả <span class="cnt">12</span></label>
-            <label class="opt"><input type="radio" name="st"> Đang mở <span class="cnt">5</span></label>
-            <label class="opt"><input type="radio" name="st"> Đã kết thúc <span class="cnt">7</span></label>
+            <label class="opt on"><input type="radio" name="st" value="all" checked onchange="applyFilters()"> Tất cả <span class="cnt" id="cntStAll">0</span></label>
+            <label class="opt"><input type="radio" name="st" value="open" onchange="applyFilters()"> Đang mở <span class="cnt" id="cntStOpen">0</span></label>
+            <label class="opt"><input type="radio" name="st" value="done" onchange="applyFilters()"> Đã kết thúc <span class="cnt" id="cntStDone">0</span></label>
           </div>
         </div>
 
@@ -151,8 +157,8 @@
         <div class="fgroup" id="g-type">
           <button class="fhead" onclick="toggleGroup('g-type')">🗂 Loại task <span class="caret">▾</span></button>
           <div class="fbody">
-            <label class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></label>
-            <label class="opt"><input type="checkbox"> Điểm danh Ra/Vào <span class="cnt">4</span></label>
+            <label class="opt"><input type="checkbox" name="tp" value="reconcile" checked onchange="applyFilters()"> Điểm danh ca <span class="cnt" id="cntTpCa">0</span></label>
+            <label class="opt"><input type="checkbox" name="tp" value="meal-move" checked onchange="applyFilters()"> Điểm danh Ra/Vào <span class="cnt" id="cntTpMove">0</span></label>
           </div>
         </div>
 
@@ -160,19 +166,19 @@
         <div class="fgroup" id="g-date">
           <button class="fhead" onclick="toggleGroup('g-date')">📅 Khoảng ngày <span class="caret">▾</span></button>
           <div class="fbody">
-            <label class="opt"><input type="radio" name="dt"> Hôm nay</label>
-            <label class="opt"><input type="radio" name="dt" checked> 7 ngày qua</label>
-            <label class="opt"><input type="radio" name="dt"> 30 ngày qua</label>
+            <label class="opt"><input type="radio" name="dt" value="today" onchange="applyFilters()"> Hôm nay</label>
+            <label class="opt"><input type="radio" name="dt" value="7d" checked onchange="applyFilters()"> 7 ngày qua</label>
+            <label class="opt"><input type="radio" name="dt" value="30d" onchange="applyFilters()"> 30 ngày qua</label>
           </div>
         </div>
 
-        <!-- Station (mới thêm) -->
+        <!-- Station -->
         <div class="fgroup" id="g-station">
           <button class="fhead" onclick="toggleGroup('g-station')">🏭 Station <span class="caret">▾</span></button>
           <div class="fbody">
-            <label class="opt"><input type="checkbox"> HN2 SOC <span class="cnt">6</span></label>
-            <label class="opt"><input type="checkbox"> HN3 <span class="cnt">4</span></label>
-            <label class="opt"><input type="checkbox"> HN4 <span class="cnt">2</span></label>
+            <label class="opt"><input type="checkbox" name="stn" value="HN2 SOC" checked onchange="applyFilters()"> HN2 SOC <span class="cnt" id="cntStnHN2">0</span></label>
+            <label class="opt"><input type="checkbox" name="stn" value="HN3" checked onchange="applyFilters()"> HN3 <span class="cnt" id="cntStnHN3">0</span></label>
+            <label class="opt"><input type="checkbox" name="stn" value="HN4" checked onchange="applyFilters()"> HN4 <span class="cnt" id="cntStnHN4">0</span></label>
           </div>
         </div>
 
@@ -180,27 +186,30 @@
         <div class="fgroup" id="g-ca">
           <button class="fhead" onclick="toggleGroup('g-ca')">👥 Ca / Team <span class="caret">▾</span></button>
           <div class="fbody">
-            <label class="opt"><input type="checkbox"> Ca sáng <span class="cnt">5</span></label>
-            <label class="opt"><input type="checkbox"> Ca chiều <span class="cnt">4</span></label>
-            <label class="opt"><input type="checkbox"> Ca tối <span class="cnt">3</span></label>
+            <label class="opt"><input type="checkbox" name="ca" value="Sáng" checked onchange="applyFilters()"> Ca sáng <span class="cnt" id="cntCaSang">0</span></label>
+            <label class="opt"><input type="checkbox" name="ca" value="Chiều" checked onchange="applyFilters()"> Ca chiều <span class="cnt" id="cntCaChieu">0</span></label>
+            <label class="opt"><input type="checkbox" name="ca" value="Tối" checked onchange="applyFilters()"> Ca tối <span class="cnt" id="cntCaToi">0</span></label>
           </div>
         </div>
 
-        <button class="btn-clear" onclick="alert('Đã xoá tất cả lọc (demo)')">✕ Xoá tất cả lọc</button>
+        <button class="btn-clear" onclick="clearFilters()">✕ Xoá tất cả lọc</button>
       </aside>
 
       <!-- ===== NỘI DUNG ===== -->
       <div class="content">
-        <h4>DANH SÁCH TASK <b>(3)</b></h4>
-        <table class="tbl">
-          <tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th><th>Người tạo</th></tr>
-          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td><td>nhanvien01</td></tr>
-          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td><td>nhanvien02</td></tr>
-          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td><td>nhanvien01</td></tr>
-        </table>
+        <h4>DANH SÁCH TASK <b id="taskCount">0</b><span class="flt-tag" id="fltTag" hidden>đang lọc</span></h4>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Team</th><th>Trạng thái</th><th>Người tạo</th><th>Thời gian</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="empty" id="empty" hidden>Không có task nào khớp lọc</div>
+        </div>
 
         <div class="hint">
-          <b>Cách hoạt động:</b> bấm vào tên nhóm filter (<span class="hl">Trạng thái · Loại task · Khoảng ngày · Station · Ca/Team</span>) là <span class="hl">sổ danh sách ra</span>; bấm lần nữa (hoặc chọn nhóm khác) thì <span class="hl">thu gọn lại</span>. Nhóm đang mở có viền cam sáng + caret xoay.
+          <b>Cách hoạt động:</b> bấm tên nhóm filter (<span class="hl">Trạng thái · Loại · Ngày · Station · Ca/Team</span>) để <span class="hl">sổ ra / thu gọn</span>. Thay đổi lựa chọn → bảng + KPI + số đếm <span class="hl">tự cập nhật ngay</span>. ✕ Xoá lọc → về mặc định.
         </div>
       </div>
     </div>
@@ -209,10 +218,121 @@
 </div>
 
 <script>
-function toggleGroup(id) {
-  var g = document.getElementById(id);
-  g.classList.toggle('open');
+// ===== Dữ liệu giả 12 task =====
+var DAY = 24 * 3600 * 1000;
+var NOW = new Date('2026-08-09T10:00:00');
+function ago(days) { return new Date(NOW.getTime() - days * DAY).toISOString().slice(0, 10) + ' ' + String(9 + (days % 8)).padStart(2, '0') + ':00'; }
+
+var TASKS = [
+  { id: 'M20260809-01', type: 'reconcile', stn: 'HN2 SOC', ca: 'Sáng', team: 'Outbound', status: 'open',  scan: 38, by: 'nhanvien01', at: ago(0) },
+  { id: 'M20260809-02', type: 'meal-move', stn: 'HN3',      ca: 'Sáng', team: 'Nhà thầu A', status: 'open',  scan: 12, by: 'nhanvien02', at: ago(0) },
+  { id: 'M20260809-03', type: 'reconcile', stn: 'HN2 SOC',  ca: 'Chiều', team: 'Inbound',  status: 'done',  scan: 45, by: 'nhanvien01', at: ago(0) },
+  { id: 'M20260808-04', type: 'meal-move', stn: 'HN4',      ca: 'Tối',  team: 'Nhà thầu B', status: 'done',  scan: 28, by: 'nhanvien03', at: ago(1) },
+  { id: 'M20260808-05', type: 'reconcile', stn: 'HN3',      ca: 'Sáng', team: 'Outbound',  status: 'open',  scan: 21, by: 'nhanvien02', at: ago(1) },
+  { id: 'M20260808-06', type: 'reconcile', stn: 'HN2 SOC',  ca: 'Tối',  team: 'Inbound',   status: 'done',  scan: 52, by: 'nhanvien01', at: ago(2) },
+  { id: 'M20260808-07', type: 'meal-move', stn: 'HN3',      ca: 'Chiều', team: 'Nhà thầu A', status: 'open',  scan: 9,  by: 'nhanvien03', at: ago(2) },
+  { id: 'M20260807-08', type: 'reconcile', stn: 'HN4',      ca: 'Chiều', team: 'Outbound',  status: 'done',  scan: 33, by: 'nhanvien02', at: ago(3) },
+  { id: 'M20260807-09', type: 'meal-move', stn: 'HN2 SOC',  ca: 'Sáng', team: 'Nhà thầu B', status: 'done',  scan: 19, by: 'nhanvien01', at: ago(4) },
+  { id: 'M20260806-10', type: 'reconcile', stn: 'HN3',      ca: 'Tối',  team: 'Inbound',   status: 'done',  scan: 41, by: 'nhanvien03', at: ago(6) },
+  { id: 'M20260805-11', type: 'reconcile', stn: 'HN2 SOC',  ca: 'Sáng', team: 'Outbound',  status: 'done',  scan: 27, by: 'nhanvien02', at: ago(9) },
+  { id: 'M20260804-12', type: 'meal-move', stn: 'HN4',      ca: 'Chiều', team: 'Nhà thầu A', status: 'done',  scan: 15, by: 'nhanvien01', at: ago(15) }
+];
+
+// ===== Helpers =====
+function el(id) { return document.getElementById(id); }
+function daysAgo(dateStr) {
+  var d = new Date(dateStr.replace(' ', 'T'));
+  return Math.floor((NOW - d) / DAY);
 }
+
+function state() {
+  return {
+    st: (document.querySelector('input[name="st"]:checked') || {}).value || 'all',
+    tp: Array.prototype.map.call(document.querySelectorAll('input[name="tp"]:checked'), function (i) { return i.value; }),
+    dt: (document.querySelector('input[name="dt"]:checked') || {}).value || '7d',
+    stn: Array.prototype.map.call(document.querySelectorAll('input[name="stn"]:checked'), function (i) { return i.value; }),
+    ca: Array.prototype.map.call(document.querySelectorAll('input[name="ca"]:checked'), function (i) { return i.value; })
+  };
+}
+
+function matchTask(t, s) {
+  if (s.st !== 'all' && t.status !== s.st) return false;
+  if (s.tp.indexOf(t.type) === -1) return false;
+  if (s.stn.indexOf(t.stn) === -1) return false;
+  if (s.ca.indexOf(t.ca) === -1) return false;
+  var d = daysAgo(t.at);
+  if (s.dt === 'today' && d > 0) return false;
+  if (s.dt === '7d' && d > 7) return false;
+  if (s.dt === '30d' && d > 30) return false;
+  return true;
+}
+
+function typeLabel(t) {
+  return t.type === 'meal-move'
+    ? '<span class="b b-type-move">Ra/Vào</span>'
+    : '<span class="b b-type-ca">Điểm danh</span>';
+}
+function statusLabel(t) {
+  return t.status === 'done'
+    ? '<span class="b b-done">Kết Thúc</span>'
+    : '<span class="b b-open">Đang Mở</span>';
+}
+
+// ===== Render =====
+function applyFilters() {
+  var s = state();
+  var list = TASKS.filter(function (t) { return matchTask(t, s); });
+
+  // KPI: theo lọc đang áp (trạng thái chi tiết vẫn thống kê đủ)
+  var open = TASKS.filter(function (t) { return matchTask(t, s) || (s.st === 'all' && t.status === 'open' && matchTask(t, { st: 'all', tp: s.tp, dt: s.dt, stn: s.stn, ca: s.ca })); });
+  el('kTotal').textContent = list.length;
+  el('kOpen').textContent = list.filter(function (t) { return t.status === 'open'; }).length;
+  el('kDone').textContent = list.filter(function (t) { return t.status === 'done'; }).length;
+  el('kScan').textContent = list.reduce(function (a, t) { return a + t.scan; }, 0);
+
+  el('taskCount').textContent = list.length;
+  el('fltTag').hidden = !(s.st !== 'all' || s.tp.length < 2 || s.dt !== '7d' || s.stn.length < 3 || s.ca.length < 3);
+
+  var tb = el('tbody');
+  tb.innerHTML = list.map(function (t) {
+    return '<tr>' +
+      '<td>' + t.id + '</td>' +
+      '<td>' + typeLabel(t) + '</td>' +
+      '<td>' + t.stn + '</td>' +
+      '<td>' + t.ca + '</td>' +
+      '<td>' + t.team + '</td>' +
+      '<td>' + statusLabel(t) + '</td>' +
+      '<td>' + t.by + '</td>' +
+      '<td>' + t.at + '</td>' +
+      '</tr>';
+  }).join('');
+  el('empty').hidden = list.length > 0;
+}
+
+function clearFilters() {
+  document.querySelectorAll('input[type="radio"][name="st"]').forEach(function (i) { i.checked = i.value === 'all'; });
+  document.querySelectorAll('input[type="checkbox"]').forEach(function (i) { i.checked = true; });
+  document.querySelectorAll('input[type="radio"][name="dt"]').forEach(function (i) { i.checked = i.value === '7d'; });
+  applyFilters();
+}
+
+function toggleGroup(id) { document.getElementById(id).classList.toggle('open'); }
+
+// Đếm số lượng theo từng nhóm (toàn bộ dữ liệu)
+function countBy(pred) { return TASKS.filter(pred).length; }
+el('cntStAll').textContent = TASKS.length;
+el('cntStOpen').textContent = countBy(function (t) { return t.status === 'open'; });
+el('cntStDone').textContent = countBy(function (t) { return t.status === 'done'; });
+el('cntTpCa').textContent = countBy(function (t) { return t.type === 'reconcile'; });
+el('cntTpMove').textContent = countBy(function (t) { return t.type === 'meal-move'; });
+el('cntStnHN2').textContent = countBy(function (t) { return t.stn === 'HN2 SOC'; });
+el('cntStnHN3').textContent = countBy(function (t) { return t.stn === 'HN3'; });
+el('cntStnHN4').textContent = countBy(function (t) { return t.stn === 'HN4'; });
+el('cntCaSang').textContent = countBy(function (t) { return t.ca === 'Sáng'; });
+el('cntCaChieu').textContent = countBy(function (t) { return t.ca === 'Chiều'; });
+el('cntCaToi').textContent = countBy(function (t) { return t.ca === 'Tối'; });
+
+applyFilters();
 </script>
 </body>
 </html>

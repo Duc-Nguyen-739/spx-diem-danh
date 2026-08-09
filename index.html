@@ -98,7 +98,7 @@
     .btn-sm { padding: 6px 12px; font-size: 13px; }  /* nút nhỏ trong bảng — hết inline style */
     td.stt { width: 40px; text-align: center; color: var(--muted); font-size: 13px; }  /* STT hẹp, không đẩy widths */
 
-    main { max-width: 1920px; margin: 0 auto; padding: var(--space-4); }  /* wide-screen: tận dụng màn lớn cho nhiều cột */
+    main { width: 100%; max-width: 100%; margin: 0; padding: var(--space-4); }  /* bỏ cap 1920px — content trải full màn như header */
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -598,6 +598,73 @@
       font-size: 13px; font-weight: 600; color: var(--muted);
       background: #e9ecf2; padding: 2px 10px; border-radius: 20px; line-height: 1.5;
     }
+    /* ===== DASH-SIDEBAR (MẪU 6 — Neon Night SPX) ===== */
+    .dash-layout { position: relative; display: flex; align-items: stretch; gap: 16px; margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); width: calc(100% + 2 * var(--space-4)); max-width: calc(100% + 2 * var(--space-4)); min-height: calc(100vh - 92px); }
+    .dash-main { flex: 1 1 auto; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 16px; }
+    .dash-side {
+      flex: 0 0 250px; width: 250px; max-width: 250px;
+      align-self: stretch; position: relative; overflow: hidden;
+      background: #08090e; color: #e8c9ba; border: 1px solid rgba(255,95,46,.3);
+      border-left: 0; border-radius: 0 16px 16px 0; padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      font-size: 12.5px;
+      box-shadow: 0 0 18px rgba(255,95,46,.14);
+      transition: width .32s ease, flex-basis .32s ease, padding .32s ease, opacity .25s ease, border .2s ease, max-width .32s ease;
+    }
+    .dash-glow { position: absolute; border-radius: 50%; pointer-events: none; }
+    .dash-glow.g1 { width: 260px; height: 260px; top: -110px; right: -90px; background: radial-gradient(circle, rgba(255,95,46,.4), transparent 70%); }
+    .dash-glow.g2 { width: 220px; height: 220px; bottom: -100px; left: -80px; background: radial-gradient(circle, rgba(255,138,107,.18), transparent 70%); }
+    .dash-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overflow-x: hidden; padding-right: 2px; margin-right: -2px; scrollbar-width: thin; scrollbar-color: rgba(255,95,46,.4) transparent; }
+    .dash-scroll::-webkit-scrollbar { width: 5px; }
+    .dash-scroll::-webkit-scrollbar-thumb { background: rgba(255,95,46,.35); border-radius: 99px; }
+    .dash-scroll::-webkit-scrollbar-track { background: transparent; }
+    .dash-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: relative; z-index: 2; flex-shrink: 0; }
+    .dash-head-t { font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #FFB59E; display: flex; align-items: center; gap: 8px; }
+    .dash-head-t::after { content: ''; flex: 1; height: 1px; background: rgba(255,95,46,.25); }
+    .dash-collapse { width: 27px; height: 27px; border-radius: 9px; border: 1px solid rgba(255,95,46,.35); background: rgba(255,95,46,.1); color: #FFB59E; font-size: 13px; cursor: pointer; display: grid; place-items: center; transition: all .18s ease; flex-shrink: 0; line-height: 1; }
+    .dash-collapse:hover { color: #fff; border-color: #FF7A50; box-shadow: 0 0 12px rgba(255,95,46,.5); transform: translateX(-2px); }
+    .dash-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dash-kpi { padding: 10px 12px; border-radius: 12px; background: rgba(255,95,46,.06); border: 1px solid rgba(255,95,46,.28); box-shadow: 0 0 12px rgba(255,95,46,.1); }
+    .dash-kpi .v { font-size: 19px; font-weight: 800; letter-spacing: -.02em; color: #fff; text-shadow: 0 0 14px rgba(255,95,46,.55); }
+    .dash-kpi .l { font-size: 10px; color: #c99a86; margin-top: 2px; font-weight: 600; }
+    .dash-sec { font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #FFB59E; display: flex; align-items: center; gap: 8px; }
+    .dash-sec::after { content: ''; flex: 1; height: 1px; background: rgba(255,95,46,.22); }
+    .dash-badge { color: #FF7A50; letter-spacing: 0; font-size: 11px; font-weight: 800; }
+    .dash-group { border-bottom: 1px dashed rgba(255,95,46,.18); padding-bottom: 8px; }
+    .dash-group:last-of-type { border-bottom: 0; padding-bottom: 0; }
+    .dash-fhead { width: 100%; display: flex; justify-content: space-between; align-items: center; background: none; border: 0; color: #e8c9ba; font-weight: 700; font-size: 12.5px; padding: 6px 0; cursor: pointer; font-family: inherit; text-align: left; }
+    .dash-fhead:hover { color: #fff; }
+    .dash-caret { color: #FFB59E; font-size: 10px; transition: transform .22s ease; }
+    .dash-group.open .dash-caret { transform: rotate(180deg); }
+    .dash-body { display: grid; gap: 2px; max-height: 0; overflow: hidden; transition: max-height .28s ease, padding .28s ease; padding: 0; }
+    .dash-group.open .dash-body { max-height: 320px; padding-top: 4px; }
+    .dash-opt { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 8px; border-radius: 8px; color: #c99a86; cursor: pointer; }
+    .dash-opt:hover { background: rgba(255,95,46,.1); color: #fff; }
+    .dash-opt input { accent-color: #FF7A50; width: 13px; height: 13px; cursor: pointer; }
+    .dash-cnt { margin-left: auto; font-size: 10px; font-weight: 700; color: #e8c9ba; background: rgba(255,95,46,.12); padding: 1px 7px; border-radius: 99px; }
+    .dash-clear { margin-top: auto; width: 100%; padding: 8px 0; border-radius: 10px; border: 1px dashed rgba(255,95,46,.3); background: none; color: #c99a86; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .18s ease; }
+    .dash-clear:hover { color: #fff; border-color: #FF7A50; background: rgba(255,95,46,.12); box-shadow: 0 0 14px rgba(255,95,46,.3); }
+    .dash-main .table-wrap { max-width: 100%; }
+    .dash-reopen { position: absolute; left: 12px; bottom: 14px; top: auto; z-index: 60; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 15px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
+    .dash-reopen:hover { color: #fff; border-color: #FF7A50; transform: scale(1.08); box-shadow: 0 0 20px rgba(255,95,46,.5); }
+    .dash-layout.mini .dash-side { flex: 0 0 0px; width: 0; max-width: 0; padding: 0; opacity: 0; border-width: 0; overflow: hidden; pointer-events: none; }
+    .dash-layout.mini .dash-reopen { display: grid; }
+    #dashScrollTop { position: fixed; right: 18px; bottom: 18px; z-index: 200; width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 17px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
+    #dashScrollTop:hover { color: #fff; border-color: #FF7A50; transform: translateY(-2px); box-shadow: 0 0 22px rgba(255,95,46,.55); }
+    #dashScrollTop.show { display: grid; }
+    @media (min-width: 1400px) {
+      .dash-side { flex: 0 0 300px; width: 300px; max-width: 300px; }
+      .dash-kpi .v { font-size: 21px; }
+      .dash-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .dash-side { padding: 18px; gap: 14px; }
+    }
+    @media (max-width: 1100px) { .dash-side { flex-basis: 218px; width: 218px; max-width: 218px; } }
+    @media (max-width: 900px) {
+      .dash-layout { flex-direction: column; margin-left: 0; width: 100%; max-width: 100%; min-height: 0; }
+      .dash-side { width: 100%; max-width: 100%; flex-basis: auto; position: static; max-height: none; border-left: 1px solid rgba(255,95,46,.3); border-radius: 16px; }
+      .dash-kpis { grid-template-columns: repeat(4,1fr); }
+    }
+
     /* ===== Nút +Task — menu chọn loại task (reconcile / meal-move) ===== */
     .task-create { position: relative; display: inline-block; }
     .btn-create {
@@ -997,6 +1064,44 @@
 <main id="main-content" tabindex="-1">
   <!-- ================= VIEW 1: Tạo task / danh sách ================= -->
   <section id="viewList">
+    <div class="dash-layout">
+<aside class="dash-side" id="dashSide" aria-label="Dashboard">
+        <div class="dash-glow g1"></div><div class="dash-glow g2"></div>
+        <div class="dash-head"><span class="dash-head-t">Dashboard</span><button type="button" class="dash-collapse" onclick="toggleDashMini()" title="Thu gọn dashboard" aria-label="Thu gọn dashboard">«</button></div>
+        <div class="dash-scroll">
+        <div class="dash-kpis">
+          <div class="dash-kpi"><div class="v" id="dKpiTotal">0</div><div class="l">Tổng task</div></div>
+          <div class="dash-kpi"><div class="v" id="dKpiOpen">0</div><div class="l">Đang mở</div></div>
+          <div class="dash-kpi"><div class="v" id="dKpiDone">0</div><div class="l">Đã kết thúc</div></div>
+          <div class="dash-kpi"><div class="v" id="dKpiScan">0</div><div class="l">Lượt quét</div></div>
+        </div>
+        <div class="dash-sec">Bộ lọc <span class="dash-badge" id="dFilterBadge"></span></div>
+        <div class="dash-group open">
+          <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>● Trạng thái</span><span class="dash-caret">▾</span></button>
+          <div class="dash-body">
+            <label class="dash-opt"><input type="radio" name="dashSt" value="all" checked onchange="applyDashFilters()"> Tất cả <span class="dash-cnt">—</span></label>
+            <label class="dash-opt"><input type="radio" name="dashSt" value="open" onchange="applyDashFilters()"> Đang mở <span class="dash-cnt" id="dSt_open">0</span></label>
+            <label class="dash-opt"><input type="radio" name="dashSt" value="done" onchange="applyDashFilters()"> Kết thúc <span class="dash-cnt" id="dSt_done">0</span></label>
+          </div>
+        </div>
+        <div class="dash-group">
+          <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>🏭 Station</span><span class="dash-caret">▾</span></button>
+          <div class="dash-body" id="dynStn"></div>
+        </div>
+        <div class="dash-group">
+          <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>🕐 Ca</span><span class="dash-caret">▾</span></button>
+          <div class="dash-body" id="dynCa"></div>
+        </div>
+        <div class="dash-group">
+          <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>👥 Team</span><span class="dash-caret">▾</span></button>
+          <div class="dash-body" id="dynTeam"></div>
+        </div>
+        <button type="button" class="dash-clear" onclick="clearDashFilters()">✕ Xoá tất cả lọc</button>
+        </div>
+      </aside>
+      <button type="button" class="dash-reopen" onclick="toggleDashMini()" title="Mở lại dashboard" aria-label="Mở lại dashboard">☰</button>
+      <div class="dash-main">
+
     <div class="card intro-m10">
       <div class="task-list-toolbar">
         <div class="intro-m10-head">
@@ -1060,6 +1165,8 @@
         </div>
       </div>
     </div>
+      </div><!-- /dash-main -->
+    </div><!-- /dash-layout -->
   </section>
 
   <!-- ================= VIEW 2: Màn quét ================= -->
@@ -2007,6 +2114,72 @@
       body.appendChild(tr);
     });
   }
+  // ===== DASH-SIDEBAR (MẪU 6 — Executive Dark): KPI + bộ lọc lọc data thật =====
+  var _dashTasks = [];
+  function setText(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+  function toggleDashGroup(btn) { var g = btn.parentElement; if (g) g.classList.toggle('open'); }
+  function buildDashOpts(containerId, name, tasks, field) {
+    var box = document.getElementById(containerId);
+    if (!box) return;
+    var map = {};
+    tasks.forEach(function (t) { var v = String(t[field] || '').trim(); if (v) map[v] = (map[v] || 0) + 1; });
+    var keys = Object.keys(map).sort();
+    box.innerHTML = keys.map(function (v) {
+      return '<label class="dash-opt"><input type="checkbox" name="' + name + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span></label>';
+    }).join('');
+  }
+  function renderDash(tasks) {
+    _dashTasks = tasks || [];
+    var total = _dashTasks.length;
+    var open = _dashTasks.filter(function (t) { return t.status !== TASK_STATUS_C.DONE; }).length;
+    var scan = _dashTasks.reduce(function (a, t) { return a + (t.scanned || 0); }, 0);
+    setText('dKpiTotal', total); setText('dKpiOpen', open); setText('dKpiDone', total - open); setText('dKpiScan', scan);
+    buildDashOpts('dynStn', 'dashStn', _dashTasks, 'station');
+    buildDashOpts('dynCa', 'dashCa', _dashTasks, 'slotCode');
+    buildDashOpts('dynTeam', 'dashTeam', _dashTasks, 'team');
+    setText('dSt_open', open); setText('dSt_done', total - open);
+    var sAll = document.querySelector('input[name="dashSt"][value="all"]');
+    if (sAll) sAll.checked = true;
+    applyDashFilters();
+  }
+  function dashState() {
+    var r = document.querySelector('input[name="dashSt"]:checked');
+    function vals(name) { return Array.prototype.map.call(document.querySelectorAll('input[name="' + name + '"]:checked'), function (i) { return i.value; }); }
+    return { st: (r && r.value) || 'all', stn: vals('dashStn'), ca: vals('dashCa'), team: vals('dashTeam') };
+  }
+  function dashMatch(t, s) {
+    if (s.st === 'open' && t.status === TASK_STATUS_C.DONE) return false;
+    if (s.st === 'done' && t.status !== TASK_STATUS_C.DONE) return false;
+    if (s.stn.length && s.stn.indexOf(String(t.station || '')) === -1) return false;
+    if (s.ca.length && s.ca.indexOf(String(t.slotCode || '')) === -1) return false;
+    if (s.team.length && s.team.indexOf(String(t.team || '')) === -1) return false;
+    return true;
+  }
+  function applyDashFilters() {
+    var s = dashState();
+    var list = _dashTasks.filter(function (t) { return dashMatch(t, s); });
+    setText('dFilterBadge', (list.length === _dashTasks.length || !_dashTasks.length) ? '' : '(' + list.length + ')');
+    renderTaskList(list);
+  }
+  function dashScrollTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.addEventListener('scroll', function () {
+    var b = document.getElementById('dashScrollTop');
+    if (!b) return;
+    if (window.scrollY > 300) b.classList.add('show'); else b.classList.remove('show');
+  }, { passive: true });
+  function toggleDashMini() {
+    var layout = document.querySelector('.dash-layout');
+    if (layout) layout.classList.toggle('mini');
+  }
+  function clearDashFilters() {
+    document.querySelectorAll('#dashSide input[type="checkbox"]').forEach(function (i) { i.checked = true; });
+    var r = document.querySelector('#dashSide input[name="dashSt"][value="all"]');
+    if (r) r.checked = true;
+    applyDashFilters();
+  }
+
   function loadTaskList() {
     // Skeleton shimmer ngay lập tức — phản hồi tức thì thay vì "treo"
     var skel = document.getElementById('taskSkeleton');
@@ -2021,6 +2194,7 @@
     google.script.run
       .withSuccessHandler(function (tasks) {
         renderTaskList(tasks);
+        renderDash(tasks);
         hideLoadingOverlay();
         markServerOk();  // P2: RPC thành công → server sống lại → netDot hồi phục
         _releaseRefreshLock();  // P2: RPC xong → nhả lock refresh (nếu dở)
@@ -3478,5 +3652,6 @@
     return ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) + ':' + ('0' + dt.getSeconds()).slice(-2);
   }
 </script>
+<button type="button" id="dashScrollTop" onclick="dashScrollTop()" title="Cuộn lên đầu trang" aria-label="Cuộn lên đầu trang">↑</button>
 </body>
 </html>

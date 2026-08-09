@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10 Mẫu Dashboard Chuyên Nghiệp — RollCall Kho SPX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0c0e14; color:#e8eaf0; font-family:'Be Vietnam Pro','Inter',system-ui,sans-serif; padding:36px 28px 80px; }
+  a { color:inherit; }
+
+  /* ===== Gallery header ===== */
+  .ghead { text-align:center; max-width:760px; margin:0 auto 40px; }
+  .ghead .kicker { display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:.18em; color:#FF8A6B; background:rgba(255,95,46,.1); border:1px solid rgba(255,95,46,.25); padding:6px 14px; border-radius:999px; margin-bottom:14px; }
+  .ghead h1 { font-size:30px; font-weight:800; letter-spacing:-.02em; background:linear-gradient(92deg,#fff 30%,#FFB59E 70%,#FF5F2E); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .ghead p { color:#9aa3b7; font-size:13.5px; margin-top:10px; line-height:1.6; }
+
+  /* ===== Frame shell ===== */
+  .frame { margin-bottom:44px; }
+  .fmeta { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .fnum { min-width:46px; height:46px; border-radius:14px; display:grid; place-items:center; font-weight:800; font-size:15px; color:#fff; background:linear-gradient(135deg,#FF5F2E,#EE4D2D); box-shadow:0 8px 22px rgba(238,77,45,.38); letter-spacing:.02em; }
+  .ftitle { font-size:17px; font-weight:800; letter-spacing:-.01em; }
+  .ftag { font-size:12px; color:#9aa3b7; margin-top:2px; max-width:640px; line-height:1.5; }
+  .fbody { border-radius:20px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.5); }
+
+  /* ===== Mini app shell (shared structure, theme via per-frame vars) ===== */
+  .app { display:flex; flex-direction:column; height:470px; background:var(--bg); color:var(--text); font-family:var(--font); }
+  .app-top { display:flex; align-items:center; gap:12px; height:58px; padding:0 20px; border-bottom:1px solid var(--line); background:var(--bar); flex-shrink:0; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand .bt { font-weight:800; font-size:14.5px; letter-spacing:.02em; }
+  .brand .bs { font-size:9.5px; letter-spacing:.22em; color:var(--muted); font-weight:600; margin-top:1px; }
+  .search { flex:1; max-width:320px; margin-left:auto; display:flex; align-items:center; gap:8px; background:var(--search-bg); border:1px solid var(--search-bd); border-radius:10px; padding:7px 12px; font-size:12px; color:var(--muted); }
+  .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#FF8A6B,#EE4D2D); display:grid; place-items:center; font-size:11px; font-weight:800; color:#fff; }
+
+  .app-body { display:flex; flex:1; min-height:0; }
+
+  /* Sidebar */
+  .side { width:var(--sw,252px); padding:16px; display:flex; flex-direction:column; gap:14px; overflow:auto; background:var(--side-bg,transparent); border-right:1px solid var(--line); flex-shrink:0; }
+  .side::-webkit-scrollbar, .main::-webkit-scrollbar, .fbody::-webkit-scrollbar { width:6px; }
+  .side::-webkit-scrollbar-thumb, .main::-webkit-scrollbar-thumb { background:rgba(128,138,160,.25); border-radius:99px; }
+
+  .sec-title { font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .sec-title::after { content:''; flex:1; height:1px; background:var(--line); }
+
+  /* KPI */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; }
+  .kpi { padding:13px 14px; border-radius:var(--kr,12px); background:var(--kpi-bg); border:1px solid var(--kpi-bd); transition:transform .18s ease, box-shadow .18s ease; }
+  .kpi:hover { transform:translateY(-2px); box-shadow:var(--kpi-hover,none); }
+  .kpi .v { font-size:21px; font-weight:800; letter-spacing:-.02em; }
+  .kpi .l { font-size:10.5px; color:var(--muted); margin-top:3px; font-weight:600; }
+  .kpi .d { font-size:10px; font-weight:700; margin-top:4px; color:var(--pos,#2ecc71); }
+
+  /* Filter groups */
+  .fgroup { border-bottom:1px dashed var(--line); padding-bottom:10px; }
+  .fgroup:last-of-type { border-bottom:0; padding-bottom:0; }
+  .fhead { width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; background:none; border:0; color:var(--text); font-weight:700; font-size:12.5px; padding:7px 0; cursor:pointer; font-family:inherit; text-align:left; }
+  .fhead .fi { font-size:13px; }
+  .fhead .caret { transition:transform .22s ease; color:var(--muted); font-size:10px; }
+  .fgroup.open .fhead .caret { transform:rotate(180deg); }
+  .fbody-opt { display:grid; gap:2px; max-height:0; overflow:hidden; transition:max-height .28s ease, padding .28s ease; padding:0; }
+  .fgroup.open .fbody-opt { max-height:220px; padding-top:4px; }
+  .opt { display:flex; align-items:center; gap:9px; font-size:12px; padding:6px 9px; border-radius:9px; color:var(--muted2); cursor:pointer; transition:background .15s ease, color .15s ease; user-select:none; }
+  .opt:hover { background:var(--opt-hover,transparent); color:var(--text); }
+  .opt input { accent-color:var(--accent); width:13px; height:13px; cursor:pointer; }
+  .opt .cnt { margin-left:auto; font-size:10px; font-weight:700; color:var(--muted); background:var(--cnt-bg,rgba(128,138,160,.14)); padding:1px 7px; border-radius:99px; }
+
+  .clear-f { margin-top:auto; width:100%; padding:9px 0; border-radius:10px; border:1px dashed var(--line); background:none; color:var(--muted); font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .18s ease; }
+  .clear-f:hover { color:var(--accent); border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+
+  /* Main content */
+  .main { flex:1; padding:16px; display:flex; flex-direction:column; gap:14px; min-width:0; overflow:auto; }
+  .main-title { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .main-title h3 { font-size:15px; font-weight:800; }
+  .main-title .sub { font-size:11px; color:var(--muted); margin-top:2px; }
+  .btn-add { padding:8px 18px; border-radius:11px; border:0; font-weight:800; font-size:12px; color:#fff; background:linear-gradient(135deg,#FF8A6B,#EE4D2D); box-shadow:0 6px 16px rgba(238,77,45,.35); cursor:pointer; font-family:inherit; transition:transform .18s ease, box-shadow .18s ease; }
+  .btn-add:hover { transform:translateY(-1px); box-shadow:0 10px 22px rgba(238,77,45,.45); }
+
+  /* Table */
+  .tbl { flex:1; border-radius:var(--kr,12px); overflow:hidden; border:1px solid var(--tbl-bd); background:var(--tbl-bg); }
+  .tr { display:grid; grid-template-columns:1.5fr 1fr 1.1fr .95fr 1fr; gap:8px; padding:9px 14px; font-size:11.5px; align-items:center; border-bottom:1px solid var(--tbl-line); }
+  .tr:last-child { border-bottom:0; }
+  .tr.head { font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); background:var(--tbl-head); }
+  .code { font-weight:700; font-size:11px; }
+  .thin { color:var(--muted2); font-size:11px; }
+  .badge { padding:3px 11px; border-radius:999px; font-size:10.5px; font-weight:800; justify-self:start; }
+  .badge.open { background:rgba(46,204,113,.14); color:#2ecc71; }
+  .badge.done { background:rgba(139,152,171,.16); color:#98a4b8; }
+  .act { justify-self:end; font-size:11px; font-weight:700; color:var(--accent); cursor:pointer; padding:4px 10px; border-radius:8px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); transition:all .15s ease; }
+  .act:hover { background:var(--accent); color:#fff; }
+
+  /* ===== Layout variants ===== */
+  /* tabs (f8) */
+  .tabs { display:flex; gap:4px; background:var(--tab-bg,rgba(128,138,160,.1)); padding:4px; border-radius:11px; }
+  .tab { flex:1; text-align:center; font-size:11.5px; font-weight:700; padding:7px 0; border-radius:8px; color:var(--muted); cursor:pointer; transition:all .18s ease; }
+  .tab.on { background:linear-gradient(135deg,#FF8A6B,#EE4D2D); color:#fff; box-shadow:0 4px 12px rgba(238,77,45,.35); }
+  /* chips (f5) */
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:11px; font-weight:700; padding:5px 12px; border-radius:999px; border:1px solid var(--line); color:var(--muted2); cursor:pointer; transition:all .16s ease; }
+  .chip:hover { color:var(--text); border-color:var(--muted); }
+  .chip.on { background:linear-gradient(135deg,#FF8A6B,#EE4D2D); border-color:transparent; color:#fff; box-shadow:0 4px 12px rgba(238,77,45,.3); }
+  /* icon rail (f10) */
+  .rail { width:52px; background:var(--rail-bg); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 0; flex-shrink:0; }
+  .rail .r { width:36px; height:36px; border-radius:11px; display:grid; place-items:center; font-size:15px; color:var(--muted); cursor:pointer; transition:all .16s ease; }
+  .rail .r:hover { background:rgba(128,138,160,.14); color:var(--text); }
+  .rail .r.on { background:linear-gradient(135deg,#FF8A6B,#EE4D2D); color:#fff; box-shadow:0 5px 14px rgba(238,77,45,.35); }
+  /* dark gradient (f9) */
+  .glow { position:absolute; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle, rgba(255,95,46,.4), transparent 70%); pointer-events:none; }
+  .glow.g1 { top:-120px; right:-90px; }
+  .glow.g2 { bottom:-140px; left:-100px; background:radial-gradient(circle, rgba(255,138,107,.22), transparent 70%); }
+
+  .app { max-width:100%; min-width:0; }
+  .side, .main { min-width:0; }
+  .tbl { overflow-x:auto; max-width:100%; }
+  .fbody { max-width:100%; }
+  @media (max-width: 860px) { .side { width:200px !important; max-width:200px !important; } }
+
+  .foot { text-align:center; color:#5c6474; font-size:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div class="ghead">
+  <span class="kicker">✦ ROLLCALL KHO · SPX — BỘ SƯU TẬP DASHBOARD</span>
+  <h1>10 Mẫu Dashboard Chuyên Nghiệp</h1>
+  <p>Mỗi mẫu là một thiết kế hoàn chỉnh: sidebar lọc + KPI + bảng DANH SÁCH TASK thật. Chọn 1 để tích hợp vào app — hoặc báo tôi ghép ý tưởng của nhiều mẫu.</p>
+</div>
+
+<main id="gallery"></main>
+<p class="foot">RollCall Kho · Mockup duyệt mẫu — chọn MẪU số rồi báo Buffy tích hợp</p>
+
+<script>
+/* ============================================================
+   ENGINE — render 10 mẫu từ config (mã gọn, dễ bảo trì)
+   ============================================================ */
+var SPX_LOGO = '<svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#EE4D2D"/><rect x="1.5" y="1.5" width="37" height="37" rx="10" fill="none" stroke="rgba(255,255,255,.25)"/><text x="20" y="25.5" text-anchor="middle" font-size="14.5" font-weight="800" fill="#fff" font-family="Be Vietnam Pro, sans-serif">SPX</text></svg>';
+
+var TASKS = [
+  { code:'T-240801-01', st:'HN2 SOC',  ca:'Ca Sáng',  team:'Outbound', type:'Điểm danh ca', status:'open', by:'nhanvien01', scan:38 },
+  { code:'T-240801-02', st:'HN2 SOC',  ca:'Ca Chiều', team:'Inbound',  type:'Điểm danh ca', status:'done', by:'nhanvien02', scan:45 },
+  { code:'T-240801-03', st:'HN3',      ca:'Ca Sáng',  team:'Inbound',  type:'Ra/Vào',       status:'open', by:'nhanvien03', scan:27 },
+  { code:'T-240801-04', st:'HN4',      ca:'Ca Đêm',   team:'Outbound', type:'Ra/Vào',       status:'open', by:'nhanvien01', scan:51 },
+  { code:'T-240801-05', st:'HN3',      ca:'Ca Chiều', team:'Outbound', type:'Điểm danh ca', status:'done', by:'nhanvien04', scan:33 },
+  { code:'T-240801-06', st:'HN2 SOC',  ca:'Ca Đêm',   team:'Inbound',  type:'Điểm danh ca', status:'open', by:'nhanvien02', scan:19 }
+];
+
+var GROUPS = [
+  { key:'st',  icon:'●',  name:'Trạng thái',    type:'radio', items:[['all','Tất cả'],['open','Đang mở'],['done','Đã kết thúc']] },
+  { key:'tp',  icon:'🗂', name:'Loại task',     type:'checkbox', items:[['reconcile','Điểm danh ca'],['meal-move','Điểm danh Ra/Vào']] },
+  { key:'dt',  icon:'📅', name:'Khoảng ngày',   type:'radio', items:[['7','7 ngày'],['30','30 ngày'],['90','90 ngày']] },
+  { key:'stn', icon:'🏭', name:'Station',       type:'checkbox', items:[['HN2 SOC','HN2 SOC'],['HN3','HN3'],['HN4','HN4']] },
+  { key:'ca',  icon:'👥', name:'Ca / Team',     type:'checkbox', items:[['Sáng','Ca Sáng'],['Chiều','Ca Chiều'],['Đêm','Ca Đêm']] }
+];
+
+/* 10 mẫu — config per frame: theme vars + layout variant */
+var FRAMES = [
+  { id:'f1', name:'Executive Dark', tag:'Nền tối sang trọng, KPI gradient, phân cấp chữ rõ — chuẩn SaaS quản trị cao cấp.',
+    font:'"Inter","Be Vietnam Pro",sans-serif', sw:258, glow:true,
+    vars:{ '--bg':'#0f1117','--bar':'#12151d','--side-bg':'#12151d','--line':'rgba(255,255,255,.07)','--text':'#f2f4f8','--muted':'#7d8698','--muted2':'#a6aec0','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'linear-gradient(160deg,#171b26,#1d2231)','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.45)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tbl-bg':'#131620','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#171a23','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f2', name:'Corporate Light', tag:'Nền trắng sạch, shadow mềm, accent cam SPX — phong cách văn phòng hiện đại.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258,
+    vars:{ '--bg':'#f4f5f7','--bar':'#ffffff','--side-bg':'#ffffff','--line':'#e7e9ee','--text':'#1a1f2b','--muted':'#8a92a3','--muted2':'#5b6474','--accent':'#EE4D2D','--kr':'12px','--kpi-bg':'#ffffff','--kpi-bd':'#e7e9ee','--kpi-hover':'0 10px 24px rgba(20,30,50,.08)','--opt-hover':'#f7f8fa','--cnt-bg':'#f0f1f4','--tbl-bg':'#ffffff','--tbl-bd':'#e7e9ee','--tbl-line':'#f0f1f4','--tbl-head':'#fafbfc','--search-bg':'#f4f5f7','--search-bd':'#e7e9ee','--pos':'#16a34a' } },
+  { id:'f3', name:'Glass Pro', tag:'Glassmorphism tinh tế: blur + viền 1px trong suốt + quầng cam — nâng cấp từ MẪU 3 đã chốt.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, glow:true, glass:true,
+    vars:{ '--bg':'linear-gradient(160deg,#1c1412,#12141c 60%)','--bar':'rgba(255,255,255,.05)','--line':'rgba(255,255,255,.09)','--text':'#f7f3f1','--muted':'#b09a92','--muted2':'#d8c9c2','--accent':'#FF7A50','--kr':'14px','--kpi-bg':'rgba(255,255,255,.06)','--kpi-bd':'rgba(255,255,255,.12)','--kpi-hover':'0 12px 28px rgba(0,0,0,.35)','--opt-hover':'rgba(255,255,255,.07)','--cnt-bg':'rgba(255,255,255,.1)','--tbl-bg':'rgba(255,255,255,.045)','--tbl-bd':'rgba(255,255,255,.1)','--tbl-line':'rgba(255,255,255,.06)','--tbl-head':'rgba(255,255,255,.05)','--search-bg':'rgba(255,255,255,.06)','--search-bd':'rgba(255,255,255,.12)' } },
+  { id:'f4', name:'Accordion Pro', tag:'Nhóm filter thu gọn hoàn toàn — chỉ mở khi bấm, tiết kiệm chiều cao, rất chuyên nghiệp.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, accordion:true,
+    vars:{ '--bg':'#111318','--bar':'#161922','--side-bg':'#161922','--line':'rgba(255,255,255,.07)','--text':'#f1f3f7','--muted':'#828ba0','--muted2':'#aab2c6','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'#1a1e2a','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.4)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tbl-bg':'#151823','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#1a1e2a','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f5', name:'Chip Filter', tag:'Lọc nhanh bằng chip cam gradient — một chạm, không checkbox, thao tác ít nhất.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, chips:true,
+    vars:{ '--bg':'#10121a','--bar':'#151824','--side-bg':'#151824','--line':'rgba(255,255,255,.07)','--text':'#f0f2f7','--muted':'#828ba0','--muted2':'#aab2c6','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'#1a1e2c','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.4)','--tbl-bg':'#141725','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#1a1e2c','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f6', name:'Compact Pro', tag:'Sidebar hẹp 200px, chỉ lọc quan trọng — tối ưu cho màn hình kiosk / tablet nhỏ.',
+    font:'"Inter","Be Vietnam Pro",sans-serif', sw:200,
+    vars:{ '--bg':'#0e1016','--bar':'#13151d','--side-bg':'#13151d','--line':'rgba(255,255,255,.07)','--text':'#eef0f5','--muted':'#79829a','--muted2':'#a0a8bc','--accent':'#FF6A3D','--kr':'10px','--kpi-bg':'#191d29','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 8px 20px rgba(0,0,0,.4)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tbl-bg':'#131620','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#191d29','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f7', name:'Stats-First', tag:'Card TỔNG TASK cam lớn dẫn đầu + 3 KPI phụ — ưu tiên con số, filter gọn.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, stats:true,
+    vars:{ '--bg':'#12141b','--bar':'#171a24','--side-bg':'#171a24','--line':'rgba(255,255,255,.07)','--text':'#f2f3f8','--muted':'#858da0','--muted2':'#acb3c5','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'#1c202d','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.4)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tbl-bg':'#161923','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#1c202d','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f8', name:'Tabbed Pro', tag:'Tab cam gradient Đang mở / Đã xong / Tất cả ở đầu — chuyển trạng thái một chạm.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, tabs:true,
+    vars:{ '--bg':'#101218','--bar':'#151824','--side-bg':'#151824','--line':'rgba(255,255,255,.07)','--text':'#f0f2f7','--muted':'#828ba0','--muted2':'#aab2c6','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'#1a1e2c','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.4)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tab-bg':'rgba(128,138,160,.12)','--tbl-bg':'#141725','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#1a1e2c','--search-bd':'rgba(255,255,255,.08)' } },
+  { id:'f9', name:'Dark Gradient SPX', tag:'Nền gradient cam-tối đậm thương hiệu + quầng sáng — cá tính nhất, rất SPX.',
+    font:'"Be Vietnam Pro","Inter",sans-serif', sw:258, glow:true, accentSolid:true,
+    vars:{ '--bg':'linear-gradient(155deg,#2b120a 0%,#140f0d 45%,#0e0d12 100%)','--bar':'rgba(255,255,255,.04)','--line':'rgba(255,255,255,.1)','--text':'#fdf4f0','--muted':'#cfa392','--muted2':'#e6c4b8','--accent':'#FF7A50','--kr':'12px','--kpi-bg':'rgba(255,255,255,.05)','--kpi-bd':'rgba(255,255,255,.12)','--kpi-hover':'0 10px 26px rgba(238,77,45,.3)','--opt-hover':'rgba(255,122,80,.12)','--cnt-bg':'rgba(255,255,255,.1)','--tbl-bg':'rgba(0,0,0,.25)','--tbl-bd':'rgba(255,255,255,.1)','--tbl-line':'rgba(255,255,255,.07)','--tbl-head':'rgba(255,255,255,.05)','--search-bg':'rgba(255,255,255,.07)','--search-bd':'rgba(255,255,255,.14)' } },
+  { id:'f10', name:'Icon Rail + Panel', tag:'Rail icon dọc (Dashboard/Task/Quét/Báo cáo) + panel filter cạnh — layout SaaS hiện đại nhất.',
+    font:'"Inter","Be Vietnam Pro",sans-serif', sw:248, rail:true,
+    vars:{ '--bg':'#0f1118','--bar':'#141722','--rail-bg':'#141722','--side-bg':'#181c29','--line':'rgba(255,255,255,.07)','--text':'#f1f3f8','--muted':'#828ba0','--muted2':'#aab2c6','--accent':'#FF5F2E','--kr':'12px','--kpi-bg':'#1c2030','--kpi-bd':'rgba(255,255,255,.07)','--kpi-hover':'0 10px 24px rgba(0,0,0,.4)','--opt-hover':'rgba(255,255,255,.05)','--cnt-bg':'rgba(255,255,255,.08)','--tbl-bg':'#151827','--tbl-bd':'rgba(255,255,255,.06)','--tbl-line':'rgba(255,255,255,.045)','--tbl-head':'rgba(255,255,255,.03)','--search-bg':'#1c2030','--search-bd':'rgba(255,255,255,.08)' } }
+];
+
+/* ============ render ============ */
+function statusBadge(t) {
+  return t.status === 'open'
+    ? '<span class="badge open">● Đang Mở</span>'
+    : '<span class="badge done">● Kết Thúc</span>';
+}
+function kpiRow(cfg) {
+  var big = cfg.stats ? '<div class="kpi" style="grid-column:span 4;background:linear-gradient(135deg,#FF8A6B,#EE4D2D);border:0;"><div class="v" style="font-size:26px;">12</div><div class="l" style="color:rgba(255,255,255,.85);">TỔNG TASK</div><div class="d" style="color:#fff;">+3 so với hôm qua</div></div>'
+    : '';
+  return '<div class="kpis">' + big +
+    '<div class="kpi"><div class="v">7</div><div class="l">Đang mở</div><div class="d">▲ 2</div></div>' +
+    '<div class="kpi"><div class="v">5</div><div class="l">Đã kết thúc</div><div class="d">▲ 1</div></div>' +
+    '<div class="kpi"><div class="v">213</div><div class="l">Lượt quét</div><div class="d">▲ 12%</div></div>' +
+    (cfg.stats ? '' : '<div class="kpi"><div class="v">38</div><div class="l">Ra ngoài</div><div class="d">▼ 3</div></div>') +
+    '</div>';
+}
+function groupHTML(g, cfg, openFirst) {
+  var open = cfg.accordion ? (openFirst ? ' open' : '') : ' open';
+  var items = g.items.map(function (it) {
+    var checked = (g.type === 'radio' && it[0] === (g.key === 'st' ? 'all' : g.items[0][0])) || (g.type === 'checkbox' && it[0] !== 'off');
+    if (g.type === 'radio' && g.key === 'st') checked = it[0] === 'all';
+    var ctl = g.type === 'radio'
+      ? '<input type="radio" name="' + g.key + '"' + (checked ? ' checked' : '') + '>'
+      : '<input type="checkbox"' + (checked ? ' checked' : '') + '>';
+    if (cfg.chips) {
+      return '<span class="chip' + (checked ? ' on' : '') + '">' + it[1] + '</span>';
+    }
+    return '<label class="opt">' + ctl + ' ' + it[1] + ' <span class="cnt">' + (3 + (it[0].length % 4)) + '</span></label>';
+  }).join('');
+  return '<div class="fgroup' + open + '" data-g="' + g.key + '">' +
+    '<button class="fhead"><span><span class="fi">' + g.icon + '</span>&nbsp; ' + g.name + '</span><span class="caret">▾</span></button>' +
+    (cfg.chips ? '<div class="chips">' + items + '</div>' : '<div class="fbody-opt">' + items + '</div>') +
+    '</div>';
+}
+function sidebarHTML(cfg) {
+  var kpiTop = cfg.stats ? '' : kpiRow(cfg);
+  var groups = GROUPS.map(function (g, i) { return groupHTML(g, cfg, i === 0); }).join('');
+  var clearBtn = '<button class="clear-f">✕ Xoá tất cả lọc</button>';
+  return '<div class="side">' + kpiTop + '<div class="sec-title">Bộ lọc</div>' + groups + clearBtn + '</div>';
+}
+function tableHTML(cfg) {
+  var rows = TASKS.map(function (t) {
+    return '<div class="tr"><span class="code">' + t.code + '</span><span>' + t.st + '</span><span class="thin">' + t.ca + ' · ' + t.team + '</span>' +
+      statusBadge(t) + '<span class="act">' + (t.status === 'open' ? 'Quét' : 'Xem') + '</span></div>';
+  }).join('');
+  return '<div class="tbl"><div class="tr head"><span>Task</span><span>Station</span><span>Ca / Team</span><span>Trạng thái</span><span style="text-align:right">Hành động</span></div>' + rows + '</div>';
+}
+function mainHTML(cfg) {
+  var tabs = cfg.tabs
+    ? '<div class="tabs"><div class="tab on">Đang mở</div><div class="tab">Đã xong</div><div class="tab">Tất cả</div></div>'
+    : '';
+  return '<div class="main"><div class="main-title"><div><h3>DANH SÁCH TASK</h3><div class="sub">12 task · 6 station · cập nhật 09:41</div></div><button class="btn-add">＋ Task</button></div>' +
+    tabs + (cfg.stats ? kpiRow(cfg) : '') + tableHTML(cfg) + '</div>';
+}
+function buildFrame(f, idx) {
+  var vars = Object.keys(f.vars).map(function (k) { return k + ':' + f.vars[k] + ';'; }).join('');
+  var font = f.font || '"Be Vietnam Pro","Inter",sans-serif';
+  var rail = f.rail ? '<div class="rail">' + ['📊','✅','📷','📈','⚙️'].map(function (ic, i) {
+    return '<div class="r' + (i === 0 ? ' on' : '') + '">' + ic + '</div>';
+  }).join('') + '</div>' : '';
+  var glows = f.glow ? '<div class="glow g1"></div><div class="glow g2"></div>' : '';
+  var app = '<div class="app" style="' + vars + ';--font:' + font + ';">' +
+    '<div class="app-top">' + SPX_LOGO + '<div class="brand"><div><div class="bt">ĐIỂM DANH KHO</div><div class="bs">SPX · WAREHOUSE</div></div></div>' +
+    '<div class="search">🔍 Tìm task / mã NV / email…</div><div class="avatar">NV</div></div>' +
+    '<div class="app-body">' + rail + sidebarHTML(f) + mainHTML(f) + '</div>' + glows + '</div>';
+  return '<section class="frame" id="' + f.id + '">' +
+    '<div class="fmeta"><div class="fnum">MẪU ' + (idx + 1) + '</div><div><div class="ftitle">' + f.name + '</div><div class="ftag">' + f.tag + '</div></div></div>' +
+    '<div class="fbody" style="position:relative">' + app + '</div></section>';
+}
+document.getElementById('gallery').innerHTML = FRAMES.map(buildFrame).join('');
+
+/* ============ interactions ============ */
+document.addEventListener('click', function (e) {
+  var fh = e.target.closest('.fhead');
+  if (fh) { fh.parentElement.classList.toggle('open'); return; }
+  var chip = e.target.closest('.chip');
+  if (chip) { chip.classList.toggle('on'); return; }
+  var tab = e.target.closest('.tab');
+  if (tab) { tab.parentElement.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('on'); }); tab.classList.add('on'); }
+});
+</script>
+</body>
+</html>
