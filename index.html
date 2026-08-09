@@ -508,7 +508,7 @@
       box-shadow: 0 0 0 3px rgba(238, 77, 45, .10), 0 2px 10px rgba(0, 0, 0, .35);
       transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
     }
-    header .header-search:focus-within { border-color: #ff8a5c; box-shadow: 0 0 0 4px rgba(238, 77, 45, .22); transform: translateY(-1px); }
+    header .header-search:focus-within { border-color: #c2361a; box-shadow: 0 0 0 4px rgba(238, 77, 45, .32); transform: translateY(-1px); }
     header .header-search-ic { color: #7f8ea3; font-size: 15px; line-height: 1; }
     header .header-search input {
       flex: 1; min-width: 0; background: transparent; border: none; outline: none;
@@ -536,20 +536,7 @@
     header .search-card .sc-grid b { display: block; color: #e2e8f0; font-weight: 600; font-size: 12px; }
     header .search-card.sc-empty, header .search-card.sc-err { text-align: center; color: #8b98ab; font-size: 13px; padding: 18px; }
     header .search-card.sc-err { color: #ff6b5e; }
-    header .search-card .sc-tasks { border-top: 1px solid #2a3142; margin-top: 10px; padding-top: 8px; font-size: 12.5px; color: #8b98ab; }
-    header .search-card .sc-tasks b { color: #ff8a5c; }
 
-    /* ===== Trạng thái lọc "Danh Sách Task" — badge NGAY TRONG ô tìm kiếm ===== */
-    header .header-search-badge {
-      display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
-      background: rgba(238, 77, 45, .16); border: 1px solid rgba(238, 77, 45, .5);
-      color: #ffd9d0; border-radius: 999px; padding: 3px 10px;
-      font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
-      transition: background .15s ease, transform .15s ease;
-    }
-    header .header-search-badge[hidden] { display: none; }
-    header .header-search-badge:hover { background: rgba(238, 77, 45, .3); transform: translateY(-1px); }
-    header .header-search-badge .header-search-badge-x { color: #ff8a5c; font-size: 10px; line-height: 1; }
     @media (max-width: 600px) {
       header .header-search { order: 3; flex-basis: 100%; max-width: none; margin: 2px 0 0; }
     }
@@ -908,9 +895,6 @@
   <div class="header-search" id="headerSearchWrap">
     <span class="header-search-ic">⌕</span>
     <input type="search" id="headerSearchInput" placeholder="Tìm mã Ops…" aria-label="Tìm kiếm mã Ops" autocomplete="off" spellcheck="false">
-    <button class="header-search-badge" id="headerSearchBadge" type="button" hidden onclick="clearHeaderSearch()" title="Bỏ lọc — hiện toàn bộ task" aria-label="Bỏ lọc danh sách task">
-      <span id="headerSearchBadgeText"></span><span class="header-search-badge-x">✕</span>
-    </button>
     <button class="header-search-clear" id="headerSearchClear" title="Xoá" aria-label="Xoá tìm kiếm">✕</button>
     <div class="header-search-res" id="headerSearchResult" hidden></div>
   </div>
@@ -1504,8 +1488,6 @@
       // Mã không khớp → bỏ lọc đang hiển thị (không giữ badge cũ)
       if (_taskFilterStaff) {
         _taskFilterStaff = null;
-        var b = document.getElementById('headerSearchBadge');
-        if (b) b.hidden = true;
         loadTaskList();
       }
       return;
@@ -1522,13 +1504,11 @@
         '<div class="sc-grid">' +
           row('Ca', s.slotCode) + row('Team', s.team) + row('Station', s.station) + row('Hợp đồng', s.contractType) +
         '</div>' +
-        '<div class="sc-tasks">' + (tasks.length ? 'Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc' : 'Chưa điểm danh ở task nào') + '</div>' +
       '</div>';
     } else {
       html = '<div class="search-card">' +
         '<div class="sc-id">' + esc(q) + '</div>' +
         '<div class="sc-name">Không có trong dữ liệu NV</div>' +
-        '<div class="sc-tasks">Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc</div>' +
       '</div>';
     }
     box.innerHTML = html;
@@ -1553,22 +1533,15 @@
     // Đang lọc "Danh Sách Task" theo mã → trả về danh sách đầy đủ
     if (_taskFilterStaff) {
       _taskFilterStaff = null;
-      var badge = document.getElementById('headerSearchBadge');
-      if (badge) badge.hidden = true;
       loadTaskList();
     }
     if (input && input.focus) input.focus();
   }
-  // P3: lọc "Danh Sách Task" theo mã Ops đã tìm — trạng thái hiển thị NGAY TRONG ô
-  // tìm kiếm (badge cam "Ops… · N task"), không còn thanh lọc riêng dưới tiêu đề.
+  // P3: lọc "Danh Sách Task" theo mã Ops đã tìm — nút ✕ duy nhất trong ô tìm kiếm
+  // xoá toàn bộ (ô tìm kiếm + lọc), không còn badge/thanh lọc riêng.
   var _taskFilterStaff = null;
   function applyTaskFilter(code, tasks) {
     _taskFilterStaff = String(code || '').trim();
-    var badge = document.getElementById('headerSearchBadge');
-    var badgeText = document.getElementById('headerSearchBadgeText');
-    var n = tasks ? tasks.length : 0;
-    if (badge) badge.hidden = !n;
-    if (badgeText) badgeText.textContent = _taskFilterStaff ? (_taskFilterStaff + ' · ' + n + ' task') : (n + ' task');
     renderTaskList(tasks || []);
     var skel = document.getElementById('taskSkeleton');
     if (skel) skel.style.display = 'none';

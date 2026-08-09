@@ -2,8 +2,8 @@
  * tests/header-search.test.js — Node thuần (không cần GAS, không cần browser)
  * Test CLIENT (index.html): renderSearchResult, renderSearchMessage, hideSearchResult,
  * clearHeaderSearch, applyTaskFilter — lọc "Danh Sách Task" theo mã Ops tìm ở
- * header search. Trạng thái lọc hiển thị NGAY TRONG ô tìm kiếm (badge cam
- * "Ops… · N task"), không có thanh lọc riêng dưới tiêu đề.
+ * header search. Nút ✕ duy nhất trong ô tìm kiếm xoá toàn bộ (ô + lọc),
+ * không có badge/thanh lọc riêng.
  *
  * Cách load: khối header-search trong index.html được đánh dấu bằng marker
  * "HEADER-SEARCH-START"/"HEADER-SEARCH-END". Test trích khối đó, chạy trong vm
@@ -51,8 +51,7 @@ function makeEl() {
 }
 
 const SEARCH_IDS = [
-  'headerSearchResult', 'headerSearchBadge', 'headerSearchBadgeText',
-  'taskSkeleton', 'headerSearchInput', 'headerSearchClear',
+  'headerSearchResult', 'taskSkeleton', 'headerSearchInput', 'headerSearchClear',
 ];
 let els = {};
 let renderedTasks = null;      // spy: renderTaskList(tasks)
@@ -62,7 +61,6 @@ function resetStubs() {
   els = {};
   SEARCH_IDS.forEach(function (id) { els[id] = makeEl(); });
   els.headerSearchResult.hidden = true;
-  els.headerSearchBadge.hidden = true;
   renderedTasks = null;
   loadTaskListCalls = 0;
   global.document = { getElementById: (id) => els[id] || null };
@@ -82,34 +80,29 @@ test('khối HEADER-SEARCH không phụ thuộc google/window/fetch (giữ test 
 });
 
 // ===== applyTaskFilter =====
-test('applyTaskFilter: code + tasks → hiện badge trong ô tìm kiếm, renderTaskList nhận đúng tasks, ẩn skeleton', () => {
+test('applyTaskFilter: code + tasks → renderTaskList nhận đúng tasks, ẩn skeleton', () => {
   resetStubs();
   const t1 = { taskId: 'R1' }, t2 = { taskId: 'R2' };
   applyTaskFilter('Ops237511', [t1, t2]);
-  assert.equal(els.headerSearchBadge.hidden, false, 'badge lọc hiện trong ô tìm kiếm');
-  assert.equal(els.headerSearchBadgeText.textContent, 'Ops237511 · 2 task');
   assert.deepEqual(renderedTasks, [t1, t2], 'renderTaskList nhận đúng danh sách task đã lọc');
   assert.equal(els.taskSkeleton.style.display, 'none');
 });
 
-test('applyTaskFilter: code chỉ trong log (NV Dư) → badge vẫn hiện mã', () => {
+test('applyTaskFilter: code chỉ trong log (NV Dư) → vẫn lọc theo mã', () => {
   resetStubs();
   applyTaskFilter('Ops999999', [{ taskId: 'R1' }]);
-  assert.equal(els.headerSearchBadge.hidden, false);
-  assert.equal(els.headerSearchBadgeText.textContent, 'Ops999999 · 1 task');
+  assert.deepEqual(renderedTasks, [{ taskId: 'R1' }]);
 });
 
-test('applyTaskFilter: tasks rỗng → ẩn badge, renderTaskList([])', () => {
+test('applyTaskFilter: tasks rỗng → renderTaskList([])', () => {
   resetStubs();
   applyTaskFilter('Ops237511', []);
-  assert.equal(els.headerSearchBadge.hidden, true, 'không có task thì không hiện badge');
   assert.deepEqual(renderedTasks, []);
 });
 
-test('applyTaskFilter: code rỗng + tasks undefined → ẩn badge, không crash', () => {
+test('applyTaskFilter: code rỗng + tasks undefined → không crash', () => {
   resetStubs();
   applyTaskFilter('', undefined);
-  assert.equal(els.headerSearchBadge.hidden, true);
   assert.deepEqual(renderedTasks, []);
 });
 
@@ -125,11 +118,10 @@ test('clearHeaderSearch: không có filter → chỉ xoá ô, KHÔNG gọi loadT
   assert.equal(loadTaskListCalls, 0, 'không lọc thì không phải tải lại list');
 });
 
-test('clearHeaderSearch: đang lọc → xoá ô + ẩn badge + tải lại list ĐÚNG 1 lần', () => {
+test('clearHeaderSearch: đang lọc → xoá ô + tải lại list ĐÚNG 1 lần', () => {
   resetStubs();
   applyTaskFilter('Ops237511', [{ taskId: 'R1' }]);
   clearHeaderSearch();
-  assert.equal(els.headerSearchBadge.hidden, true);
   assert.equal(loadTaskListCalls, 1);
   // Lần 2: filter đã reset → không gọi loadTaskList nữa (tránh spam RPC)
   clearHeaderSearch();
@@ -137,7 +129,7 @@ test('clearHeaderSearch: đang lọc → xoá ô + ẩn badge + tải lại list
 });
 
 // ===== renderSearchResult =====
-test('renderSearchResult: ok + staff + tasks → card NV + dòng đếm task + badge lọc hiện', () => {
+test('renderSearchResult: ok + staff + tasks → card NV + badge lọc hiện', () => {
   resetStubs();
   renderSearchResult(
     { ok: true, staff: { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', team: 'Outbound', station: 'HN2 SOC' }, tasks: [{ taskId: 'R1' }, { taskId: 'R2' }] },
@@ -145,17 +137,13 @@ test('renderSearchResult: ok + staff + tasks → card NV + dòng đếm task + b
   );
   assert.equal(els.headerSearchResult.hidden, false);
   assert.ok(els.headerSearchResult.innerHTML.indexOf('Ops237511') >= 0, 'hiện mã NV');
-  assert.ok(els.headerSearchResult.innerHTML.indexOf('2 task') >= 0, 'hiện số task đã điểm danh');
-  assert.equal(els.headerSearchBadge.hidden, false, 'applyTaskFilter đã chạy → badge hiện');
-  assert.equal(els.headerSearchBadgeText.textContent, 'Ops237511 · 2 task');
   assert.equal(renderedTasks.length, 2);
 });
 
-test('renderSearchResult: staff có nhưng CHƯA điểm danh task nào → dòng gợi ý, KHÔNG lọc list', () => {
+test('renderSearchResult: staff có nhưng CHƯA điểm danh task nào → card không báo đếm, KHÔNG lọc list', () => {
   resetStubs();
   renderSearchResult({ ok: true, staff: { staffId: 'Ops237511', staffName: 'NV001' }, tasks: [] }, 'Ops237511');
-  assert.ok(els.headerSearchResult.innerHTML.indexOf('Chưa điểm danh ở task nào') >= 0);
-  assert.equal(els.headerSearchBadge.hidden, true);
+  assert.equal(els.headerSearchResult.innerHTML.indexOf('Chưa điểm danh ở task nào'), -1, 'không còn dòng đếm trong card');
   assert.equal(renderedTasks, null, 'applyTaskFilter không được gọi khi không có task');
 });
 
@@ -163,7 +151,6 @@ test('renderSearchResult: staff = null (chỉ trong log) + tasks → card mã + 
   resetStubs();
   renderSearchResult({ ok: true, staff: null, tasks: [{ taskId: 'R1' }] }, 'Ops999999');
   assert.ok(els.headerSearchResult.innerHTML.indexOf('Không có trong dữ liệu NV') >= 0);
-  assert.equal(els.headerSearchBadgeText.textContent, 'Ops999999 · 1 task');
   assert.equal(renderedTasks.length, 1);
 });
 
@@ -172,15 +159,12 @@ test('renderSearchResult: res.ok = false → hiện message lỗi, KHÔNG đụn
   renderSearchResult({ ok: false, message: 'Không tìm thấy mã OPSXXX' }, 'OPSXXX');
   assert.ok(els.headerSearchResult.innerHTML.indexOf('Không tìm thấy mã OPSXXX') >= 0);
   assert.equal(renderedTasks, null);
-  assert.equal(els.headerSearchBadge.hidden, true);
 });
 
 test('renderSearchResult: ok=false khi ĐANG lọc → bỏ lọc cũ + tải lại list đầy đủ (không giữ badge)', () => {
   resetStubs();
   applyTaskFilter('Ops237511', [{ taskId: 'R1' }]);
-  assert.equal(els.headerSearchBadge.hidden, false);
   renderSearchResult({ ok: false, message: 'Không tìm thấy mã OPSXXX' }, 'OPSXXX');
-  assert.equal(els.headerSearchBadge.hidden, true, 'badge cũ bị xoá khi mã không khớp');
   assert.equal(loadTaskListCalls, 1, 'tải lại danh sách đầy đủ');
 });
 

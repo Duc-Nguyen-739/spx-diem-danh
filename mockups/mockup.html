@@ -39,7 +39,7 @@
     box-shadow: 0 0 0 3px rgba(238, 77, 45, .10), 0 2px 10px rgba(0, 0, 0, .35);
     transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   }
-  header .header-search:focus-within { border-color: #ff8a5c; box-shadow: 0 0 0 4px rgba(238, 77, 45, .22); transform: translateY(-1px); }
+  header .header-search:focus-within { border-color: #c2361a; box-shadow: 0 0 0 4px rgba(238, 77, 45, .32); transform: translateY(-1px); }
   header .header-search-ic { color: #ee4d2d; font-size: 15px; line-height: 1; }
   header .header-search input {
     flex: 1; min-width: 0; background: transparent; border: none; outline: none;
@@ -65,8 +65,6 @@
   header .search-card .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; margin-top: 11px; }
   header .search-card .sc-grid div { font-size: 11.5px; color: #8b98ab; }
   header .search-card .sc-grid b { display: block; color: #e2e8f0; font-weight: 600; font-size: 12px; }
-  header .search-card .sc-tasks { border-top: 1px solid #2a3142; margin-top: 10px; padding-top: 8px; font-size: 12.5px; color: #8b98ab; }
-  header .search-card .sc-tasks b { color: #ff8a5c; }
   header .search-card.sc-empty, header .search-card.sc-err { text-align: center; color: #8b98ab; font-size: 13px; padding: 18px; }
   header .search-card.sc-err { color: #ff6b5e; }
 
@@ -105,17 +103,6 @@
     padding: 2px 9px; font-size: 12px; margin-left: 4px; vertical-align: 1px;
   }
 
-  /* Trạng thái lọc "Danh Sách Task" — badge NGAY TRONG ô tìm kiếm */
-  header .header-search-badge {
-    display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
-    background: rgba(238, 77, 45, .16); border: 1px solid rgba(238, 77, 45, .5);
-    color: #ffd9d0; border-radius: 999px; padding: 3px 10px;
-    font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
-    transition: background .15s ease, transform .15s ease;
-  }
-  header .header-search-badge[hidden] { display: none; }
-  header .header-search-badge:hover { background: rgba(238, 77, 45, .3); transform: translateY(-1px); }
-  header .header-search-badge .header-search-badge-x { color: #ff8a5c; font-size: 10px; line-height: 1; }
   .btn { border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
   .btn-ghost { background: transparent; color: #9aa7bd; border: 1px solid #2a3142; }
   .btn-ghost:hover { border-color: #ff8a5c; color: #ff8a5c; }
@@ -182,9 +169,6 @@
   <div class="header-search" id="headerSearchWrap">
     <span class="header-search-ic">⌕</span>
     <input type="search" id="headerSearchInput" placeholder="Tìm mã Ops…" aria-label="Tìm kiếm mã Ops" autocomplete="off" spellcheck="false">
-    <button class="header-search-badge" id="headerSearchBadge" type="button" hidden onclick="clearHeaderSearch()" title="Bỏ lọc — hiện toàn bộ task" aria-label="Bỏ lọc danh sách task">
-      <span id="headerSearchBadgeText"></span><span class="header-search-badge-x">✕</span>
-    </button>
     <button class="header-search-clear" id="headerSearchClear" title="Xoá" aria-label="Xoá tìm kiếm">✕</button>
     <div class="header-search-res" id="headerSearchResult" hidden></div>
   </div>
@@ -260,6 +244,7 @@ var STAFF = [
   { staffId: 'Ops129481', staffName: 'NV104', slotCode: '13:00-22:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'FTE' },
   { staffId: 'Ops126503', staffName: 'NV105', slotCode: '13:00-22:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'BPO' },
   { staffId: 'Ops133754', staffName: 'NV020', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'OS' },
+  { staffId: 'Ops7562', staffName: 'NV7562', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'BPO' },
 ];
 
 // task.log: { staffId, status: '-' | 'Có mặt' | 'Ra ngoài' | 'Dư', time? }
@@ -270,6 +255,7 @@ var TASKS = [
     { staffId: 'Ops229444', status: '-', time: '' },
     { staffId: 'Ops110512', status: '-', time: '' },
     { staffId: 'Ops124563', status: '-', time: '' },
+    { staffId: 'Ops7562', status: 'Có mặt', time: '09:06:10' },
   ]},
   { taskId: 'R20260802-0850', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '13:00-22:00', team: 'Inbound', status: 'done', createdBy: 'web', createdAtText: '2026-08-02 08:50', log: [
     { staffId: 'Ops129481', status: 'Có mặt', time: '13:02:10' },
@@ -281,11 +267,13 @@ var TASKS = [
     { staffId: 'Ops124563', status: 'Có mặt', time: '08:09:05' },
     { staffId: 'Ops229444', status: '-', time: '' },
     { staffId: 'Ops110512', status: '-', time: '' },
+    { staffId: 'Ops7562', status: 'Có mặt', time: '08:11:20' },
   ]},
   { taskId: 'M20260804-1200', taskType: 'meal-move', station: 'HN2 SOC', slotCode: '11:30-13:30', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-04 11:55', log: [
     { staffId: 'Ops237511', status: 'Có mặt', time: '11:40:00', raTime: '11:40:00' },
     { staffId: 'Ops196935', status: 'Ra ngoài', time: '', raTime: '11:42:30' },
     { staffId: 'Ops124563', status: '-', time: '' },
+    { staffId: 'Ops7562', status: 'Ra ngoài', time: '', raTime: '11:45:00' },
   ]},
   { taskId: 'R20260804-0900', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '13:00-22:00', team: 'Inbound', status: 'done', createdBy: 'web', createdAtText: '2026-08-04 09:00', log: [
     { staffId: 'Ops129481', status: 'Có mặt', time: '13:01:18' },
@@ -380,11 +368,6 @@ var _taskFilterStaff = null;
 
 function applyTaskFilter(code, tasks) {
   _taskFilterStaff = String(code || '').trim();
-  var badge = $('headerSearchBadge');
-  var badgeText = $('headerSearchBadgeText');
-  var n = tasks ? tasks.length : 0;
-  if (badge) badge.hidden = !n;
-  if (badgeText) badgeText.textContent = _taskFilterStaff ? (_taskFilterStaff + ' · ' + n + ' task') : (n + ' task');
   renderTaskList(tasks || []);
 }
 
@@ -425,8 +408,6 @@ function renderSearchResult(res, q) {
     // Mã không khớp → bỏ lọc đang hiển thị (không giữ badge cũ)
     if (_taskFilterStaff) {
       _taskFilterStaff = null;
-      var b = $('headerSearchBadge');
-      if (b) b.hidden = true;
       renderTaskList(TASKS.map(taskView));
     }
     return;
@@ -443,13 +424,11 @@ function renderSearchResult(res, q) {
       '<div class="sc-grid">' +
         row('Ca', s.slotCode) + row('Team', s.team) + row('Station', s.station) + row('Hợp đồng', s.contractType) +
       '</div>' +
-      '<div class="sc-tasks">' + (tasks.length ? 'Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc' : 'Chưa điểm danh ở task nào') + '</div>' +
     '</div>';
   } else {
     html = '<div class="search-card">' +
       '<div class="sc-id">' + esc(q) + '</div>' +
       '<div class="sc-name">Không có trong dữ liệu NV</div>' +
-      '<div class="sc-tasks">Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc</div>' +
     '</div>';
   }
   box.innerHTML = html;
@@ -476,8 +455,6 @@ function clearHeaderSearch() {
   hideSearchResult();
   if (_taskFilterStaff) {
     _taskFilterStaff = null;
-    var badge = $('headerSearchBadge');
-    if (badge) badge.hidden = true;
     renderTaskList(TASKS.map(taskView));
   }
   if (input && input.focus) input.focus();
@@ -496,6 +473,7 @@ function showToast(msg) {
 function buildHintChips() {
   var wrap = $('hintChips');
   var samples = [
+    ['Ops7562', 'NV7562 · 3 task (reconcile ×2 + meal-move Ra)'],
     ['Ops237511', 'NV001 · 3 task (reconcile ×2 + meal-move)'],
     ['Ops196935', 'NV002 · 2 task (1 reconcile + 1 meal-move)'],
     ['Ops124563', 'NV005 · 1 task'],
