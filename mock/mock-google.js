@@ -117,15 +117,30 @@
       return { ok: true, count: count };
     },
     searchStaffApi: function (code) {
-      // mock: tra cuu NV theo ma Ops — khop contract server searchStaffApi
+      // mock: tra cuu NV theo ma Ops + cac task da diem danh — khop contract server searchStaffApi
       var q = String(code || '').trim().toUpperCase();
       if (!q) return { ok: false, message: 'Nhập mã Ops để tìm' };
       var hit = null;
       MOCK_DATA.staff.forEach(function (s) { if (String(s.staffId).toUpperCase() === q) hit = s; });
-      if (!hit) return { ok: false, message: 'Không tìm thấy mã ' + q };
+      // Task ma NV nay da diem danh: log co timeScanText (reconcile / meal-move da Vao) hoac timeRaText (meal-move da Ra)
+      var tasks = [];
+      MOCK_DATA.tasks.forEach(function (t) {
+        var log = getLog(t.taskId);
+        var scanned = false;
+        log.forEach(function (r) {
+          if (!scanned && String(r.staffId).toUpperCase() === q && (r.timeScanText || r.timeRaText)) scanned = true;
+        });
+        if (scanned) {
+          var c = counters(log);
+          tasks.push(Object.assign({}, t, c, { total: log.length }));
+        }
+      });
+      if (!hit && !tasks.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
       return {
         ok: true,
-        staff: { staffId: hit.staffId, staffName: hit.staffName, slotCode: hit.slotCode, team: hit.team, station: hit.station, workstation: hit.workstation },
+        staff: hit ? { staffId: hit.staffId, staffName: hit.staffName, slotCode: hit.slotCode, team: hit.team, station: hit.station, workstation: hit.workstation } : null,
+        tasks: tasks,
+        taskCount: tasks.length,
       };
     },
     getTaskListApi: function () {

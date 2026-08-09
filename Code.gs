@@ -11,6 +11,7 @@
  *   createMealMoveTaskApi(input)     → { ok, taskId, count, message }
  *   pasteMealMoveScanApi(taskId, codes, mode) → { ok, message, summary, counters }
  *   completeTask(taskId)         → { ok, message }
+ *   searchStaffApi(code)         → { ok, staff, tasks, taskCount } — NV + task đã điểm danh (header search)
  *   syncFromCsv()                → { ok, count, message } — gọi từ editor (Phase 0)
  */
 
@@ -155,7 +156,12 @@ function previewStaffApi(input) {
   };
 }
 
-/** Tra cứu nhanh NV theo mã Ops (header search) — trả hồ sơ NV khớp mã, không tạo gì cả. */
+/**
+ * Tra cứu nhanh NV theo mã Ops (header search).
+ * Trả hồ sơ NV + các task mà mã này ĐÃ điểm danh (AttendanceLog có timeScan/timeRa)
+ * → client lọc "Danh Sách Task" theo danh sách task này. Không tạo gì cả.
+ * staff = null khi mã chỉ xuất hiện trong log (NV Dư) mà không có trong StaffData.
+ */
 function searchStaffApi(code) {
   const q = String(code || '').trim().toUpperCase();
   if (!q) return { ok: false, message: 'Nhập mã Ops để tìm' };
@@ -163,19 +169,26 @@ function searchStaffApi(code) {
   const matches = staffList.filter(function (s) {
     return String(s.staffId || '').toUpperCase() === q;
   });
-  if (!matches.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
-  const s = matches[0];
-  const staff = {
-    staffId: s.staffId,
-    staffName: s.staffName,
-    slotCode: s.slotCode,
-    team: s.team,
-    station: s.station,
-  };
-  if (s.agency) staff.agency = s.agency;
-  if (s.date) staff.date = s.date;
-  if (s.contractType) staff.contractType = s.contractType;
-  return { ok: true, staff: staff };
+  const staff = matches.length ? (function () {
+    const s = matches[0];
+    const o = { staffId: s.staffId, staffName: s.staffName, slotCode: s.slotCode, team: s.team, station: s.station };
+    if (s.agency) o.agency = s.agency;
+    if (s.date) o.date = s.date;
+    if (s.contractType) o.contractType = s.contractType;
+    return o;
+  })() : null;
+
+  // Task mà NV đã từng điểm danh: đọc AttendanceLog 1 lần (batch), lọc theo mã
+  // + đã quét. Reuse readTaskList_ (đã có counters total/scanned/extra + cache 30s)
+  // → danh sách lọc khớp định dạng list chính.
+  const logValues = getSheet_(SHEETS.ATTENDANCE_LOG).getDataRange().getValues().slice(1);
+  const taskIds = collectTaskIdsByStaffLog_(logValues, q, LOG_COLS);
+  const tasks = taskIds.length
+    ? readTaskList_().filter(function (t) { return taskIds.indexOf(t.taskId) >= 0; })
+    : [];
+
+  if (!staff && !tasks.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
+  return { ok: true, staff: staff, tasks: tasks, taskCount: tasks.length };
 }
 
 /** Tạo task đối chiếu + pre-fill. */
