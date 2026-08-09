@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Tìm mã Ops &amp; Lọc Danh Sách Task · RollCall SPX</title>
+<style>
+  /* ============ Base ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #0d111a; color: #e2e8f0; line-height: 1.5; min-height: 100vh;
+  }
+  ::selection { background: rgba(238, 77, 45, .35); }
+
+  /* ============ Header ============ */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+    background: rgba(13, 17, 26, .92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid #232b3b;
+  }
+  header .brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+  .spx-wordmark { display: flex; align-items: baseline; gap: 1px; font-weight: 800; letter-spacing: -.5px; }
+  .spx-wordmark .s { color: #ee4d2d; font-size: 20px; }
+  .spx-wordmark .px { color: #0a0f18; font-size: 20px; text-shadow: 0 0 0 #fff, 0 0 1px #fff; }
+  .spx-wordmark .px, .spx-wordmark .express { color: #f3f4f6; text-shadow: none; }
+  .spx-wordmark .express { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; color: #9aa7bd; }
+  header .brand .title { font-size: 12.5px; font-weight: 800; letter-spacing: .6px; color: #e2e8f0; }
+  header .brand .title .accent { color: #ee4d2d; }
+  header .brand small { display: block; font-size: 9px; color: #56637a; letter-spacing: 1px; font-weight: 600; }
+
+  /* ===== Thanh tìm kiếm — gọn giữa, viền cam SPX #EE4D2D ===== */
+  header .header-search {
+    position: relative; flex: 1 1 auto; max-width: 380px; margin: 0 auto;
+    display: flex; align-items: center; gap: 7px;
+    background: #10151f; border: 1.5px solid #ee4d2d; border-radius: 999px;
+    padding: 6px 14px;
+    box-shadow: 0 0 0 3px rgba(238, 77, 45, .10), 0 2px 10px rgba(0, 0, 0, .35);
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  }
+  header .header-search:focus-within { border-color: #ff8a5c; box-shadow: 0 0 0 4px rgba(238, 77, 45, .22); transform: translateY(-1px); }
+  header .header-search-ic { color: #ee4d2d; font-size: 15px; line-height: 1; }
+  header .header-search input {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: #e2e8f0; font-size: 13.5px; font-family: inherit;
+  }
+  header .header-search input::placeholder { color: #56637a; }
+  header .header-search-clear {
+    display: none; width: 20px; height: 20px; border-radius: 50%; border: none;
+    background: #2a3142; color: #9aa7bd; font-size: 10px; line-height: 1; cursor: pointer;
+    align-items: center; justify-content: center; flex: 0 0 auto;
+  }
+  header .header-search-clear.show { display: flex; }
+  header .header-search-clear:hover { background: #ff8a5c; color: #0d111a; }
+  header .header-search-res {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 300;
+    background: #141b28; border: 1px solid rgba(238, 77, 45, .35); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .55);
+  }
+  header .header-search-res[hidden] { display: none; }
+  header .search-card { padding: 14px 16px; }
+  header .search-card .sc-id { font-family: Consolas, "Courier New", monospace; font-size: 16px; font-weight: 800; color: #ff8a5c; }
+  header .search-card .sc-name { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-top: 2px; }
+  header .search-card .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; margin-top: 11px; }
+  header .search-card .sc-grid div { font-size: 11.5px; color: #8b98ab; }
+  header .search-card .sc-grid b { display: block; color: #e2e8f0; font-weight: 600; font-size: 12px; }
+  header .search-card .sc-tasks { border-top: 1px solid #2a3142; margin-top: 10px; padding-top: 8px; font-size: 12.5px; color: #8b98ab; }
+  header .search-card .sc-tasks b { color: #ff8a5c; }
+  header .search-card.sc-empty, header .search-card.sc-err { text-align: center; color: #8b98ab; font-size: 13px; padding: 18px; }
+  header .search-card.sc-err { color: #ff6b5e; }
+
+  header .header-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+  .net-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+  header small { color: #56637a; font-size: 11px; }
+  .btn-icon-dark {
+    background: #141b28; color: #e2e8f0; border: 1px solid #2a3142;
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; transition: all .15s ease;
+  }
+  .btn-icon-dark:hover { border-color: #ee4d2d; color: #ff8a5c; }
+
+  /* ============ Main ============ */
+  main { max-width: 1080px; margin: 0 auto; padding: 18px 20px 90px; display: grid; gap: 14px; }
+
+  /* Panel hướng dẫn test */
+  .hint {
+    background: #111827; border: 1px solid #232b3b; border-radius: 12px; padding: 14px 16px;
+  }
+  .hint h2 { font-size: 13px; font-weight: 800; letter-spacing: .5px; color: #ff8a5c; margin-bottom: 8px; }
+  .hint p { font-size: 12.5px; color: #8b98ab; margin-bottom: 9px; }
+  .hint p b { color: #e2e8f0; }
+  .hint .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .hint .chips button {
+    background: #141b28; color: #ffd9d0; border: 1px solid rgba(238, 77, 45, .4);
+    border-radius: 999px; padding: 5px 12px; font-size: 12px; font-family: Consolas, monospace; cursor: pointer;
+    transition: all .15s ease;
+  }
+  .hint .chips button:hover { background: rgba(238, 77, 45, .18); border-color: #ee4d2d; transform: translateY(-1px); }
+
+  .card { background: #111827; border: 1px solid #232b3b; border-radius: 14px; padding: 16px 18px; }
+  .task-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .section-heading { font-size: 15px; font-weight: 800; letter-spacing: .6px; }
+  .task-count-badge {
+    background: rgba(238, 77, 45, .15); color: #ff8a5c; border-radius: 999px;
+    padding: 2px 9px; font-size: 12px; margin-left: 4px; vertical-align: 1px;
+  }
+
+  /* Trạng thái lọc "Danh Sách Task" — badge NGAY TRONG ô tìm kiếm */
+  header .header-search-badge {
+    display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+    background: rgba(238, 77, 45, .16); border: 1px solid rgba(238, 77, 45, .5);
+    color: #ffd9d0; border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    transition: background .15s ease, transform .15s ease;
+  }
+  header .header-search-badge[hidden] { display: none; }
+  header .header-search-badge:hover { background: rgba(238, 77, 45, .3); transform: translateY(-1px); }
+  header .header-search-badge .header-search-badge-x { color: #ff8a5c; font-size: 10px; line-height: 1; }
+  .btn { border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+  .btn-ghost { background: transparent; color: #9aa7bd; border: 1px solid #2a3142; }
+  .btn-ghost:hover { border-color: #ff8a5c; color: #ff8a5c; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-primary { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(238, 77, 45, .35); }
+
+  /* Bảng task */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; padding: 9px 10px; font-size: 11px; letter-spacing: .8px; font-weight: 700;
+    color: #7f8ea3; border-bottom: 1px solid #232b3b; white-space: nowrap;
+  }
+  tbody td { padding: 10px; border-bottom: 1px solid #1b2230; white-space: nowrap; vertical-align: middle; }
+  tbody tr { transition: background .12s ease; }
+  tbody tr:hover { background: rgba(238, 77, 45, .06); }
+  tbody tr.filtered-in { animation: flashIn .5s ease; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.stt { color: #56637a; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .task-id { font-weight: 700; color: #e2e8f0; }
+  .task-id.meal { color: #ffb84d; }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
+  .badge.open { background: rgba(46, 204, 113, .14); color: #2ecc71; }
+  .badge.done { background: rgba(127, 142, 163, .14); color: #8b98ab; }
+  .btn-quet { background: #2e7d32; color: #fff; border: none; border-radius: 7px; padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+  .btn-quet:hover { filter: brightness(1.1); }
+  .btn-xem { background: transparent; color: #9aa7bd; border: 1px solid #2a3142; border-radius: 7px; padding: 4px 11px; font-size: 12px; cursor: pointer; }
+  .btn-xem:hover { color: #ff8a5c; border-color: #ff8a5c; }
+
+  .empty-state { text-align: center; color: #56637a; padding: 34px 10px; font-size: 13.5px; }
+  .empty-state .big { font-size: 30px; display: block; margin-bottom: 8px; opacity: .8; }
+
+  /* Nút giả lập chuyển tab: List / Scan */
+  .tabs { display: flex; gap: 6px; }
+  .tabs button {
+    background: transparent; color: #7f8ea3; border: 1px solid #2a3142; border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s ease;
+  }
+  .tabs button.active { background: #141b28; color: #ff8a5c; border-color: rgba(238, 77, 45, .5); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  @keyframes flashIn { from { background: rgba(238, 77, 45, .22); } to { background: transparent; } }
+
+  @media (max-width: 640px) {
+    header { flex-wrap: wrap; }
+    header .header-search { order: 3; flex-basis: 100%; max-width: none; margin: 2px 0 0; }
+    header .header-right { margin-left: auto; }
+    header .brand .title { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="spx-wordmark">
+      <span class="s">SPX</span><span class="express">&nbsp;EXPRESS</span>
+    </span>
+    <span class="title"><span class="accent">R</span>OLLCALL · <span style="color:#7f8ea3">ĐIỂM DANH KHO</span></span>
+  </div>
+
+  <div class="header-search" id="headerSearchWrap">
+    <span class="header-search-ic">⌕</span>
+    <input type="search" id="headerSearchInput" placeholder="Tìm mã Ops…" aria-label="Tìm kiếm mã Ops" autocomplete="off" spellcheck="false">
+    <button class="header-search-badge" id="headerSearchBadge" type="button" hidden onclick="clearHeaderSearch()" title="Bỏ lọc — hiện toàn bộ task" aria-label="Bỏ lọc danh sách task">
+      <span id="headerSearchBadgeText"></span><span class="header-search-badge-x">✕</span>
+    </button>
+    <button class="header-search-clear" id="headerSearchClear" title="Xoá" aria-label="Xoá tìm kiếm">✕</button>
+    <div class="header-search-res" id="headerSearchResult" hidden></div>
+  </div>
+
+  <div class="header-right">
+    <span class="net-dot" title="Trạng thái mạng"></span>
+    <small>Online</small>
+    <button class="btn-icon-dark" title="Âm thanh">🔊</button>
+    <button class="btn-icon-dark" title="Làm mới">⟳ Làm mới</button>
+    <button class="btn-icon-dark" title="Giới thiệu">ⓘ</button>
+  </div>
+</header>
+
+<main>
+  <div class="hint">
+    <h2>🧪 TEST NHANH — gõ hoặc bấm mã để xem lọc "Danh Sách Task"</h2>
+    <p>Thanh tìm kiếm giữa header (viền cam SPX). Gõ <b>≥2 ký tự</b> → tự tìm. Kết quả: thẻ NV + số task đã điểm danh, danh sách bên dưới tự lọc theo mã.</p>
+    <div class="chips" id="hintChips"></div>
+  </div>
+
+  <div class="card">
+    <div class="task-list-toolbar">
+      <h2 class="section-heading">DANH SÁCH TASK <span id="taskCount" class="task-count-badge">0</span></h2>
+      <div class="tabs">
+        <button class="active" type="button">📋 Danh sách</button>
+        <button type="button" onclick="showToast('Trang quét chỉ hoạt động khi chọn 1 task — mockup này demo phần lọc danh sách')">🔫 Quét</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="taskListTable">
+        <thead>
+          <tr>
+            <th scope="col">STT</th>
+            <th scope="col">Mã task</th>
+            <th scope="col">Loại</th>
+            <th scope="col">Station</th>
+            <th scope="col">Ca</th>
+            <th scope="col">Team</th>
+            <th scope="col" class="num">Tổng</th>
+            <th scope="col" class="num">Đã quét</th>
+            <th scope="col" class="num">Dư</th>
+            <th scope="col">Trạng thái</th>
+            <th scope="col">Tạo lúc</th>
+            <th scope="col">Người tạo</th>
+            <th scope="col">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="taskListBody"></tbody>
+      </table>
+      <div class="empty-state" id="taskEmpty" hidden>
+        <span class="big">🗂️</span>
+        Chưa có task nào khớp với mã đang tìm
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   MOCKUP — Tìm mã Ops & Lọc "Danh Sách Task"
+   Tự chứa 100%: dữ liệu giả + logic y hệt client thật (index.html).
+   Dữ liệu: staff (StaffData) + tasks (AttendanceTask) + log (AttendanceLog).
+   ============================================================ */
+
+// ---- Dữ liệu giả ----
+var STAFF = [
+  { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'BPO' },
+  { staffId: 'Ops196935', staffName: 'NV002', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'OS' },
+  { staffId: 'Ops229444', staffName: 'NV003', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'FTE' },
+  { staffId: 'Ops110512', staffName: 'NV004', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'BPO' },
+  { staffId: 'Ops124563', staffName: 'NV005', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', contractType: 'OS' },
+  { staffId: 'Ops129481', staffName: 'NV104', slotCode: '13:00-22:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'FTE' },
+  { staffId: 'Ops126503', staffName: 'NV105', slotCode: '13:00-22:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'BPO' },
+  { staffId: 'Ops133754', staffName: 'NV020', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', contractType: 'OS' },
+];
+
+// task.log: { staffId, status: '-' | 'Có mặt' | 'Ra ngoài' | 'Dư', time? }
+var TASKS = [
+  { taskId: 'R20260802-0900', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '08:00-17:00', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00', log: [
+    { staffId: 'Ops237511', status: 'Có mặt', time: '09:02:15' },
+    { staffId: 'Ops196935', status: 'Có mặt', time: '09:03:40' },
+    { staffId: 'Ops229444', status: '-', time: '' },
+    { staffId: 'Ops110512', status: '-', time: '' },
+    { staffId: 'Ops124563', status: '-', time: '' },
+  ]},
+  { taskId: 'R20260802-0850', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '13:00-22:00', team: 'Inbound', status: 'done', createdBy: 'web', createdAtText: '2026-08-02 08:50', log: [
+    { staffId: 'Ops129481', status: 'Có mặt', time: '13:02:10' },
+    { staffId: 'Ops126503', status: 'Có mặt', time: '13:04:33' },
+    { staffId: 'Ops133754', status: 'Vắng', time: '' },
+  ]},
+  { taskId: 'R20260803-0800', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '08:00-17:00', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-03 08:00', log: [
+    { staffId: 'Ops237511', status: 'Có mặt', time: '08:04:22' },
+    { staffId: 'Ops124563', status: 'Có mặt', time: '08:09:05' },
+    { staffId: 'Ops229444', status: '-', time: '' },
+    { staffId: 'Ops110512', status: '-', time: '' },
+  ]},
+  { taskId: 'M20260804-1200', taskType: 'meal-move', station: 'HN2 SOC', slotCode: '11:30-13:30', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-04 11:55', log: [
+    { staffId: 'Ops237511', status: 'Có mặt', time: '11:40:00', raTime: '11:40:00' },
+    { staffId: 'Ops196935', status: 'Ra ngoài', time: '', raTime: '11:42:30' },
+    { staffId: 'Ops124563', status: '-', time: '' },
+  ]},
+  { taskId: 'R20260804-0900', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '13:00-22:00', team: 'Inbound', status: 'done', createdBy: 'web', createdAtText: '2026-08-04 09:00', log: [
+    { staffId: 'Ops129481', status: 'Có mặt', time: '13:01:18' },
+    { staffId: 'Ops133754', status: 'Có mặt', time: '13:05:44' },
+    { staffId: 'Ops999999', status: 'Dư', time: '13:10:02' },
+  ]},
+  { taskId: 'R20260805-0700', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '08:00-17:00', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-05 07:00', log: [
+    { staffId: 'Ops110512', status: 'Có mặt', time: '08:01:12' },
+    { staffId: 'Ops229444', status: 'Có mặt', time: '08:02:57' },
+    { staffId: 'Ops237511', status: '-', time: '' },
+  ]},
+];
+
+// ---- Mock API searchStaffApi(code) → { ok, staff, tasks, taskCount } ----
+function mockSearchStaff(code) {
+  var q = String(code || '').trim().toUpperCase();
+  if (!q) return { ok: false, message: 'Nhập mã Ops để tìm' };
+  var hit = null;
+  STAFF.forEach(function (s) { if (s.staffId.toUpperCase() === q) hit = s; });
+  // Task mà mã này đã từng điểm danh: log có time (đã quét) hoặc raTime (meal-move đã Ra)
+  var tasks = [];
+  TASKS.forEach(function (t) {
+    var scanned = t.log.some(function (r) { return r.staffId.toUpperCase() === q && (r.time || r.raTime); });
+    if (scanned) tasks.push(taskView(t));
+  });
+  if (!hit && !tasks.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
+  return {
+    ok: true,
+    staff: hit ? { staffId: hit.staffId, staffName: hit.staffName, slotCode: hit.slotCode, team: hit.team, station: hit.station, contractType: hit.contractType } : null,
+    tasks: tasks,
+    taskCount: tasks.length,
+  };
+}
+
+function taskView(t) {
+  var scanned = t.log.filter(function (r) { return r.time; }).length;
+  var extra = t.log.filter(function (r) { return r.status === 'Dư'; }).length;
+  return {
+    taskId: t.taskId, taskType: t.taskType, station: t.station, slotCode: t.slotCode,
+    team: t.team, status: t.status, createdBy: t.createdBy, createdAtText: t.createdAtText,
+    total: t.log.length, scanned: scanned, extra: extra,
+  };
+}
+
+// ---- Helpers ----
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function $(id) { return document.getElementById(id); }
+
+// ---- Render danh sách task (dùng chung: toàn bộ + lọc theo mã) ----
+function renderTaskList(tasks) {
+  var body = $('taskListBody');
+  if (!body) return;
+  var empty = $('taskEmpty');
+  var cnt = $('taskCount');
+  body.innerHTML = '';
+  if (cnt) cnt.textContent = (tasks ? tasks.length : 0);
+  if (!tasks || !tasks.length) { if (empty) empty.hidden = false; return; }
+  if (empty) empty.hidden = true;
+  tasks.forEach(function (t, idx) {
+    var tr = document.createElement('tr');
+    var statusBadge = t.status === 'done'
+      ? '<span class="badge done">Xong</span>'
+      : '<span class="badge open">Mở</span>';
+    var typeLabel = t.taskType === 'meal-move'
+      ? '<span class="badge" style="background:rgba(255,184,77,.14);color:#ffb84d">Ra/Vào</span>'
+      : '<span class="badge" style="background:rgba(11,87,208,.14);color:#7ab3ff">Điểm danh</span>';
+    tr.innerHTML =
+      '<td class="stt">' + (idx + 1) + '</td>' +
+      '<td class="mono task-id' + (t.taskType === 'meal-move' ? ' meal' : '') + '">' + esc(t.taskId) + '</td>' +
+      '<td>' + typeLabel + '</td>' +
+      '<td>' + esc(t.station) + '</td>' +
+      '<td>' + esc(t.slotCode) + '</td>' +
+      '<td>' + esc(t.team) + '</td>' +
+      '<td class="num">' + (t.total || 0) + '</td>' +
+      '<td class="num">' + (t.scanned || 0) + '</td>' +
+      '<td class="num">' + (t.extra || 0) + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + esc(t.createdAtText || '') + '</td>' +
+      '<td>' + esc(t.createdBy || '') + '</td>' +
+      '<td>' + (t.status === 'open'
+        ? '<button class="btn-quet" onclick="showToast(\'Mở task ' + esc(t.taskId) + ' để quét\')">Quét</button>'
+        : '<button class="btn-xem" onclick="showToast(\'Xem task ' + esc(t.taskId) + '\')">Xem</button> <button class="btn-xem" onclick="showToast(\'Mở lại ' + esc(t.taskId) + '\')">Mở lại</button>') + '</td>';
+    body.appendChild(tr);
+  });
+}
+
+// ---- Lọc theo mã Ops (y hệt applyTaskFilter client thật) ----
+var _taskFilterStaff = null;
+
+function applyTaskFilter(code, tasks) {
+  _taskFilterStaff = String(code || '').trim();
+  var badge = $('headerSearchBadge');
+  var badgeText = $('headerSearchBadgeText');
+  var n = tasks ? tasks.length : 0;
+  if (badge) badge.hidden = !n;
+  if (badgeText) badgeText.textContent = _taskFilterStaff ? (_taskFilterStaff + ' · ' + n + ' task') : (n + ' task');
+  renderTaskList(tasks || []);
+}
+
+// ---- Header search (y hệt client thật) ----
+var _headerSearchTimer = null;
+
+function initHeaderSearch() {
+  var input = $('headerSearchInput');
+  var clearBtn = $('headerSearchClear');
+  if (!input) return;
+  function doSearch() {
+    var q = input.value.trim();
+    if (!q) { hideSearchResult(); return; }
+    renderSearchResult(mockSearchStaff(q), q);
+  }
+  input.addEventListener('input', function () {
+    clearBtn.classList.toggle('show', !!input.value);
+    clearTimeout(_headerSearchTimer);
+    var q = input.value.trim();
+    if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 300);
+    else hideSearchResult();
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+    if (e.key === 'Escape') clearHeaderSearch();
+  });
+  clearBtn.addEventListener('click', clearHeaderSearch);
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#headerSearchWrap')) hideSearchResult();
+  });
+}
+
+function renderSearchResult(res, q) {
+  var box = $('headerSearchResult');
+  if (!box) return;
+  if (!res.ok) {
+    renderSearchMessage(res.message || ('Không tìm thấy mã ' + q), true);
+    // Mã không khớp → bỏ lọc đang hiển thị (không giữ badge cũ)
+    if (_taskFilterStaff) {
+      _taskFilterStaff = null;
+      var b = $('headerSearchBadge');
+      if (b) b.hidden = true;
+      renderTaskList(TASKS.map(taskView));
+    }
+    return;
+  }
+  var s = res.staff || null;
+  var tasks = res.tasks || [];
+  box.hidden = false;
+  var html = '';
+  if (s) {
+    function row(k, v) { return '<div><b>' + esc(k) + '</b>' + esc(v || '—') + '</div>'; }
+    html = '<div class="search-card">' +
+      '<div class="sc-id">' + esc(s.staffId || q) + '</div>' +
+      '<div class="sc-name">' + esc(s.staffName || '') + '</div>' +
+      '<div class="sc-grid">' +
+        row('Ca', s.slotCode) + row('Team', s.team) + row('Station', s.station) + row('Hợp đồng', s.contractType) +
+      '</div>' +
+      '<div class="sc-tasks">' + (tasks.length ? 'Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc' : 'Chưa điểm danh ở task nào') + '</div>' +
+    '</div>';
+  } else {
+    html = '<div class="search-card">' +
+      '<div class="sc-id">' + esc(q) + '</div>' +
+      '<div class="sc-name">Không có trong dữ liệu NV</div>' +
+      '<div class="sc-tasks">Đã điểm danh ở <b>' + tasks.length + ' task</b> — danh sách bên dưới đã lọc</div>' +
+    '</div>';
+  }
+  box.innerHTML = html;
+  if (tasks.length) applyTaskFilter(s ? s.staffId : q, tasks);
+}
+
+function renderSearchMessage(msg, isErr) {
+  var box = $('headerSearchResult');
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = '<div class="search-card ' + (isErr ? 'sc-err' : 'sc-empty') + '">' + esc(msg) + '</div>';
+}
+
+function hideSearchResult() {
+  var box = $('headerSearchResult');
+  if (box) box.hidden = true;
+}
+
+function clearHeaderSearch() {
+  var input = $('headerSearchInput');
+  var clearBtn = $('headerSearchClear');
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.classList.remove('show');
+  hideSearchResult();
+  if (_taskFilterStaff) {
+    _taskFilterStaff = null;
+    var badge = $('headerSearchBadge');
+    if (badge) badge.hidden = true;
+    renderTaskList(TASKS.map(taskView));
+  }
+  if (input && input.focus) input.focus();
+}
+
+// ---- Khởi tạo ----
+function showToast(msg) {
+  var t = $('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'show';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function () { t.className = ''; }, 2200);
+}
+
+function buildHintChips() {
+  var wrap = $('hintChips');
+  var samples = [
+    ['Ops237511', 'NV001 · 3 task (reconcile ×2 + meal-move)'],
+    ['Ops196935', 'NV002 · 2 task (1 reconcile + 1 meal-move)'],
+    ['Ops124563', 'NV005 · 1 task'],
+    ['Ops110512', 'NV004 · 1 task'],
+    ['Ops129481', 'NV104 · 2 task (Inbound)'],
+    ['Ops999999', 'Không có trong dữ liệu NV — chỉ trong log (Dư)'],
+    ['Ops000000', 'Không tìm thấy gì'],
+  ];
+  samples.forEach(function (s) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = s[0];
+    b.title = s[1];
+    b.addEventListener('click', function () {
+      var input = $('headerSearchInput');
+      input.value = s[0];
+      $('headerSearchClear').classList.add('show');
+      renderSearchResult(mockSearchStaff(s[0]), s[0]);
+      input.focus();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  renderTaskList(TASKS.map(taskView));
+  buildHintChips();
+  initHeaderSearch();
+});
+</script>
+
+<div id="toast" style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:#141b28;border:1px solid rgba(238,77,45,.5);color:#ffd9d0;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s ease;z-index:999;box-shadow:0 8px 30px rgba(0,0,0,.5);"></div>
+<style>#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }</style>
+</body>
+</html>
