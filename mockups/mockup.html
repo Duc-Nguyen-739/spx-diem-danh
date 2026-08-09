@@ -365,6 +365,17 @@ function renderTaskList(tasks) {
 
 // ---- Lọc theo mã Ops (y hệt applyTaskFilter client thật) ----
 var _taskFilterStaff = null;
+// Chống race: mỗi lần tìm/xoá tăng seq — kết quả cũ không được lọc lại list.
+var _headerSearchSeq = 0;
+// Xoá ô tìm kiếm (backspace/xoá hết/✕) → bỏ lọc + trả "Danh Sách Task" đầy đủ.
+function onSearchInputCleared() {
+  _headerSearchSeq++;
+  if (_taskFilterStaff) {
+    _taskFilterStaff = null;
+    renderTaskList(TASKS.map(taskView));
+  }
+  hideSearchResult();
+}
 
 function applyTaskFilter(code, tasks) {
   _taskFilterStaff = String(code || '').trim();
@@ -388,7 +399,7 @@ function initHeaderSearch() {
     clearTimeout(_headerSearchTimer);
     var q = input.value.trim();
     if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 300);
-    else hideSearchResult();
+    else onSearchInputCleared();
   });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
@@ -448,6 +459,7 @@ function hideSearchResult() {
 }
 
 function clearHeaderSearch() {
+  _headerSearchSeq++;
   var input = $('headerSearchInput');
   var clearBtn = $('headerSearchClear');
   if (input) input.value = '';

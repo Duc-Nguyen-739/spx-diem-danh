@@ -1457,9 +1457,10 @@
     function doSearch() {
       var q = input.value.trim();
       if (!q) { hideSearchResult(); return; }
+      var seq = ++_headerSearchSeq;
       google.script.run
-        .withSuccessHandler(function (res) { renderSearchResult(res, q); })
-        .withFailureHandler(function (err) { markServerFail(); renderSearchMessage('Lỗi: ' + err.message, true); })
+        .withSuccessHandler(function (res) { if (seq !== _headerSearchSeq) return; renderSearchResult(res, q); })
+        .withFailureHandler(function (err) { if (seq !== _headerSearchSeq) return; markServerFail(); renderSearchMessage('Lỗi: ' + err.message, true); })
         .searchStaffApi(q);
     }
     input.addEventListener('input', function () {
@@ -1467,7 +1468,7 @@
       clearTimeout(_headerSearchTimer);
       var q = input.value.trim();
       if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 350);
-      else hideSearchResult();
+      else onSearchInputCleared();
     });
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
@@ -1479,6 +1480,18 @@
     });
   }
   // ===== HEADER-SEARCH-START =====
+  // Chống race: mỗi lần tìm/xoá tăng seq — response cũ của searchStaffApi bị bỏ qua,
+  // không được phép lọc lại danh sách sau khi người dùng đã tắt tìm kiếm.
+  var _headerSearchSeq = 0;
+  // Xoá ô tìm kiếm (backspace/xoá hết/✕) → bỏ lọc + trả "Danh Sách Task" đầy đủ.
+  function onSearchInputCleared() {
+    _headerSearchSeq++;
+    if (_taskFilterStaff) {
+      _taskFilterStaff = null;
+      loadTaskList();
+    }
+    hideSearchResult();
+  }
   // ===== Header search: render kết quả + lọc "Danh Sách Task" theo mã Ops =====
   function renderSearchResult(res, q) {
     var box = document.getElementById('headerSearchResult');
@@ -1525,6 +1538,7 @@
     if (box) box.hidden = true;
   }
   function clearHeaderSearch() {
+    _headerSearchSeq++;
     var input = document.getElementById('headerSearchInput');
     var clearBtn = document.getElementById('headerSearchClear');
     if (input) input.value = '';

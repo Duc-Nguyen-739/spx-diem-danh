@@ -70,9 +70,9 @@ global.loadTaskList = () => { loadTaskListCalls++; };
 global.esc = (s) => (s === null || s === undefined ? '' : String(s));
 
 // Chạy khối trong CÙNG realm → hàm thấy document/renderTaskList/loadTaskList/esc ở global.
-const { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter } =
+const { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter, onSearchInputCleared } =
   vm.runInThisContext(
-    '(function () {\n' + block + '\nreturn { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter };\n})()'
+    '(function () {\n' + block + '\nreturn { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter, onSearchInputCleared };\n})()'
   );
 
 test('khối HEADER-SEARCH không phụ thuộc google/window/fetch (giữ test được)', () => {
@@ -126,6 +126,34 @@ test('clearHeaderSearch: đang lọc → xoá ô + tải lại list ĐÚNG 1 l�
   // Lần 2: filter đã reset → không gọi loadTaskList nữa (tránh spam RPC)
   clearHeaderSearch();
   assert.equal(loadTaskListCalls, 1, 'không gọi loadTaskList lần 2');
+});
+
+// ===== onSearchInputCleared — xoá ô/backspace phải trả "Danh Sách Task" đầy đủ (bug user báo) =====
+test('onSearchInputCleared: đang lọc → bỏ lọc + tải lại list ĐÚNG 1 lần', () => {
+  resetStubs();
+  applyTaskFilter('Ops237511', [{ taskId: 'R1' }]);
+  onSearchInputCleared();
+  assert.equal(loadTaskListCalls, 1, 'trả danh sách đầy đủ');
+  assert.equal(els.headerSearchResult.hidden, true, 'đóng dropdown');
+  // Lần 2: filter đã reset → không gọi loadTaskList nữa (tránh spam RPC)
+  onSearchInputCleared();
+  assert.equal(loadTaskListCalls, 1, 'không gọi loadTaskList lần 2');
+});
+
+test('onSearchInputCleared: chưa lọc → chỉ ẩn dropdown, KHÔNG gọi loadTaskList', () => {
+  resetStubs();
+  onSearchInputCleared();
+  assert.equal(loadTaskListCalls, 0);
+  assert.equal(els.headerSearchResult.hidden, true);
+});
+
+test('onSearchInputCleared: gọi sau khi clearHeaderSearch (đã bỏ lọc) → không tải lại lần nữa', () => {
+  resetStubs();
+  applyTaskFilter('Ops237511', [{ taskId: 'R1' }]);
+  clearHeaderSearch();
+  assert.equal(loadTaskListCalls, 1);
+  onSearchInputCleared();
+  assert.equal(loadTaskListCalls, 1, 'không spam loadTaskList khi đã sạch');
 });
 
 // ===== renderSearchResult =====
