@@ -364,8 +364,8 @@ function renderTaskList(tasks) {
   tasks.forEach(function (t, idx) {
     var tr = document.createElement('tr');
     var statusBadge = t.status === 'done'
-      ? '<span class="badge done">Xong</span>'
-      : '<span class="badge open">Mở</span>';
+      ? '<span class="badge done">Kết Thúc</span>'
+      : '<span class="badge open">Đang Mở</span>';
     var typeLabel = t.taskType === 'meal-move'
       ? '<span class="badge" style="background:rgba(255,184,77,.14);color:#ffb84d">Ra/Vào</span>'
       : '<span class="badge" style="background:rgba(11,87,208,.14);color:#7ab3ff">Điểm danh</span>';

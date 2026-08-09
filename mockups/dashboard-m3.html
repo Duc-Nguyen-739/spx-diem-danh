@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Dashboard sidebar MẪU 3 (Glassmorphism + Station + gập/mở)</title>
+<style>
+  :root {
+    --spx: #ee4d2d; --spx-light: #ff5f2e; --spx-dark: #d43b1f;
+    --bg: #0b1120; --panel: #131b2e; --panel-2: #0e1626;
+    --line: rgba(148,163,184,.14); --text: #e2e8f0; --muted: #8b98ab;
+    --green: #22c55e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 24px 16px 70px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  .banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(238,77,45,.2), rgba(238,77,45,.06));
+    border: 1px solid rgba(238,77,45,.4); border-radius: 12px; padding: 13px 16px; margin-bottom: 20px;
+    font-size: 13.5px; color: #fde8e3; line-height: 1.6;
+  }
+  .banner b { color: #ff8a6b; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .sub code { background: var(--panel-2); border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; color: #ff8a6b; }
+
+  /* ===== App frame ===== */
+  .frame { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel-2); }
+  .frame-head {
+    display: flex; align-items: center; gap: 10px; padding: 11px 16px;
+    background: #10151f; border-bottom: 1px solid var(--line);
+  }
+  .frame-head .flogo {
+    width: 64px; height: 22px; background: linear-gradient(135deg, var(--spx-light), var(--spx-dark));
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 1px;
+  }
+  .frame-head .ftitle { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #fff; }
+  .frame-head .fsearch { margin-left: auto; font-size: 11px; color: var(--muted); background: #0a0f18; border: 1.5px solid rgba(238,77,45,.5); border-radius: 999px; padding: 4px 12px; }
+  .frame-body { display: flex; align-items: stretch; min-height: 430px; }
+
+  /* ===== Sidebar MẪU 3: Glassmorphism cam ===== */
+  .sb {
+    position: relative; width: 250px; min-width: 250px; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    background: linear-gradient(160deg, rgba(238,77,45,.2), rgba(238,77,45,.05) 55%, rgba(238,77,45,.02));
+    border-right: 1px solid rgba(238,77,45,.3);
+    overflow: hidden;
+  }
+  .sb::after {
+    content: ''; position: absolute; top: -40px; right: -30px; width: 130px; height: 130px;
+    border-radius: 50%; background: radial-gradient(circle, rgba(255,95,46,.35), transparent 70%);
+    pointer-events: none;
+  }
+  .sb > * { position: relative; z-index: 1; }
+
+  .sb-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #ffb59e; font-weight: 800; margin-bottom: 2px; }
+
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 4px; }
+  .kpi { background: rgba(255,255,255,.06); border: 1px solid rgba(238,77,45,.35); border-radius: 10px; padding: 8px 10px; }
+  .kpi .v { font-size: 16px; font-weight: 800; color: #ff8a6b; }
+  .kpi .k { font-size: 9.5px; color: #9fb0c6; }
+
+  /* ===== Nhóm filter gập/mở ===== */
+  .fgroup { border: 1px solid rgba(238,77,45,.25); border-radius: 10px; background: rgba(255,255,255,.04); overflow: hidden; }
+  .fgroup .fhead {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 9px 12px; cursor: pointer; background: transparent; border: none;
+    color: #eef2f7; font-family: inherit; font-size: 12.5px; font-weight: 700; text-align: left;
+  }
+  .fgroup .fhead:hover { background: rgba(238,77,45,.1); }
+  .fgroup .fhead .caret { margin-left: auto; color: #ff8a6b; font-size: 11px; transition: transform .18s ease; }
+  .fgroup.open .fhead .caret { transform: rotate(180deg); }
+  .fgroup .fbody { display: none; padding: 2px 12px 10px; }
+  .fgroup.open .fbody { display: block; animation: slideDown .16s ease; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .fgroup .opt { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 6px; border-radius: 7px; cursor: pointer; color: #cbd5e1; }
+  .fgroup .opt:hover { background: rgba(238,77,45,.08); }
+  .fgroup .opt .cnt { margin-left: auto; font-size: 10px; color: #9fb0c6; background: rgba(148,163,184,.14); padding: 1px 7px; border-radius: 999px; }
+  .fgroup .opt.on { background: rgba(238,77,45,.16); color: #ff8a6b; font-weight: 700; }
+  .fgroup .opt input[type="radio"], .fgroup .opt input[type="checkbox"] { accent-color: var(--spx); width: 13px; height: 13px; }
+
+  .btn-clear {
+    margin-top: auto; font-size: 11.5px; color: #ff8a6b; font-weight: 700;
+    background: rgba(238,77,45,.1); border: 1px solid rgba(238,77,45,.5); border-radius: 9px; padding: 8px; cursor: pointer;
+  }
+  .btn-clear:hover { background: rgba(238,77,45,.18); }
+
+  /* ===== Nội dung ===== */
+  .content { flex: 1; padding: 16px; min-width: 0; }
+  .content h4 { font-size: 13px; margin-bottom: 12px; color: #fff; letter-spacing: .5px; }
+  .content h4 b { color: var(--spx); }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .tbl th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .tbl td { padding: 7px 8px; border-bottom: 1px solid rgba(148,163,184,.08); }
+  .b { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+  .b-open { background: rgba(34,197,94,.14); color: #4ade80; }
+  .b-done { background: rgba(148,163,184,.16); color: #94a3b8; }
+
+  .hint {
+    margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.7;
+    background: var(--panel-2); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px;
+  }
+  .hint b { color: var(--text); }
+  .hint .hl { color: #ff8a6b; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <span>📊</span>
+    <div><b>MẪU 3 đã chốt — Dashboard sidebar Glassmorphism cam.</b> Đã thêm filter <b>Station</b> + tất cả nhóm filter <b>gập/mở khi click</b>: bấm vào tên nhóm là sổ danh sách ra, bấm lần nữa thu gọn lại. Bấm thử ngay trên sidebar bên dưới.</div>
+  </div>
+
+  <h1>Dashboard sidebar — MẪU 3 (Glassmorphism cam)</h1>
+  <div class="sub">KPI + 5 nhóm filter gập/mở: <code>Trạng thái · Loại task · Khoảng ngày · Station · Ca/Team</code></div>
+
+  <div class="frame">
+    <div class="frame-head">
+      <div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span>
+    </div>
+    <div class="frame-body">
+
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="sb">
+        <div class="sb-title">📊 Dashboard</div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+          <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+          <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+          <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+        </div>
+
+        <!-- Trạng thái (mở sẵn) -->
+        <div class="fgroup open" id="g-status">
+          <button class="fhead" onclick="toggleGroup('g-status')">● Trạng thái <span class="caret">▾</span></button>
+          <div class="fbody">
+            <label class="opt on"><input type="radio" name="st" checked> Tất cả <span class="cnt">12</span></label>
+            <label class="opt"><input type="radio" name="st"> Đang mở <span class="cnt">5</span></label>
+            <label class="opt"><input type="radio" name="st"> Đã kết thúc <span class="cnt">7</span></label>
+          </div>
+        </div>
+
+        <!-- Loại task -->
+        <div class="fgroup" id="g-type">
+          <button class="fhead" onclick="toggleGroup('g-type')">🗂 Loại task <span class="caret">▾</span></button>
+          <div class="fbody">
+            <label class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></label>
+            <label class="opt"><input type="checkbox"> Điểm danh Ra/Vào <span class="cnt">4</span></label>
+          </div>
+        </div>
+
+        <!-- Khoảng ngày -->
+        <div class="fgroup" id="g-date">
+          <button class="fhead" onclick="toggleGroup('g-date')">📅 Khoảng ngày <span class="caret">▾</span></button>
+          <div class="fbody">
+            <label class="opt"><input type="radio" name="dt"> Hôm nay</label>
+            <label class="opt"><input type="radio" name="dt" checked> 7 ngày qua</label>
+            <label class="opt"><input type="radio" name="dt"> 30 ngày qua</label>
+          </div>
+        </div>
+
+        <!-- Station (mới thêm) -->
+        <div class="fgroup" id="g-station">
+          <button class="fhead" onclick="toggleGroup('g-station')">🏭 Station <span class="caret">▾</span></button>
+          <div class="fbody">
+            <label class="opt"><input type="checkbox"> HN2 SOC <span class="cnt">6</span></label>
+            <label class="opt"><input type="checkbox"> HN3 <span class="cnt">4</span></label>
+            <label class="opt"><input type="checkbox"> HN4 <span class="cnt">2</span></label>
+          </div>
+        </div>
+
+        <!-- Ca / Team -->
+        <div class="fgroup" id="g-ca">
+          <button class="fhead" onclick="toggleGroup('g-ca')">👥 Ca / Team <span class="caret">▾</span></button>
+          <div class="fbody">
+            <label class="opt"><input type="checkbox"> Ca sáng <span class="cnt">5</span></label>
+            <label class="opt"><input type="checkbox"> Ca chiều <span class="cnt">4</span></label>
+            <label class="opt"><input type="checkbox"> Ca tối <span class="cnt">3</span></label>
+          </div>
+        </div>
+
+        <button class="btn-clear" onclick="alert('Đã xoá tất cả lọc (demo)')">✕ Xoá tất cả lọc</button>
+      </aside>
+
+      <!-- ===== NỘI DUNG ===== -->
+      <div class="content">
+        <h4>DANH SÁCH TASK <b>(3)</b></h4>
+        <table class="tbl">
+          <tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th><th>Người tạo</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td><td>nhanvien01</td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td><td>nhanvien02</td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td><td>nhanvien01</td></tr>
+        </table>
+
+        <div class="hint">
+          <b>Cách hoạt động:</b> bấm vào tên nhóm filter (<span class="hl">Trạng thái · Loại task · Khoảng ngày · Station · Ca/Team</span>) là <span class="hl">sổ danh sách ra</span>; bấm lần nữa (hoặc chọn nhóm khác) thì <span class="hl">thu gọn lại</span>. Nhóm đang mở có viền cam sáng + caret xoay.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggleGroup(id) {
+  var g = document.getElementById(id);
+  g.classList.toggle('open');
+}
+</script>
+</body>
+</html>

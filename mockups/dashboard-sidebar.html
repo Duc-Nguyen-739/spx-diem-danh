@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery — Cột Dashboard bên trái (10 mẫu)</title>
+<style>
+  :root {
+    --spx: #ee4d2d; --spx-light: #ff5f2e; --spx-dark: #d43b1f;
+    --bg: #0b1120; --panel: #131b2e; --panel-2: #0e1626;
+    --line: rgba(148,163,184,.14); --text: #e2e8f0; --muted: #8b98ab;
+    --green: #22c55e; --red: #ef4444; --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 24px 16px 70px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  .banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(238,77,45,.2), rgba(238,77,45,.06));
+    border: 1px solid rgba(238,77,45,.4); border-radius: 12px; padding: 13px 16px; margin-bottom: 20px;
+    font-size: 13.5px; color: #fde8e3; line-height: 1.6;
+  }
+  .banner b { color: #ff8a6b; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .sub code { background: var(--panel-2); border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; color: #ff8a6b; }
+
+  .m-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 22px; }
+  .m-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .m-label h3 { font-size: 14px; font-weight: 800; color: #fff; }
+  .m-label .tag { font-size: 11px; font-weight: 700; color: var(--spx); background: rgba(238,77,45,.14); border: 1px solid rgba(238,77,45,.4); padding: 2px 10px; border-radius: 999px; }
+  .m-label .desc { font-size: 12px; color: var(--muted); }
+
+  /* ===== App frame giả ===== */
+  .frame { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel-2); }
+  .frame-head {
+    display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+    background: #10151f; border-bottom: 1px solid var(--line);
+  }
+  .frame-head .flogo { width: 60px; height: 20px; background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+  .frame-head .ftitle { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; }
+  .frame-head .fsearch { margin-left: auto; font-size: 10px; color: var(--muted); background: #0a0f18; border: 1px solid rgba(238,77,45,.5); border-radius: 999px; padding: 3px 10px; }
+  .frame-body { display: flex; align-items: stretch; min-height: 320px; }
+
+  /* ===== Nội dung giả bên phải ===== */
+  .content { flex: 1; padding: 14px; min-width: 0; }
+  .content h4 { font-size: 12px; margin-bottom: 10px; color: #fff; letter-spacing: .5px; }
+  .content h4 b { color: var(--spx); }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .tbl th { text-align: left; color: var(--muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  .tbl td { padding: 6px 8px; border-bottom: 1px solid rgba(148,163,184,.08); }
+  .st-open { color: var(--green); font-weight: 700; }
+  .st-done { color: #94a3b8; }
+  .b { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 9.5px; font-weight: 700; }
+  .b-open { background: rgba(34,197,94,.14); color: #4ade80; }
+  .b-done { background: rgba(148,163,184,.16); color: #94a3b8; }
+
+  /* ===== Các phần tử sidebar dùng chung ===== */
+  .sb { padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 218px; max-width: 218px; }
+  .sb h5 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+  .sb .lbl { font-size: 11px; color: var(--muted); margin: 8px 0 4px; font-weight: 600; }
+  .sb .opt { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 4px 6px; border-radius: 7px; cursor: pointer; }
+  .sb .opt:hover { background: rgba(148,163,184,.08); }
+  .sb .opt .cnt { margin-left: auto; font-size: 10px; color: var(--muted); background: rgba(148,163,184,.12); padding: 1px 7px; border-radius: 999px; }
+  .sb .opt.on { background: rgba(238,77,45,.14); color: #ff8a6b; font-weight: 700; }
+  .sb .opt.on .cnt { background: rgba(238,77,45,.25); color: #ff8a6b; }
+  .sb .opt input[type="checkbox"] { accent-color: var(--spx); width: 13px; height: 13px; }
+  .sb .opt input[type="radio"] { accent-color: var(--spx); width: 13px; height: 13px; }
+  .sb .btn-clear { font-size: 11px; color: var(--spx); background: transparent; border: 1px solid rgba(238,77,45,.5); border-radius: 8px; padding: 6px; cursor: pointer; font-weight: 700; margin-top: auto; }
+  .sb .btn-clear:hover { background: rgba(238,77,45,.12); }
+  .sb .sep { border-top: 1px solid var(--line); margin: 2px 0; }
+  .sb .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sb .kpi { background: rgba(148,163,184,.07); border: 1px solid var(--line); border-radius: 9px; padding: 7px 9px; }
+  .sb .kpi .v { font-size: 15px; font-weight: 800; }
+  .sb .kpi .k { font-size: 9.5px; color: var(--muted); }
+
+  /* ===== M1: Dark cổ điển ===== */
+  .m1 { background: #0d1424; border-right: 1px solid var(--line); }
+  .m1 .kpi .v { color: #ff8a6b; }
+
+  /* ===== M2: Light ===== */
+  .m2 { background: #f4f6fb; border-right: 1px solid #e2e8f0; }
+  .m2 h5, .m2 .lbl { color: #64748b; }
+  .m2 .opt { color: #1e293b; }
+  .m2 .opt:hover { background: #e8edf6; }
+  .m2 .opt.on { background: rgba(238,77,45,.12); color: #c2410c; }
+  .m2 .kpi { background: #fff; border-color: #e2e8f0; }
+  .m2 .kpi .k { color: #64748b; }
+  .m2 .kpi .v { color: #c2410c; }
+
+  /* ===== M3: Glassmorphism cam ===== */
+  .m3 { position: relative; background: linear-gradient(160deg, rgba(238,77,45,.18), rgba(238,77,45,.04) 60%, transparent); border-right: 1px solid rgba(238,77,45,.3); overflow: hidden; }
+  .m3::after { content: ''; position: absolute; top: -30px; right: -30px; width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, rgba(255,95,46,.35), transparent 70%); pointer-events: none; }
+  .m3 > * { position: relative; z-index: 1; }
+  .m3 .kpi .v { color: #ff8a6b; }
+
+  /* ===== M4: Accordion ===== */
+  .m4 { background: #0d1424; border-right: 1px solid var(--line); }
+  .m4 details { border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; }
+  .m4 details summary { font-size: 11.5px; font-weight: 700; cursor: pointer; color: #e2e8f0; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  .m4 details summary::after { content: '▾'; color: var(--spx); font-size: 10px; }
+  .m4 details[open] summary::after { content: '▴'; }
+  .m4 details[open] { border-color: rgba(238,77,45,.5); }
+  .m4 details .grp { padding-top: 6px; }
+
+  /* ===== M5: Chip ===== */
+  .m5 { background: #0d1424; border-right: 1px solid var(--line); }
+  .m5 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .m5 .chip { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); cursor: pointer; color: #cbd5e1; }
+  .m5 .chip:hover { border-color: rgba(238,77,45,.5); }
+  .m5 .chip.on { background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); color: #fff; border-color: transparent; }
+  .m5 .kpis { grid-template-columns: 1fr 1fr; }
+  .m5 .kpi .v { color: #ff8a6b; }
+
+  /* ===== M6: Compact mini ===== */
+  .m6 { background: #0d1424; border-right: 1px solid var(--line); min-width: 168px; max-width: 168px; }
+  .m6 .opt { font-size: 11px; padding: 3px 5px; }
+  .m6 .kpi { padding: 5px 7px; }
+  .m6 .kpi .v { font-size: 13px; }
+  .m6 .kpi .k { font-size: 8.5px; }
+
+  /* ===== M7: Stats-first ===== */
+  .m7 { background: #0d1424; border-right: 1px solid var(--line); }
+  .m7 .kpis { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .m7 .kpi { background: linear-gradient(135deg, rgba(238,77,45,.16), rgba(238,77,45,.05)); border-color: rgba(238,77,45,.35); }
+  .m7 .kpi .v { color: #ff8a6b; font-size: 17px; }
+  .m7 .big { grid-column: 1 / -1; text-align: center; background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); border-color: transparent; padding: 10px; }
+  .m7 .big .v { color: #fff; font-size: 22px; }
+  .m7 .big .k { color: rgba(255,255,255,.85); }
+
+  /* ===== M8: Tabbed ===== */
+  .m8 { background: #0d1424; border-right: 1px solid var(--line); }
+  .m8 .tabs { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 3px; }
+  .m8 .tabs .t { flex: 1; text-align: center; font-size: 10.5px; font-weight: 700; padding: 5px 2px; border-radius: 7px; cursor: pointer; color: var(--muted); }
+  .m8 .tabs .t.on { background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); color: #fff; }
+  .m8 .kpi .v { color: #ff8a6b; }
+
+  /* ===== M9: Dark gradient SPX ===== */
+  .m9 { background: linear-gradient(180deg, #1a0d09, #2b150c 60%, #0d1424); border-right: 1px solid rgba(238,77,45,.4); }
+  .m9 h5 { color: #ffb59e; }
+  .m9 .opt.on { background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); color: #fff; border-radius: 8px; }
+  .m9 .kpi { background: rgba(238,77,45,.12); border-color: rgba(238,77,45,.35); }
+  .m9 .kpi .v { color: #ff8a6b; }
+  .m9 .btn-clear { background: rgba(238,77,45,.1); }
+
+  /* ===== M10: Icon nav + panel ===== */
+  .m10wrap { display: flex; background: #0d1424; border-right: 1px solid var(--line); }
+  .m10 .rail { display: flex; flex-direction: column; gap: 4px; padding: 10px 6px; background: #0a0f18; border-right: 1px solid var(--line); }
+  .m10 .rail .ic { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; color: var(--muted); }
+  .m10 .rail .ic:hover { background: rgba(148,163,184,.1); }
+  .m10 .rail .ic.on { background: linear-gradient(135deg, var(--spx-light), var(--spx-dark)); color: #fff; }
+  .m10 .sb { min-width: 180px; max-width: 180px; padding: 12px; }
+  .m10 .kpi .v { color: #ff8a6b; }
+
+  .footer-note { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <span>📊</span>
+    <div><b>Gallery — Cột Dashboard bên trái · 10 mẫu.</b> Mỗi mẫu = header giả + sidebar Dashboard + bảng DANH SÁCH TASK (nội dung bên phải). Xem hết rồi cho tôi biết <b>MẪU số mấy</b> để tích hợp vào app.</div>
+  </div>
+
+  <h1>Cột Dashboard bên trái — 10 mẫu</h1>
+  <div class="sub">Filter domain thực: <code>trạng thái · loại task · khoảng ngày · Station · Ca · Team</code> + KPI</div>
+
+  <!-- ===== MẪU 1 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 1</h3><span class="tag">Dark cổ điển</span><span class="desc">Nền tối đậm, KPI trên, radio-list, nút Xoá lọc dưới cùng</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m1">
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <div class="sep"></div>
+          <h5>Khoảng ngày</h5>
+          <div class="opt"><input type="radio"> Hôm nay</div>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <div class="opt"><input type="radio"> 30 ngày</div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 2 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 2</h3><span class="tag">Light sáng</span><span class="desc">Nền trắng xám, chữ tối — khác biệt hẳn app tối</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m2">
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <div class="sep"></div>
+          <h5>Khoảng ngày</h5>
+          <div class="opt"><input type="radio"> Hôm nay</div>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <div class="opt"><input type="radio"> 30 ngày</div>
+          <div class="kpis" style="margin-top:auto">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 3 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 3</h3><span class="tag">Glassmorphism cam</span><span class="desc">Đồng bộ MẪU 10 giới thiệu — cam nhạt + quầng sáng</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m3">
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <div class="sep"></div>
+          <h5>Khoảng ngày</h5>
+          <div class="opt"><input type="radio"> Hôm nay</div>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <div class="opt"><input type="radio"> 30 ngày</div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 4 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 4</h3><span class="tag">Accordion gập mở</span><span class="desc">Mỗi nhóm filter là 1 ô gập — gọn, ít chữ</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m4">
+          <details open><summary>Trạng thái</summary>
+            <div class="grp">
+              <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+              <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+              <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+            </div>
+          </details>
+          <details open><summary>Loại task</summary>
+            <div class="grp">
+              <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+              <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+            </div>
+          </details>
+          <details><summary>Station</summary>
+            <div class="grp">
+              <div class="opt"><input type="checkbox"> HN2 SOC <span class="cnt">6</span></div>
+              <div class="opt"><input type="checkbox"> HN3 <span class="cnt">4</span></div>
+              <div class="opt"><input type="checkbox"> HN4 <span class="cnt">2</span></div>
+            </div>
+          </details>
+          <details><summary>Ca / Team</summary>
+            <div class="grp">
+              <div class="opt"><input type="checkbox"> Ca sáng <span class="cnt">5</span></div>
+              <div class="opt"><input type="checkbox"> Ca chiều <span class="cnt">4</span></div>
+              <div class="opt"><input type="checkbox"> Ca tối <span class="cnt">3</span></div>
+            </div>
+          </details>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 5 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 5</h3><span class="tag">Chip filter</span><span class="desc">Chọn nhanh bằng chip cam gradient, ít thao tác</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m5">
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Trạng thái</h5>
+          <div class="chips"><span class="chip on">Tất cả</span><span class="chip">Đang mở</span><span class="chip">Đã xong</span></div>
+          <h5>Loại task</h5>
+          <div class="chips"><span class="chip on">Tất cả</span><span class="chip">Điểm danh ca</span><span class="chip">Ra/Vào</span></div>
+          <h5>Khoảng ngày</h5>
+          <div class="chips"><span class="chip">Hôm nay</span><span class="chip on">7 ngày</span><span class="chip">30 ngày</span></div>
+          <h5>Station</h5>
+          <div class="chips"><span class="chip on">HN2 SOC</span><span class="chip">HN3</span><span class="chip">HN4</span></div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 6 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 6</h3><span class="tag">Compact mini</span><span class="desc">Sidebar hẹp, chỉ filter quan trọng — cho màn hình nhỏ</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m6">
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Task</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Quét</div></div>
+          </div>
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Xong <span class="cnt">7</span></div>
+          <h5>Loại</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <h5>Ngày</h5>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <button class="btn-clear">✕ Xoá lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 7 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 7</h3><span class="tag">Stats-first KPI</span><span class="desc">KPI lớn dẫn đầu, filter đơn giản phía dưới</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m7">
+          <div class="kpis">
+            <div class="kpi big"><div class="v">12</div><div class="k">TỔNG TASK</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+            <div class="kpi"><div class="v">3</div><div class="k">Ra ngoài</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 8 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 8</h3><span class="tag">Tabbed trạng thái</span><span class="desc">Tab cam gradient Đang mở / Đã xong / Tất cả + filter phụ</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m8">
+          <div class="tabs"><span class="t on">Đang mở</span><span class="t">Đã xong</span><span class="t">Tất cả</span></div>
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <div class="sep"></div>
+          <h5>Khoảng ngày</h5>
+          <div class="opt"><input type="radio"> Hôm nay</div>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <div class="opt"><input type="radio"> 30 ngày</div>
+          <h5>Station</h5>
+          <div class="opt"><input type="checkbox"> HN2 SOC <span class="cnt">6</span></div>
+          <div class="opt"><input type="checkbox"> HN3 <span class="cnt">4</span></div>
+          <div class="opt"><input type="checkbox"> HN4 <span class="cnt">2</span></div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 9 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 9</h3><span class="tag">Dark gradient SPX</span><span class="desc">Nền gradient cam-tối đậm thương hiệu, option cam khối</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="sb m9">
+          <h5>📊 Tổng quan</h5>
+          <div class="kpis">
+            <div class="kpi"><div class="v">12</div><div class="k">Tổng task</div></div>
+            <div class="kpi"><div class="v">5</div><div class="k">Đang mở</div></div>
+            <div class="kpi"><div class="v">7</div><div class="k">Đã xong</div></div>
+            <div class="kpi"><div class="v">486</div><div class="k">Lượt quét</div></div>
+          </div>
+          <div class="sep"></div>
+          <h5>Trạng thái</h5>
+          <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+          <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+          <div class="opt"><input type="radio"> Đã kết thúc <span class="cnt">7</span></div>
+          <div class="sep"></div>
+          <h5>Loại task</h5>
+          <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+          <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+          <div class="sep"></div>
+          <h5>Khoảng ngày</h5>
+          <div class="opt"><input type="radio"> Hôm nay</div>
+          <div class="opt"><input type="radio" checked> 7 ngày</div>
+          <div class="opt"><input type="radio"> 30 ngày</div>
+          <button class="btn-clear">✕ Xoá tất cả lọc</button>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 10 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 10</h3><span class="tag">Icon nav + panel</span><span class="desc">Rail icon dọc (Dashboard/Task/Quét/Báo cáo) + panel filter cạnh</span></div>
+    <div class="frame">
+      <div class="frame-head"><div class="flogo">SPX</div><span class="ftitle">ĐIỂM DANH KHO</span><span class="fsearch">⌕ Tìm mã Ops…</span></div>
+      <div class="frame-body">
+        <div class="m10wrap">
+          <div class="rail m10">
+            <div class="ic on">📊</div><div class="ic">📋</div><div class="ic">📷</div><div class="ic">📈</div>
+          </div>
+          <div class="sb m10">
+            <div class="kpis">
+              <div class="kpi"><div class="v">12</div><div class="k">Task</div></div>
+              <div class="kpi"><div class="v">5</div><div class="k">Mở</div></div>
+              <div class="kpi"><div class="v">486</div><div class="k">Quét</div></div>
+            </div>
+            <h5>Trạng thái</h5>
+            <div class="opt on"><input type="radio" checked> Tất cả <span class="cnt">12</span></div>
+            <div class="opt"><input type="radio"> Đang mở <span class="cnt">5</span></div>
+            <div class="opt"><input type="radio"> Đã xong <span class="cnt">7</span></div>
+            <h5>Loại</h5>
+            <div class="opt"><input type="checkbox"> Điểm danh ca <span class="cnt">8</span></div>
+            <div class="opt"><input type="checkbox"> Ra/Vào <span class="cnt">4</span></div>
+            <h5>Ngày</h5>
+            <div class="opt"><input type="radio" checked> 7 ngày</div>
+            <button class="btn-clear">✕ Xoá lọc</button>
+          </div>
+        </div>
+        <div class="content">
+          <h4>DANH SÁCH TASK <b>(3)</b></h4>
+          <table class="tbl"><tr><th>Mã task</th><th>Loại</th><th>Station</th><th>Ca</th><th>Trạng thái</th></tr>
+          <tr><td>M20260808-01</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Sáng</td><td><span class="b b-open">Đang mở</span></td></tr>
+          <tr><td>M20260808-02</td><td>Ra/Vào</td><td>HN3</td><td>Chiều</td><td><span class="b b-done">Kết thúc</span></td></tr>
+          <tr><td>M20260808-03</td><td>Điểm danh ca</td><td>HN2 SOC</td><td>Tối</td><td><span class="b b-open">Đang mở</span></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">💡 Chọn 1 mẫu (ví dụ: "MẪU 3") — tôi sẽ tích hợp sidebar Dashboard đó vào <code>index.html</code> + mockup để test thật.</div>
+
+</div>
+</body>
+</html>

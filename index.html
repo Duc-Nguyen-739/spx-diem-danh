@@ -296,8 +296,8 @@
     .badge.present { background: #e6f4ea; color: var(--success); }
     .badge.absent  { background: #fce8e6; color: var(--danger); }
     .badge.extra   { background: #fef7e0; color: var(--warning); }
-    .badge.open    { background: #e8f0fe; color: var(--primary); }
-    .badge.done    { background: #f0f1f3; color: var(--muted); }
+    .badge.open    { background: rgba(46, 204, 113, .14); color: #2ecc71; }
+    .badge.done    { background: rgba(127, 142, 163, .14); color: #8b98ab; }
 
     /* ===== Scan input ===== */
     .scan-row { display: flex; gap: 10px; }
@@ -1990,7 +1990,7 @@
     if (empty) empty.style.display = 'none';
     tasks.forEach(function (t, idx) {
       var tr = document.createElement('tr');
-      var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Xong</span>' : '<span class="badge open">Mở</span>';
+      var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +
@@ -2957,6 +2957,9 @@
           syncCounters(res.counters);
           renderScanTable(CURRENT_LOG);
         }
+        // Bật lại nút Kết Thúc khi xong lượt quét (SCAN_PROCESSING đã = false) —
+        // nếu không, nút kẹt disabled vĩnh viễn sau lượt quét cuối.
+        updateFinishBtnState();
         processScanQueueMealMove();
       })
       .withFailureHandler(function (err) {
@@ -2969,6 +2972,7 @@
           syncCounters(null);
           renderScanTable(CURRENT_LOG);
         }
+        updateFinishBtnState();
         processScanQueueMealMove();
       })
       .scanStaffApi(item.taskId, item.staffId, item.mode);
