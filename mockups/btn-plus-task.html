@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>10 Mẫu Nút +Task — Cam SPX Lấp Lánh | RollCall</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #0d111a; color: #e2e8f0; line-height: 1.5;
+    padding: 0 0 60px;
+  }
+  .gal-head {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(13, 17, 26, .92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid #232b3b;
+    padding: 16px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .gal-head h1 { font-size: 19px; font-weight: 800; letter-spacing: .4px; }
+  .gal-head .accent { color: #ee4d2d; }
+  .gal-head small { color: #7f8ea3; font-size: 12.5px; }
+  .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; padding: 24px; }
+  .card {
+    background: #111827; border: 1px solid #232b3b; border-radius: 16px;
+    padding: 20px 18px; display: flex; flex-direction: column; gap: 14px;
+    transition: border-color .2s ease, transform .2s ease;
+  }
+  .card:hover { border-color: rgba(238, 77, 45, .5); transform: translateY(-2px); }
+  .card .num { font-size: 12px; font-weight: 800; color: #ee4d2d; letter-spacing: 1px; }
+  .card h3 { font-size: 14.5px; font-weight: 700; }
+  .card p { font-size: 12.5px; color: #8b98ab; min-height: 34px; }
+  .stage {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 96px; background: #0b101a; border-radius: 12px;
+    border: 1px dashed #232b3b; padding: 14px;
+  }
+  .note { font-size: 12px; color: #56637a; }
+  .badge-spx {
+    display: inline-block; background: rgba(238,77,45,.15); color: #ff8a5c;
+    border: 1px solid rgba(238,77,45,.4); border-radius: 999px;
+    padding: 2px 10px; font-size: 11px; font-weight: 700;
+  }
+  /* ============================================================
+     BASE NÚT — cùng kích thước to hơn (+ font 16, padding 12x22)
+  ============================================================ */
+  .b {
+    position: relative; overflow: hidden;
+    display: inline-flex; align-items: center; gap: 9px;
+    background: linear-gradient(135deg, #ff5f2e 0%, #ee4d2d 55%, #d43b1f 100%);
+    color: #fff; border: none; border-radius: 12px;
+    padding: 13px 24px; font-size: 16px; font-weight: 800; line-height: 1;
+    cursor: pointer; letter-spacing: .3px;
+    box-shadow: 0 4px 16px rgba(238, 77, 45, .4);
+    transition: transform .15s ease, box-shadow .2s ease, filter .15s ease;
+    user-select: none;
+  }
+  .b:hover { filter: brightness(1.08); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(238, 77, 45, .5); }
+  .b:active { transform: translateY(0) scale(.96); }
+  .b .plus { font-size: 21px; font-weight: 900; line-height: 1; }
+  .b .caret { font-size: 12px; opacity: .85; }
+
+  /* ---------- MẪU 1: Shimmer sweep — dải sáng chạy ngang ---------- */
+  .m1::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -80%;
+    width: 55%; background: linear-gradient(105deg, transparent, rgba(255,255,255,.45), transparent);
+    transform: skewX(-18deg);
+    animation: sweep 2.6s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0% { left: -80%; } 55% { left: 130%; } 100% { left: 130%; }
+  }
+
+  /* ---------- MẪU 2: Twinkle stars — chấm sao lấm tấm ---------- */
+  .m2::before, .m2::after { content: ''; position: absolute; border-radius: 50%; background: #fff; opacity: 0; }
+  .m2::before { width: 7px; height: 7px; top: 18%; left: 16%; box-shadow: 0 0 8px 2px rgba(255,255,255,.7); animation: twinkle 1.8s ease-in-out infinite; }
+  .m2::after { width: 5px; height: 5px; top: 62%; left: 72%; box-shadow: 0 0 8px 2px rgba(255,255,255,.7); animation: twinkle 1.8s ease-in-out 1.1s infinite; }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0; transform: scale(.5); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  /* ---------- MẪU 3: Pulse glow — bóng cam nhấp nháy mềm ---------- */
+  .m3 { animation: pulseGlow 2.2s ease-in-out infinite; }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 4px 16px rgba(238, 77, 45, .35); }
+    50% { box-shadow: 0 4px 30px rgba(238, 77, 45, .75), 0 0 0 6px rgba(238, 77, 45, .12); }
+  }
+
+  /* ---------- MẪU 4: Gradient flow — cam chảy liên tục ---------- */
+  .m4 { background-size: 220% 220%; background-image: linear-gradient(125deg, #ff5f2e, #ee4d2d, #ff8a5c, #ee4d2d, #d43b1f); animation: flow 5s ease-in-out infinite; }
+  @keyframes flow { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+  /* ---------- MẪU 5: Sparkle burst — tia sáng bắn từ góc ---------- */
+  .m5::before {
+    content: '✦'; position: absolute; top: 8px; right: 14px;
+    color: rgba(255,255,255,.95); font-size: 13px; text-shadow: 0 0 6px #fff;
+    animation: sparkleSpin 2.4s ease-in-out infinite;
+  }
+  .m5::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 78% 22%, rgba(255,255,255,.5), transparent 26%);
+    animation: sparklePulse 2.4s ease-in-out infinite;
+  }
+  @keyframes sparkleSpin { 0%, 100% { transform: scale(1) rotate(0deg); opacity: .55; } 50% { transform: scale(1.5) rotate(60deg); opacity: 1; } }
+  @keyframes sparklePulse { 0%, 100% { opacity: .25; } 50% { opacity: .75; } }
+
+  /* ---------- MẪU 6: Ripple rings — vòng sóng lan tỏa ---------- */
+  .m6::before, .m6::after {
+    content: ''; position: absolute; inset: 0; border-radius: 12px;
+    border: 2px solid rgba(255,255,255,.55); opacity: 0;
+  }
+  .m6::before { animation: ripple 2.4s ease-out infinite; }
+  .m6::after { animation: ripple 2.4s ease-out 1.2s infinite; }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: .7; }
+    100% { transform: scale(1.35); opacity: 0; }
+  }
+
+  /* ---------- MẪU 7: Floating sparkles — hạt sao bay lên ---------- */
+  .m7 .sp { position: absolute; color: #fff; font-size: 10px; pointer-events: none; animation: floatUp 2.6s ease-in infinite; opacity: 0; }
+  .m7 .sp:nth-child(1) { left: 18%; bottom: 30%; animation-delay: 0s; }
+  .m7 .sp:nth-child(2) { left: 48%; bottom: 22%; animation-delay: .9s; }
+  .m7 .sp:nth-child(3) { left: 76%; bottom: 34%; animation-delay: 1.7s; }
+  @keyframes floatUp {
+    0% { transform: translateY(0) scale(.6); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-26px) scale(1.2); opacity: 0; }
+  }
+
+  /* ---------- MẪU 8: Neon edge — viền cam sáng chạy quanh ---------- */
+  .m8 { background: #b5331a; box-shadow: none; }
+  .m8::before {
+    content: ''; position: absolute; inset: -3px; border-radius: 14px; padding: 3px;
+    background: conic-gradient(from 0deg, #ff5f2e, #ffd9a8, #ee4d2d, #ff5f2e);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: neonSpin 3s linear infinite;
+  }
+  @keyframes neonSpin { to { --ang: 360deg; } }
+  @supports not (background: conic-gradient(from 0deg, #ff5f2e, #ffd9a8)) {
+    .m8::before { background: #ff5f2e; animation: none; }
+  }
+
+  /* ---------- MẪU 9: Holographic shine — ánh kim chéo di chuyển ---------- */
+  .m9::after {
+    content: ''; position: absolute; top: -60%; bottom: -60%; left: -30%;
+    width: 26%; background: linear-gradient(115deg, transparent, rgba(255,255,255,.5), rgba(255,214,170,.35), transparent);
+    transform: rotate(14deg);
+    animation: holoshine 3.4s ease-in-out infinite;
+  }
+  @keyframes holoshine {
+    0%, 60% { left: -30%; } 90% { left: 115%; } 100% { left: 115%; }
+  }
+
+  /* ---------- MẪU 10: Shimmer + pulse kép (mạnh nhất) ---------- */
+  .m10 { animation: pulseGlow 2s ease-in-out infinite; }
+  .m10::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -75%;
+    width: 45%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent);
+    transform: skewX(-15deg);
+    animation: sweep10 2.2s ease-in-out infinite;
+  }
+  .m10::before { content: '✦'; position: absolute; top: 6px; right: 10px; color: #fff; font-size: 12px; text-shadow: 0 0 8px #fff; animation: twinkle 1.6s ease-in-out infinite; }
+  @keyframes sweep10 {
+    0% { left: -75%; } 60% { left: 135%; } 100% { left: 135%; }
+  }
+
+  .foot { text-align: center; color: #56637a; font-size: 12.5px; padding: 8px 24px 0; }
+</style>
+</head>
+<body>
+  <header class="gal-head">
+    <span class="badge-spx">SPX Express</span>
+    <h1>10 Mẫu Nút <span class="accent">“+Task”</span> — Cam Lấp Lánh</h1>
+    <small>Bạn xem và chọn 1 số → tôi áp đúng mẫu đó vào app thật (index.html). Hover từng nút để thấy hiệu ứng đầy đủ.</small>
+  </header>
+
+  <div class="gal-grid">
+    <!-- 1 -->
+    <div class="card">
+      <div class="num">MẪU 01</div>
+      <h3>Shimmer Sweep</h3>
+      <p>Dải sáng trắng chạy ngang qua nút liên tục — hiệu ứng lấp lánh cổ điển, dễ nhìn, không rối.</p>
+      <div class="stage"><button class="b m1" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">⭐ Phổ biến nhất · dùng được mọi nền</div>
+    </div>
+    <!-- 2 -->
+    <div class="card">
+      <div class="num">MẪU 02</div>
+      <h3>Twinkle Stars</h3>
+      <p>Các chấm sao trắng lấp lánh lấm tấm trên nền cam — nhẹ nhàng, sang.</p>
+      <div class="stage"><button class="b m2" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Tinh tế · không gây chú ý quá mức</div>
+    </div>
+    <!-- 3 -->
+    <div class="card">
+      <div class="num">MẪU 03</div>
+      <h3>Pulse Glow</h3>
+      <p>Quầng sáng cam nhấp nháy mềm quanh nút — kéo ánh mắt nhưng vẫn lịch sự.</p>
+      <div class="stage"><button class="b m3" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Tạo điểm nhấn cho nút chính</div>
+    </div>
+    <!-- 4 -->
+    <div class="card">
+      <div class="num">MẪU 04</div>
+      <h3>Gradient Flow</h3>
+      <p>Dải gradient cam chảy liên tục — nút “sống” động, hiện đại.</p>
+      <div class="stage"><button class="b m4" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Nhẹ máy · đẹp trên nền tối</div>
+    </div>
+    <!-- 5 -->
+    <div class="card">
+      <div class="num">MẪU 05</div>
+      <h3>Sparkle Burst</h3>
+      <p>Ngôi sao ✦ xoay + quầng sáng bắn từ góc phải — vui tươi, nổi bật.</p>
+      <div class="stage"><button class="b m5" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Trẻ trung · hợp màn hình kiosk</div>
+    </div>
+    <!-- 6 -->
+    <div class="card">
+      <div class="num">MẪU 06</div>
+      <h3>Ripple Rings</h3>
+      <p>Vòng sóng lan tỏa từ nút ra ngoài — hiệu ứng radar, thu hút.</p>
+      <div class="stage"><button class="b m6" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Khác biệt · gợi ý “bấm vào đây”</div>
+    </div>
+    <!-- 7 -->
+    <div class="card">
+      <div class="num">MẪU 07</div>
+      <h3>Floating Sparkles</h3>
+      <p>Ba hạt sao ✦ bay lên từ nút rồi tan — giống pháo hoa mini.</p>
+      <div class="stage"><button class="b m7" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span><span class="sp">✦</span><span class="sp">✧</span><span class="sp">✦</span></button></div>
+      <div class="note">Sinh động · nhấn mạnh hành động tạo mới</div>
+    </div>
+    <!-- 8 -->
+    <div class="card">
+      <div class="num">MẪU 08</div>
+      <h3>Neon Edge</h3>
+      <p>Viền cam sáng chạy quanh nút (conic) trên nền cam đậm — phong cách HUD.</p>
+      <div class="stage"><button class="b m8" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Hợp theme Dark Industrial HUD của app</div>
+    </div>
+    <!-- 9 -->
+    <div class="card">
+      <div class="num">MẪU 09</div>
+      <h3>Holographic Shine</h3>
+      <p>Ánh kim chéo (trắng + cam sáng) quét qua nút định kỳ — sang, premium.</p>
+      <div class="stage"><button class="b m9" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">Ít nhấp nháy · chuyên nghiệp</div>
+    </div>
+    <!-- 10 -->
+    <div class="card">
+      <div class="num">MẪU 10</div>
+      <h3>Shimmer + Pulse kép</h3>
+      <p>Kết hợp dải sáng chạy ngang + quầng cam nhấp nháy + sao lấp lánh — mạnh nhất.</p>
+      <div class="stage"><button class="b m10" type="button"><span class="plus">＋</span>Task<span class="caret">▾</span></button></div>
+      <div class="note">🔥 Nổi bật nhất · dùng cho nút hành động chính</div>
+    </div>
+  </div>
+
+  <p class="foot">Chọn số mẫu bạn thích (VD: “lấy mẫu 01 và 10”) → tôi áp vào app thật. Nút cũ: gradient xanh dương → nay đổi cam SPX #EE4D2D, to hơn (padding 13×24, font 16).</p>
+</body>
+</html>

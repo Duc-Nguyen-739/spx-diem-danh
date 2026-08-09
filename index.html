@@ -561,19 +561,46 @@
     .task-create { position: relative; display: inline-block; }
     .btn-create {
       position: relative; z-index: 110;
-      display: inline-flex; align-items: center; gap: 8px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-      color: #fff; border: none; border-radius: 10px;
-      padding: 10px 18px; font-size: 15px; font-weight: 700; line-height: 1;
-      cursor: pointer; box-shadow: 0 2px 8px rgba(11, 87, 208, .25);
+      display: inline-flex; align-items: center; gap: 9px;
+      background: linear-gradient(135deg, #ff5f2e 0%, #ee4d2d 55%, #d43b1f 100%);
+      color: #fff; border: none; border-radius: 12px;
+      padding: 13px 24px; font-size: 16px; font-weight: 800; line-height: 1; letter-spacing: .3px;
+      cursor: pointer; overflow: hidden;
+      animation: btnPulseGlow 2s ease-in-out infinite;
       transition: transform .15s ease, box-shadow .2s ease, filter .15s ease;
     }
-    .btn-create:hover { filter: brightness(1.08); box-shadow: 0 4px 14px rgba(11, 87, 208, .35); transform: translateY(-1px); }
+    /* Shimmer sweep — dải sáng chạy ngang */
+    .btn-create::after {
+      content: ''; position: absolute; top: 0; bottom: 0; left: -75%;
+      width: 45%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .5), transparent);
+      transform: skewX(-15deg);
+      animation: btnSweep 2.2s ease-in-out infinite;
+    }
+    /* Sao lấp lánh góc phải */
+    .btn-create::before {
+      content: '\2726'; position: absolute; top: 7px; right: 11px;
+      color: #fff; font-size: 12px; line-height: 1; text-shadow: 0 0 8px #fff;
+      animation: btnTwinkle 1.6s ease-in-out infinite;
+    }
+    .btn-create:hover { filter: brightness(1.08); transform: translateY(-2px); }
     .btn-create:active { transform: translateY(0) scale(.96); }
-    .btn-create:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
-    .btn-create-plus { font-size: 18px; font-weight: 800; line-height: 1; }
-    .btn-create-caret { font-size: 11px; opacity: .85; transition: transform .2s ease; }
+    .btn-create:disabled { opacity: .5; cursor: not-allowed; transform: none; animation: none; }
+    .btn-create:disabled::before, .btn-create:disabled::after { display: none; }
+    .btn-create-plus { font-size: 21px; font-weight: 900; line-height: 1; }
+    .btn-create-caret { font-size: 12px; opacity: .85; transition: transform .2s ease; }
     .btn-create[aria-expanded="true"] .btn-create-caret { transform: rotate(180deg); }
+    /* MẪU 10: pulse glow + sweep + twinkle */
+    @keyframes btnPulseGlow {
+      0%, 100% { box-shadow: 0 4px 16px rgba(238, 77, 45, .35); }
+      50% { box-shadow: 0 4px 30px rgba(238, 77, 45, .75), 0 0 0 6px rgba(238, 77, 45, .12); }
+    }
+    @keyframes btnSweep {
+      0% { left: -75%; } 60% { left: 135%; } 100% { left: 135%; }
+    }
+    @keyframes btnTwinkle {
+      0%, 100% { opacity: 0; transform: scale(.5); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
     .task-menu-backdrop {
       position: fixed; inset: 0; z-index: 90; background: transparent;
       display: none;
