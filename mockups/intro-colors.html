@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery — Màu chữ phần giới thiệu Đối chiếu (10 mẫu)</title>
+<style>
+  :root {
+    --spx: #ee4d2d;
+    --spx-light: #ff5f2e;
+    --spx-dark: #d43b1f;
+    --bg: #0b1120;
+    --panel: #131b2e;
+    --panel-2: #0e1626;
+    --line: rgba(148, 163, 184, .14);
+    --text: #e2e8f0;
+    --muted: #8b98ab;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px 70px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  .banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(238,77,45,.2), rgba(238,77,45,.06));
+    border: 1px solid rgba(238,77,45,.4);
+    border-radius: 12px; padding: 13px 16px; margin-bottom: 20px;
+    font-size: 13.5px; color: #fde8e3; line-height: 1.6;
+  }
+  .banner b { color: #ff8a6b; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .sub code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 2px 8px; border-radius: 6px; color: #ff8a6b;
+  }
+
+  .m-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .m-label {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .m-label h3 { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: .3px; }
+  .m-label .tag {
+    font-size: 11px; font-weight: 700; color: var(--spx);
+    background: rgba(238,77,45,.14);
+    border: 1px solid rgba(238,77,45,.4);
+    padding: 2px 10px; border-radius: 999px;
+  }
+  .m-label .desc { font-size: 12px; color: var(--muted); }
+
+  .demo { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+
+  /* ===== Cấu trúc M10 gốc (chỉ đổi màu chữ từng mẫu) ===== */
+  .m10 { position: relative; border-radius: 14px; padding: 16px 18px; overflow: hidden; }
+  .m10::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(238,77,45,.25), rgba(238,77,45,.05) 55%, rgba(255,255,255,.04)); }
+  .m10::after { content: ''; position: absolute; top: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, rgba(255,95,46,.5), transparent 70%); }
+  .m10 .inner { position: relative; z-index: 1; }
+  .m10 .row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .m10 .badge {
+    font-size: 10.5px; font-weight: 800; letter-spacing: 1px;
+    color: #fff; background: linear-gradient(135deg, var(--spx-light), var(--spx-dark));
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .m10 h2 { font-size: 15px; margin-top: 8px; }
+  .m10 p { font-size: 13px; margin-top: 5px; line-height: 1.7; }
+
+  /* ===== MẪU 1: Sáng hơn bản cũ ===== */
+  .c1 h2 { color: #ffffff; }
+  .c1 p { color: #f0f4fa; }
+  .c1 p b { color: #ffb59e; }
+
+  /* ===== MẪU 2: Trắng tinh + cam đậm ===== */
+  .c2 h2 { color: #ffffff; }
+  .c2 p { color: #ffffff; }
+  .c2 p b { color: #ff5f2e; }
+
+  /* ===== MẪU 3: Vàng nắng ===== */
+  .c3 h2 { color: #fff7e0; }
+  .c3 p { color: #ffe8c2; }
+  .c3 p b { color: #ffd166; }
+
+  /* ===== MẪU 4: Xanh mint ===== */
+  .c4 h2 { color: #eafff5; }
+  .c4 p { color: #c7f0e0; }
+  .c4 p b { color: #4ade80; }
+
+  /* ===== MẪU 5: Chữ to đậm rõ ràng ===== */
+  .c5 h2 { color: #ffffff; font-size: 16px; }
+  .c5 p { color: #ffffff; font-size: 14px; font-weight: 600; }
+  .c5 p b { color: #ffb59e; font-weight: 800; }
+
+  /* ===== MẪU 6: Toàn cam nổi ===== */
+  .c6 h2 { color: #ffb59e; }
+  .c6 p { color: #ffd9cb; }
+  .c6 p b { color: #ff8a6b; font-weight: 800; }
+
+  /* ===== MẪU 7: Đỏ-cam đậm tương phản ===== */
+  .c7 h2 { color: #ffffff; }
+  .c7 p { color: #ffc4ad; }
+  .c7 p b { color: #ff8a6b; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ===== MẪU 8: Nền sáng — chữ tối ===== */
+  .c8 { background: #fff7f3; }
+  .c8::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(238,77,45,.12), rgba(255,255,255,.6) 60%); }
+  .c8 h2 { color: #b32d12; }
+  .c8 p { color: #5c2a1e; }
+  .c8 p b { color: #d43b1f; font-weight: 800; }
+
+  /* ===== MẪU 9: Xanh dương tươi ===== */
+  .c9 h2 { color: #ffffff; }
+  .c9 p { color: #cfe6ff; }
+  .c9 p b { color: #7db8ff; }
+
+  /* ===== MẪU 10: Gradient chữ cam ===== */
+  .c10 h2 {
+    background: linear-gradient(135deg, #ffb59e, #ff5f2e 60%, #fff);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .c10 p { color: #ffffff; }
+  .c10 p b { color: #ff8a6b; font-weight: 800; }
+
+  .footer-note { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <span>🎨</span>
+    <div><b>Gallery — Màu chữ phần giới thiệu "ĐỐI CHIẾU DANH SÁCH" · 10 mẫu.</b> Giữ nguyên layout Glassmorphism (MẪU 10 đã chốt), chỉ đổi màu + độ tương phản chữ để không bị ẩn. Cho tôi biết <b>MẪU số mấy</b> để áp vào app.</div>
+  </div>
+
+  <h1>ĐỐI CHIẾU DANH SÁCH</h1>
+  <div class="sub">Nội dung: <code>Bấm ＋Task chọn Điểm danh ca hoặc Điểm danh Ra/Vào — nhân viên thuộc nhóm sẽ được đối chiếu tự động khi quét mã.</code></div>
+
+  <!-- ===== MẪU 1 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 1</h3><span class="tag">Sáng nhẹ</span><span class="desc">Chữ trắng-xanh nhạt, từ khoá cam phấn — dịu, dễ đọc</span></div>
+    <div class="demo">
+      <div class="m10 c1"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 2 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 2</h3><span class="tag">Trắng tinh + cam đậm</span><span class="desc">Tương phản cao nhất, từ khoá cam nổi rõ</span></div>
+    <div class="demo">
+      <div class="m10 c2"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 3 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 3</h3><span class="tag">Vàng nắng</span><span class="desc">Tông ấm, nổi trên nền tối</span></div>
+    <div class="demo">
+      <div class="m10 c3"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 4 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 4</h3><span class="tag">Xanh mint</span><span class="desc">Tông mát mẻ, khác biệt, dễ phân biệt</span></div>
+    <div class="demo">
+      <div class="m10 c4"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 5 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 5</h3><span class="tag">To & đậm</span><span class="desc">Chữ to hơn, đậm hơn — đọc rõ nhất</span></div>
+    <div class="demo">
+      <div class="m10 c5"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 6 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 6</h3><span class="tag">Toàn cam</span><span class="desc">Cả tiêu đề lẫn chữ đều tông cam SPX</span></div>
+    <div class="demo">
+      <div class="m10 c6"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 7 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 7</h3><span class="tag">Cam + gạch chân</span><span class="desc">Từ khoá cam có gạch chân — nhấn mạnh rõ</span></div>
+    <div class="demo">
+      <div class="m10 c7"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 8 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 8</h3><span class="tag">Nền sáng — chữ tối</span><span class="desc">Đảo ngược: nền trắng cam, chữ đỏ cam đậm — tương phản mạnh</span></div>
+    <div class="demo">
+      <div class="m10 c8"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 9 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 9</h3><span class="tag">Xanh dương tươi</span><span class="desc">Tông lạnh tương phản với cam nền</span></div>
+    <div class="demo">
+      <div class="m10 c9"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== MẪU 10 ===== -->
+  <div class="m-card">
+    <div class="m-label"><h3>MẪU 10</h3><span class="tag">Gradient chữ</span><span class="desc">Tiêu đề chuyển sắc cam-trắng, chữ trắng rõ</span></div>
+    <div class="demo">
+      <div class="m10 c10"><div class="inner">
+        <div class="row1"><span class="badge">SPX · ĐIỂM DANH</span></div>
+        <h2>ĐỐI CHIẾU DANH SÁCH</h2>
+        <p>Bấm <b>＋Task</b> chọn <b>Điểm danh ca</b> hoặc <b>Điểm danh Ra/Vào</b> — nhân viên thuộc nhóm sẽ được <b>đối chiếu tự động khi quét mã</b>.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="footer-note">💡 Chọn 1 mẫu (ví dụ: "MẪU 2") — tôi sẽ áp màu chữ đó vào <code>index.html</code>.</div>
+
+</div>
+</body>
+</html>
