@@ -24,8 +24,8 @@ const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== PURE-LOGIC-
 // Chạy trong CÙNG realm (runInThisContext) để array/prototype khớp với assert/strict
 // (vm.createContext tạo realm riêng → deepStrictEqual fail dù nội dung bằng nhau).
 // Wrapper function → không ô nhiễm global.
-const { splitScanCodes, isValidBarcodeId, planScanSubmit } = vm.runInThisContext(
-  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit };\n})()'
+const { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode } = vm.runInThisContext(
+  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode };\n})()'
 );
 
 test('khối PURE-LOGIC không phụ thuộc DOM/server (giữ thuần để test được)', () => {
@@ -65,6 +65,19 @@ test('isValidBarcodeId: từ chối mã không bắt đầu bằng Ops', () => {
   for (const c of ['EMP123', '123OPS', 'xops1', 'OP1', 'os1', '', ' OPS1']) {
     assert.equal(isValidBarcodeId(c), false, c);
   }
+});
+
+// ===== nextMealMode — nút "Chuyển Quét" (meal-move) =====
+test('nextMealMode: đang ra → vao (kết thúc phần Ra, chuyển sang Vào)', () => {
+  assert.equal(nextMealMode('ra'), 'vao');
+});
+
+test('nextMealMode: đang vao → ra (quay lại phần Ra)', () => {
+  assert.equal(nextMealMode('vao'), 'ra');
+});
+
+test('nextMealMode: mode undefined → vao (mặc định an toàn)', () => {
+  assert.equal(nextMealMode(undefined), 'vao');
 });
 
 // ===== planScanSubmit: quyết định đường xử lý 1 lần submit =====

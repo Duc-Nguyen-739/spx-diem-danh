@@ -803,9 +803,28 @@
     .task-note-editbox .btn { padding: 7px 14px; font-size: 13px; }
   /* ===== Meal-move UI ===== */
   .badge.out { background: #fff3e0; color: #e65100; border: 1px solid #ffab40; }
-  .meal-toggle-btn { font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; padding: 4px 12px; border-radius: var(--card-radius); font-size: 13px; }
-  .meal-toggle-btn.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .meal-toggle-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .meal-mode-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+    transition: all .18s ease;
+  }
+  .meal-mode-pill.active {
+    background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; border-color: transparent;
+    box-shadow: 0 3px 10px rgba(238, 77, 45, .35);
+  }
+  .meal-mode-sep { color: var(--muted); font-weight: 700; opacity: .6; }
+  .btn-meal-switch {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(238, 77, 45, .1); color: #ff8a5c; border: 1.5px solid var(--primary);
+    font-weight: 700; white-space: nowrap; padding: 9px 18px; border-radius: 10px;
+    transition: all .18s ease;
+  }
+  .btn-meal-switch::before { content: '⇄'; font-size: 14px; line-height: 1; }
+  .btn-meal-switch:hover { background: var(--primary); color: #fff; transform: translateY(-1px); box-shadow: 0 5px 16px rgba(238, 77, 45, .4); }
+  .btn-meal-switch:active { transform: translateY(0) scale(.97); }
+  .btn-meal-switch:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-meal-switch[hidden] { display: none; }
   .counter.out .num { color: #e65100; }
   .counter.out .lbl { color: #e65100; }
   .mm-col { font-size: 12px; }
@@ -982,6 +1001,7 @@
         <div class="task-meta" id="scanTaskMeta"></div>
         <div id="taskNoteWrap"></div>
       </div>
+      <button class="btn btn-meal-switch" id="btnMealSwitch" type="button" onclick="toggleMealMode()" hidden aria-label="Chuyển Quét Điểm Danh / Lấy Danh Sách">Chuyển Quét Điểm Danh</button>
       <button class="btn" id="btnFinish" onclick="finishTask()" aria-label="Hoàn thành task">Hoàn Thành</button>
     </div>
 
@@ -999,10 +1019,10 @@
 
         <div class="card">
           <div class="meal-toggle-wrap" id="mealToggleWrap" style="display:none;align-items:center;gap:10px;margin-bottom:10px;">
-            <span style="font-size:13px;font-weight:600;color:var(--text);">Mode:</span>
-            <button class="btn btn-sm meal-toggle-btn selected" id="btnMealModeRa" onclick="setMealMode('ra')" style="min-width:60px;">Ra</button>
-            <button class="btn btn-sm meal-toggle-btn" id="btnMealModeVao" onclick="setMealMode('vao')" style="min-width:60px;">Vào</button>
-            <small id="mealCreatorLock" style="color:var(--muted);font-size:12px;display:none;">Chỉ người tạo task được quét Ra — bạn đang ở chế độ Vào</small>
+            <span class="meal-mode-pill" id="mealModePillRa">📋 Quét Danh Sách</span>
+            <span class="meal-mode-sep">|</span>
+            <span class="meal-mode-pill" id="mealModePillVao">✔ Điểm Danh</span>
+            <small id="mealCreatorLock" style="color:var(--muted);font-size:12px;display:none;">Chỉ người tạo task được quét lấy danh sách — bạn đang ở chế độ Điểm Danh</small>
           </div>
           <div class="scan-row">
             <div class="scan-input-wrap">
@@ -2047,6 +2067,12 @@
     toggleMealColumns(isMealMove);
     var toggleWrap = document.getElementById('mealToggleWrap');
     if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
+    // Nút "Chuyển Quét": chỉ meal-move + còn mở (disable khi đã kết thúc)
+    var swBtn = document.getElementById('btnMealSwitch');
+    if (swBtn) {
+      swBtn.hidden = !isMealMove;
+      swBtn.disabled = !isMealMove || data.task.status !== TASK_STATUS_C.OPEN;
+    }
     // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
     // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
     renderScanHeader(isMealMove);
@@ -2252,15 +2278,32 @@
   // meal-move: set mode Ra/Vào — toggle UI + state
   function setMealMode(mode) {
     MEAL_MODE = mode;
-    var btnRa = document.getElementById('btnMealModeRa');
-    var btnVao = document.getElementById('btnMealModeVao');
-    if (btnRa) { btnRa.classList.toggle('selected', mode === 'ra'); }
-    if (btnVao) { btnVao.classList.toggle('selected', mode === 'vao'); }
+    var pillRa = document.getElementById('mealModePillRa');
+    var pillVao = document.getElementById('mealModePillVao');
+    if (pillRa) pillRa.classList.toggle('active', mode === 'ra');
+    if (pillVao) pillVao.classList.toggle('active', mode === 'vao');
+    // Nút chuyển ở topbar: nhãn theo đích sắp chuyển
+    var sw = document.getElementById('btnMealSwitch');
+    if (sw) {
+      sw.textContent = mode === 'ra' ? 'Chuyển Quét Điểm Danh' : 'Chuyển Quét Lấy Danh Sách';
+    }
     // Cập nhật placeholder scan
     var inp = document.getElementById('scanInput');
     if (inp) {
-      inp.placeholder = mode === 'ra' ? 'Quét hoặc dán mã — ghi Ra…' : 'Quét hoặc dán mã — ghi Vào…';
+      inp.placeholder = mode === 'ra' ? 'Quét mã Ops — lấy danh sách…' : 'Quét mã Ops — điểm danh…';
     }
+  }
+
+  // meal-move: nút chuyển cạnh nút Kết thúc — toggle Quét Danh Sách ⇄ Điểm Danh.
+  // Đang 'ra' (Quét Danh Sách) → chuyển sang 'vao' (Điểm Danh); đang 'vao' → quay lại.
+  function toggleMealMode() {
+    if (!CURRENT_TASK) return;
+    if (CURRENT_TASK.taskType !== 'meal-move') return;
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
+      showToast('Task đã kết thúc — không chuyển được', true);
+      return;
+    }
+    setMealMode(nextMealMode(MEAL_MODE));
   }
 
   // C3: state lọc + sort bảng scan — mặc định "Giờ quét" MỚI NHẤT lên đầu (col 5, desc).
@@ -2897,6 +2940,12 @@
       return { mode: 'reconcile-batch', codes: codes, validCodes: validCodes, invalidCount: invalidCount };
     }
     return { mode: 'single', codes: codes, validCodes: codes, invalidCount: 0 };
+  }
+
+  // meal-move: mode kế tiếp khi bấm "Chuyển Quét" — toggle Quét Danh Sách ⇄ Điểm Danh.
+  // Đang 'ra' (đã quét Ra) → chuyển sang 'vao'; đang 'vao' → quay lại 'ra'.
+  function nextMealMode(mode) {
+    return mode === 'vao' ? 'ra' : 'vao';
   }
   // ===== PURE-LOGIC-END =====
 

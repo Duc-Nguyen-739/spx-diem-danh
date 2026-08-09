@@ -107,6 +107,22 @@
   .btn-ghost { background: transparent; color: #9aa7bd; border: 1px solid #2a3142; }
   .btn-ghost:hover { border-color: #ff8a5c; color: #ff8a5c; }
   .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .meal-demo { border: 1px solid rgba(238, 77, 45, .35); }
+  .meal-demo h3 { margin: 0 0 6px; font-size: 14px; }
+  .meal-demo p { margin: 0 0 12px; font-size: 13px; color: #8b98ab; }
+  .meal-demo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .meal-demo-mode { font-size: 13px; font-weight: 600; color: #cbd5e1; }
+  .meal-demo-mode b { color: #ee4d2d; }
+  .btn-meal-switch {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(238, 77, 45, .1); color: #ff8a5c; border: 1.5px solid #ee4d2d;
+    font-weight: 700; white-space: nowrap; padding: 9px 18px; border-radius: 10px; cursor: pointer;
+    transition: all .18s ease;
+  }
+  .btn-meal-switch::before { content: '⇄'; font-size: 14px; line-height: 1; }
+  .btn-meal-switch:hover { background: #ee4d2d; color: #fff; transform: translateY(-1px); box-shadow: 0 5px 16px rgba(238, 77, 45, .4); }
+  .btn-meal-switch:active { transform: translateY(0) scale(.97); }
+  .btn-meal-switch[hidden] { display: none; }
   .btn-primary { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; }
   .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(238, 77, 45, .35); }
 
@@ -187,6 +203,16 @@
     <h2>🧪 TEST NHANH — gõ hoặc bấm mã để xem lọc "Danh Sách Task"</h2>
     <p>Thanh tìm kiếm giữa header (viền cam SPX). Gõ <b>≥2 ký tự</b> → tự tìm. Kết quả: thẻ NV + số task đã điểm danh, danh sách bên dưới tự lọc theo mã.</p>
     <div class="chips" id="hintChips"></div>
+  </div>
+
+  <div class="card meal-demo">
+    <h3>🍽️ DEMO — Nút <b>«Chuyển Quét»</b> (task Điểm danh Ra/Vào)</h3>
+    <p>Nút nằm ngay cạnh nút <b>Hoàn Thành</b> ở topbar màn quét. Đang <b>Quét Danh Sách</b> → bấm chuyển sang <b>Điểm Danh</b>; đang <b>Điểm Danh</b> → bấm quay về <b>Quét Danh Sách</b>.</p>
+    <div class="meal-demo-row">
+      <span class="meal-demo-mode" id="demoMealMode">Đang: <b>Quét Danh Sách</b> — quét mã Ops để lấy danh sách</span>
+      <button class="btn btn-meal-switch" id="demoMealSwitch" type="button" onclick="demoToggleMealMode()">Chuyển Quét Điểm Danh</button>
+      <button class="btn" type="button" onclick="showToast('Nút Hoàn Thành (demo)')">Hoàn Thành</button>
+    </div>
   </div>
 
   <div class="card">
@@ -508,6 +534,27 @@ function buildHintChips() {
     });
     wrap.appendChild(b);
   });
+}
+
+// meal-move: mode kế tiếp khi bấm "Chuyển Quét" — toggle Quét Danh Sách ⇄ Điểm Danh (y hệt app thật)
+function nextMealMode(mode) {
+  return mode === 'vao' ? 'ra' : 'vao';
+}
+
+// Demo nút "Chuyển Quét" trong mockup
+var _demoMealMode = 'ra';
+function demoToggleMealMode() {
+  _demoMealMode = nextMealMode(_demoMealMode);
+  var modeEl = document.getElementById('demoMealMode');
+  var btn = document.getElementById('demoMealSwitch');
+  if (modeEl) {
+    modeEl.innerHTML = _demoMealMode === 'ra'
+      ? 'Đang: <b>Quét Danh Sách</b> — quét mã Ops để lấy danh sách'
+      : 'Đang: <b>Điểm Danh</b> — quét mã Ops để điểm danh';
+  }
+  if (btn) {
+    btn.textContent = _demoMealMode === 'ra' ? 'Chuyển Quét Điểm Danh' : 'Chuyển Quét Lấy Danh Sách';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
