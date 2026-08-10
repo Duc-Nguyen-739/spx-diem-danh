@@ -60,6 +60,9 @@ function createReconcileTask(input) {
     // P1: Att.csv thật có NV 2 dòng trong CÙNG tổ hợp → dedupe theo staffId (giữ dòng đầu).
     // Nếu không: log 2 dòng cùng staffId → phantom absent khi kết thúc + row-key client lệch.
     const deduped = dedupeStaffByGroup(staffList);
+    // Yêu cầu 2026-08-10: warm STAFF_INDEX cache ngay khi tạo task — scan dòng Dư (NV lạ)
+    // lookup readStaffIndex_ có thông tin luôn, không phải đọc StaffData lần đầu giữa ca quét.
+    readStaffIndex_();
 
     if (!deduped.length) {
       return { ok: false, taskId: null, count: 0, message: UI_LABELS.CREATE_FAILED_EMPTY };

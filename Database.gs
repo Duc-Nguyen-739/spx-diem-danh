@@ -448,8 +448,52 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);
-  invalidateLogRows_(taskId); // U2: pre-fill tạo dòng mới — xoá cache cũ nếu taskId tái sử dụng
+  // Yêu cầu 2026-08-10: tạo task xong → PRE-WARM cache log (LOG_ROWS) NGAY để lần scan
+  // đầu tiên có sẵn thông tin NV (tên/ca/team/station/vender) — không phải đọc lại cả
+  // sheet AttendanceLog (lần đầu cold = chậm). Dùng ĐÚNG slim schema readLogRowsCached_
+  // (kể cả _rowIndex khớp sheet) nên updateLogRowCache_ (quét tiếp theo) vẫn hoạt động.
+  // Task quá lớn (cache >100KB) → warm fail → invalidate như cũ (cold lần đầu, an toàn).
+  if (!warmLogRowsCache_(taskId, staffList, startRow)) invalidateLogRows_(taskId);
   return rows.length;
+}
+
+/**
+ * Pre-warm cache LOG_ROWS sau khi tạo task (batchInsertLogRows_) — scan lần đầu
+ * (readLogRowsCached_) có sẵn thông tin NV không cần đọc lại cả sheet AttendanceLog.
+ * Slim schema GIỐNG HỆT readLogRowsCached_ (status = PENDING, giờ trống, _rowIndex
+ * khớp vị trí sheet) — updateLogRowCache_ tìm theo _rowIndex vẫn cập nhật được.
+ * @param {string} taskId
+ * @param {Array<Object>} staffList — NV vừa pre-fill (staffId/staffName/slotCode/station/team/agency/date)
+ * @param {number} startRow — dòng đầu tiên vừa ghi trong sheet log (1-based)
+ * @returns {boolean} true nếu put cache thành công; false → caller invalidate (fallback cold)
+ */
+function warmLogRowsCache_(taskId, staffList, startRow) {
+  try {
+    const rows = staffList.map(function (s, i) {
+      return {
+        taskId: taskId,
+        staffId: s.staffId,
+        staffName: s.staffName || '',
+        slotCode: s.slotCode || '',
+        station: s.station || '',
+        team: s.team || '',
+        agency: s.agency || '',
+        timeRaText: '',
+        timeRaEpoch: 0,
+        timeScanText: '',
+        timeScanEpoch: 0,
+        durationMinutes: 0,
+        status: STATUS.PENDING,
+        dateText: formatDateShort_(s.date),
+        _rowIndex: startRow + i,
+      };
+    });
+    cache_().put(CACHE_KEYS.LOG_ROWS + taskId, JSON.stringify(rows), CACHE_TTL.LOG_ROWS);
+    return true;
+  } catch (e) {
+    console.warn('warmLogRowsCache_ fail (task quá lớn cho cache?)', taskId, e.message);  // F3: log để biết đang fallback cold
+    return false;
+  }
 }
 
 /**
