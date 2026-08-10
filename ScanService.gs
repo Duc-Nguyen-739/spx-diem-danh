@@ -88,6 +88,9 @@ function scanStaff(taskId, rawStaffId, mode) {
     let timeRaEpoch = 0;
     let durationMinutes = 0;
     let scannedName = null;
+    // Info NV cho dòng Dư/append — trả về client để điền NGAY cột Tên/Ca/Team/Station/Vender
+    // (không chờ Kết Thúc mới hiện). null = không có trong staffIndex → client giữ trống.
+    let scannedInfo = { agency: null, slotCode: null, station: null, team: null, workstation: null };
     if (effectiveResult.action === 'update') {
       const now = new Date();
       if (isMealMove && effectiveResult.scanPhase === 'ra') {
@@ -112,6 +115,13 @@ function scanStaff(taskId, rawStaffId, mode) {
         }
       }
       scannedName = effectiveResult.row.staffName || null;
+      scannedInfo = {
+        agency: effectiveResult.row.agency || null,
+        slotCode: effectiveResult.row.slotCode || null,
+        station: effectiveResult.row.station || null,
+        team: effectiveResult.row.team || null,
+        workstation: effectiveResult.row.workstation || null,
+      };
     } else if (effectiveResult.action === 'append') {
       const now = new Date();
       // F1: đọc staffIndex CHỈ ở đây (append) — lazy thay vì mỗi scan
@@ -130,6 +140,13 @@ function scanStaff(taskId, rawStaffId, mode) {
       timeRaText = formatTime_(extraRow.timeRa);
       timeRaEpoch = extraRow.timeRaEpoch || 0;
       scannedName = extraRow.staffName || null;
+      scannedInfo = {
+        agency: extraRow.agency || null,
+        slotCode: extraRow.slotCode || null,
+        station: extraRow.station || null,
+        team: extraRow.team || null,
+        workstation: extraRow.workstation || null,
+      };
     }
 
     const counters = computeCounters({ STATUS: STATUS }, logRows);
@@ -149,6 +166,11 @@ function scanStaff(taskId, rawStaffId, mode) {
       timeRaEpoch: timeRaEpoch,
       durationMinutes: durationMinutes,
       staffName: scannedName,
+      agency: scannedInfo.agency,
+      slotCode: scannedInfo.slotCode,
+      station: scannedInfo.station,
+      team: scannedInfo.team,
+      workstation: scannedInfo.workstation,
       counters: counters,
     };
   } finally {

@@ -10,6 +10,11 @@
 (function () {
   if (typeof window.google !== 'undefined' && window.google.script) return;
 
+  // Email "người dùng hiện tại" của mock (getMeta trả về) — task meal-move TẠO MỚI có
+  // createdBy = email này → test quyền: task tự tạo = creator (chuyển Ra/Vào được),
+  // task seed createdBy 'web' = người khác (khóa Điểm Danh, ẩn nút chuyển).
+  var MOCK_CURRENT_USER = 'kiosk.creator@spxexpress.com';
+
   var MOCK_DATA = {
     meta: {
       ok: true,
@@ -39,19 +44,19 @@
       },
     },
     staff: [
-      { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', cardIn: '20:15', cardOut: '06:20' },
-      { staffId: 'Ops196935', staffName: 'NV002', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', cardIn: '20:18', cardOut: '06:25' },
-      { staffId: 'Ops229444', staffName: 'NV003', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', cardIn: '20:22', cardOut: '06:30' },
-      { staffId: 'Ops110512', staffName: 'NV004', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', cardIn: '20:25', cardOut: '06:35' },
-      { staffId: 'Ops124563', staffName: 'NV005', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', cardIn: '20:28', cardOut: '' },
-      { staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', cardIn: '06:10', cardOut: '14:20' },
-      { staffId: 'Ops126503', staffName: 'NV105', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', cardIn: '06:12', cardOut: '14:22' },
-      { staffId: 'Ops133754', staffName: 'NV020', slotCode: '22:00-06:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBMove', cardIn: '10:15', cardOut: '18:19' },
+      { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:15', cardOut: '06:20' },
+      { staffId: 'Ops196935', staffName: 'NV002', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:18', cardOut: '06:25' },
+      { staffId: 'Ops229444', staffName: 'NV003', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:22', cardOut: '06:30' },
+      { staffId: 'Ops110512', staffName: 'NV004', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', cardIn: '20:25', cardOut: '06:35' },
+      { staffId: 'Ops124563', staffName: 'NV005', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', cardIn: '20:28', cardOut: '' },
+      { staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', cardIn: '06:10', cardOut: '14:20' },
+      { staffId: 'Ops126503', staffName: 'NV105', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', cardIn: '06:12', cardOut: '14:22' },
+      { staffId: 'Ops133754', staffName: 'NV020', slotCode: '22:00-06:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBMove', agency: 'GRG', cardIn: '10:15', cardOut: '18:19' },
     ],
     tasks: [
       {taskId:'R20260802-0900',taskType:'reconcile',station:'HN2 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'open',total:5,scanned:2,extra:1,createdBy:'web',createdAtText:'2026-08-02 09:00:00'},
       {taskId:'R20260802-0850',taskType:'reconcile',station:'HN2 SOC',slotCode:'18:00-02:00',team:'Inbound',status:'done',total:3,scanned:3,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:50:00'},
-      {taskId:'M20260802-0905',taskType:'meal-move',station:'HN2 SOC',slotCode:'',team:'Outbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 09:05:00'},
+      {taskId:'M20260802-0905',taskType:'meal-move',station:'HN2 SOC',slotCode:'',team:'Outbound',status:'open',total:0,scanned:0,extra:0,createdBy:MOCK_CURRENT_USER,createdAtText:'2026-08-02 09:05:00'},
       {taskId:'R20260802-0830',taskType:'reconcile',station:'HN3 SOC',slotCode:'13:00-22:00',team:'Outbound',status:'done',total:6,scanned:6,extra:1,createdBy:'web',createdAtText:'2026-08-02 08:30:00'},
       {taskId:'R20260802-0820',taskType:'reconcile',station:'HN3 SOC',slotCode:'22:00-06:00',team:'Inbound',status:'open',total:4,scanned:1,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:20:00'},
       {taskId:'M20260802-0845',taskType:'meal-move',station:'HN3 SOC',slotCode:'',team:'Inbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:45:00'},
@@ -121,6 +126,7 @@
       return {
         taskId: taskId, staffId: s.staffId, staffName: s.staffName,
         slotCode: s.slotCode, station: s.station, team: s.team, workstation: s.workstation,
+        agency: s.agency || '',
         timeRefText: '09:00:00',
         timeScanText: scanned ? (i === 0 ? '09:02:15' : '09:03:40') : '',
         timeScanEpoch: scanned ? 1783080000000 + i * 1000 : 0,  // sort key (khớp server)
@@ -128,18 +134,21 @@
         dateText: '2026-08-01',  // ngày vào làm (StaffData Date) — khớp server yyyy-MM-dd
       };
     });
+    // Dư mẫu: mã có trong StaffData nhưng KHÁC ca/team → hiện đủ thông tin NGAY (không chờ Kết Thúc)
     log.push({
-      taskId: taskId, staffId: 'Ops999999', staffName: 'NV-DU', slotCode: '', station: '', team: '',
-      workstation: '', timeRefText: '', timeScanText: '09:05:00', status: 'Dư',
+      taskId: taskId, staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00',
+      station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG',
+      timeRefText: '', timeScanText: '09:05:00', status: 'Dư',
     });
     return log;
   }
 
   function counters(log) {
-    var c = { scanned: 0, absent: 0, extra: 0 };
+    var c = { scanned: 0, absent: 0, extra: 0, out: 0 };
     log.forEach(function (r) {
       // Khớp server computeCounters: đếm theo timeScanText (không theo status text)
       var hasScan = !!(r.timeScan || r.timeScanText);
+      if (r.status === 'Ra ngoài') { c.out++; return; }  // meal-move: đã Ra chưa Vào
       if (hasScan) c.scanned++;
       if (r.status === 'Dư') c.extra++;
       else if (!hasScan) c.absent++;
@@ -159,7 +168,7 @@
 
   var handlers = {
     getMeta: function () {
-      return { ok: true, appTitle: MOCK_DATA.meta.appTitle, labels: MOCK_DATA.meta.labels, tableHeaders: MOCK_DATA.meta.tableHeaders };
+      return { ok: true, appTitle: MOCK_DATA.meta.appTitle, labels: MOCK_DATA.meta.labels, tableHeaders: MOCK_DATA.meta.tableHeaders, currentUser: MOCK_CURRENT_USER };
     },
     getFilterOptions: function () {
       return {
@@ -240,7 +249,7 @@
       var taskId = 'M' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-0' + (MOCK_DATA.tasks.length + 1);
       var task = {
         taskId: taskId, taskType: 'meal-move', station: station, slotCode: '',
-        team: team, status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00:00',
+        team: team, status: 'open', createdBy: MOCK_CURRENT_USER, createdAtText: '2026-08-02 09:00:00',
         note: String((input && input.note) || ''),
       };
       MOCK_DATA.tasks.unshift(task);
@@ -253,12 +262,74 @@
       var nowMs = Date.now();  // timeScanEpoch: sort key thật (QA sort "mới nhất lên đầu")
       var d = new Date(nowMs);
       var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-      if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư')) {
+      var info = null;
+      if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư' || hit.status === 'Ra ngoài')) {
         return { ok: false, message: 'Đã điểm danh', status: null, timeScanText: '', timeScanEpoch: 0, staffName: null, counters: counters(log) };
       }
       if (hit) { hit.status = 'Có mặt'; hit.timeScanText = ts; hit.timeScanEpoch = nowMs; }
-      else { log.push({ taskId: taskId, staffId: staffId, staffName: 'NV LẠ', slotCode: '', station: '', team: '', workstation: '', timeRefText: '', timeScanText: ts, timeScanEpoch: nowMs, status: 'Dư' }); }
-      return { ok: true, message: 'Có mặt', status: 'Có mặt', timeScanText: ts, timeScanEpoch: nowMs, staffName: hit ? hit.staffName : 'NV LẠ', counters: counters(log) };
+      else {
+        // NV lạ → tra StaffData: có thông tin thì điền ĐỦ NGAY (khớp server buildExtraRow
+        // lookup staffIndex); không có → để trống. KHÔNG chờ Kết Thúc mới hiện thông tin.
+        MOCK_DATA.staff.forEach(function (s) { if (s.staffId.toLowerCase() === staffId.toLowerCase()) info = s; });
+        log.push({ taskId: taskId, staffId: staffId, staffName: info ? info.staffName : '',
+          slotCode: info ? info.slotCode : '', station: info ? info.station : '',
+          team: info ? info.team : '', workstation: info ? info.workstation : '',
+          agency: info ? (info.agency || '') : '', timeRefText: '',
+          timeScanText: ts, timeScanEpoch: nowMs, status: 'Dư' });
+      }
+      return {
+        ok: true, message: hit ? 'Có mặt' : 'Dư', status: hit ? 'Có mặt' : 'Dư',
+        timeScanText: ts, timeScanEpoch: nowMs,
+        staffName: hit ? hit.staffName : (info ? info.staffName : ''),
+        agency: info ? (info.agency || '') : '', slotCode: info ? (info.slotCode || '') : '',
+        station: info ? (info.station || '') : '', team: info ? (info.team || '') : '',
+        workstation: info ? (info.workstation || '') : '',
+        counters: counters(log),
+      };
+    },
+    pasteMealMoveScanApi: function (taskId, codes, mode) {
+      // Mock của pasteMealMoveScan (server): ghi Ra/Vào hàng loạt; NV lạ append kèm
+      // thông tin StaffData (hoặc trống). Khớp contract: { ok, message, summary, counters }.
+      var list = Array.isArray(codes) ? codes : [];
+      var log = getLog(taskId);
+      var nowMs = Date.now();
+      var d = new Date(nowMs);
+      var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+      var seen = {};
+      var summary = { total: list.length, ra: 0, vao: 0, extra: 0, duplicate: 0, already: 0 };
+      list.forEach(function (c) {
+        var id = String(c || '').trim();
+        if (!id) return;
+        var key = id.toLowerCase();
+        if (seen[key]) { summary.duplicate++; return; }
+        seen[key] = true;
+        var hit = null;
+        log.forEach(function (r) { if (String(r.staffId || '').toLowerCase() === key) hit = r; });
+        if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư' || hit.status === 'Ra ngoài')) { summary.already++; return; }
+        if (hit) {
+          if (mode === 'ra') { hit.status = 'Ra ngoài'; hit.timeRaText = ts; hit.timeRaEpoch = nowMs; summary.ra++; }
+          else { hit.status = 'Có mặt'; hit.timeScanText = ts; hit.timeScanEpoch = nowMs; summary.vao++; }
+          return;
+        }
+        var info = null;
+        MOCK_DATA.staff.forEach(function (s) { if (s.staffId.toLowerCase() === key) info = s; });
+        log.push({
+          taskId: taskId, staffId: id, staffName: info ? info.staffName : '',
+          slotCode: info ? info.slotCode : '', station: info ? info.station : '',
+          team: info ? info.team : '', workstation: info ? info.workstation : '',
+          agency: info ? (info.agency || '') : '', timeRefText: '',
+          timeRaText: mode === 'ra' ? ts : '', timeRaEpoch: mode === 'ra' ? nowMs : 0,
+          timeScanText: mode === 'ra' ? '' : ts, timeScanEpoch: mode === 'ra' ? 0 : nowMs,
+          status: mode === 'ra' ? 'Ra ngoài' : 'Dư',
+        });
+        if (mode === 'ra') summary.ra++; else summary.extra++;
+      });
+      return {
+        ok: true,
+        message: 'Đã ghi ' + summary.ra + ' Ra / ' + summary.vao + ' Vào / ' + summary.extra + ' Thừa — trùng ' + summary.duplicate + ', đã điểm danh ' + summary.already,
+        summary: summary,
+        counters: counters(log),
+      };
     },
     completeTaskApi: function (taskId) {
       MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) t.status = 'done'; });

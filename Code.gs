@@ -117,11 +117,16 @@ function debugState() {
   return out;
 }
 
-/** Meta cho UI: title. */
+/** Meta cho UI: title + email người dùng hiện tại (phân quyền chuyển Ra/Vào meal-move). */
 function getMeta() {
+  let currentUser = '';
+  try {
+    currentUser = String(Session.getActiveUser().getEmail() || '').trim();
+  } catch (e) { /* anonymous web app → '' → client fallback + server tự ép quyền */ }
   return {
     ok: true,
     appTitle: UI_LABELS.APP_TITLE,
+    currentUser: currentUser,
   };
 }
 

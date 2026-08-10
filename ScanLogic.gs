@@ -105,6 +105,7 @@ function buildExtraRow(cfg, taskId, staffId, staffInfo, now) {
     station: staffInfo ? staffInfo.station : '',
     team: staffInfo ? staffInfo.team : '',
     workstation: staffInfo ? staffInfo.workstation : '',
+    agency: staffInfo ? staffInfo.agency : '',
     timeRef: null,
     timeScan: now,
     // append cũng phải set timeScanEpoch (nguồn sự thật counters/sort) — nếu

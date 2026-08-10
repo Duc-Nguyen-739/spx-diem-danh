@@ -100,11 +100,12 @@ test('buildExtraRow: tạo dòng Dư với thông tin staff nếu có', () => {
   const now = new Date('2026-08-02T08:00:00');
   const staffInfo = {
     staffName: 'NhanVien Mau 099', slotCode: '13:00-22:00', station: 'HN2 SOC',
-    team: 'Inbound', workstation: 'IBReceiving', cardIn: '12:00:00', cardOut: '',
+    team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', cardIn: '12:00:00', cardOut: '',
   };
   const row = ScanLogic.buildExtraRow(CFG, 'R1', 'OPS000099', staffInfo, now);
   assert.equal(row.status, CFG.STATUS.EXTRA);
   assert.equal(row.staffName, 'NhanVien Mau 099');
+  assert.equal(row.agency, 'GRG');  // Vender — điền ngay cùng dòng Dư
   assert.equal(row.timeScan, now);
   assert.equal(row.timeScanEpoch, now.getTime());  // simplify: append phải có epoch → counter scanned=1
   assert.equal(row.timeRef, null);
@@ -115,6 +116,7 @@ test('buildExtraRow: tạo dòng Dư với thông tin staff nếu có', () => {
   // Không có staffInfo → các trường rỗng, không crash
   const row2 = ScanLogic.buildExtraRow(CFG, 'R1', 'OPS999999', null, now);
   assert.equal(row2.staffName, '');
+  assert.equal(row2.agency, '');  // không có staffInfo → trống
   assert.equal(row2.status, CFG.STATUS.EXTRA);
 });
 

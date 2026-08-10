@@ -1444,6 +1444,9 @@
   var STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' };
   // meal-move: mode quét hiện tại ('ra' | 'vao'); mặc định 'ra' (creator tạo task)
   var MEAL_MODE = 'ra';
+  // Email người dùng hiện tại (từ getMeta) — phân quyền chuyển Ra/Vào meal-move:
+  // CHỈ email tạo task (createdBy) được dùng mode 'ra' (Quét Danh Sách); người khác khóa 'vao'.
+  var CURRENT_USER_EMAIL = '';
   var TT_LABEL_MEAL = { 'meal-move': 'Điểm danh Ra/Vào' };
   // Task status — khớp TASK_STATUS trong Config.gs
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
@@ -1895,6 +1898,8 @@
     google.script.run
       .withSuccessHandler(function (meta) {
         META = meta;
+        // Email người dùng hiện tại (GAS Session) — phân quyền chuyển Ra/Vào meal-move
+        CURRENT_USER_EMAIL = String((meta && meta.currentUser) || '').trim().toLowerCase();
         // Header mới không còn #appTitle — cập nhật brand title nếu có
         var brand = document.getElementById('brandTitle');
         if (brand && meta.appTitle) brand.textContent = meta.appTitle;
@@ -2406,6 +2411,11 @@
       // Hiện email creator cho mọi loại task (giống meal-move)
       (data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '');
     renderTaskNote(data.task);
+    // Quyền Ra/Vào meal-move: CHỈ email tạo task (createdBy) được mode 'ra' (Quét Danh Sách);
+    // người khác ẩn nút + khóa 'vao' (Điểm Danh). Anonymous web app (currentUser rỗng) →
+    // fallback cũ (hiện nút, mặc định 'ra'); server resolveMealMoveMode_ vẫn tự ép quyền.
+    var isCreator = CURRENT_USER_EMAIL && CURRENT_USER_EMAIL === String(data.task.createdBy || '').trim().toLowerCase();
+    var effCreator = CURRENT_USER_EMAIL ? isCreator : true;
     // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
     toggleMealColumns(isMealMove);
     var toggleWrap = document.getElementById('mealToggleWrap');
@@ -2413,20 +2423,17 @@
     // Nút "Chuyển Quét": chỉ meal-move + còn mở (disable khi đã kết thúc)
     var swBtn = document.getElementById('btnMealSwitch');
     if (swBtn) {
-      swBtn.hidden = !isMealMove;
-      swBtn.disabled = !isMealMove || data.task.status !== TASK_STATUS_C.OPEN;
+      swBtn.hidden = !isMealMove || !effCreator;
+      swBtn.disabled = !isMealMove || !effCreator || data.task.status !== TASK_STATUS_C.OPEN;
     }
+    var lockNote = document.getElementById('mealCreatorLock');
+    if (lockNote) lockNote.style.display = (isMealMove && !effCreator) ? '' : 'none';
     // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
     // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
     renderScanHeader(isMealMove);
     if (isMealMove) {
-      // Permission: chỉ creator được mode 'ra'; người khác → khóa 'vao'
-      var creator = String(data.task.createdBy || '').trim().toLowerCase();
-      var me = '';
-      try { me = String(google.script.run || ''); } catch (e) {}
-      // Tạm thời: không biết email client (server validate) → mặc định 'ra' cho tất cả;
-      // Server resolveMealMoveMode_ sẽ ép 'vao' nếu không phải creator.
-      setMealMode(MEAL_MODE || 'ra');
+      // Creator → mặc định 'ra' (Quét Danh Sách); người khác → ép 'vao' (Điểm Danh)
+      setMealMode(effCreator ? 'ra' : 'vao');
     }
     if (skel) skel.style.display = 'none';
     if (tbl) tbl.style.display = '';
@@ -2644,6 +2651,11 @@
     if (CURRENT_TASK.taskType !== 'meal-move') return;
     if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
       showToast('Task đã kết thúc — không chuyển được', true);
+      return;
+    }
+    // Chỉ email tạo task được chuyển Quét Danh Sách ⇄ Điểm Danh (nút đã ẩn nếu không phải creator)
+    if (CURRENT_USER_EMAIL && CURRENT_USER_EMAIL !== String(CURRENT_TASK.createdBy || '').trim().toLowerCase()) {
+      showToast('Chỉ người tạo task được chuyển chế độ', true);
       return;
     }
     setMealMode(nextMealMode(MEAL_MODE));
@@ -3214,6 +3226,12 @@
             if (res.timeRaText) item.target.timeRaText = res.timeRaText;
             if (res.timeScanText) item.target.timeScanText = res.timeScanText;
             if (res.agency) item.target.agency = res.agency;
+            // Dư: điền NGAY thông tin NV (Tên/Ca/Team/Station/Vender) từ staffIndex —
+            // không chờ Kết Thúc mới hiện (server lookup; null = không có → giữ trống)
+            if (res.slotCode != null) item.target.slotCode = res.slotCode;
+            if (res.station != null) item.target.station = res.station;
+            if (res.team != null) item.target.team = res.team;
+            if (res.workstation != null) item.target.workstation = res.workstation;
             if (res.durationMinutes != null) item.target.durationMinutes = res.durationMinutes;
           }
           if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.status || item.optimisticStatus, item.target, false); }
