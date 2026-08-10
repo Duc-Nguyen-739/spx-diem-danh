@@ -2185,6 +2185,22 @@
     var list = _dashTasks.filter(function (t) { return dashMatch(t, s); });
     setText('dFilterBadge', (list.length === _dashTasks.length || !_dashTasks.length) ? '' : '(' + list.length + ')');
     renderTaskList(list);
+    refreshTypeCounts(s);
+  }
+  // Đếm lại nhóm "📋 Loại Task" THEO bộ lọc đang chọn (trạng thái/Station/Ca/Team,
+  // không tính filter Loại Task) — số hiển thị khớp đúng danh sách sẽ hiện.
+  // Tránh hiểu nhầm: 19 task Ra/Vào nhưng nếu đang lọc "Kết thúc" mà không có
+  // task nào kết thúc → hiển thị 0, không phải 19.
+  function refreshTypeCounts(s) {
+    var box = document.getElementById('dynType');
+    if (!box) return;
+    var base = { st: s.st, stn: s.stn, ca: s.ca, team: s.team, type: [] };
+    var subset = _dashTasks.filter(function (t) { return dashMatch(t, base); });
+    var c = { reconcile: 0, 'meal-move': 0 };
+    subset.forEach(function (t) { var k = t.taskType === 'meal-move' ? 'meal-move' : 'reconcile'; c[k]++; });
+    var labels = box.querySelectorAll('.dash-cnt');
+    if (labels[0]) labels[0].textContent = c.reconcile;
+    if (labels[1]) labels[1].textContent = c['meal-move'];
   }
   function dashScrollTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
