@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10 Mẫu màu — Cột Loại Task · RollCall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --ink: #1a2233;
+    --muted: #64748b;
+    --line: #e6e9f0;
+    --spx: #ff5f2e;
+    --ring: rgba(255, 95, 46, .55);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #161b26 100%);
+    color: #fff;
+    padding: 34px 40px 30px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute; right: -80px; top: -80px;
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, rgba(255,95,46,.35), transparent 70%);
+  }
+  .kicker {
+    font-size: 12px; font-weight: 700; letter-spacing: .18em;
+    color: #ff8a66; text-transform: uppercase;
+  }
+  h1 { font-size: 26px; font-weight: 800; margin-top: 6px; }
+  .sub { margin-top: 8px; font-size: 14px; color: #aab4c6; max-width: 760px; }
+  .pick {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 16px; padding: 8px 14px; border-radius: 10px;
+    background: rgba(255,95,46,.12); border: 1px solid rgba(255,95,46,.4);
+    color: #ffb59e; font-size: 13px; font-weight: 600;
+    opacity: 0; transform: translateY(4px);
+    transition: opacity .25s, transform .25s;
+  }
+  .pick.show { opacity: 1; transform: none; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 40px 60px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    cursor: pointer;
+    transition: transform .18s, box-shadow .18s, border-color .18s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(15,23,42,.10); }
+  .card.sel { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(255,95,46,.14), 0 10px 26px rgba(15,23,42,.10); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .num {
+    width: 30px; height: 30px; border-radius: 9px;
+    display: grid; place-items: center;
+    font-size: 14px; font-weight: 800;
+    background: #0d1117; color: #fff;
+  }
+  .card.sel .num { background: var(--spx); }
+  .name { font-size: 14px; font-weight: 700; }
+  .chips { display: flex; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+  }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px; background: #fbfcfe;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  }
+  th {
+    text-align: left; padding: 7px 10px;
+    background: #eef1f6; color: #475569;
+    font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  }
+  td { padding: 8px 10px; border-top: 1px solid var(--line); }
+  td.mid { font-weight: 700; font-size: 13px; font-family: 'SF Mono', Consolas, monospace; }
+  .badge {
+    display: inline-block; padding: 3px 9px;
+    border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  }
+  .note { margin-top: 26px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .note b { color: var(--ink); }
+  footer {
+    text-align: center; padding: 18px;
+    font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--line);
+  }
+  @media (max-width: 720px) {
+    header { padding: 24px 20px 22px; }
+    .wrap { padding: 18px 14px 40px; }
+    h1 { font-size: 21px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">RollCall · SPX</div>
+  <h1>10 MẪU MÀU — CỘT “LOẠI TASK”</h1>
+  <div class="sub">Chọn 1 trong 10 cặp màu để phân biệt 2 loại task: <b style="color:#fff">Điểm danh ca</b> và <b style="color:#fff">Điểm danh Ra/Vào</b>. Bấm vào thẻ để chọn — trả lời số mẫu bạn thích.</div>
+  <div class="pick" id="pick">✔ Bạn đang xem trước: <span id="pickName"></span></div>
+</header>
+
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="note">
+    📌 <b>MẪU 1 (Xanh dương / Cam SPX)</b> hiện đang được áp dụng sẵn trong app.
+    Bạn xem hết 10 mẫu rồi trả lời <b>“chốt Mẫu số N”</b> — tôi sẽ đổi màu badge trong <code>index.html</code> đúng cặp màu đó rồi push.
+  </div>
+</div>
+
+<footer>RollCall v2 — Điểm danh kho · Mockup màu cột Loại Task</footer>
+
+<script>
+  // 10 cặp màu: a = Điểm danh ca, b = Điểm danh Ra/Vào
+  const SCHEMES = [
+    { name: 'Xanh dương / Xanh lá (theo +Task)', a: '#1a6be0', b: '#2e7d32' },
+    { name: 'Xanh lục / Đỏ',             a: '#1e9e4f', b: '#e5484d' },
+    { name: 'Cyan / Vàng hổ phách',      a: '#0891b2', b: '#d97706' },
+    { name: 'Tím / Hồng',                a: '#7c3aed', b: '#db2777' },
+    { name: 'Chàm / Xanh bạc hà',        a: '#4338ca', b: '#0d9488' },
+    { name: 'Xanh neon / Cam neon',      a: '#2563eb', b: '#ea580c' },
+    { name: 'Tím hoa cà / Vàng',         a: '#9333ea', b: '#ca8a04' },
+    { name: 'Xanh đậm / Xanh lá',        a: '#1d4ed8', b: '#15803d' },
+    { name: 'Đỏ / Xanh dương',           a: '#dc2626', b: '#2563eb' },
+    { name: 'Đen than / Vàng gold',      a: '#334155', b: '#b45309' },
+  ];
+  function rgba(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+  }
+  function badge(hex, label) {
+    return '<span class="badge" style="background:' + rgba(hex, .13) + ';color:' + hex + ';border:1px solid ' + rgba(hex, .35) + '">' + label + '</span>';
+  }
+  const grid = document.getElementById('grid');
+  SCHEMES.forEach(function (sc, i) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div class="card-top"><span class="num">' + (i + 1) + '</span><span class="name">' + sc.name + '</span>' +
+      '<span class="chips"><span class="chip"><span class="dot" style="background:' + sc.a + '"></span>' + sc.a + '</span>' +
+      '<span class="chip"><span class="dot" style="background:' + sc.b + '"></span>' + sc.b + '</span></span></div>' +
+      '<table>' +
+        '<thead><tr><th>Mã task</th><th>Loại task</th><th>Station</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td class="mid">HN2-S01</td><td>' + badge(sc.a, 'Điểm danh ca') + '</td><td>HN2</td></tr>' +
+          '<tr><td class="mid">HN3-M05</td><td>' + badge(sc.b, 'Điểm danh Ra/Vào') + '</td><td>HN3</td></tr>' +
+        '</tbody>' +
+      '</table>';
+    card.addEventListener('click', function () {
+      document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('sel'); });
+      card.classList.add('sel');
+      document.getElementById('pickName').textContent = 'Mẫu ' + (i + 1) + ' — ' + sc.name;
+      document.getElementById('pick').classList.add('show');
+    });
+    grid.appendChild(card);
+  });
+</script>
+</body>
+</html>

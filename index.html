@@ -298,6 +298,8 @@
     .badge.extra   { background: #fef7e0; color: var(--warning); }
     .badge.open    { background: rgba(46, 204, 113, .14); color: #2ecc71; }
     .badge.done    { background: rgba(127, 142, 163, .14); color: #8b98ab; }
+    .badge.tt-ca   { background: rgba(26, 107, 224, .13); color: #1a6be0; border: 1px solid rgba(26,107,224,.35); }
+    .badge.tt-meal { background: rgba(67, 160, 71, .13); color: #2e7d32; border: 1px solid rgba(67,160,71,.38); }
 
     /* ===== Scan input ===== */
     .scan-row { display: flex; gap: 10px; }
@@ -1085,6 +1087,10 @@
           </div>
         </div>
         <div class="dash-group">
+          <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>📋 Loại Task</span><span class="dash-caret">▾</span></button>
+          <div class="dash-body" id="dynType"></div>
+        </div>
+        <div class="dash-group">
           <button type="button" class="dash-fhead" onclick="toggleDashGroup(this)"><span>🏭 Station</span><span class="dash-caret">▾</span></button>
           <div class="dash-body" id="dynStn"></div>
         </div>
@@ -1145,6 +1151,7 @@
             <tr>
               <th scope="col">STT</th>
               <th scope="col">Mã task</th>
+              <th scope="col">Loại task</th>
               <th scope="col">Station</th>
               <th scope="col">Ca</th>
               <th scope="col">Team</th>
@@ -2079,6 +2086,11 @@
 
   // P3: render bảng task dùng chung — loadTaskList (toàn bộ) và lọc theo mã Ops
   // (header search) đều gọi → 1 nguồn HTML duy nhất, không trùng lặp.
+  // Badge màu cột "Loại task" — phân loại theo taskType (reconcile / meal-move)
+  function taskTypeBadge(tt) {
+    if (tt === 'meal-move') return '<span class="badge tt-meal">Điểm danh Ra/Vào</span>';
+    return '<span class="badge tt-ca">Điểm danh ca</span>';
+  }
   function renderTaskList(tasks) {
     var body = document.getElementById('taskListBody');
     if (!body) return;
@@ -2101,6 +2113,7 @@
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +
+        '<td>' + taskTypeBadge(t.taskType) + '</td>' +
         '<td>' + esc(t.station) + '</td>' +
         '<td>' + esc(t.slotCode) + '</td>' +
         '<td>' + esc(t.team) + '</td>' +
@@ -2128,12 +2141,23 @@
       return '<label class="dash-opt"><input type="checkbox" name="' + name + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span></label>';
     }).join('');
   }
+  // Bộ lọc "Loại Task" — 2 loại cố định: Điểm danh ca / Điểm danh Ra/Vào
+  function buildDashTypeOpts() {
+    var box = document.getElementById('dynType');
+    if (!box) return;
+    var map = { reconcile: 0, 'meal-move': 0 };
+    _dashTasks.forEach(function (t) { var k = t.taskType === 'meal-move' ? 'meal-move' : 'reconcile'; map[k]++; });
+    box.innerHTML =
+      '<label class="dash-opt"><input type="checkbox" name="dashType" value="reconcile" checked onchange="applyDashFilters()"> Điểm danh ca <span class="dash-cnt">' + map.reconcile + '</span></label>' +
+      '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
+  }
   function renderDash(tasks) {
     _dashTasks = tasks || [];
     var total = _dashTasks.length;
     var open = _dashTasks.filter(function (t) { return t.status !== TASK_STATUS_C.DONE; }).length;
     var scan = _dashTasks.reduce(function (a, t) { return a + (t.scanned || 0); }, 0);
     setText('dKpiTotal', total); setText('dKpiOpen', open); setText('dKpiDone', total - open); setText('dKpiScan', scan);
+    buildDashTypeOpts();
     buildDashOpts('dynStn', 'dashStn', _dashTasks, 'station');
     buildDashOpts('dynCa', 'dashCa', _dashTasks, 'slotCode');
     buildDashOpts('dynTeam', 'dashTeam', _dashTasks, 'team');
@@ -2145,7 +2169,7 @@
   function dashState() {
     var r = document.querySelector('input[name="dashSt"]:checked');
     function vals(name) { return Array.prototype.map.call(document.querySelectorAll('input[name="' + name + '"]:checked'), function (i) { return i.value; }); }
-    return { st: (r && r.value) || 'all', stn: vals('dashStn'), ca: vals('dashCa'), team: vals('dashTeam') };
+    return { st: (r && r.value) || 'all', type: vals('dashType'), stn: vals('dashStn'), ca: vals('dashCa'), team: vals('dashTeam') };
   }
   function dashMatch(t, s) {
     if (s.st === 'open' && t.status === TASK_STATUS_C.DONE) return false;
@@ -2153,6 +2177,7 @@
     if (s.stn.length && s.stn.indexOf(String(t.station || '')) === -1) return false;
     if (s.ca.length && s.ca.indexOf(String(t.slotCode || '')) === -1) return false;
     if (s.team.length && s.team.indexOf(String(t.team || '')) === -1) return false;
+    if (s.type.length && s.type.indexOf(t.taskType === 'meal-move' ? 'meal-move' : 'reconcile') === -1) return false;
     return true;
   }
   function applyDashFilters() {

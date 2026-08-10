@@ -117,3 +117,16 @@ User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, 
 RollCall v2 — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho SPX:
 Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS một file (`index.html`).
 Chi tiết: `README.md`, `docs/intent/rollcall-v2.md`, `docs/spec/2026-08-02-phase0-spec.md`.
+
+## 18. Bài học lặp lại — Freebuff preview hay "chết" giữa phiên (RollCall v2)
+
+**Triệu chứng (xảy ra nhiều lần, user báo "link test lỗi"):** preview tự tắt sau sandbox restart; `freebuff-preview status` báo `running:false`/`statusCode:"000"`; curl vào URL proxy trả 502 hoặc không connect.
+
+**Quy trình chuẩn — làm ĐÚNG theo thứ tự, không bỏ bước:**
+1. `freebuff-preview status` → nếu `running:false` → `freebuff-preview start` (chờ message `"Preview is ready"` + `running:true, listening:true`).
+2. `sleep 5–8` rồi `curl -s -o /dev/null -w '%{http_code}' <URL>` xác nhận HTTP 200 **trước khi** gửi link cho user.
+3. Chỉ khi curl trả 200 mới claim "preview OK"; nếu vẫn 502 → `freebuff-preview restart` + chờ thêm 10–15s + curl lại (sandbox khởi động chậm hơn CLI báo ready).
+4. Không bao giờ nói "đang chạy" khi chưa có `running:true` + curl 200 (Constraint #8: không claim khi chưa verify).
+5. `freebuff-preview start` có thể mất vài lần thử sau khi sandbox restart — kiên nhẫn chờ, không báo lỗi vội; nếu CLI không hồi phục → báo user bấm **Start preview** từ UI.
+
+**Đã gặp nhiều lần (2026-08-10):** sau mỗi lần sửa code + verify trong sandbox, preview tự tắt do sandbox restart. Không phải do code hỏng — chỉ cần start lại + verify curl trước khi đưa link.
