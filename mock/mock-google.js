@@ -49,11 +49,69 @@
       { staffId: 'Ops133754', staffName: 'NV020', slotCode: '22:00-06:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBMove', cardIn: '10:15', cardOut: '18:19' },
     ],
     tasks: [
-      { taskId: 'R20260802-0900', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '08:00-17:00', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00:00' },
-      { taskId: 'R20260802-0850', taskType: 'reconcile', station: 'HN2 SOC', slotCode: '18:00-02:00', team: 'Inbound', status: 'done', createdBy: 'web', createdAtText: '2026-08-02 08:50:00' },
-      { taskId: 'M20260802-0905', taskType: 'meal-move', station: 'HN2 SOC', slotCode: '08:00-17:00', team: 'Outbound', status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:05:00' },
+      {taskId:'R20260802-0900',taskType:'reconcile',station:'HN2 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'open',total:5,scanned:2,extra:1,createdBy:'web',createdAtText:'2026-08-02 09:00:00'},
+      {taskId:'R20260802-0850',taskType:'reconcile',station:'HN2 SOC',slotCode:'18:00-02:00',team:'Inbound',status:'done',total:3,scanned:3,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:50:00'},
+      {taskId:'M20260802-0905',taskType:'meal-move',station:'HN2 SOC',slotCode:'',team:'Outbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 09:05:00'},
+      {taskId:'R20260802-0830',taskType:'reconcile',station:'HN3 SOC',slotCode:'13:00-22:00',team:'Outbound',status:'done',total:6,scanned:6,extra:1,createdBy:'web',createdAtText:'2026-08-02 08:30:00'},
+      {taskId:'R20260802-0820',taskType:'reconcile',station:'HN3 SOC',slotCode:'22:00-06:00',team:'Inbound',status:'open',total:4,scanned:1,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:20:00'},
+      {taskId:'M20260802-0845',taskType:'meal-move',station:'HN3 SOC',slotCode:'',team:'Inbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 08:45:00'},
+      {taskId:'R20260802-0800',taskType:'reconcile',station:'HN4 SOC',slotCode:'08:00-17:00',team:'Inbound',status:'done',total:5,scanned:5,extra:2,createdBy:'web',createdAtText:'2026-08-02 08:00:00'},
+      {taskId:'R20260802-0750',taskType:'reconcile',station:'HN4 SOC',slotCode:'18:00-02:00',team:'Outbound',status:'open',total:4,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 07:50:00'},
+      {taskId:'R20260802-0730',taskType:'reconcile',station:'HN5 SOC',slotCode:'13:00-22:00',team:'Inbound',status:'open',total:6,scanned:3,extra:1,createdBy:'web',createdAtText:'2026-08-02 07:30:00'},
+      {taskId:'M20260802-0740',taskType:'meal-move',station:'HN5 SOC',slotCode:'',team:'Outbound',status:'done',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-02 07:40:00'},
+      {taskId:'R20260801-1700',taskType:'reconcile',station:'HN2 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'done',total:5,scanned:5,extra:0,createdBy:'web',createdAtText:'2026-08-01 17:00:00'},
+      {taskId:'R20260801-1650',taskType:'reconcile',station:'HN2 SOC',slotCode:'22:00-06:00',team:'Inbound',status:'done',total:3,scanned:3,extra:1,createdBy:'web',createdAtText:'2026-08-01 16:50:00'},
+      {taskId:'R20260801-1630',taskType:'reconcile',station:'HN3 SOC',slotCode:'18:00-02:00',team:'Outbound',status:'done',total:6,scanned:6,extra:0,createdBy:'web',createdAtText:'2026-08-01 16:30:00'},
+      {taskId:'M20260801-1600',taskType:'meal-move',station:'HN3 SOC',slotCode:'',team:'Outbound',status:'done',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-01 16:00:00'},
+      {taskId:'R20260801-1540',taskType:'reconcile',station:'HN4 SOC',slotCode:'08:00-17:00',team:'Inbound',status:'open',total:4,scanned:4,extra:0,createdBy:'web',createdAtText:'2026-08-01 15:40:00'},
+      {taskId:'R20260801-1520',taskType:'reconcile',station:'HN4 SOC',slotCode:'13:00-22:00',team:'Outbound',status:'open',total:5,scanned:2,extra:1,createdBy:'web',createdAtText:'2026-08-01 15:20:00'},
+      {taskId:'R20260801-1500',taskType:'reconcile',station:'HN5 SOC',slotCode:'18:00-02:00',team:'Inbound',status:'done',total:6,scanned:5,extra:1,createdBy:'web',createdAtText:'2026-08-01 15:00:00'},
+      {taskId:'M20260801-1430',taskType:'meal-move',station:'HN5 SOC',slotCode:'',team:'Inbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-01 14:30:00'},
+      {taskId:'R20260801-1400',taskType:'reconcile',station:'HN2 SOC',slotCode:'13:00-22:00',team:'Inbound',status:'open',total:4,scanned:1,extra:0,createdBy:'web',createdAtText:'2026-08-01 14:00:00'},
+      {taskId:'R20260801-1330',taskType:'reconcile',station:'HN3 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'done',total:5,scanned:5,extra:2,createdBy:'web',createdAtText:'2026-08-01 13:30:00'},
+      {taskId:'R20260801-1300',taskType:'reconcile',station:'HN3 SOC',slotCode:'22:00-06:00',team:'Inbound',status:'open',total:3,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-01 13:00:00'},
+      {taskId:'M20260801-1240',taskType:'meal-move',station:'HN2 SOC',slotCode:'',team:'Inbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-01 12:40:00'},
+      {taskId:'R20260801-1200',taskType:'reconcile',station:'HN4 SOC',slotCode:'18:00-02:00',team:'Outbound',status:'done',total:6,scanned:6,extra:1,createdBy:'web',createdAtText:'2026-08-01 12:00:00'},
+      {taskId:'R20260801-1130',taskType:'reconcile',station:'HN5 SOC',slotCode:'08:00-17:00',team:'Inbound',status:'open',total:5,scanned:3,extra:0,createdBy:'web',createdAtText:'2026-08-01 11:30:00'},
+      {taskId:'R20260801-1100',taskType:'reconcile',station:'HN2 SOC',slotCode:'18:00-02:00',team:'Outbound',status:'open',total:4,scanned:2,extra:1,createdBy:'web',createdAtText:'2026-08-01 11:00:00'},
+      {taskId:'M20260801-1030',taskType:'meal-move',station:'HN4 SOC',slotCode:'',team:'Outbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-01 10:30:00'},
+      {taskId:'R20260803-0900',taskType:'reconcile',station:'HN2 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'open',total:5,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-03 09:00:00'},
+      {taskId:'R20260803-0840',taskType:'reconcile',station:'HN4 SOC',slotCode:'13:00-22:00',team:'Inbound',status:'open',total:6,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-03 08:40:00'},
+      {taskId:'R20260803-0820',taskType:'reconcile',station:'HN5 SOC',slotCode:'18:00-02:00',team:'Outbound',status:'open',total:4,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-03 08:20:00'},
+      {taskId:'M20260803-0800',taskType:'meal-move',station:'HN3 SOC',slotCode:'',team:'Outbound',status:'open',total:0,scanned:0,extra:0,createdBy:'web',createdAtText:'2026-08-03 08:00:00'},
     ],
   };
+
+  // 45 task bổ sung (tự sinh) — tổng 75 task để test phân trang 30 dòng/trang
+  // taskId dạng R/M + ngày + giờ-phút; meal-move (Ra/Vào) không có ca (slotCode '')
+  (function seedExtraTasks() {
+    var stns = ['HN2 SOC', 'HN3 SOC', 'HN4 SOC', 'HN5 SOC'];
+    var cas = ['08:00-17:00', '13:00-22:00', '18:00-02:00', '22:00-06:00'];
+    var teams = ['Outbound', 'Inbound'];
+    var extra = [];
+    for (var i = 0; i < 45; i++) {
+      var day = 20260803 - Math.floor(i / 25);
+      var hh = 17 - (i % 18);
+      var mm = (i * 13) % 60;
+      var isMeal = (i % 6 === 3);
+      var hhTxt = (hh < 10 ? '0' : '') + hh;
+      var mmTxt = (mm < 10 ? '0' : '') + mm;
+      extra.push({
+        taskId: (isMeal ? 'M' : 'R') + day + '-' + hhTxt + mmTxt,
+        taskType: isMeal ? 'meal-move' : 'reconcile',
+        station: stns[i % 4],
+        slotCode: isMeal ? '' : cas[i % 4],
+        team: teams[i % 2],
+        status: (i % 4 === 0) ? 'done' : 'open',
+        total: 4 + (i % 3),
+        scanned: (i % 4 === 0) ? 4 + (i % 3) : (i % 4),
+        extra: (i % 4 === 0) ? (i % 3) : 0,
+        createdBy: 'web',
+        createdAtText: day + ' ' + hhTxt + ':' + mmTxt + ':00'
+      });
+    }
+    MOCK_DATA.tasks = MOCK_DATA.tasks.concat(extra);
+  })();
 
   // Log mẫu: 5 NV Outbound 08:00-17:00 (2 đã quét, 3 chưa — task ĐANG MỞ nên là '-') + 1 dư
   function buildLog(taskId) {

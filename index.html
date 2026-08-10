@@ -647,8 +647,15 @@
     .dash-clear { margin-top: auto; width: 100%; padding: 8px 0; border-radius: 10px; border: 1px dashed rgba(255,95,46,.3); background: none; color: #c99a86; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .18s ease; }
     .dash-clear:hover { color: #fff; border-color: #FF7A50; background: rgba(255,95,46,.12); box-shadow: 0 0 14px rgba(255,95,46,.3); }
     .dash-main .table-wrap { max-width: 100%; }
-    .dash-reopen { position: absolute; left: 12px; bottom: 14px; top: auto; z-index: 60; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 15px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
+    .dash-reopen { position: fixed; left: 12px; bottom: 14px; top: auto; z-index: 200; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 15px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
     .dash-reopen:hover { color: #fff; border-color: #FF7A50; transform: scale(1.08); box-shadow: 0 0 20px rgba(255,95,46,.5); }
+    .task-pagin { position: sticky; bottom: 0; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; padding: 12px 10px 8px; margin-top: 12px; background: linear-gradient(180deg, rgba(11,13,19,.82), #0b0d13 60%); border-top: 1px solid rgba(255,95,46,.28); border-radius: 0 0 var(--card-radius) var(--card-radius); box-shadow: 0 -8px 20px rgba(0,0,0,.3); }
+    .task-pagin button { min-width: 36px; height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(255,95,46,.35); background: #0b0d13; color: #FFB59E; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s ease; }
+    .task-pagin button:hover:not(:disabled) { color: #fff; border-color: #FF7A50; box-shadow: 0 0 10px rgba(255,95,46,.4); }
+    .task-pagin button.active { background: linear-gradient(135deg, #ff5f2e, #d43b1f); color: #fff; border-color: transparent; }
+    .task-pagin button:disabled { opacity: .4; cursor: not-allowed; }
+    .task-pagin .p-dots { color: #8a7a70; font-size: 13px; padding: 0 2px; }
+    .task-pagin .p-info { color: #e8c9ba; font-size: 12px; font-weight: 600; margin-left: 14px; white-space: nowrap; }
     .dash-layout.mini .dash-side { flex: 0 0 0px; width: 0; max-width: 0; padding: 0; opacity: 0; border-width: 0; overflow: hidden; pointer-events: none; }
     .dash-layout.mini .dash-reopen { display: grid; }
     #dashScrollTop { position: fixed; right: 18px; bottom: 18px; z-index: 200; width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 17px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
@@ -1171,6 +1178,7 @@
           <div>Chưa có task nào — chọn <b>Station / Ca / Team</b> ở trên rồi nhấn <b>+ Tạo task</b></div>
         </div>
       </div>
+      <div class="task-pagin" id="taskPagin" style="display:none;"></div>
     </div>
       </div><!-- /dash-main -->
     </div><!-- /dash-layout -->
@@ -1762,6 +1770,7 @@
   var _taskFilterStaff = null;
   function applyTaskFilter(code, tasks) {
     _taskFilterStaff = String(code || '').trim();
+    _taskPage = 1;
     renderTaskList(tasks || []);
     var skel = document.getElementById('taskSkeleton');
     if (skel) skel.style.display = 'none';
@@ -2091,6 +2100,10 @@
     if (tt === 'meal-move') return '<span class="badge tt-meal">Điểm danh Ra/Vào</span>';
     return '<span class="badge tt-ca">Điểm danh ca</span>';
   }
+  // Phân trang danh sách task — tối đa 30 dòng/trang (PAGING)
+  var _taskPage = 1;
+  var _taskPageList = [];
+  var TASK_PAGE_SIZE = 30;
   function renderTaskList(tasks) {
     var body = document.getElementById('taskListBody');
     if (!body) return;
@@ -2098,16 +2111,27 @@
     var tbl = document.getElementById('taskListTable');
     var empty = document.getElementById('taskEmpty');
     var cnt = document.getElementById('taskCount');
+    var pagin = document.getElementById('taskPagin');
+    var list = tasks || [];
+    _taskPageList = list;
     body.innerHTML = '';
     if (skel) skel.style.display = 'none';
     if (tbl) tbl.style.display = '';
-    if (cnt) cnt.textContent = (tasks ? tasks.length : 0);
-    if (!tasks || !tasks.length) {
+    if (cnt) cnt.textContent = list.length;
+    if (pagin) pagin.style.display = 'none';
+    if (!list.length) {
       if (empty) empty.style.display = '';
+      if (pagin) pagin.innerHTML = '';
       return;
     }
     if (empty) empty.style.display = 'none';
-    tasks.forEach(function (t, idx) {
+    var pages = Math.max(1, Math.ceil(list.length / TASK_PAGE_SIZE));
+    if (_taskPage > pages) _taskPage = pages;
+    if (_taskPage < 1) _taskPage = 1;
+    var start = (_taskPage - 1) * TASK_PAGE_SIZE;
+    var slice = list.slice(start, start + TASK_PAGE_SIZE);
+    slice.forEach(function (t, i) {
+      var idx = start + i;
       var tr = document.createElement('tr');
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
       tr.innerHTML =
@@ -2126,6 +2150,36 @@
         '<td>' + (t.status === TASK_STATUS_C.OPEN ? '<button class="btn btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>' : '<button class="btn btn-ghost btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>') + '</td>';
       body.appendChild(tr);
     });
+    renderTaskPagin(list.length, pages);
+  }
+  function renderTaskPagin(total, pages) {
+    var pagin = document.getElementById('taskPagin');
+    if (!pagin) return;
+    if (pages <= 1) { pagin.style.display = 'none'; pagin.innerHTML = ''; return; }
+    pagin.style.display = '';
+    var html = '<button type="button"' + (_taskPage <= 1 ? ' disabled' : '') + ' onclick="goTaskPage(' + (_taskPage - 1) + ')">‹ Trước</button>';
+    var nums = [];
+    for (var i = 1; i <= pages; i++) {
+      if (i === 1 || i === pages || Math.abs(i - _taskPage) <= 1) nums.push(i);
+      else if (nums[nums.length - 1] !== '…') nums.push('…');
+    }
+    nums.forEach(function (n) {
+      if (n === '…') html += '<span class="p-dots">…</span>';
+      else html += '<button type="button" class="' + (n === _taskPage ? 'active' : '') + '" onclick="goTaskPage(' + n + ')">' + n + '</button>';
+    });
+    html += '<button type="button"' + (_taskPage >= pages ? ' disabled' : '') + ' onclick="goTaskPage(' + (_taskPage + 1) + ')">Sau ›</button>';
+    var from = (_taskPage - 1) * TASK_PAGE_SIZE + 1;
+    var to = Math.min(_taskPage * TASK_PAGE_SIZE, total);
+    html += '<span class="p-info">' + from + '–' + to + ' / ' + total + '</span>';
+    pagin.innerHTML = html;
+  }
+  function goTaskPage(n) {
+    var list = _taskPageList || [];
+    var pages = Math.max(1, Math.ceil(list.length / TASK_PAGE_SIZE));
+    if (n < 1) n = 1;
+    if (n > pages) n = pages;
+    _taskPage = n;
+    renderTaskList(list);
   }
   // ===== DASH-SIDEBAR (MẪU 6 — Executive Dark): KPI + bộ lọc lọc data thật =====
   var _dashTasks = [];
@@ -2175,7 +2229,7 @@
     if (s.st === 'open' && t.status === TASK_STATUS_C.DONE) return false;
     if (s.st === 'done' && t.status !== TASK_STATUS_C.DONE) return false;
     if (s.stn.length && s.stn.indexOf(String(t.station || '')) === -1) return false;
-    if (s.ca.length && s.ca.indexOf(String(t.slotCode || '')) === -1) return false;
+    if (s.ca.length && String(t.slotCode || '') && s.ca.indexOf(String(t.slotCode)) === -1) return false; // meal-move: slotCode rong -> khong thuoc ca nao, khong bi loc
     if (s.team.length && s.team.indexOf(String(t.team || '')) === -1) return false;
     if (s.type.length && s.type.indexOf(t.taskType === 'meal-move' ? 'meal-move' : 'reconcile') === -1) return false;
     return true;
@@ -2184,6 +2238,7 @@
     var s = dashState();
     var list = _dashTasks.filter(function (t) { return dashMatch(t, s); });
     setText('dFilterBadge', (list.length === _dashTasks.length || !_dashTasks.length) ? '' : '(' + list.length + ')');
+    _taskPage = 1;
     renderTaskList(list);
     refreshTypeCounts(s);
   }
@@ -2234,6 +2289,7 @@
     if (cntLoading) cntLoading.textContent = '…';
     google.script.run
       .withSuccessHandler(function (tasks) {
+        _taskPage = 1;
         renderTaskList(tasks);
         renderDash(tasks);
         hideLoadingOverlay();
