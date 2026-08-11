@@ -205,9 +205,10 @@
           <div class="scan-row">
             <div class="scan-input-wrap">
               <input type="text" id="scanInput" placeholder="Quét hoặc dán mã nhân viên…" aria-label="Quét mã nhân viên" autocomplete="off" autocapitalize="off" spellcheck="false">
-            </div>              <button class="btn" id="btnScan" onclick="submitScan()">Quét</button>
-              <button class="btn btn-camera" id="btnCamScan" type="button" onclick="openCameraScan()" aria-label="Quét mã bằng camera">📷 Quét camera</button>
-              <input type="file" id="camFile" accept="image/*" capture="environment" style="display:none" aria-hidden="true" tabindex="-1">
+            </div>
+            <button class="btn" id="btnScan" onclick="submitScan()">Quét</button>
+            <button class="btn btn-camera" id="btnCamScan" type="button" onclick="openCameraScan()" aria-label="Quét mã bằng camera">📷 Quét camera</button>
+            <input type="file" id="camFile" accept="image/*" capture="environment" style="display:none" aria-hidden="true" tabindex="-1">
             </div>
           <div class="scan-hint">Quét mã NV bằng máy quét hoặc dán hàng loạt mã Ops rồi nhấn Enter</div>
           <div id="scanCard" class="scan-card" role="status" aria-live="polite">
