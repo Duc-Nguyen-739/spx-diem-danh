@@ -40,8 +40,16 @@
   .camera-stage { max-width: 420px; }
   .camera-view { aspect-ratio: 3 / 4; max-height: 58vh; }
 }
-/* Nút 📷 Quét camera CHỈ hiện trên mobile — desktop ẩn (hiện lại trong mobile.html ≤900px) */
+/* Nút 📷 Quét camera CHỈ hiện trên mobile — desktop ẩn, hiện lại ≤900px.
+   QUAN TRỌNG: giữ cả 2 rule CÙNG FILE — camera-css include SAU mobile.html
+   nên nếu rule ẩn đứng sau rule hiện (mobile.html) sẽ ẩn cả mobile (bug 2026-08-11). */
 #btnCamScan { display: none; }
+@media (max-width: 900px) {
+  #btnCamScan { display: inline-flex; padding: 8px 12px; font-size: 13px; }
+}
+/* +Task dropdown: nâng toolbar khỏi stacking context thấp (z-index 1) để menu
+   không bị text intro che trên Safari mobile (bug 2026-08-11) */
+.intro-m10 .task-list-toolbar { position: relative; z-index: 20; }
 .cam-start-btn {
   font-size: 17px; padding: 14px 30px; border-radius: 14px;
   box-shadow: 0 0 0 2px rgba(255,255,255,.3), 0 8px 30px rgba(255,95,46,.45);
