@@ -12,6 +12,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { inlineHtml } = require('./inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const HOST = '0.0.0.0';
@@ -62,6 +63,21 @@ const server = http.createServer((req, res) => {
       'Content-Type': type,
       'Cache-Control': 'no-store',
     });
+    // index.html: inline css.html/js.html lúc serve (khớp GAS doGet) — bản serve ra
+    // tự chứa như trước khi tách, trình duyệt không cần fetch thêm asset nào.
+    if (path.basename(abs) === 'index.html') {
+      try {
+        const html = inlineHtml(fs.readFileSync(abs, 'utf8'),
+          path.join(ROOT, 'css.html'), path.join(ROOT, 'js.html'));
+        res.end(html);
+        return;
+      } catch (e) {
+        console.error('[serve] inlineHtml fail:', e.message);
+        res.statusCode = 500;
+        res.end('500 inlineHtml fail: ' + e.message);
+        return;
+      }
+    }
     fs.createReadStream(abs).pipe(res);
   });
 });

@@ -17,9 +17,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // ---- Load khối header-search từ index.html ----
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/HEADER-SEARCH-START([\s\S]*?)HEADER-SEARCH-END/);
-assert.ok(m, 'index.html phải chứa khối HEADER-SEARCH (đánh dấu HEADER-SEARCH-START/END)');
+assert.ok(m, 'js.html phải chứa khối HEADER-SEARCH (đánh dấu HEADER-SEARCH-START/END)');
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== HEADER-SEARCH-END.*$/, '');
 
 // ---- DOM stub tối thiểu ----

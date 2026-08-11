@@ -15,9 +15,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // ---- Load khối menu từ index.html ----
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/TASK-MENU-START([\s\S]*?)TASK-MENU-END/);
-assert.ok(m, 'index.html phải chứa khối TASK-MENU (đánh dấu TASK-MENU-START/END)');
+assert.ok(m, 'js.html phải chứa khối TASK-MENU (đánh dấu TASK-MENU-START/END)');
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== TASK-MENU-END.*$/, '');
 
 // ---- DOM stub tối thiểu (chỉ đủ cho 3 hàm menu) ----

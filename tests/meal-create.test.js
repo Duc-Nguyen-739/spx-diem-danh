@@ -18,9 +18,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // ---- Load khối meal-create từ index.html ----
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/MEAL-CREATE-START([\s\S]*?)MEAL-CREATE-END/);
-assert.ok(m, 'index.html phải chứa khối MEAL-CREATE (đánh dấu MEAL-CREATE-START/END)');
+assert.ok(m, 'js.html phải chứa khối MEAL-CREATE (đánh dấu MEAL-CREATE-START/END)');
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ MEAL-CREATE-END.*$/, '');
 
 // ---- Stub state chung ----

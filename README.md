@@ -41,11 +41,20 @@ RollCall_2/
 ├── ScanLogic.gs           # phân loại scan: Có mặt / Đã điểm danh / Dư / reject (pure, test được)
 ├── ScanService.gs         # scanStaff — guard Ops + LockService + update/append log
 ├── TaskService.gs         # task CRUD + kết thúc task → markUnscannedAbsent_
-├── index.html             # toàn bộ UI (task list + scan view) — 1 file
+├── index.html             # UI: CHỈ HTML (task list + scan view) — 437 dòng
+├── css.html               # toàn bộ CSS (inline lúc serve — GAS không serve file tĩnh)
+├── js.html                # toàn bộ client JS (inline lúc serve)
 ├── mock/mock-google.js    # mock GAS API cho test local
-├── tests/                 # unit tests (20/20 pass)
-└── scripts/cdp-helper.js  # CDP helper (open/eval/shot) cho verify UI thật
+├── tests/                 # unit tests (130/130 pass)
+└── scripts/               # serve.js (preview) · build-static.js (hosting) · inline-html.js (transform chung)
 ```
+
+> **CSS/JS tách file (2026-08-11):** GAS `HtmlService` không serve file tĩnh `.css`/`.js`
+> (clasp chỉ push `.gs/.js/.html/.json`) nên CSS/JS được giữ ở file đuôi `.html`
+> (`css.html` / `js.html`) và INLINE lại lúc serve bởi cùng transform
+> `scripts/inline-html.js` ở 3 nơi: `Code.gs doGet` (GAS), `scripts/serve.js` (preview),
+> `scripts/build-static.js` (hosting → dist tự-chứa). Bản serve ra **byte-identical**
+> với index.html 1-file cũ (verify: test `inline-html.test.js` so với `git HEAD`).
 
 ## Sheet dữ liệu (Spreadsheet `1NQQn…`)
 
@@ -63,7 +72,7 @@ RollCall_2/
 ### Test local
 
 ```bash
-npm test          # 20/20 — node --test
+npm test          # 130/130 — node --test
 ```
 
 ### Mock UI local
@@ -71,7 +80,7 @@ npm test          # 20/20 — node --test
 ```bash
 # mở index.html trực tiếp bằng trình duyệt (mock tự nạp khi không có google.script.run)
 # có thể dùng CDP verify:
-node scripts/cdp-helper.js open "file:///C:/Users/Van90BG/Documents/AppScript/RollCall_2/index.html"
+node scripts/cdp-helper.js open "http://localhost:4173/"  # dùng serve.js — file:// không inline được css/js (2026-08-11)
 ```
 
 ### Deploy (clasp)
@@ -87,7 +96,7 @@ clasp deploy             # tạo version + deployment webapp MỚI — CÁCH Đ�
 ## Quy ước
 
 - Cột sheet / file: tiếng Anh · Hiển thị web: tiếng Việt
-- Mọi hằng số tập trung tại `Config.gs` — không hardcode rải rác; client mirror `STATUS_C`/`TASK_STATUS_C` trong `index.html` (1 nguồn mỗi phía)
+- Mọi hằng số tập trung tại `Config.gs` — không hardcode rải rác; client mirror `STATUS_C`/`TASK_STATUS_C` trong `js.html` (1 nguồn mỗi phía)
 - Cache key có version (`rc2_*_vN`) — bump để invalidate
 - `google.script.run` không trả `Date` (trả null) — trả text, check cả `xxx` + `xxxText`
 - Client check mã Ops: regex `/^ops/i` chạy trước queue (0ms, không gọi server); server có guard `isValidBarcodeId()` chống bypass

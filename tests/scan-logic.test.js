@@ -15,9 +15,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // ---- Load logic từ index.html ----
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/PURE-LOGIC-START([\s\S]*?)PURE-LOGIC-END/);
-assert.ok(m, 'index.html phải chứa khối PURE-LOGIC (đánh dấu PURE-LOGIC-START/END)');
+assert.ok(m, 'js.html phải chứa khối PURE-LOGIC (đánh dấu PURE-LOGIC-START/END)');
 // Bỏ phần còn lại của dòng START (" =====") và dòng END → chỉ giữ code thuần.
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== PURE-LOGIC-END.*$/, '');
 

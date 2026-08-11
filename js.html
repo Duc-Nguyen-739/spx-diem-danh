@@ -1,0 +1,2406 @@
+
+  // Mock local: khi mở file:// trực tiếp (không qua GAS), nạp mock-google.js.
+  // Deploy GAS: google.script luôn tồn tại → nhánh này không chạy → app thật.
+  if (typeof google === 'undefined' || !google.script) {
+    document.write('<script src="mock/mock-google.js?v=' + Date.now() + '"><\/script>');
+  }
+
+  var META = null;
+  var CURRENT_TASK = null;
+  var CURRENT_LOG = [];
+  var CURRENT_COUNTERS = null;  // state counters để optimistic cập nhật ngay
+  var BUSY = false;
+  var AUTO_FOCUS_TIMER = null;
+
+  // P3: hằng số status — KHÔNG hardcode chuỗi tiếng Việt trong logic (đổi label = vỡ logic).
+  // Khớp STATUS trong Config.gs; label hiển thị badge dùng đúng chuỗi này.
+  var STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' };
+  // meal-move: mode quét hiện tại ('ra' | 'vao'); mặc định 'ra' (creator tạo task)
+  var MEAL_MODE = 'ra';
+  // Email người dùng hiện tại (từ getMeta) — phân quyền chuyển Ra/Vào meal-move:
+  // CHỈ email tạo task (createdBy) được dùng mode 'ra' (Quét Danh Sách); người khác khóa 'vao'.
+  var CURRENT_USER_EMAIL = '';
+  // ===== STAFF-CACHE-START =====
+  // Client staff index cache (staffId → thông tin hiển thị) — scan NV lạ (Dư) hiện thông tin
+  // NGAY từ cache, không chờ server round-trip (yêu cầu 2026-08-11). Tải lúc boot + tạo task.
+  var STAFF_INFO = {}; // { staffId: { staffName, slotCode, station, team, workstation, agency } }
+  function lookupStaffInfo(staffId) {
+    var q = String(staffId || '').toUpperCase();
+    return STAFF_INFO[q] || null;
+  }
+  // ===== STAFF-CACHE-END =====
+  var STAFF_INFO_LOADING = false;
+  // Tải staff index compact (getStaffIndexApi) + cache localStorage 12h — không tải lại mỗi lần mở app.
+  function loadStaffIndex() {
+    try {
+      var cachedTs = Number(localStorage.getItem('rc2_staffIndexTs') || 0);
+      if (cachedTs && Date.now() - cachedTs < 12 * 3600 * 1000) {
+        var cached = localStorage.getItem('rc2_staffIndex');
+        if (cached) { STAFF_INFO = JSON.parse(cached); return; }
+      }
+    } catch (e) { /* localStorage hỏng → tải lại từ server */ }
+    if (STAFF_INFO_LOADING) return;
+    STAFF_INFO_LOADING = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        STAFF_INFO_LOADING = false;
+        if (!res || !res.ok || !res.staff) return;
+        STAFF_INFO = res.staff || {};
+        try {
+          localStorage.setItem('rc2_staffIndex', JSON.stringify(STAFF_INFO));
+          localStorage.setItem('rc2_staffIndexTs', String(Date.now()));
+        } catch (e) {}
+      })
+      .withFailureHandler(function () { STAFF_INFO_LOADING = false; })
+      .getStaffIndexApi();
+  }
+  var TT_LABEL_MEAL = { 'meal-move': 'Điểm danh Ra/Vào' };
+  // Task status — khớp TASK_STATUS trong Config.gs
+  var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    loadMetaAndOptions();
+    document.getElementById('scanInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitScan();
+      }
+    });
+    initNetworkStatus();
+    initCreatePreview();
+    initHeaderSearch();
+    startAutoFocusLoop();
+    initScanTopbarStuck();
+    initScanFilters();
+  });
+
+  /* C3: tìm kiếm + lọc trạng thái + sort cột bảng scan */
+  function initScanFilters() {
+    var searchEl = document.getElementById('scanSearch');
+    var statusEl = document.getElementById('scanStatusFilter');
+    var clearEl = document.getElementById('scanClearFilter');
+    var scanTbl = document.getElementById('scanTable');
+    // C1: populate filter options từ STATUS_C — 1 nguồn sự thật, đổi label không vỡ filter.
+    if (statusEl && statusEl.options.length === 1) {
+      var FILTER_LABELS = {};
+      FILTER_LABELS[STATUS_C.PENDING] = 'Chưa điểm danh';
+      FILTER_LABELS[STATUS_C.PRESENT] = STATUS_C.PRESENT;
+      FILTER_LABELS[STATUS_C.ABSENT] = STATUS_C.ABSENT;
+      FILTER_LABELS[STATUS_C.EXTRA] = STATUS_C.EXTRA;
+      [STATUS_C.PENDING, STATUS_C.PRESENT, STATUS_C.ABSENT, STATUS_C.EXTRA].forEach(function (v) {
+        var o = document.createElement('option');
+        o.value = v;
+        o.textContent = FILTER_LABELS[v];
+        statusEl.appendChild(o);
+      });
+    }
+    if (searchEl) searchEl.addEventListener('input', function () {
+      SCAN_FILTER.q = searchEl.value;
+      renderScanTable(CURRENT_LOG);
+    });
+    if (statusEl) statusEl.addEventListener('change', function () {
+      SCAN_FILTER.status = statusEl.value;
+      renderScanTable(CURRENT_LOG);
+    });
+    if (clearEl) clearEl.addEventListener('click', function () {
+      SCAN_FILTER.q = '';
+      SCAN_FILTER.status = '';
+      if (searchEl) searchEl.value = '';
+      if (statusEl) statusEl.value = '';
+      renderScanTable(CURRENT_LOG);
+    });
+    if (scanTbl) scanTbl.addEventListener('click', function (e) {
+      var th = e.target && e.target.closest ? e.target.closest('th.sortable') : null;
+      if (!th) return;
+      var col = parseInt(th.dataset.sort, 10);
+      if (SCAN_SORT.col === col) SCAN_SORT.asc = !SCAN_SORT.asc;
+      else { SCAN_SORT.col = col; SCAN_SORT.asc = true; }
+      updateSortIndicators();
+      renderScanTable(CURRENT_LOG);
+    });
+    updateSortIndicators();
+  }
+
+  /* ===== Scan topbar sticky — thêm viền/bóng khi dính (thuần hiển thị) ===== */
+  function initScanTopbarStuck() {
+    var bar = document.querySelector('.scan-topbar');
+    if (!bar) return;
+    // P2: đọc chiều cao header từ CSS token --header-h (không hardcode 53) — 1 nguồn
+    var HEADER_H = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 53;
+    var onScroll = function () {
+      var rect = bar.getBoundingClientRect();
+      bar.classList.toggle('stuck', rect.top <= HEADER_H);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  /* ===== Auto-focus loop (tham khảo v1): giữ focus vào scan input trên kiosk touch ===== */
+  function startAutoFocusLoop() {
+    if (AUTO_FOCUS_TIMER) return;
+    AUTO_FOCUS_TIMER = setInterval(function () {
+      // S10: modal đang mở → không giật focus về scan input
+      if (anyModalOpen()) return;
+      var scanView = document.getElementById('viewScan');
+      var input = document.getElementById('scanInput');
+      // P2 (audit): viewScan hidden → không cần giữ focus (đang ở danh sách task);
+      // dừng luôn interval để không chạy vô ích mỗi 3s trên kiosk bật lâu.
+      if (!scanView || scanView.classList.contains('hidden')) { stopAutoFocusLoop(); return; }
+      if (input && !input.disabled) {
+        var active = document.activeElement;
+        if (active !== input && active && active.tagName !== 'SELECT' && active.tagName !== 'INPUT') {
+          input.focus();
+        }
+      }
+    }, 3000);
+  }
+  function stopAutoFocusLoop() {
+    if (AUTO_FOCUS_TIMER) { clearInterval(AUTO_FOCUS_TIMER); AUTO_FOCUS_TIMER = null; }
+  }
+
+  /* ===== Trạng thái mạng (header command center) ===== */
+  // P2: netDot phản ánh BOTH network interface (navigator.onLine) VÀ server GAS còn
+  // sống. navigator.onLine chỉ báo mạng — deploy fail/timeout/quota GAS không đổi nó,
+  // operator dễ bị đánh lừa thấy "Online" xanh trong khi app chết. Bất kỳ RPC fail
+  // (google.script.run → withFailureHandler) đều là server unreachable thật: business
+  // lỗi đã được server tự catch và trả về {ok:false} qua success handler.
+  var SERVER_OK = true;
+  function updateNetStatus(online) {
+    var dot = document.getElementById('netDot');
+    var txt = document.getElementById('netText');
+    if (!dot || !txt) return;
+    if (online === undefined) online = navigator.onLine;
+    var ok = SERVER_OK && online;
+    dot.className = 'net-dot' + (ok ? '' : ' offline');
+    txt.textContent = SERVER_OK ? (online ? 'Online' : 'Offline') : 'Server lỗi';
+  }
+  function markServerFail() {
+    if (!SERVER_OK) return;
+    SERVER_OK = false;
+    updateNetStatus();
+  }
+  function markServerOk() {
+    if (SERVER_OK) return;
+    SERVER_OK = true;
+    updateNetStatus();
+  }
+  function initNetworkStatus() {
+    updateNetStatus();
+    window.addEventListener('online', function () { updateNetStatus(true); });
+    window.addEventListener('offline', function () { updateNetStatus(false); });
+  }
+
+  /* ===== Spin loading overlay (ẩn sau lần load đầu tiên) ===== */
+  var OVERLAY_HIDDEN = false;
+  function hideLoadingOverlay() {
+    if (OVERLAY_HIDDEN) return;
+    OVERLAY_HIDDEN = true;
+    var o = document.getElementById('loadingOverlay');
+    if (o) o.classList.add('hide');
+  }
+  // P2: reset cờ để lần skip kế tiếp chạy được (trước đây OVERLAY_HIDDEN=true vĩnh viễn).
+  // Chỉ toggle class .hide (opacity/visibility transition) — KHÔNG đụng display:
+  // timer 500ms cũ có thể display:none overlay của task đang load (race).
+  function showLoadingOverlay() {
+    OVERLAY_HIDDEN = false;
+    var o = document.getElementById('loadingOverlay');
+    if (!o) return;
+    o.classList.remove('hide');
+  }
+
+  /* ===== Âm thanh toggle (tham khảo v1) ===== */
+  var SOUND_ON = true;
+  try { SOUND_ON = localStorage.getItem('rc2_sound') !== '0'; } catch (e) {}
+  function toggleSound() {
+    SOUND_ON = !SOUND_ON;
+    try { localStorage.setItem('rc2_sound', SOUND_ON ? '1' : '0'); } catch (e) {}
+    var b = document.getElementById('btnSound');
+    if (b) {
+      b.textContent = SOUND_ON ? '🔊' : '🔇';
+      b.classList.toggle('muted', !SOUND_ON);
+      b.title = SOUND_ON ? 'Tắt âm thanh' : 'Bật âm thanh';
+    }
+    showToast(SOUND_ON ? 'Âm thanh: Bật' : 'Âm thanh: Tắt');
+  }
+
+  /* ===== Âm thanh phản hồi quét (C1) — Web Audio API, không cần file =====
+     error: buzz thấp 200Hz · scan: beep cao 880Hz — gate bởi SOUND_ON */
+  var _audioCtx = null;
+  function playBeep(type) {
+    if (!SOUND_ON) return;
+    try {
+      if (!_audioCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        _audioCtx = new AC();
+      }
+      var ctx = _audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === 'error') {
+        osc.type = 'square';
+        osc.frequency.value = 200;
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      } else {
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      }
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) { /* kiosk không hỗ trợ audio — bỏ qua */ }
+  }
+
+  /* ===== About modal (tham khảo v1) ===== */
+  var aboutFocusBack = null;
+  function showAbout() {
+    var m = document.getElementById('aboutModal');
+    if (!m) return;
+    aboutFocusBack = document.activeElement; // P3: focus restore khi đóng
+    m.setAttribute('aria-hidden', 'false');  // I10: screen reader đọc dialog
+    m.classList.add('open');
+    var closeBtn = m.querySelector('.about-dialog button');
+    if (closeBtn) closeBtn.focus(); // focus trap: đưa focus vào dialog
+  }
+  function closeAbout() {
+    var m = document.getElementById('aboutModal');
+    if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+    if (aboutFocusBack && aboutFocusBack.focus) aboutFocusBack.focus();
+    aboutFocusBack = null;
+  }
+  // ===== Header: tìm kiếm nhanh mã Ops (giữa hàng logo) =====
+  var _headerSearchTimer = null;
+  function initHeaderSearch() {
+    var input = document.getElementById('headerSearchInput');
+    var clearBtn = document.getElementById('headerSearchClear');
+    if (!input) return;
+    function doSearch() {
+      var q = input.value.trim();
+      if (!q) { hideSearchResult(); return; }
+      var seq = ++_headerSearchSeq;
+      google.script.run
+        .withSuccessHandler(function (res) { if (seq !== _headerSearchSeq) return; renderSearchResult(res, q); })
+        .withFailureHandler(function (err) { if (seq !== _headerSearchSeq) return; markServerFail(); renderSearchMessage('Lỗi: ' + err.message, true); })
+        .searchStaffApi(q);
+    }
+    input.addEventListener('input', function () {
+      clearBtn.classList.toggle('show', !!input.value);
+      clearTimeout(_headerSearchTimer);
+      var q = input.value.trim();
+      if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 350);
+      else onSearchInputCleared();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+      if (e.key === 'Escape') clearHeaderSearch();
+    });
+    clearBtn.addEventListener('click', clearHeaderSearch);
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('#headerSearchWrap')) hideSearchResult();
+    });
+  }
+  // ===== HEADER-SEARCH-START =====
+  // Chống race: mỗi lần tìm/xoá tăng seq — response cũ của searchStaffApi bị bỏ qua,
+  // không được phép lọc lại danh sách sau khi người dùng đã tắt tìm kiếm.
+  var _headerSearchSeq = 0;
+  // Xoá ô tìm kiếm (backspace/xoá hết/✕) → bỏ lọc + trả "Danh Sách Task" đầy đủ.
+  function onSearchInputCleared() {
+    _headerSearchSeq++;
+    if (_taskFilterStaff) {
+      _taskFilterStaff = null;
+      loadTaskList();
+    }
+    hideSearchResult();
+  }
+  // ===== Header search: render kết quả + lọc "Danh Sách Task" theo mã Ops =====
+  function renderSearchResult(res, q) {
+    var box = document.getElementById('headerSearchResult');
+    if (!box) return;
+    if (!res.ok) {
+      renderSearchMessage(res.message || ('Không tìm thấy mã ' + q), true);
+      // Mã không khớp → bỏ lọc đang hiển thị (không giữ badge cũ)
+      if (_taskFilterStaff) {
+        _taskFilterStaff = null;
+        loadTaskList();
+      }
+      return;
+    }
+    var s = res.staff || null;
+    var tasks = res.tasks || [];
+    box.hidden = false;
+    var html = '';
+    if (s) {
+      function row(k, v) { return '<div><b>' + esc(k) + '</b>' + esc(v || '—') + '</div>'; }
+      html = '<div class="search-card">' +
+        '<div class="sc-id">' + esc(s.staffId || q) + '</div>' +
+        '<div class="sc-name">' + esc(s.staffName || '') + '</div>' +
+        '<div class="sc-grid">' +
+          row('Ca', s.slotCode) + row('Team', s.team) + row('Station', s.station) + row('Hợp đồng', s.contractType) +
+        '</div>' +
+      '</div>';
+    } else {
+      html = '<div class="search-card">' +
+        '<div class="sc-id">' + esc(q) + '</div>' +
+        '<div class="sc-name">Không có trong dữ liệu NV</div>' +
+      '</div>';
+    }
+    box.innerHTML = html;
+    if (tasks.length) applyTaskFilter(s ? s.staffId : q, tasks);
+  }
+  function renderSearchMessage(msg, isErr) {
+    var box = document.getElementById('headerSearchResult');
+    if (!box) return;
+    box.hidden = false;
+    box.innerHTML = '<div class="search-card ' + (isErr ? 'sc-err' : 'sc-empty') + '">' + esc(msg) + '</div>';
+  }
+  function hideSearchResult() {
+    var box = document.getElementById('headerSearchResult');
+    if (box) box.hidden = true;
+  }
+  function clearHeaderSearch() {
+    _headerSearchSeq++;
+    var input = document.getElementById('headerSearchInput');
+    var clearBtn = document.getElementById('headerSearchClear');
+    if (input) input.value = '';
+    if (clearBtn) clearBtn.classList.remove('show');
+    hideSearchResult();
+    // Đang lọc "Danh Sách Task" theo mã → trả về danh sách đầy đủ
+    if (_taskFilterStaff) {
+      _taskFilterStaff = null;
+      loadTaskList();
+    }
+    if (input && input.focus) input.focus();
+  }
+  // P3: lọc "Danh Sách Task" theo mã Ops đã tìm — nút ✕ duy nhất trong ô tìm kiếm
+  // xoá toàn bộ (ô tìm kiếm + lọc), không còn badge/thanh lọc riêng.
+  var _taskFilterStaff = null;
+  function applyTaskFilter(code, tasks) {
+    _taskFilterStaff = String(code || '').trim();
+    _taskPage = 1;
+    renderTaskList(tasks || []);
+    var skel = document.getElementById('taskSkeleton');
+    if (skel) skel.style.display = 'none';
+  }
+  // ===== HEADER-SEARCH-END =====
+  // ===== TASK-MENU-START =====
+  // ===== Nút +Task: menu chọn loại task (reconcile / meal-move) =====
+  function toggleTaskMenu(ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var menu = document.getElementById('taskMenu');
+    if (!menu) return;
+    var open = !menu.classList.contains('show');
+    menu.classList.toggle('show', open);
+    menu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    var btn = document.getElementById('btnCreateTask');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var back = document.getElementById('taskMenuBackdrop');
+    if (back) back.classList.toggle('show', open);
+    if (open) {
+      var first = menu.querySelector('.task-menu-item');
+      if (first && first.focus) first.focus();
+    }
+  }
+  function closeTaskMenu(returnFocus) {
+    var menu = document.getElementById('taskMenu');
+    if (menu) {
+      menu.classList.remove('show');
+      menu.setAttribute('aria-hidden', 'true');
+    }
+    var btn = document.getElementById('btnCreateTask');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    var back = document.getElementById('taskMenuBackdrop');
+    if (back) back.classList.remove('show');
+    if (returnFocus !== false && btn && btn.focus) btn.focus();
+  }
+  function chooseTaskType(type) {
+    closeTaskMenu(false);
+    if (type === 'meal-move') openCreateMealModal();
+    else openCreateModal();
+  }
+  // ===== TASK-MENU-END =====
+  function openCreateModal() {
+    var m = document.getElementById('createModal');
+    if (!m) return;
+    // P2: reset select về placeholder mỗi lần mở — không giữ giá trị ca cũ (tránh tạo nhầm task)
+    ['fStation', 'fDate'].forEach(function (id) {
+      var s = document.getElementById(id);
+      if (s) s.value = '';
+    });
+    ['fSlotCode', 'fTeam', 'fContractType'].forEach(function (id) { resetChips(id); });
+    var box = document.getElementById('createPreview');
+    if (box) box.setAttribute('data-state', 'idle');
+    var cntEl = document.getElementById('createPreviewCount');
+    if (cntEl) cntEl.textContent = 'Chọn Station, Ca và Team để xem số NV';
+    var hintEl = document.getElementById('createPreviewHint');
+    if (hintEl) hintEl.textContent = '';
+    updateHud('', '—', 0, 0);
+    updateCreateSubmitState();
+    m.setAttribute('aria-hidden', 'false');  // I10
+    m.classList.add('open');
+    var sel = document.getElementById('fStation');
+    if (sel && sel.focus) sel.focus();
+  }
+  function closeCreateModal() {
+    var m = document.getElementById('createModal');
+    if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+    var btn = document.getElementById('btnCreateTask');
+    if (btn && btn.focus) btn.focus();
+  }
+  function anyModalOpen() {
+    return document.querySelector('.about-overlay.open') !== null;
+  }
+
+  // Modal confirm dùng chung — thay alert/confirm trình duyệt.
+  // showConfirm(title, message, onConfirm): mở modal, bấm "Đồng ý" → chạy onConfirm.
+  var confirmOnOk = null;
+  function showConfirm(title, message, onConfirm) {
+    confirmOnOk = onConfirm || null;
+    document.getElementById('confirmModalTitle').textContent = title;
+    document.getElementById('confirmModalMsg').textContent = message;
+    document.getElementById('confirmOkBtn').onclick = function () {
+      var cb = confirmOnOk;   // lưu TRƯỚC khi close (close reset confirmOnOk)
+      closeConfirmModal();
+      if (cb) cb();
+    };
+    document.getElementById('confirmModal').classList.add('open');
+    document.getElementById('confirmModal').setAttribute('aria-hidden', 'false');  // I10
+    document.getElementById('confirmOkBtn').focus();
+  }
+  function closeConfirmModal() {
+    var m = document.getElementById('confirmModal');
+    if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+    confirmOnOk = null;
+  }
+  document.addEventListener('keydown', function (e) {
+    // P3: Escape đóng modal (focus trap cơ bản)
+    if (e.key === 'Escape') {
+      var tm = document.getElementById('taskMenu');
+      if (tm && tm.classList.contains('show')) { closeTaskMenu(); return; }
+      var m = document.getElementById('createModal');
+      if (m && m.classList.contains('open')) { closeCreateModal(); return; }
+      m = document.getElementById('createMealModal');
+      if (m && m.classList.contains('open')) { closeCreateMealModal(); return; }
+      m = document.getElementById('confirmModal');
+      if (m && m.classList.contains('open')) { closeConfirmModal(); return; }
+      m = document.getElementById('aboutModal');
+      if (m && m.classList.contains('open')) closeAbout();
+    }
+    // Tab giữ trong dialog khi mở
+    if (e.key === 'Tab') {
+      var m = document.querySelector('.about-overlay.open');
+      if (!m) return;
+      var focusables = m.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusables.length) return;
+      var first = focusables[0], last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  function loadMetaAndOptions() {
+    google.script.run
+      .withSuccessHandler(function (meta) {
+        META = meta;
+        // Email người dùng hiện tại (GAS Session) — phân quyền chuyển Ra/Vào meal-move
+        CURRENT_USER_EMAIL = String((meta && meta.currentUser) || '').trim().toLowerCase();
+        loadStaffIndex();  // cache staff index — scan NV lạ hiện thông tin ngay
+        // Header mới không còn #appTitle — cập nhật brand title nếu có
+        var brand = document.getElementById('brandTitle');
+        if (brand && meta.appTitle) brand.textContent = meta.appTitle;
+        refreshAll();
+      })
+      .withFailureHandler(function (err) {
+        markServerFail();  // P2: RPC fail = server unreachable → netDot offline
+        hideLoadingOverlay();
+        showToast('Lỗi tải meta: ' + err.message, true);
+        refreshAll();
+      })
+      .getMeta();
+  }
+
+  // P2: anti-chồng RPC — bấm '⟳ Làm mới' liên tục (hoặc load tái-kích hoạt khi đang chạy)
+  // → 2 luồng getTaskListApi + getFilterOptions đè nhau. Nhả lock khi CẢ HAI RPC hoàn tất
+  // (đếm _refreshPending); timeout 5s chỉ là bảo hiểm phòng RPC treo — không chốt 1.5s cứng
+  // (lock hết sớm khi RPC chậm sẽ cho phép chồng luồng mới). Disable nút visual khi khóa.
+  var _refreshLock = false;
+  var _refreshPending = 0;
+  function _releaseRefreshLock() {
+    if (_refreshPending <= 0) return;  // clamp — timeout 5s đã nhả, RPC trả về sau không đẩy âm
+    _refreshPending--;
+    if (_refreshPending > 0) return;  // còn RPC kia chưa xong — giữ khóa
+    _refreshLock = false;
+    var btn = document.getElementById('btnRefresh');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+  function refreshAll() {
+    if (_refreshLock) return;  // đang load rồi — bỏ qua, tránh chồng RPC
+    _refreshLock = true;
+    _refreshPending = 2;  // loadFilterOptions + loadTaskList
+    var btn = document.getElementById('btnRefresh');
+    if (btn) { btn.disabled = true; btn.style.opacity = .6; }
+    loadFilterOptions();
+    loadTaskList();
+    // bảo hiểm an toàn: phòng RPC không bao giờ resolve (treo) — vẫn nhả sau 5s
+    setTimeout(function () {
+      if (_refreshPending > 0) _refreshPending = 1;  // ép nhả ở vòng kế
+      _releaseRefreshLock();
+    }, 5000);
+  }
+
+  function loadFilterOptions() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res.ok) { _releaseRefreshLock(); showToast(res.message, true); return; }
+        fillSelect('fStation', res.stations, '-- Chọn station --');
+        fillChips('fSlotCode', res.slotCodes);
+        fillChips('fTeam', res.teams);
+        fillSelect('fDate', res.dates, '-- Tất cả ngày --');
+        fillChips('fContractType', res.contractTypes || []);
+        // Tối ưu 2026-08-11: lưu options dùng chung cho modal meal-move — tránh gọi
+        // getFilterOptions RPC lần 2 khi mở modal (loadMealOptions chỉ chạy nếu chưa có).
+        _mealFilterOptions = res;
+        var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
+        document.getElementById('btnCreateTask').disabled = !canCreate;
+        updateCreateSubmitState();
+        markServerOk();  // RPC success → server sống lại (netDot hồi phục — phủ cả trường hợp chỉ load options)
+        _releaseRefreshLock();
+      })
+      .withFailureHandler(function (err) { markServerFail(); _releaseRefreshLock(); showToast('Lỗi tải options: ' + err.message, true); })
+      .getFilterOptions();
+  }
+
+  // P2: xem truoc so NV khop bo loc khi tao task (modal) — goi previewStaffApi
+  var _previewTimer = null;
+  function updateCreatePreview() {
+    var station = document.getElementById('fStation').value;
+    var slotCode = getSelectedChips('fSlotCode');
+    var team = getSelectedChips('fTeam');
+    var date = document.getElementById('fDate').value;
+    var contractType = getSelectedChips('fContractType');
+    var box = document.getElementById('createPreview');
+    var cntEl = document.getElementById('createPreviewCount');
+    var hintEl = document.getElementById('createPreviewHint');
+    if (!cntEl || !box) return;
+    updateCreateSubmitState();
+    var missing = [];
+    if (!station) missing.push('Station');
+    if (!slotCode.length) missing.push('Ca');
+    if (!team.length) missing.push('Team');
+    if (missing.length) {
+      box.setAttribute('data-state', 'idle');
+      cntEl.textContent = 'Chưa đủ bộ lọc để xem số NV';
+      hintEl.textContent = 'Cần chọn: ' + missing.join(', ');
+      updateHud(station, '—', slotCode.length, team.length);
+      return;
+    }
+    box.setAttribute('data-state', 'loading');
+    cntEl.textContent = 'Đang kiểm tra…';
+    hintEl.textContent = '';
+    updateHud(station, '…', slotCode.length, team.length);
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(function () {  // debounce 400ms — tranh spam RPC khi doi select lien tuc
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) {
+            box.setAttribute('data-state', 'err');
+            cntEl.textContent = 'Không tải được preview';
+            updateHud(station, '—', slotCode.length, team.length);
+            return;
+          }
+          box.setAttribute('data-state', 'ok');
+          cntEl.textContent = 'Số NV khớp: ' + res.count + ' người';
+          var scope = station;
+          if (date) scope += ' · ' + date;
+          scope += ' · ' + slotCode.length + ' ca · ' + team.length + ' team';
+          hintEl.textContent = scope;
+          updateHud(station, res.count, slotCode.length, team.length);
+        })
+        .withFailureHandler(function (err) { markServerFail(); box.setAttribute('data-state', 'err'); cntEl.textContent = 'Lỗi preview: ' + err.message; updateHud(station, '—', slotCode.length, team.length); })
+        .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date, contractType: contractType });
+    }, 400);
+  }
+  // HUD stat (Dark Industrial): NV khớp / Ca chọn / Team
+  function updateHud(stationName, nv, ca, team) {
+    var hs = document.getElementById('hudStation');
+    if (hs) hs.textContent = stationName ? stationName : 'KHO —';
+    var e1 = document.getElementById('statNv'); if (e1) e1.textContent = nv;
+    var e2 = document.getElementById('statCa'); if (e2) e2.textContent = ca;
+    var e3 = document.getElementById('statTeam'); if (e3) e3.textContent = team;
+  }
+  // Nút "+ Tạo task" chỉ bấm được khi đủ Station + ≥1 Ca + ≥1 Team (khớp validate createTask)
+  function updateCreateSubmitState() {
+    var btn = document.getElementById('btnCreateSubmit');
+    if (!btn) return;
+    var station = document.getElementById('fStation').value;
+    var slotCode = getSelectedChips('fSlotCode');
+    var team = getSelectedChips('fTeam');
+    btn.disabled = !(station && slotCode.length && team.length);
+  }
+  function initCreatePreview() {
+    ['fStation', 'fDate'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', updateCreatePreview);
+    });
+  }
+
+  function fillSelect(id, values, placeholder) {
+    var sel = document.getElementById(id);
+    sel.innerHTML = '';
+    // Multi-select: KHÔNG thêm placeholder option (nó thành option chọn được value='')
+    if (!sel.multiple) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = placeholder;
+      sel.appendChild(opt);
+    }
+    values.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
+    });
+  }
+  // ===== Chip filter (modal tạo task v2) — một chạm toggle, dễ dùng trên kiosk touch =====
+  function fillChips(id, values) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    group.innerHTML = '';
+    (values || []).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = v;
+      b.dataset.value = v;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        b.classList.toggle('selected');
+        b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
+        updateChipCount(id);
+        updateCreateSubmitState();
+        updateCreatePreview();
+      });
+      group.appendChild(b);
+    });
+  }
+  function getSelectedChips(id) {
+    var group = document.getElementById(id);
+    if (!group) return [];
+    var out = [];
+    var chips = group.querySelectorAll('.chip.selected');
+    for (var i = 0; i < chips.length; i++) out.push(chips[i].dataset.value);
+    return out;
+  }
+  function updateChipCount(id) {
+    var countEl = document.getElementById('count' + id.slice(1));
+    if (countEl) {
+      var n = getSelectedChips(id).length;
+      countEl.textContent = n ? n : '';
+    }
+  }
+  function resetChips(id) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    var chips = group.querySelectorAll('.chip.selected');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('selected');
+    updateChipCount(id);
+  }
+
+  // P3: render bảng task dùng chung — loadTaskList (toàn bộ) và lọc theo mã Ops
+  // (header search) đều gọi → 1 nguồn HTML duy nhất, không trùng lặp.
+  // Badge màu cột "Loại task" — phân loại theo taskType (reconcile / meal-move)
+  function taskTypeBadge(tt) {
+    if (tt === 'meal-move') return '<span class="badge tt-meal">Điểm danh Ra/Vào</span>';
+    return '<span class="badge tt-ca">Điểm danh ca</span>';
+  }
+  // Phân trang danh sách task — tối đa 30 dòng/trang (PAGING)
+  var _taskPage = 1;
+  var _taskPageList = [];
+  var TASK_PAGE_SIZE = 30;
+  function renderTaskList(tasks) {
+    var body = document.getElementById('taskListBody');
+    if (!body) return;
+    var skel = document.getElementById('taskSkeleton');
+    var tbl = document.getElementById('taskListTable');
+    var empty = document.getElementById('taskEmpty');
+    var cnt = document.getElementById('taskCount');
+    var pagin = document.getElementById('taskPagin');
+    var list = tasks || [];
+    _taskPageList = list;
+    body.innerHTML = '';
+    if (skel) skel.style.display = 'none';
+    if (tbl) tbl.style.display = '';
+    if (cnt) cnt.textContent = list.length;
+    if (pagin) pagin.style.display = 'none';
+    if (!list.length) {
+      if (empty) empty.style.display = '';
+      if (pagin) pagin.innerHTML = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    var pages = Math.max(1, Math.ceil(list.length / TASK_PAGE_SIZE));
+    if (_taskPage > pages) _taskPage = pages;
+    if (_taskPage < 1) _taskPage = 1;
+    var start = (_taskPage - 1) * TASK_PAGE_SIZE;
+    var slice = list.slice(start, start + TASK_PAGE_SIZE);
+    slice.forEach(function (t, i) {
+      var idx = start + i;
+      var tr = document.createElement('tr');
+      var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
+      tr.innerHTML =
+        '<td class="stt">' + (idx + 1) + '</td>' +
+        '<td>' + esc(t.taskId) + '</td>' +
+        '<td>' + taskTypeBadge(t.taskType) + '</td>' +
+        '<td>' + esc(t.station) + '</td>' +
+        '<td>' + esc(t.slotCode) + '</td>' +
+        '<td>' + esc(t.team) + '</td>' +
+        '<td class="num">' + (t.total || 0) + '</td>' +
+        '<td class="num">' + (t.scanned || 0) + '</td>' +
+        '<td class="num">' + (t.extra || 0) + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td>' + esc(t.createdAtText || t.createdAt || '') + '</td>' +
+        '<td>' + esc(creatorName(t.createdBy)) + '</td>' +
+        '<td>' + (t.status === TASK_STATUS_C.OPEN ? '<button class="btn btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>' : '<button class="btn btn-ghost btn-sm" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>') + '</td>';
+      body.appendChild(tr);
+    });
+    renderTaskPagin(list.length, pages);
+  }
+  function renderTaskPagin(total, pages) {
+    var pagin = document.getElementById('taskPagin');
+    if (!pagin) return;
+    if (pages <= 1) { pagin.style.display = 'none'; pagin.innerHTML = ''; return; }
+    pagin.style.display = '';
+    var html = '<button type="button"' + (_taskPage <= 1 ? ' disabled' : '') + ' onclick="goTaskPage(' + (_taskPage - 1) + ')">‹ Trước</button>';
+    var nums = [];
+    for (var i = 1; i <= pages; i++) {
+      if (i === 1 || i === pages || Math.abs(i - _taskPage) <= 1) nums.push(i);
+      else if (nums[nums.length - 1] !== '…') nums.push('…');
+    }
+    nums.forEach(function (n) {
+      if (n === '…') html += '<span class="p-dots">…</span>';
+      else html += '<button type="button" class="' + (n === _taskPage ? 'active' : '') + '" onclick="goTaskPage(' + n + ')">' + n + '</button>';
+    });
+    html += '<button type="button"' + (_taskPage >= pages ? ' disabled' : '') + ' onclick="goTaskPage(' + (_taskPage + 1) + ')">Sau ›</button>';
+    var from = (_taskPage - 1) * TASK_PAGE_SIZE + 1;
+    var to = Math.min(_taskPage * TASK_PAGE_SIZE, total);
+    html += '<span class="p-info">' + from + '–' + to + ' / ' + total + '</span>';
+    pagin.innerHTML = html;
+  }
+  function goTaskPage(n) {
+    var list = _taskPageList || [];
+    var pages = Math.max(1, Math.ceil(list.length / TASK_PAGE_SIZE));
+    if (n < 1) n = 1;
+    if (n > pages) n = pages;
+    _taskPage = n;
+    renderTaskList(list);
+  }
+  // ===== DASH-SIDEBAR (MẪU 6 — Executive Dark): KPI + bộ lọc lọc data thật =====
+  var _dashTasks = [];
+  function setText(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+  function toggleDashGroup(btn) { var g = btn.parentElement; if (g) g.classList.toggle('open'); }
+  function buildDashOpts(containerId, name, tasks, field) {
+    var box = document.getElementById(containerId);
+    if (!box) return;
+    var map = {};
+    tasks.forEach(function (t) { var v = String(t[field] || '').trim(); if (v) map[v] = (map[v] || 0) + 1; });
+    var keys = Object.keys(map).sort();
+    box.innerHTML = keys.map(function (v) {
+      return '<label class="dash-opt"><input type="checkbox" name="' + name + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span></label>';
+    }).join('');
+  }
+  // Bộ lọc "Loại Task" — 2 loại cố định: Điểm danh ca / Điểm danh Ra/Vào
+  function buildDashTypeOpts() {
+    var box = document.getElementById('dynType');
+    if (!box) return;
+    var map = { reconcile: 0, 'meal-move': 0 };
+    _dashTasks.forEach(function (t) { var k = t.taskType === 'meal-move' ? 'meal-move' : 'reconcile'; map[k]++; });
+    box.innerHTML =
+      '<label class="dash-opt"><input type="checkbox" name="dashType" value="reconcile" checked onchange="applyDashFilters()"> Điểm danh ca <span class="dash-cnt">' + map.reconcile + '</span></label>' +
+      '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
+  }
+  function renderDash(tasks) {
+    _dashTasks = tasks || [];
+    var total = _dashTasks.length;
+    var open = _dashTasks.filter(function (t) { return t.status !== TASK_STATUS_C.DONE; }).length;
+    var scan = _dashTasks.reduce(function (a, t) { return a + (t.scanned || 0); }, 0);
+    setText('dKpiTotal', total); setText('dKpiOpen', open); setText('dKpiDone', total - open); setText('dKpiScan', scan);
+    buildDashTypeOpts();
+    buildDashOpts('dynStn', 'dashStn', _dashTasks, 'station');
+    buildDashOpts('dynCa', 'dashCa', _dashTasks, 'slotCode');
+    buildDashOpts('dynTeam', 'dashTeam', _dashTasks, 'team');
+    setText('dSt_open', open); setText('dSt_done', total - open);
+    var sAll = document.querySelector('input[name="dashSt"][value="all"]');
+    if (sAll) sAll.checked = true;
+    applyDashFilters();
+  }
+  function dashState() {
+    var r = document.querySelector('input[name="dashSt"]:checked');
+    function vals(name) { return Array.prototype.map.call(document.querySelectorAll('input[name="' + name + '"]:checked'), function (i) { return i.value; }); }
+    return { st: (r && r.value) || 'all', type: vals('dashType'), stn: vals('dashStn'), ca: vals('dashCa'), team: vals('dashTeam') };
+  }
+  function dashMatch(t, s) {
+    if (s.st === 'open' && t.status === TASK_STATUS_C.DONE) return false;
+    if (s.st === 'done' && t.status !== TASK_STATUS_C.DONE) return false;
+    if (s.stn.length && s.stn.indexOf(String(t.station || '')) === -1) return false;
+    if (s.ca.length && String(t.slotCode || '') && s.ca.indexOf(String(t.slotCode)) === -1) return false; // meal-move: slotCode rong -> khong thuoc ca nao, khong bi loc
+    if (s.team.length && s.team.indexOf(String(t.team || '')) === -1) return false;
+    if (s.type.length && s.type.indexOf(t.taskType === 'meal-move' ? 'meal-move' : 'reconcile') === -1) return false;
+    return true;
+  }
+  function applyDashFilters() {
+    var s = dashState();
+    var list = _dashTasks.filter(function (t) { return dashMatch(t, s); });
+    setText('dFilterBadge', (list.length === _dashTasks.length || !_dashTasks.length) ? '' : '(' + list.length + ')');
+    _taskPage = 1;
+    renderTaskList(list);
+    refreshTypeCounts(s);
+  }
+  // Đếm lại nhóm "📋 Loại Task" THEO bộ lọc đang chọn (trạng thái/Station/Ca/Team,
+  // không tính filter Loại Task) — số hiển thị khớp đúng danh sách sẽ hiện.
+  // Tránh hiểu nhầm: 19 task Ra/Vào nhưng nếu đang lọc "Kết thúc" mà không có
+  // task nào kết thúc → hiển thị 0, không phải 19.
+  function refreshTypeCounts(s) {
+    var box = document.getElementById('dynType');
+    if (!box) return;
+    var base = { st: s.st, stn: s.stn, ca: s.ca, team: s.team, type: [] };
+    var subset = _dashTasks.filter(function (t) { return dashMatch(t, base); });
+    var c = { reconcile: 0, 'meal-move': 0 };
+    subset.forEach(function (t) { var k = t.taskType === 'meal-move' ? 'meal-move' : 'reconcile'; c[k]++; });
+    var labels = box.querySelectorAll('.dash-cnt');
+    if (labels[0]) labels[0].textContent = c.reconcile;
+    if (labels[1]) labels[1].textContent = c['meal-move'];
+  }
+  function dashScrollTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.addEventListener('scroll', function () {
+    var b = document.getElementById('dashScrollTop');
+    if (!b) return;
+    if (window.scrollY > 300) b.classList.add('show'); else b.classList.remove('show');
+  }, { passive: true });
+  function toggleDashMini() {
+    var layout = document.querySelector('.dash-layout');
+    if (layout) layout.classList.toggle('mini');
+  }
+  function clearDashFilters() {
+    document.querySelectorAll('#dashSide input[type="checkbox"]').forEach(function (i) { i.checked = true; });
+    var r = document.querySelector('#dashSide input[name="dashSt"][value="all"]');
+    if (r) r.checked = true;
+    applyDashFilters();
+  }
+
+  function loadTaskList() {
+    // Skeleton shimmer ngay lập tức — phản hồi tức thì thay vì "treo"
+    var skel = document.getElementById('taskSkeleton');
+    var tbl = document.getElementById('taskListTable');
+    var empty = document.getElementById('taskEmpty');
+    if (skel) skel.style.display = '';
+    if (tbl) tbl.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    // I9: đang tải → hiện '…' thay vì số 0 gây hiểu nhầm
+    var cntLoading = document.getElementById('taskCount');
+    if (cntLoading) cntLoading.textContent = '…';
+    google.script.run
+      .withSuccessHandler(function (tasks) {
+        _taskPage = 1;
+        renderTaskList(tasks);
+        renderDash(tasks);
+        hideLoadingOverlay();
+        markServerOk();  // P2: RPC thành công → server sống lại → netDot hồi phục
+        _releaseRefreshLock();  // P2: RPC xong → nhả lock refresh (nếu dở)
+      })
+      .withFailureHandler(function (err) {
+        markServerFail();  // P2: RPC fail → server offline
+        _releaseRefreshLock();
+        if (skel) skel.style.display = 'none';
+        if (tbl) tbl.style.display = '';
+        hideLoadingOverlay();
+        showToast('Lỗi tải task: ' + err.message, true);
+      })
+      .getTaskListApi();
+  }
+
+  function createTask() {
+    if (BUSY) return;
+    var noteEl = document.getElementById('noteInput');
+    var input = {
+      station: document.getElementById('fStation').value,
+      slotCode: getSelectedChips('fSlotCode'),
+      team: getSelectedChips('fTeam'),
+      date: document.getElementById('fDate').value,
+      contractType: getSelectedChips('fContractType'),
+      note: noteEl ? noteEl.value.trim() : ''
+    };
+    if (!input.station || !input.slotCode.length || !input.team.length) {
+      showToast('Vui lòng chọn đủ Station, Team và Ca', true);
+      return;
+    }
+    BUSY = true;
+    var btn = document.getElementById('btnCreateSubmit');
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          closeCreateModal();
+          showToast(res.message + ' — ' + res.count + ' NV', false);
+          loadTaskList();
+          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+          openScan(res.taskId);
+        } else {
+          showToast(res.message, true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        showToast('Lỗi tạo task: ' + err.message, true);
+      })
+      .createReconcileTaskApi(input);
+  }
+
+  function openScan(taskId) {
+    document.getElementById('viewList').classList.add('hidden');
+    document.getElementById('viewScan').classList.remove('hidden');
+    // P2 (audit): interval auto-focus đã bị dừng khi về danh sách → khởi động lại
+    startAutoFocusLoop();
+    // P2 (SWR an toàn): vừa xem task này xong (<15s) → render NGAY từ bộ nhớ,
+    // KHÔNG spinner + RPC nền sync im lặng — hết chờ đợi khi quay lại mở cùng task.
+    if (CURRENT_TASK && CURRENT_TASK.taskId === taskId
+        && LAST_SCAN_VIEW.taskId === taskId
+        && Date.now() - LAST_SCAN_VIEW.ts < SCAN_CACHE_TTL_MS) {
+      renderScanView({ task: CURRENT_TASK, log: CURRENT_LOG, counters: CURRENT_COUNTERS });
+      hideLoadingOverlay();  // phòng nếu overlay còn từ lần trước
+      loadTaskDetail(taskId, true);  // RPC nền — sync dữ liệu mới nhất (nếu có thay đổi)
+      return;
+    }
+    showLoadingOverlay();  // P2: spinner khi đang load danh sách NV (ẩn ở success/failure)
+    loadTaskDetail(taskId);
+  }
+
+  function backToList() {
+    // P2: chặn thoát khi còn scan queue HOẶC đang xử lý item cuối (queue rỗng nhưng
+    // SCAN_PROCESSING=true) — nếu không, response cũ trả về render vào task mới đang
+    // xem → scan card/toast lệch task, CURRENT_LOG bị ghi đè giữa chừng.
+    if (scanBusy()) {
+      showToast(SCAN_QUEUE.length > 0
+        ? 'Đang xử lý ' + SCAN_QUEUE.length + ' lượt quét — chờ xong rồi quay lại'
+        : 'Đang xử lý lượt quét — chờ xong rồi quay lại', true);
+      return;
+    }
+    document.getElementById('viewScan').classList.add('hidden');
+    document.getElementById('viewList').classList.remove('hidden');
+    loadTaskList();
+  }
+
+  var SCAN_LOAD_SEQ = 0; // chống response task cũ ghi đè khi chuyển task nhanh
+  // P2 (SWR an toàn): snapshot task vừa xem — quay lại + mở cùng task trong 15s
+  // render NGAY từ bộ nhớ (không spinner, không chờ RPC) + gọi RPC nền sync im lặng.
+  // TTL 15s khớp server TASK_DETAIL — không bao giờ hiển thị data stale hơn server.
+  var LAST_SCAN_VIEW = { taskId: null, ts: 0 };
+  var SCAN_CACHE_TTL_MS = 15000;
+
+  // Render view scan từ data (dùng chung cho full-load và cache-reuse)
+  function renderScanView(data) {
+    var skel = document.getElementById('scanSkeleton');
+    var tbl = document.getElementById('scanTable');
+    var empty = document.getElementById('scanEmpty');
+    CURRENT_TASK = data.task;
+    CURRENT_LOG = data.log || [];
+    document.getElementById('scanTaskTitle').textContent = data.task.taskId;
+    var metaEl = document.getElementById('scanTaskMeta');
+    var TT_LABEL = { reconcile: 'Đối chiếu', 'meal-move': TT_LABEL_MEAL['meal-move'] };
+    var isMealMove = data.task.taskType === 'meal-move';
+    metaEl.innerHTML =
+      esc(TT_LABEL[data.task.taskType] || 'Task') +
+      (isMealMove ? '' : ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team)) +
+      (isMealMove && data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '') +
+      (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
+      // Hiện email creator cho mọi loại task (giống meal-move)
+      (data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '');
+    renderTaskNote(data.task);
+    // Quyền Ra/Vào meal-move: CHỈ email tạo task (createdBy) được mode 'ra' (Quét Danh Sách);
+    // người khác ẩn nút + khóa 'vao' (Điểm Danh). Anonymous web app (currentUser rỗng) →
+    // fallback cũ (hiện nút, mặc định 'ra'); server resolveMealMoveMode_ vẫn tự ép quyền.
+    var isCreator = CURRENT_USER_EMAIL && CURRENT_USER_EMAIL === String(data.task.createdBy || '').trim().toLowerCase();
+    var effCreator = CURRENT_USER_EMAIL ? isCreator : true;
+    // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
+    toggleMealColumns(isMealMove);
+    var toggleWrap = document.getElementById('mealToggleWrap');
+    if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
+    // Nút "Chuyển Quét": chỉ meal-move + còn mở (disable khi đã kết thúc)
+    var swBtn = document.getElementById('btnMealSwitch');
+    if (swBtn) {
+      swBtn.hidden = !isMealMove || !effCreator;
+      swBtn.disabled = !isMealMove || !effCreator || data.task.status !== TASK_STATUS_C.OPEN;
+    }
+    var lockNote = document.getElementById('mealCreatorLock');
+    if (lockNote) lockNote.style.display = (isMealMove && !effCreator) ? '' : 'none';
+    // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
+    // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
+    renderScanHeader(isMealMove);
+    if (isMealMove) {
+      // Creator → mặc định 'ra' (Quét Danh Sách); người khác → ép 'vao' (Điểm Danh)
+      setMealMode(effCreator ? 'ra' : 'vao');
+    }
+    if (skel) skel.style.display = 'none';
+    if (tbl) tbl.style.display = '';
+    renderScanTable(data.log);
+    // P1: task đã có scan → khôi phục scan card (không reset về "Chưa có")
+    restoreScanCard(data.log);
+    CURRENT_COUNTERS = data.counters || { scanned: 0, absent: 0, extra: 0 };
+    renderCounters(CURRENT_COUNTERS);
+    var canScan = data.task.status === TASK_STATUS_C.OPEN;
+    document.getElementById('scanInput').disabled = !canScan;
+    document.getElementById('scanInput').placeholder = canScan ? 'Quét hoặc dán mã nhân viên…' : 'Task đã kết thúc';
+    updateFinishBtnState();
+    if (canScan) {
+      document.getElementById('scanInput').focus();
+    }
+  }
+
+  // silent=true: gọi RPC nền (đã render từ cache) — KHÔNG show spinner, KHÔNG reset UI
+  function loadTaskDetail(taskId, silent) {
+    var seq = ++SCAN_LOAD_SEQ;
+    if (!silent) {
+      // Reset UI NGAY — tránh hiển thị dữ liệu task mở trước đó trong lúc loading
+      var skel = document.getElementById('scanSkeleton');
+      var tbl = document.getElementById('scanTable');
+      var empty = document.getElementById('scanEmpty');
+      if (skel) skel.style.display = '';
+      if (tbl) tbl.style.display = 'none';
+      if (empty) empty.style.display = 'none';
+      CURRENT_TASK = null;
+      CURRENT_LOG = [];
+      document.getElementById('scanTaskTitle').textContent = 'Đang tải…';
+      document.getElementById('scanTaskMeta').textContent = '';
+      document.getElementById('scanInput').value = '';
+      document.getElementById('scanInput').disabled = true;
+      renderCounters({ scanned: 0, absent: 0, extra: 0 });
+      resetScanCard();
+      updateFinishBtnState();
+    }
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (seq !== SCAN_LOAD_SEQ) return; // response của task cũ — bỏ qua
+        if (!res.ok) { if (!silent) { showToast(res.message, true); backToList(); } return; }
+        renderScanView(res);
+        LAST_SCAN_VIEW = { taskId: taskId, ts: Date.now() };
+        hideLoadingOverlay();  // P2: load xong → ẩn spinner
+      })
+      .withFailureHandler(function (err) {
+        if (seq !== SCAN_LOAD_SEQ) return; // response của task cũ — bỏ qua
+        hideLoadingOverlay();  // P2: load lỗi cũng ẩn spinner
+        if (silent) return; // RPC nền lỗi — giữ view đang hiển thị (cache) — không phá UX
+        var skel = document.getElementById('scanSkeleton');
+        var tbl = document.getElementById('scanTable');
+        var empty = document.getElementById('scanEmpty');
+        if (skel) skel.style.display = 'none';
+        if (tbl) tbl.style.display = '';
+        // P2: reset trạng thái view khi load lỗi — hết view treo "Đang tải…" + input disabled
+        document.getElementById('scanTaskTitle').textContent = 'Không tải được task';
+        document.getElementById('scanTaskMeta').textContent = '';
+        if (empty) { empty.textContent = 'Lỗi tải chi tiết — bấm ← Danh sách task để quay lại'; empty.style.display = ''; }
+        document.getElementById('scanInput').disabled = true;
+        updateFinishBtnState();
+        showToast('Lỗi tải chi tiết: ' + err.message, true);
+      })
+      .getTaskDetailApi(taskId);
+  }
+
+  function renderCounters(c) {
+    if (!c) return;
+    document.getElementById('cScanned').textContent = c.scanned || 0;
+    document.getElementById('cAbsent').textContent = c.absent || 0;
+    document.getElementById('cExtra').textContent = c.extra || 0;
+    var outEl = document.getElementById('cOut');
+    if (outEl) outEl.textContent = c.out || 0;
+    // Label động theo trạng thái task: đang mở → "Chưa điểm danh" (chưa quét ≠ vắng);
+    // đã kết thúc → "Vắng" (markUnscannedAbsent_ đã chốt trạng thái).
+    var lbl = document.querySelector('.counter.absent .lbl');
+    if (lbl) {
+      lbl.textContent = (!CURRENT_TASK || CURRENT_TASK.status === TASK_STATUS_C.OPEN) ? 'Chưa điểm danh' : 'Vắng';
+    }
+  }
+
+  // meal-move: hiện/ẩn cột Giờ Ra / Nhà Thầu / Số phút trong bảng scan
+  function toggleMealColumns(show) {
+    var cols = document.querySelectorAll('.mm-col');
+    for (var i = 0; i < cols.length; i++) {
+      cols[i].style.display = show ? '' : 'none';
+    }
+    // Counter "Ra ngoài"
+    var wrap = document.getElementById('cOutWrap');
+    if (wrap) wrap.style.display = show ? '' : 'none';
+  }
+
+  // Render header bảng scan theo loại task — đảm bảo header khớp body
+  // (reconcile = 7 cột: Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh;
+  //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Nhà Thầu/Số phút).
+  // ===== Ghi chú task: hiển thị dưới task-meta + nút "Sửa ghi chú" nhỏ màu =====
+  function renderTaskNote(task) {
+    var wrap = document.getElementById('taskNoteWrap');
+    if (!wrap) return;
+    var note = String((task && task.note) || '').trim();
+    var canEdit = true; // mọi trạng thái task đều sửa được ghi chú
+    if (note) {
+      wrap.innerHTML =
+        '<div class="task-note" id="taskNoteBox">' +
+          '<span class="tn-ic">📝</span>' +
+          '<div class="tn-text">' + esc(note) + '</div>' +
+          (canEdit ? '<div class="tn-actions"><button type="button" class="btn-note-edit" onclick="editTaskNote()">✎ Sửa ghi chú</button></div>' : '') +
+        '</div>';
+    } else {
+      wrap.innerHTML =
+        '<div class="task-note-empty">' +
+          (canEdit ? '<button type="button" class="btn-note-edit" onclick="editTaskNote()">＋ Ghi chú</button>' : '') +
+        '</div>';
+    }
+  }
+  // Chuyển khối ghi chú sang chế độ chỉnh sửa (textarea + Lưu/Huỷ)
+  function editTaskNote() {
+    var wrap = document.getElementById('taskNoteWrap');
+    if (!wrap || !CURRENT_TASK) return;
+    var note = String((CURRENT_TASK && CURRENT_TASK.note) || '').trim();
+    wrap.innerHTML =
+      '<div class="task-note-editbox">' +
+        '<textarea id="taskNoteEdit" rows="2" placeholder="Ghi chú cho task…" aria-label="Ghi chú task">' + esc(note) + '</textarea>' +
+        '<div class="tne-actions">' +
+          '<button type="button" class="btn" onclick="saveTaskNote()">Lưu</button>' +
+          '<button type="button" class="btn btn-ghost" onclick="cancelTaskNote()">Huỷ</button>' +
+        '</div>' +
+      '</div>';
+    var ta = document.getElementById('taskNoteEdit');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+  function cancelTaskNote() {
+    renderTaskNote(CURRENT_TASK);
+  }
+  function saveTaskNote() {
+    if (!CURRENT_TASK) return;
+    var ta = document.getElementById('taskNoteEdit');
+    var note = ta ? ta.value : '';
+    var btn = document.querySelector('.task-note-editbox .btn');
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        var b2 = document.querySelector('.task-note-editbox .btn');
+        if (b2) b2.disabled = false;
+        if (res && res.ok) {
+          CURRENT_TASK.note = String(note || '').trim();
+          renderTaskNote(CURRENT_TASK);
+          showToast(res.message, false);
+        } else {
+          showToast((res && res.message) || 'Lỗi lưu ghi chú', true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        var b3 = document.querySelector('.task-note-editbox .btn');
+        if (b3) b3.disabled = false;
+        showToast('Lỗi lưu ghi chú: ' + err.message, true);
+      })
+      .updateTaskNoteApi(CURRENT_TASK.taskId, note);
+  }
+
+  function renderScanHeader(isMealMove) {
+    var thead = document.querySelector('#scanTable thead');
+    if (!thead) return;
+    if (isMealMove) {
+      thead.innerHTML = '<tr>' +
+        '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
+        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Vào</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Nhà Thầu</th>' +
+        '<th scope="col" data-sort="8" class="sortable" aria-sort="none">Số phút</th>' +
+        '<th scope="col" data-sort="9" class="sortable" aria-sort="none">Trạng thái</th>' +
+        '</tr>';
+    } else {
+      thead.innerHTML = '<tr>' +
+        '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
+        '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Vender</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Trạng thái</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ điểm danh</th>' +
+        '</tr>';
+    }
+    updateSortIndicators();
+  }
+
+  // meal-move: set mode Ra/Vào — toggle UI + state
+  function setMealMode(mode) {
+    MEAL_MODE = mode;
+    var pillRa = document.getElementById('mealModePillRa');
+    var pillVao = document.getElementById('mealModePillVao');
+    if (pillRa) pillRa.classList.toggle('active', mode === 'ra');
+    if (pillVao) pillVao.classList.toggle('active', mode === 'vao');
+    // Nút chuyển ở topbar: nhãn theo đích sắp chuyển
+    var sw = document.getElementById('btnMealSwitch');
+    if (sw) {
+      sw.textContent = mode === 'ra' ? 'Chuyển Quét Điểm Danh' : 'Chuyển Quét Lấy Danh Sách';
+    }
+    // Cập nhật placeholder scan
+    var inp = document.getElementById('scanInput');
+    if (inp) {
+      inp.placeholder = mode === 'ra' ? 'Quét mã Ops — lấy danh sách…' : 'Quét mã Ops — điểm danh…';
+    }
+  }
+
+  // meal-move: nút chuyển cạnh nút Kết thúc — toggle Quét Danh Sách ⇄ Điểm Danh.
+  // Đang 'ra' (Quét Danh Sách) → chuyển sang 'vao' (Điểm Danh); đang 'vao' → quay lại.
+  function toggleMealMode() {
+    if (!CURRENT_TASK) return;
+    if (CURRENT_TASK.taskType !== 'meal-move') return;
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
+      showToast('Task đã kết thúc — không chuyển được', true);
+      return;
+    }
+    // Chỉ email tạo task được chuyển Quét Danh Sách ⇄ Điểm Danh (nút đã ẩn nếu không phải creator)
+    if (CURRENT_USER_EMAIL && CURRENT_USER_EMAIL !== String(CURRENT_TASK.createdBy || '').trim().toLowerCase()) {
+      showToast('Chỉ người tạo task được chuyển chế độ', true);
+      return;
+    }
+    setMealMode(nextMealMode(MEAL_MODE));
+  }
+
+  // C3: state lọc + sort bảng scan — mặc định "Giờ quét" MỚI NHẤT lên đầu (col 5, desc).
+  var SCAN_FILTER = { q: '', status: '' };
+  var SCAN_SORT = { col: 6, asc: false };  // Trạng thái (mới nhất lên đầu) — col 6 cho reconcile, col 9 cho meal-move
+  var STATUS_ORDER = {};  // P3: dựng từ STATUS_C — tránh hardcode label
+  STATUS_ORDER[STATUS_C.PENDING] = 0;
+  STATUS_ORDER[''] = 0;
+  STATUS_ORDER[STATUS_C.PRESENT] = 1;
+  STATUS_ORDER[STATUS_C.ABSENT] = 2;
+  STATUS_ORDER[STATUS_C.EXTRA] = 3;
+  // C4: rank status cho sort — KHÔNG dùng `|| 9` (0 là falsy → PENDING thành 9)
+  function statusRank(s) {
+    var r = STATUS_ORDER[s];
+    return r === undefined ? 9 : r;
+  }
+
+  function filterAndSortScan(log) {
+    var q = SCAN_FILTER.q.trim().toLowerCase();
+    var st = SCAN_FILTER.status;
+    var out = [];
+    (log || []).forEach(function (r) {
+      if (st && r.status !== st) return;
+      if (q) {
+        var hay = (String(r.staffId || '') + ' ' + String(r.staffName || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) return;
+      }
+      out.push(r);
+    });
+    var col = SCAN_SORT.col, asc = SCAN_SORT.asc;
+    var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
+    out.sort(function (a, b) {
+      var va, vb;
+      if (isMealMove) {
+        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Giờ Ra, 6=Giờ Vào, 7=Nhà Thầu, 8=Số phút, 9=Trạng thái
+        if (col === 9) { va = statusRank(a.status); vb = statusRank(b.status); }
+        else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
+        else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
+        else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 5) { va = Number(a.timeRaEpoch) || 0; vb = Number(b.timeRaEpoch) || 0; }
+        else if (col === 6) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
+        else if (col === 7) { va = String(a.agency || ''); vb = String(b.agency || ''); }
+        else if (col === 8) { va = Number(a.durationMinutes) || 0; vb = Number(b.durationMinutes) || 0; }
+      } else {
+        // Reconcile (Điểm Danh Ca) columns: 0=Mã NV, 1=Tên NV, 2=Vender, 3=Ca, 4=Team, 5=Station, 6=Trạng Thái, 7=Giờ điểm danh
+        if (col === 6) { va = statusRank(a.status); vb = statusRank(b.status); }
+        else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
+        else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
+        else if (col === 2) { va = String(a.agency || '').toUpperCase(); vb = String(b.agency || '').toUpperCase(); }
+        else if (col === 3) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 4) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 5) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 7) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
+      }
+      if (va === vb) return 0;
+      var cmp = va < vb ? -1 : 1;
+      return asc ? cmp : -cmp;
+    });
+    return out;
+  }
+
+  function renderScanTable(log) {
+    var body = document.getElementById('scanTableBody');
+    var empty = document.getElementById('scanEmpty');
+    var tbl = document.getElementById('scanTable');
+    if (!log || !log.length) {
+      // P3: log rỗng → ẩn luôn bảng (header trống + empty div gây rối mắt)
+      body.innerHTML = '';
+      if (tbl) tbl.style.display = 'none';
+      empty.textContent = 'Không có nhân viên nào trong danh sách';
+      empty.style.display = '';
+      return;
+    }
+    var rows = filterAndSortScan(log);
+    if (!rows.length) {
+      // C3: có log nhưng bộ lọc loại hết → báo khác empty thật
+      body.innerHTML = '';
+      if (tbl) tbl.style.display = 'none';
+      empty.textContent = 'Không có NV khớp bộ lọc';
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+    if (tbl) tbl.style.display = '';
+    _paintScanRows(body, rows);
+  }
+
+  // I2: keyed row-diff — chỉ update cell thay đổi, không replace toàn bộ (chống flicker)
+  function _paintScanRows(body, rows) {
+    var existing = {};
+    var i, tr;
+    for (i = 0; i < body.children.length; i++) {
+      tr = body.children[i];
+      if (tr.dataset && tr.dataset.id) existing[tr.dataset.id] = tr;
+    }
+    var keep = {};
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      tr = existing[r.staffId];
+      if (!tr) { tr = document.createElement('tr'); tr.dataset.id = r.staffId; }
+      tr.className = r.status === STATUS_C.EXTRA ? 'extra-row' : '';  // C4: nổi bật NV lạ
+      var cells = scanRowCells(r);
+      if (tr.children.length !== cells.length) {
+        tr.innerHTML = cells.join('');
+      } else {
+        for (var c = 0; c < cells.length; c++) {
+          if (tr.children[c].innerHTML !== cells[c]) tr.children[c].innerHTML = cells[c];
+        }
+      }
+      keep[r.staffId] = tr;
+    }
+    // Xoá tr không còn trong dữ liệu lọc
+    for (i = body.children.length - 1; i >= 0; i--) {
+      tr = body.children[i];
+      if (!keep[tr.dataset && tr.dataset.id]) tr.remove();
+    }
+    // Đưa về đúng thứ tự lọc/sort (appendChild tự chuyển về cuối)
+    for (i = 0; i < rows.length; i++) {
+      tr = keep[rows[i].staffId];
+      if (body.lastChild !== tr) body.appendChild(tr);
+    }
+  }
+
+  function scanRowCells(r) {
+    var badge = badgeFor(r.status);
+    var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
+    var cells;
+    if (isMealMove) {
+      // Meal-move: Mã NV | Tên NV | Ca | Team | Station | Giờ Ra | Giờ Vào | Nhà Thầu | Số phút | Trạng Thái
+      cells = [
+        '<td><b>' + esc(r.staffId) + '</b></td>',
+        '<td>' + esc(r.staffName || '') + '</td>',
+        '<td>' + esc(r.slotCode || '') + '</td>',
+        '<td>' + esc(r.team || '') + '</td>',
+        '<td>' + esc(r.station || '') + '</td>',
+        '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
+        '<td class="mm-col">' + esc(r.timeScanText || '') + '</td>',
+        '<td class="mm-col">' + esc(r.agency || '') + '</td>',
+        '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
+        '<td>' + badge + '</td>'
+      ];
+    } else {
+      // Reconcile (Điểm Danh Ca): Mã NV | Tên NV | Vender | Ca | Team | Station | Trạng Thái | Giờ điểm danh
+      cells = [
+        '<td><b>' + esc(r.staffId) + '</b></td>',
+        '<td>' + esc(r.staffName || '') + '</td>',
+        '<td>' + esc(r.agency || '') + '</td>',
+        '<td>' + esc(r.slotCode || '') + '</td>',
+        '<td>' + esc(r.team || '') + '</td>',
+        '<td>' + esc(r.station || '') + '</td>',
+        '<td>' + badge + '</td>',
+        '<td>' + esc(r.timeScanText || '') + '</td>'
+      ];
+    }
+    return cells;
+  }
+
+  function updateSortIndicators() {
+    var ths = document.querySelectorAll('#scanTable th.sortable');
+    for (var i = 0; i < ths.length; i++) {
+      var col = parseInt(ths[i].dataset.sort, 10);
+      var active = col === SCAN_SORT.col;
+      ths[i].classList.toggle('sort-asc', active && SCAN_SORT.asc);
+      ths[i].classList.toggle('sort-desc', active && !SCAN_SORT.asc);
+      ths[i].setAttribute('aria-sort', active ? (SCAN_SORT.asc ? 'ascending' : 'descending') : 'none');
+    }
+  }
+
+  function badgeFor(status) {
+    if (status === STATUS_C.PENDING || !status) return '<span class="badge pending">Chưa điểm danh</span>';
+    if (status === STATUS_C.PRESENT) return '<span class="badge present">Có mặt</span>';
+    if (status === STATUS_C.ABSENT) return '<span class="badge absent">Vắng</span>';
+    if (status === STATUS_C.EXTRA) return '<span class="badge extra">Dư</span>';
+    if (status === STATUS_C.OUT) return '<span class="badge out">Ra ngoài</span>';
+    return esc(status || '');
+  }
+
+  // Hàng đợi quét: capture + optimistic NGAY, server xử lý nền tuần tự.
+  var SCAN_QUEUE = [];
+  var SCAN_PROCESSING = false;
+  var SCAN_QUEUE_MAX = 50; // P2: giới hạn chống spam barcode → backlog 2.5s/item
+  // P2: seq chống response cũ đè scan card mới — quét B lúc response A đang bay,
+  // response A về sẽ showScanCard(A) nhảy card về NV quét trước đó vài giây.
+  var SCAN_CARD_SEQ = 0;
+  // D2: guard dùng chung — còn scan đang chờ server hoặc trong queue.
+  function scanBusy() {
+    return SCAN_QUEUE.length > 0 || SCAN_PROCESSING;
+  }
+  // B: recount theo timeScan (khớp server computeCounters — ScanLogic.gs) thay vì
+  // đếm theo status text: tránh lệch khi dòng có timeScan nhưng status chưa cập nhật.
+  // Dùng cho: optimistic bump (submitScan), rollback/sync (processScanQueue).
+  function recountFromLog() {
+    var s = 0, e = 0, a = 0, out = 0;
+    (CURRENT_LOG || []).forEach(function (r) {
+      // P2: epoch là nguồn sự thật duy nhất (khớp server computeCounters)
+      var hasScan = Number(r.timeScanEpoch) > 0;
+      if (r.status === STATUS_C.OUT) { out++; return; }
+      if (hasScan) s++;
+      if (r.status === STATUS_C.EXTRA) e++;
+      else if (!hasScan) a++;
+    });
+    // meal-move: scanned = đã có Vào; out = đã Ra chưa Vào
+    CURRENT_COUNTERS = { scanned: s, absent: a, extra: e, out: out };
+    renderCounters(CURRENT_COUNTERS);
+  }
+
+  // ===== Meal-move: modal tạo task + preview + handlers =====
+  // MEAL-CREATE-START
+  var _mealFilterOptions = null;  // cache options (stations/teams) — dùng chung cả 2 modal
+  var _mealPreviewTimer = null;
+
+  function openCreateMealModal() {
+    var m = document.getElementById('createMealModal');
+    if (!m) return;
+    resetMealCreate();
+    if (_mealFilterOptions) { fillMealOptions(_mealFilterOptions); }
+    else { loadMealOptions(); }
+    updateMealSubmitState();
+    m.setAttribute('aria-hidden', 'false');
+    m.classList.add('open');
+    var sel = document.getElementById('mealStation');
+    if (sel && sel.focus) sel.focus();
+  }
+  function closeCreateMealModal() {
+    var m = document.getElementById('createMealModal');
+    if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+    var btn = document.getElementById('btnCreateTask');
+    if (btn && btn.focus) btn.focus();
+  }
+  // Đọc options (stations/teams) riêng cho modal meal-move — tái dùng getFilterOptions.
+  function loadMealOptions() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showToast('Lỗi tải options: ' + (res && res.message), true); return; }
+        _mealFilterOptions = res;
+        fillMealOptions(res);
+      })
+      .withFailureHandler(function (err) { showToast('Lỗi tải options: ' + err.message, true); })
+      .getFilterOptions();
+  }
+  function fillMealOptions(opt) {
+    fillSelect('mealStation', opt.stations || [], '-- Chọn station --');
+    fillMealTeamChips('mealTeam', opt.teams || []);
+  }
+  // Chip Team riêng cho modal meal-move (handler gọi updateMealSubmitState/updateMealPreview —
+  // KHÔNG dùng fillChips chung: fillChips hardcode handler của modal reconcile).
+  function fillMealTeamChips(id, values) {
+    var group = document.getElementById(id);
+    if (!group) return;
+    group.innerHTML = '';
+    (values || []).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = v;
+      b.dataset.value = v;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        b.classList.toggle('selected');
+        b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
+        var cnt = document.getElementById('countMealTeam');
+        if (cnt) cnt.textContent = String(getSelectedChips('mealTeam').length || '');
+        updateMealSubmitState();
+        updateMealPreview();
+      });
+      group.appendChild(b);
+    });
+  }
+  // Reset bộ lọc meal mỗi lần mở — tránh tạo nhầm task với lựa chọn cũ.
+  function resetMealCreate() {
+    var noteEl = document.getElementById('noteMealInput');
+    if (noteEl) noteEl.value = '';
+    var sel = document.getElementById('mealStation');
+    if (sel) sel.value = '';
+    var grp = document.getElementById('mealTeam');
+    if (grp) {
+      var cs = grp.querySelectorAll('.chip.selected');
+      for (var i = 0; i < cs.length; i++) cs[i].classList.remove('selected');
+    }
+    var cnt = document.getElementById('countMealTeam');
+    if (cnt) cnt.textContent = '';
+    var box = document.getElementById('mealPreview');
+    if (box) box.setAttribute('data-state', 'idle');
+    var cntEl = document.getElementById('mealPreviewCount');
+    if (cntEl) cntEl.textContent = 'Chọn Station và Team để xem số NV';
+    var hintEl = document.getElementById('mealPreviewHint');
+    if (hintEl) hintEl.textContent = '';
+    var btn = document.getElementById('btnMealSubmit');
+    if (btn) btn.disabled = true;
+  }
+  // Logic thuần (test được): task Điểm danh Ra/Vào BẮT BUỘC Station + ≥1 Team.
+  function canSubmitMealCreate(station, teams) {
+    return !!(station && teams && teams.length);
+  }
+  function buildMealCreateInput(station, teams, note) {
+    return { station: station || '', team: teams || [], staffIds: [], createdBy: '', note: String(note || '').trim() };
+  }
+  // Nút "+ Tạo task" chỉ bấm được khi đủ Station + ≥1 Team.
+  function updateMealSubmitState() {
+    var btn = document.getElementById('btnMealSubmit');
+    if (!btn) return;
+    var sel = document.getElementById('mealStation');
+    var station = sel ? sel.value : '';
+    btn.disabled = !canSubmitMealCreate(station, getSelectedChips('mealTeam'));
+  }
+  // Preview số NV khớp Station + Team (debounce 400ms — chống spam RPC).
+  function updateMealPreview() {
+    var sel = document.getElementById('mealStation');
+    var station = sel ? sel.value : '';
+    var teams = getSelectedChips('mealTeam');
+    var box = document.getElementById('mealPreview');
+    var cntEl = document.getElementById('mealPreviewCount');
+    var hintEl = document.getElementById('mealPreviewHint');
+    if (!cntEl || !box) return;
+    updateMealSubmitState();
+    if (!canSubmitMealCreate(station, teams)) {
+      box.setAttribute('data-state', 'idle');
+      cntEl.textContent = 'Chưa đủ bộ lọc để xem số NV';
+      hintEl.textContent = 'Cần chọn: ' + (!station ? 'Station' : '') + (!teams.length ? (station ? ', ' : '') + 'Team' : '');
+      return;
+    }
+    box.setAttribute('data-state', 'loading');
+    cntEl.textContent = 'Đang kiểm tra…';
+    hintEl.textContent = '';
+    clearTimeout(_mealPreviewTimer);
+    _mealPreviewTimer = setTimeout(function () {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) {
+            box.setAttribute('data-state', 'err');
+            cntEl.textContent = 'Không tải được preview';
+            return;
+          }
+          box.setAttribute('data-state', 'ok');
+          cntEl.textContent = 'Số NV khớp: ' + res.count + ' người';
+          hintEl.textContent = station + ' · ' + teams.length + ' team';
+        })
+        .withFailureHandler(function (err) {
+          box.setAttribute('data-state', 'err');
+          cntEl.textContent = 'Lỗi preview: ' + err.message;
+        })
+        .previewStaffApi({ station: station, team: teams });
+    }, 400);
+  }
+  function createMealMoveTask() {
+    if (BUSY) return;
+    var sel = document.getElementById('mealStation');
+    var noteEl = document.getElementById('noteMealInput');
+    var input = buildMealCreateInput(sel ? sel.value : '', getSelectedChips('mealTeam'), noteEl ? noteEl.value : '');
+    if (!canSubmitMealCreate(input.station, input.team)) {
+      showToast('Vui lòng chọn đủ Station và Team', true);
+      return;
+    }
+    BUSY = true;
+    var btn = document.getElementById('btnMealSubmit');
+    if (btn) btn.disabled = true;
+    // Tạo task trống — paste/quét mã Ops bên trong task
+    google.script.run
+      .withSuccessHandler(function (res) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          closeCreateMealModal();
+          showToast(res.message, false);
+          loadTaskList();
+          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+          openScan(res.taskId);
+        } else {
+          showToast(res.message, true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        showToast('Lỗi tạo task: ' + err.message, true);
+      })
+      .createMealMoveTaskApi(input);
+  }
+  // MEAL-CREATE-END
+
+  // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
+  // Dùng chung cho luồng batch từ submitScan; PASTE_BUSY chống submit chồng.
+  var PASTE_BUSY = false;
+  function submitPasteMealMoveBatch(codes) {
+    if (PASTE_BUSY) {
+      showToast('Đang xử lý dán mã — chờ giây lát', true);
+      return false;
+    }
+    if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'meal-move') return false;
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) { showToast('Task đã kết thúc', true); return false; }
+    var lines = (codes || []).map(function (s) { return String(s).trim(); }).filter(Boolean);
+    if (!lines.length) { showToast('Dán ít nhất 1 mã Ops', true); return false; }
+    PASTE_BUSY = true;
+    var inp = document.getElementById('scanInput');
+    if (inp) inp.disabled = true;  // chống quét tay đè lên batch
+    google.script.run
+      .withSuccessHandler(function (res) {
+        PASTE_BUSY = false;
+        if (inp) inp.disabled = false;
+        if (res.ok) {
+          var s = res.summary || {};
+          var msg = 'Paste: ' + (s.ra || 0) + ' Ra, ' + (s.vao || 0) + ' Vào' +
+            (s.extra ? ', ' + s.extra + ' Dư' : '') +
+            (s.duplicate ? ', ' + s.duplicate + ' Trùng' : '') +
+            (s.already ? ', ' + s.already + ' Đã DD' : '');
+          showToast(msg, false);
+          // Reload task detail to sync table
+          loadTaskDetail(CURRENT_TASK.taskId);
+        } else {
+          showToast(res.message || 'Lỗi paste', true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        PASTE_BUSY = false;
+        if (inp) inp.disabled = false;
+        showToast('Lỗi paste: ' + err.message, true);
+      })
+      .pasteMealMoveScanApi(CURRENT_TASK.taskId, lines, MEAL_MODE);
+    return true;
+  }
+
+  // ===== Meal-move: submitScan branch (Ra/Vào mode + 10s rule + optimistic) =====
+  function submitScanMealMove(input, staffId, target) {
+    // 10s rule client-side: quét cùng mã trong 10s → "Trùng mã"
+    if (target && target.timeRaEpoch && MEAL_MODE === 'ra') {
+      var diffRa = Date.now() - Number(target.timeRaEpoch);
+      if (diffRa < 10000) {
+        showToast('Trùng mã — quét lại sau 10 giây', true);
+        playBeep('error');
+        showScanCard('Trùng mã', target, true);
+        input.value = '';
+        input.focus();
+        return;
+      }
+    }
+    if (target && target.timeScanEpoch && MEAL_MODE === 'vao') {
+      var diffVao = Date.now() - Number(target.timeScanEpoch);
+      if (diffVao < 10000) {
+        showToast('Trùng mã — quét lại sau 10 giây', true);
+        playBeep('error');
+        showScanCard('Trùng mã', target, true);
+        input.value = '';
+        input.focus();
+        return;
+      }
+    }
+    // Đã đủ Ra+Vào → reject
+    if (target && target.timeRaText && target.timeScanText) {
+      showToast('Đã điểm danh — đủ Ra + Vào', true);
+      playBeep('error');
+      showScanCard('Đã điểm danh', target, true);
+      input.value = '';
+      input.focus();
+      return;
+    }
+
+    input.value = '';
+    input.focus();
+
+    var item = {
+      staffId: staffId,
+      taskId: CURRENT_TASK.taskId,
+      target: target,
+      mode: MEAL_MODE,  // 'ra' | 'vao'
+      optimisticNew: false,
+      oldStatus: null,
+      oldTimeRaText: null,
+      oldTimeRaEpoch: null,
+      oldTimeScanText: null,
+      oldTimeScanEpoch: null,
+    };
+
+    if (target) {
+      item.oldStatus = target.status;
+      item.oldTimeRaText = target.timeRaText;
+      item.oldTimeRaEpoch = target.timeRaEpoch;
+      item.oldTimeScanText = target.timeScanText;
+      item.oldTimeScanEpoch = target.timeScanEpoch;
+
+      if (MEAL_MODE === 'ra') {
+        // Ra: ghi timeRa, status OUT
+        target.status = STATUS_C.OUT;
+        target.timeRaText = fmtDate(new Date());
+        target.timeRaEpoch = Date.now();
+      } else {
+        // Vào: ghi timeScan, status PRESENT + duration
+        target.status = STATUS_C.PRESENT;
+        target.timeScanText = fmtDate(new Date());
+        target.timeScanEpoch = Date.now();
+        if (target.timeRaEpoch) {
+          target.durationMinutes = Math.round((target.timeScanEpoch - target.timeRaEpoch) / 60000);
+        }
+      }
+    } else {
+      // NV lạ → append EXTRA (meal-move cũng append mã lạ)
+      item.optimisticNew = true;
+      // NV lạ → điền thông tin NGAY từ staff cache client (nếu có) — không chờ server round-trip.
+      var siInfo = lookupStaffInfo(staffId);
+      target = {
+        staffId: staffId, staffName: siInfo ? siInfo.staffName : '…',
+        slotCode: siInfo ? (siInfo.slotCode || '') : '',
+        station: siInfo ? (siInfo.station || '') : '',
+        team: siInfo ? (siInfo.team || '') : '',
+        workstation: siInfo ? (siInfo.workstation || '') : '',
+        agency: siInfo ? (siInfo.agency || '') : '',
+        timeRefText: '', timeRaText: '', timeScanText: '',
+        timeRaEpoch: 0, timeScanEpoch: 0, durationMinutes: null,
+        status: MEAL_MODE === 'ra' ? STATUS_C.OUT : STATUS_C.EXTRA,
+      };
+      if (MEAL_MODE === 'ra') {
+        target.timeRaText = fmtDate(new Date());
+        target.timeRaEpoch = Date.now();
+      } else {
+        target.timeScanText = fmtDate(new Date());
+        target.timeScanEpoch = Date.now();
+      }
+      item.target = target;
+      CURRENT_LOG.push(target);
+    }
+
+    item.scanSeq = ++SCAN_CARD_SEQ;
+    item.optimisticStatus = target.status;
+    playBeep('scan');
+    showToast(item.optimisticStatus, false);
+    showScanCard(item.optimisticStatus, target, false);
+    recountFromLog();
+    renderScanTable(CURRENT_LOG);
+    SCAN_QUEUE.push(item);
+    updateFinishBtnState();
+    processScanQueueMealMove();
+  }
+
+  // Meal-move: process queue — gọi scanStaffApi với mode
+  function processScanQueueMealMove() {
+    if (SCAN_PROCESSING || !SCAN_QUEUE.length) return;
+    SCAN_PROCESSING = true;
+    var item = SCAN_QUEUE.shift();
+    updateFinishBtnState();
+
+    function rollback() {
+      if (item.target && !item.optimisticNew) {
+        item.target.status = item.oldStatus;
+        item.target.timeRaText = item.oldTimeRaText || '';
+        item.target.timeRaEpoch = item.oldTimeRaEpoch || 0;
+        item.target.timeScanText = item.oldTimeScanText || '';
+        item.target.timeScanEpoch = item.oldTimeScanEpoch || 0;
+        item.target.durationMinutes = null;
+      } else if (item.target && item.optimisticNew) {
+        var idx = CURRENT_LOG.indexOf(item.target);
+        if (idx >= 0) CURRENT_LOG.splice(idx, 1);
+      }
+    }
+
+    function syncCounters(serverCounters) {
+      if (SCAN_QUEUE.length > 0) { recountFromLog(); return; }
+      if (serverCounters) { CURRENT_COUNTERS = serverCounters; renderCounters(serverCounters); }
+      else { recountFromLog(); }
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        SCAN_PROCESSING = false;
+        if (!CURRENT_TASK || CURRENT_TASK.taskId !== item.taskId) {
+          processScanQueueMealMove();
+          return;
+        }
+        if (res.ok) {
+          if (item.target) {
+            item.target.status = res.status;
+            item.target.staffName = res.staffName || item.target.staffName;
+            if (res.timeRaText) item.target.timeRaText = res.timeRaText;
+            if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+            if (res.agency) item.target.agency = res.agency;
+            // Dư: điền NGAY thông tin NV (Tên/Ca/Team/Station/Vender) từ staffIndex —
+            // không chờ Kết Thúc mới hiện (server lookup; null = không có → giữ trống)
+            if (res.slotCode != null) item.target.slotCode = res.slotCode;
+            if (res.station != null) item.target.station = res.station;
+            if (res.team != null) item.target.team = res.team;
+            if (res.workstation != null) item.target.workstation = res.workstation;
+            if (res.durationMinutes != null) item.target.durationMinutes = res.durationMinutes;
+          }
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.status || item.optimisticStatus, item.target, false); }
+          syncCounters(res.counters);
+          renderScanTable(CURRENT_LOG);
+        } else {
+          // Reject: rollback + toast
+          rollback();
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.message || 'Lỗi', item.target, true); }
+          showToast(res.message || 'Lỗi quét', true);
+          playBeep('error');
+          syncCounters(res.counters);
+          renderScanTable(CURRENT_LOG);
+        }
+        // Bật lại nút Kết Thúc khi xong lượt quét (SCAN_PROCESSING đã = false) —
+        // nếu không, nút kẹt disabled vĩnh viễn sau lượt quét cuối.
+        updateFinishBtnState();
+        processScanQueueMealMove();
+      })
+      .withFailureHandler(function (err) {
+        SCAN_PROCESSING = false;
+        if (CURRENT_TASK && CURRENT_TASK.taskId === item.taskId) {
+          rollback();
+          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard('Lỗi mạng', item.target, true); }
+          showToast('Lỗi quét: ' + err.message, true);
+          playBeep('error');
+          syncCounters(null);
+          renderScanTable(CURRENT_LOG);
+        }
+        updateFinishBtnState();
+        processScanQueueMealMove();
+      })
+      .scanStaffApi(item.taskId, item.staffId, item.mode);
+  }
+
+  // ===== PURE-LOGIC-START =====
+  // Logic thuần tách/quyết định mã dán — không phụ thuộc DOM/server. Khối này được
+  // trích ra và test bởi tests/scan-logic.test.js (đọc marker, chạy trong vm sandbox)
+  // → test ĐÚNG code được deploy, không có bản sao lệch nhau.
+  // Tách chuỗi dán thành danh sách mã: khoảng trắng/tab/xuống dòng/phẩy/chấm phẩy.
+  function splitScanCodes(raw) {
+    return raw.split(/\s+|[;,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  // Mã barcode nhân viên hợp lệ: bắt đầu "Ops" (case-insensitive) — khớp chuẩn server.
+  function isValidBarcodeId(code) {
+    return /^ops/i.test(code);
+  }
+
+  // Quyết định cách xử lý 1 lần submit từ ô quét. Trả về:
+  //  - mode 'empty'           : không có mã nào (chuỗi rỗng / toàn dấu phân tách)
+  //  - mode 'meal-move-batch' : meal-move + >1 mã → gửi 1 RPC batch (pasteMealMoveScanApi)
+  //  - mode 'reconcile-batch' : đối chiếu + >1 mã → enqueue từng mã hợp lệ, bỏ qua mã rác
+  //  - mode 'single'          : đúng 1 mã → đường quét đơn
+  // Kèm: codes (mọi mã), validCodes (mã hợp lệ), invalidCount (số mã rác bị bỏ qua).
+  function planScanSubmit(raw, isMealMove) {
+    var codes = splitScanCodes(raw);
+    if (!codes.length) {
+      return { mode: 'empty', codes: codes, validCodes: [], invalidCount: 0 };
+    }
+    if (isMealMove && codes.length > 1) {
+      return { mode: 'meal-move-batch', codes: codes, validCodes: codes, invalidCount: 0 };
+    }
+    if (!isMealMove && codes.length > 1) {
+      var validCodes = [];
+      var invalidCount = 0;
+      codes.forEach(function (c) {
+        if (isValidBarcodeId(c)) validCodes.push(c);
+        else invalidCount++;
+      });
+      return { mode: 'reconcile-batch', codes: codes, validCodes: validCodes, invalidCount: invalidCount };
+    }
+    return { mode: 'single', codes: codes, validCodes: codes, invalidCount: 0 };
+  }
+
+  // meal-move: mode kế tiếp khi bấm "Chuyển Quét" — toggle Quét Danh Sách ⇄ Điểm Danh.
+  // Đang 'ra' (đã quét Ra) → chuyển sang 'vao'; đang 'vao' → quay lại 'ra'.
+  function nextMealMode(mode) {
+    return mode === 'vao' ? 'ra' : 'vao';
+  }
+  // Cột "Người tạo": hiển thị email nhưng chỉ lấy phần tên (trước @), bỏ "@domain".
+  // Logic thuần — test trong scan-logic.test.js cùng PURE-LOGIC block.
+  function creatorName(email) {
+    var s = String(email || '').trim();
+    if (!s) return '';
+    return s.split('@')[0].trim();
+  }
+  // ===== PURE-LOGIC-END =====
+
+  function submitScan() {
+    if (!CURRENT_TASK) return;
+    // P2 (audit): chặn sớm khi task đã đóng (tab khác kết thúc task giữa chừng) —
+    // tránh optimistic rồi rollback; server vẫn reject nếu race.
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
+      showToast('Task đã kết thúc', true);
+      playBeep('error');
+      document.getElementById('scanInput').value = '';
+      document.getElementById('scanInput').focus();
+      return;
+    }
+    var input = document.getElementById('scanInput');
+    var raw = input.value.trim();
+    if (!raw) return;
+
+    // Dán hàng loạt mã Ops vào ô quét → tách theo khoảng trắng/tab/xuống dòng/phẩy/chấm phẩy.
+    // Meal-move: >1 mã → batch 1 RPC (pasteMealMoveScanApi) — giữ nguyên hành vi cũ.
+    var plan = planScanSubmit(raw, CURRENT_TASK.taskType === 'meal-move');
+    if (plan.mode === 'meal-move-batch') {
+      if (PASTE_BUSY) {
+        showToast('Đang xử lý dán mã — chờ giây lát', true);
+        playBeep('error');
+        return;
+      }
+      input.value = '';
+      input.focus();
+      submitPasteMealMoveBatch(plan.codes);
+      return;
+    }
+
+    // P3 (fix 2026-08-08): task ĐỐI CHIẾU cũng được dán hàng loạt — trước đây cả khối
+    // dán bị xem là 1 mã → 1 dòng Dư với cả loạt mã nằm ngang trong cột Mã NV. Nay
+    // planScanSubmit tách từng mã → enqueue qua queue (optimistic + rollback như quét tay).
+    if (plan.mode === 'reconcile-batch') {
+      if (plan.invalidCount > 0) {
+        showToast(plan.invalidCount + ' mã không hợp lệ — đã bỏ qua', true);
+        playBeep('error');
+      }
+      input.value = '';
+      input.focus();
+      if (!plan.validCodes.length) return;
+      for (var bi = 0; bi < plan.validCodes.length; bi++) {
+        if (!submitScanSingle(input, plan.validCodes[bi])) break;  // queue đầy → dừng loạt
+      }
+      return;
+    }
+    if (plan.mode === 'empty') return;  // lý thuyết: raw đã trim non-empty → luôn ≥1 mã
+
+    // Một mã (quét tay / paste 1 mã) → đường quét đơn đã tách riêng
+    submitScanSingle(input, plan.codes[0]);
+  }
+
+  // P3 (fix 2026-08-08): tách từ submitScan — xử lý 1 mã, dùng cho cả quét tay và
+  // từng mã trong loạt dán của task đối chiếu. Trả false khi phải DỪNG loạt
+  // (queue đầy / mã sai); true khi xử lý xong (kể cả reject nhẹ như Đã điểm danh).
+  function submitScanSingle(input, staffId) {
+    // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
+    if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
+      input.value = '';  // I8: không giữ backlog — xoá ngay
+      showToast('Hàng đợi đang đầy — chờ giây lát', true);
+      playBeep('error');
+      return false;
+    }
+    SCAN_CARD_SEQ++;  // F7: bump 1 lần sau guard — phủ mọi path (sai mã / đã điểm danh / enqueue)
+
+    // Chỉ chấp nhận mã barcode nhân viên bắt đầu "Ops" (case-insensitive).
+    // Check client-side TRƯỚC khi vào queue → 0ms, không gọi server → KHÔNG làm chậm scan.
+    if (!/^ops/i.test(staffId)) {
+      showToast('Mã phải bắt đầu bằng "Ops"', true);
+      playBeep('error');
+      showScanCard('Sai mã', { staffId: staffId }, true);
+      input.value = '';
+      input.focus();
+      return false;
+    }
+
+    // ---- Capture ngay: clear + focus + optimistic + toast tức thì (0ms) ----
+    input.value = '';
+    input.focus();
+
+    // Tìm dòng NV trong log hiện tại; nếu chưa có → tạo dòng tạm.
+    var norm = staffId.toUpperCase();
+    var target = null;
+    (CURRENT_LOG || []).forEach(function (r) {
+      if (!target && String(r.staffId).toUpperCase() === norm) { target = r; }
+    });
+
+    // meal-move: nếu task là meal-move → logic Ra/Vào khác reconcile
+    var isMealMove = CURRENT_TASK.taskType === 'meal-move';
+    if (isMealMove) {
+      submitScanMealMove(input, staffId, target);
+      return true;
+    }
+    // Đã quét (Có mặt/Dư) → chặn NGAY ở client, không gọi server (tránh toast lặp)
+    if (target && (target.status === STATUS_C.PRESENT || target.status === STATUS_C.EXTRA)) {
+      showToast('Đã điểm danh', true);
+      playBeep('error');
+      showScanCard('Đã điểm danh', target, true);
+      return true;  // batch: mã trùng chỉ bỏ qua, không dừng cả loạt
+    }
+
+    var item = {
+      staffId: staffId,
+      taskId: CURRENT_TASK.taskId,  // F1: capture task lúc enqueue — guard response cũ
+      target: target,
+      optimisticNew: false,
+      oldStatus: null,
+      oldTimeScanText: null,
+      oldTimeScanEpoch: null,
+    };
+    if (target) {
+      item.oldStatus = target.status;
+      item.oldTimeScanText = target.timeScanText;
+      item.oldTimeScanEpoch = target.timeScanEpoch;
+      target.status = STATUS_C.PRESENT;
+      target.timeScanText = fmtDate(new Date());
+      target.timeScanEpoch = Date.now();  // sort key — quét tức thì nhảy lên đầu
+    } else {
+      item.optimisticNew = true;
+      // NV lạ → dòng tạm status Dư (khớp server), không phải Có mặt.
+      // Điền thông tin NGAY từ staff cache client (nếu có) — không chờ server round-trip.
+      var siInfo = lookupStaffInfo(staffId);
+      target = { staffId: staffId,
+                 staffName: siInfo ? siInfo.staffName : '…',
+                 slotCode: siInfo ? (siInfo.slotCode || '') : '',
+                 station: siInfo ? (siInfo.station || '') : '',
+                 team: siInfo ? (siInfo.team || '') : '',
+                 workstation: siInfo ? (siInfo.workstation || '') : '',
+                 agency: siInfo ? (siInfo.agency || '') : '',
+                 timeRefText: '', timeScanText: fmtDate(new Date()), status: STATUS_C.EXTRA,
+                 timeScanEpoch: Date.now() };
+      item.target = target;
+      CURRENT_LOG.push(target);
+    }
+    item.scanSeq = ++SCAN_CARD_SEQ;  // P2: đánh dấu lượt quét này là mới nhất — response cũ không đè card
+    // Toast optimistic — hiện ĐÚNG status; server KHÔNG toast lại nếu trùng
+    item.optimisticStatus = item.optimisticNew ? STATUS_C.EXTRA : STATUS_C.PRESENT;
+    playBeep('scan');
+    showToast(item.optimisticStatus, false);
+    showScanCard(item.optimisticStatus, target, false);
+    // ---- Optimistic counters: recount NGAY từ CURRENT_LOG (đã mutate/push) — khớp
+    // server computeCounters; server sẽ trả giá trị chuẩn sau. ----
+    recountFromLog();
+    renderScanTable(CURRENT_LOG);
+    SCAN_QUEUE.push(item);
+    updateFinishBtnState();
+    processScanQueue();
+    return true;
+  }
+
+  // P1: không cho Kết thúc khi còn lượt quét chờ server (task-closed sẽ mất scan).
+  function updateFinishBtnState() {
+    var btn = document.getElementById('btnFinish');
+    if (!btn) return;
+    var isOpen = !!(CURRENT_TASK && CURRENT_TASK.status === TASK_STATUS_C.OPEN);
+    var isDone = !!(CURRENT_TASK && CURRENT_TASK.status === TASK_STATUS_C.DONE);
+    // DONE → ẩn nút Kết Thúc, hiện nút "Mở Lại"; OPEN → ngược lại
+    var reopenBtn = document.getElementById('btnReopen');
+    if (reopenBtn) reopenBtn.hidden = !isDone;
+    btn.hidden = !isOpen;
+    if (scanBusy()) {
+      btn.disabled = true;
+      btn.title = 'Đang xử lý quét — chờ xong rồi kết thúc';
+    } else {
+      btn.disabled = !isOpen;
+      btn.title = '';
+    }
+    // Nhãn nút Kết Thúc: OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ)
+    if (btn && CURRENT_TASK && isOpen) {
+      var hasRa = false;
+      (CURRENT_LOG || []).forEach(function (r) {
+        if (Number(r.timeRaEpoch) > 0) hasRa = true;
+      });
+      if (hasRa) {
+        btn.textContent = 'Kết Thúc';
+        btn.className = 'btn btn-danger';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      } else {
+        btn.textContent = 'Hoàn Thành';
+        btn.className = 'btn';
+        btn.style.background = '#2e7d32';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#2e7d32';
+      }
+    }
+    updateQueueFullState();
+  }
+
+  // "Mở Lại" từ màn xem task đã kết thúc — dùng task đang mở trong view
+  function reopenCurrentTask() {
+    if (!CURRENT_TASK) return;
+    reopenTask(CURRENT_TASK.taskId);
+  }
+
+  // I8: báo hiệu queue đầy — viền đỏ nhấp nháy quanh ô quét
+  function updateQueueFullState() {
+    var wrap = document.querySelector('.scan-input-wrap');
+    if (!wrap) return;
+    var full = SCAN_QUEUE.length >= SCAN_QUEUE_MAX;
+    wrap.classList.toggle('queue-full', full);
+    // P2: queue đầy → disable input luôn (hết gõ vô ích + spam toast khi Enter)
+    var inp = document.getElementById('scanInput');
+    if (inp) inp.disabled = full;
+  }
+
+  function processScanQueue() {
+    if (SCAN_PROCESSING || !SCAN_QUEUE.length) return;
+    SCAN_PROCESSING = true;
+    var item = SCAN_QUEUE.shift();
+    updateFinishBtnState();
+
+    function rollback() {
+      if (item.target && !item.optimisticNew) {
+        item.target.status = item.oldStatus;
+        // Đã Có mặt trước đó → giữ timeScanText/epoch server đã set, không ghi đè
+        if (item.oldStatus !== STATUS_C.PRESENT) {
+          item.target.timeScanText = item.oldTimeScanText || '';
+          item.target.timeScanEpoch = item.oldTimeScanEpoch || 0;
+        }
+      } else if (item.target && item.optimisticNew) {
+        // P1: splice theo index — KHÔNG pop() (pop xóa row CUỐI, sai khi queue
+        // có 2+ NV lạ: item giữa fail → xóa nhầm row của item sau).
+        var idx = CURRENT_LOG.indexOf(item.target);
+        if (idx >= 0) CURRENT_LOG.splice(idx, 1);
+      }
+    }
+
+    // Còn item chưa xử lý trong queue → counters optimistic đã tính trước
+    // (server trả từng item sẽ ghi đè thiếu) → tính lại từ CURRENT_LOG.
+    // Hết queue:
+    //   - Có serverCounters (success/reject có response) → dùng counters server
+    //     (chuẩn nhất — phản ánh cả scan từ tab khác).
+    //   - KHÔNG có serverCounters (exception — mất response) → recount từ
+    //     CURRENT_LOG để đồng bộ với rollback vừa chạy.
+    function syncCounters(serverCounters) {
+      if (SCAN_QUEUE.length > 0) { recountFromLog(); return; }
+      if (serverCounters) { CURRENT_COUNTERS = serverCounters; renderCounters(serverCounters); }
+      else { recountFromLog(); }
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        SCAN_PROCESSING = false;
+        // F1: response của scan enqueue ở task khác (user đã thoát/đổi task giữa chừng —
+        // thực tế bị chặn bởi scanBusy(), guard này là defense cho đường thoát tương lai:
+        // browser back, tab mới). Scan đã ghi server-side — chỉ drain queue, không đụng UI.
+        if (!CURRENT_TASK || CURRENT_TASK.taskId !== item.taskId) {
+          processScanQueue();
+          return;
+        }
+        if (res.ok) {
+          if (item.target) {
+            item.target.status = res.status;
+            item.target.staffName = res.staffName || item.target.staffName;
+            if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+            // sort key chính xác từ server epoch (đồng bộ thời điểm thật)
+            if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
+            // Dư: điền đủ Ca/Team/Station/Vender từ server (phòng cache client miss / data mới)
+            if (res.agency) item.target.agency = res.agency;
+            if (res.slotCode != null) item.target.slotCode = res.slotCode;
+            if (res.station != null) item.target.station = res.station;
+            if (res.team != null) item.target.team = res.team;
+            if (res.workstation != null) item.target.workstation = res.workstation;
+          }
+          // Toast optimistic đã hiện đúng → KHÔNG toast lại (tránh lặp/nháy).
+          // Chỉ cập nhật nếu server trả status khác dự đoán.
+          if (res.status && res.status !== item.optimisticStatus) showToast(res.status, false);
+          // Scan card: làm mới từ server (lấy tên NV thật cho NV lạ) — CHỈ nếu
+          // lượt quét này vẫn là mới nhất (item.scanSeq === SCAN_CARD_SEQ) — nếu
+          // user đã quét NV khác khi response đang bay, không để card nhảy về cũ.
+          if (res.status && item.scanSeq === SCAN_CARD_SEQ) showScanCard(res.status, item.target, false);
+        } else {
+          rollback();
+          playBeep('error');
+          showToast(res.message, true);
+        }
+        syncCounters(res.counters);
+        renderScanTable(CURRENT_LOG);
+        updateFinishBtnState();
+        processScanQueue();
+      })
+      .withFailureHandler(function (err) {
+        markServerFail();  // P2: RPC fail → server offline
+        SCAN_PROCESSING = false;
+        if (!CURRENT_TASK || CURRENT_TASK.taskId !== item.taskId) {
+          processScanQueue();
+          return;
+        }
+        rollback();
+        playBeep('error');
+        showToast('Lỗi quét: ' + err.message, true);
+        syncCounters(null);
+        renderScanTable(CURRENT_LOG);
+        updateFinishBtnState();
+        processScanQueue();
+      })
+      .scanStaffApi(item.taskId, item.staffId);  // P2: dùng item.taskId đã capture — nhất quán với guard phòng thủ
+  }
+
+  // P2: mở lại task đã đóng (nút "Mở lại" ở danh sách task) — reset Vắng → Chưa điểm danh.
+  function reopenTask(taskId) {
+    if (BUSY) return;
+    showConfirm(
+      'Mở lại task',
+      'Mở lại task ' + taskId + '?\nNV bị đánh Vắng sẽ đặt lại "Chưa điểm danh" để quét tiếp.',
+      function () {
+        BUSY = true;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            BUSY = false;
+            showToast(res.message, !res.ok);
+            // Đang xem chính task vừa mở lại → refresh view để hiện nút Kết Thúc
+            if (CURRENT_TASK && CURRENT_TASK.taskId === taskId) {
+              loadTaskDetail(taskId);
+            } else {
+              loadTaskList();
+            }
+          })
+          .withFailureHandler(function (err) {
+            markServerFail();
+            BUSY = false;
+            showToast('Lỗi mở lại: ' + err.message, true);
+          })
+          .reopenTaskApi(taskId);
+      }
+    );
+  }
+
+  function finishTask() {
+    if (BUSY || !CURRENT_TASK) return;
+    // P1: chặn Kết thúc khi scan đang chờ server (SCAN_PROCESSING) hoặc trong queue —
+    // nếu không, completeTask chạy trước scanStaff → NV vừa quét bị đánh Vắng nhầm.
+    if (scanBusy()) {
+      showToast('Đang xử lý quét — chờ xong rồi kết thúc', true);
+      return;
+    }
+    // Modal confirm thay cho confirm() trình duyệt — giữ UX đồng nhất với các modal khác
+    showConfirm(
+      'Kết thúc task',
+      'Kết thúc task ' + CURRENT_TASK.taskId + '?\nKhông thể quét thêm sau khi kết thúc.',
+      function () {
+        BUSY = true;
+        var btn = document.getElementById('btnFinish');
+        if (btn) btn.disabled = true;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            BUSY = false;
+            if (res.ok) {
+              showToast(res.message, false);
+              loadTaskDetail(CURRENT_TASK.taskId);
+            } else {
+              showToast(res.message, true);
+              if (btn) btn.disabled = false;
+            }
+          })
+          .withFailureHandler(function (err) {
+            markServerFail();  // P2: RPC fail → server offline
+            BUSY = false;
+            if (btn) btn.disabled = false;
+            showToast('Lỗi kết thúc: ' + err.message, true);
+          })
+          .completeTaskApi(CURRENT_TASK.taskId);
+      }
+    );
+  }
+
+  // ===== Helpers =====
+  // D1: HTML scan card dùng chung — showScanCard/restoreScanCard chỉ lo className.
+  function scanCardHTML(status, target) {
+    return '<div class="sc-status">' + esc(status) + '</div>' +
+      '<div class="sc-name">' + esc(target.staffName || target.staffId) + '</div>' +
+      '<div class="sc-meta">Mã: ' + esc(target.staffId) +
+      (target.slotCode ? ' · Ca: ' + esc(target.slotCode) : '') +
+      (target.team ? ' · ' + esc(target.team) : '') + '</div>';
+  }
+  function showScanCard(status, target, isError) {
+    var card = document.getElementById('scanCard');
+    if (!card) return;
+    if (!target) { resetScanCard(); return; }
+    // C2: 3 trạng thái — Dư = amber (cảnh báo, không phải lỗi), lỗi = đỏ, ok = xanh
+    var cls = isError ? 'err' : (status === STATUS_C.EXTRA ? 'extra' : 'ok');
+    card.className = 'scan-card ' + cls;
+    card.innerHTML = scanCardHTML(isError ? 'Lỗi' : status, target);
+  }
+
+  function resetScanCard() {
+    var card = document.getElementById('scanCard');
+    if (!card) return;
+    card.className = 'scan-card';
+    card.innerHTML = '<div class="sc-empty">Chưa có lượt quét</div>';
+  }
+
+  // P1: khi mở task đã có lượt quét — khôi phục scan card từ log (lượt mới nhất).
+  function restoreScanCard(log) {
+    var card = document.getElementById('scanCard');
+    if (!card || !log || !log.length) return;
+    var last = null;
+    // P2: chọn theo giờ quét MỚI NHẤT (không theo thứ tự sheet) — NV quét giữa danh sách
+    // (update giữ nguyên vị trí dòng) có giờ muộn hơn NV cuối. So theo epoch (số) —
+    // timeScanText "HH:mm:ss" mất ngày, xuyên nửa đêm sẽ so sai.
+    // P2: epoch là nguồn sự thật duy nhất (text mất ngày xuyên nửa đêm) — filter + so đều theo epoch.
+    log.forEach(function (r) {
+      // meal-move: lượt quét có thể là Ra (timeRaEpoch) hoặc Vào (timeScanEpoch) —
+      // lấy mốc MỚI NHẤT của cả 2 (fix 2026-08-11: trước đây chỉ xét timeScanEpoch
+      // → quét Ra xong reload không hiện NV vừa Ra trên scan card).
+      var e = Math.max(Number(r.timeScanEpoch) || 0, Number(r.timeRaEpoch) || 0);
+      var lastE = last ? Math.max(Number(last.timeScanEpoch) || 0, Number(last.timeRaEpoch) || 0) : 0;
+      if (e > lastE) last = r;
+    });
+    if (!last) { resetScanCard(); return; }
+    card.className = last.status === STATUS_C.EXTRA ? 'scan-card extra' : 'scan-card ok';
+    card.innerHTML = scanCardHTML(last.status || STATUS_C.PRESENT, last);
+  }
+
+  var toastTimer = null;
+  function showToast(msg, isError) {
+    var t = document.getElementById('toast');
+    t.setAttribute('role', isError ? 'alert' : 'status');
+    t.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    t.innerHTML = '<span class="toast-text">' + esc(msg) + '</span>' +
+      (isError ? '<button class="toast-close" onclick="dismissToast()" aria-label="Đóng thông báo">✕</button>' : '');
+    t.className = 'show ' + (isError ? 'err' : 'ok');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ''; }, 2600);
+  }
+  function dismissToast() {
+    var t = document.getElementById('toast');
+    if (t) { t.className = ''; clearTimeout(toastTimer); }
+  }
+
+  function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escAttr(s) {
+    return esc(s).replace(/'/g, '&#39;');
+  }
+
+  // P2: format theo TZ Asia/Ho_Chi_Minh (khớp server Session.getScriptTimeZone)
+  // — không dùng local TZ của máy kiosk (có thể lệch nếu đổi vùng).
+  var _fmtTZ = (function () {
+    try {
+      return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+    } catch (e) { return null; }
+  })();
+  function fmtDate(d) {
+    if (!d) return '';
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    if (_fmtTZ) {
+      var parts = _fmtTZ.formatToParts(dt);
+      var h = '0', m = '0', s = '0';
+      parts.forEach(function (p) {
+        if (p.type === 'hour') h = p.value;
+        else if (p.type === 'minute') m = p.value;
+        else if (p.type === 'second') s = p.value;
+      });
+      return h + ':' + m + ':' + s;
+    }
+    return ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) + ':' + ('0' + dt.getSeconds()).slice(-2);
+  }

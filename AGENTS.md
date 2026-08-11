@@ -137,3 +137,10 @@ Chi tiết: `README.md`, `docs/intent/rollcall-v2.md`, `docs/spec/2026-08-02-pha
 - Quy trình chuẩn: sửa code → verify (node --check, `npm test`, mô phỏng mock nếu cần) → **push GitHub ngay** khi mọi thứ OK — không hỏi, không làm preview.
 - Chỉ dùng preview/test link khi user chủ động yêu cầu.
 - Commit message tiếng Anh, mô tả rõ vấn đề + giải pháp + verification, theo phong cách các commit trước (`feat(kiosk): ...` / `fix(kiosk): ...` / `perf(kiosk): ...` / `docs(about): ...`).
+
+## 20. UI tách 3 file (2026-08-11) — sửa đúng chỗ
+
+- `index.html` = **CHỈ HTML** (437 dòng); `css.html` = toàn bộ CSS; `js.html` = toàn bộ client JS (marker khối logic như `TASK-MENU-*`, `PURE-LOGIC-*` nằm ở `js.html`).
+- Khi sửa UI: đổi nội dung ở `css.html`/`js.html`/`index.html`; **đừng thêm `<style>`/`<script>` khối mới vào index.html**.
+- CSS/JS được INLINE lúc serve bởi cùng transform `scripts/inline-html.js` ở 3 nơi (`Code.gs doGet`, `scripts/serve.js`, `scripts/build-static.js`) — sửa transform phải sửa đủ 3 nơi + chạy `npm test` (test `inline-html.test.js` so byte-identity với `git HEAD`; `code-doget.test.js` simulate đường GAS).
+- Test client cũ đọc marker từ `index.html` → nay đọc `js.html` (đã cập nhật: task-menu/header-search/meal-create/scan-logic).

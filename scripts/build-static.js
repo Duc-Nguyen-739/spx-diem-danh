@@ -14,6 +14,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { inlineHtml } = require('./inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.resolve(ROOT, 'dist');
@@ -32,6 +33,19 @@ for (const entry of ENTRIES) {
   }
   fs.cpSync(src, path.resolve(OUT, entry), { recursive: true });
   console.log(`[build] Copied: ${entry}`);
+}
+
+// index.html: inline css.html/js.html → bản tĩnh TỰ CHỨA (như trước khi tách),
+// hosting chỉ cần serve 1 file index.html + mock (không phụ thuộc MIME css/js).
+const indexPath = path.resolve(OUT, 'index.html');
+try {
+  const html = inlineHtml(fs.readFileSync(indexPath, 'utf8'),
+    path.resolve(ROOT, 'css.html'), path.resolve(ROOT, 'js.html'));
+  fs.writeFileSync(indexPath, html);
+  console.log('[build] index.html: inlined css.html + js.html');
+} catch (e) {
+  console.error('[build] inlineHtml fail:', e.message);
+  process.exit(1);
 }
 
 console.log(`[build] OK → ${OUT}`);
