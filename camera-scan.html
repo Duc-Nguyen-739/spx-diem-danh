@@ -146,9 +146,20 @@
         var p = video.play();
         if (p && p.catch) p.catch(function () {});
         if (statusEl) statusEl.textContent = 'Đưa mã vào khung — tự nhận diện';
+        var sb = document.getElementById('camStartBtn');
+        if (sb) sb.style.display = 'none';
         startCameraDecodeLoop();
       })
       .catch(function () {
+        if (camScanMode) {
+          // Tab quét chưa có user gesture (iOS Safari bật camera trong TAB MỚI
+          // không tự động được — chỉ khi user chạm) → hiện nút để chạm bật lại
+          var st = document.getElementById('camStatusLive');
+          if (st) { st.textContent = '📷 Bấm nút dưới để bật camera'; st.style.color = '#ffd9a8'; }
+          var sb = document.getElementById('camStartBtn');
+          if (sb) sb.style.display = 'inline-flex';
+          return;
+        }
         // getUserMedia bị chặn (GAS iframe / policy) → tự chuyển sang chụp ảnh native
         closeCameraModal();
         pickCameraImage();
@@ -506,7 +517,25 @@
     var m = location.search.match(/[?&]tk=([^&]+)/);
     camScanToken = m ? decodeURIComponent(m[1]) : '';
     try { document.body.classList.add('scan-mode'); } catch (e) {}
-    setTimeout(function () { startCameraLive(); }, 60);
+    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (isIOS) {
+      // iOS Safari: camera CHỈ bật được khi có user gesture ngay trong tab này
+      // (tab mở tự động thì getUserMedia luôn bị từ chối) → hiện nút để user
+      // chạm 1 lần, sau đó quét LIVE tự động như AppSheet.
+      showScanStartButton();
+    } else {
+      // Android/khác: có thể auto-start, nếu bị chặn sẽ hiện nút (xem .catch)
+      setTimeout(function () { startCameraLive(); }, 60);
+    }
+  }
+
+  function showScanStartButton() {
+    var modal = document.getElementById('cameraModal');
+    if (modal) { modal.style.display = 'flex'; modal.setAttribute('aria-hidden', 'false'); }
+    var sb = document.getElementById('camStartBtn');
+    if (sb) sb.style.display = 'inline-flex';
+    var statusEl = document.getElementById('camStatusLive');
+    if (statusEl) { statusEl.textContent = '📷 Bấm nút để bật camera'; statusEl.style.color = ''; }
   }
   initScanModeIfNeeded();
   // ===== CAMERA-SCAN-END =====
