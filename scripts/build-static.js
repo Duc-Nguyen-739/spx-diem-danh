@@ -42,7 +42,8 @@ const indexPath = path.resolve(OUT, 'index.html');
 try {
   const html = inlineHtml(fs.readFileSync(indexPath, 'utf8'),
     path.resolve(ROOT, 'css.html'), path.resolve(ROOT, 'js.html'), path.resolve(ROOT, 'mobile.html'),
-    path.resolve(ROOT, 'lib-jsqr.html'), path.resolve(ROOT, 'lib-quagga.html'), path.resolve(ROOT, 'camera-scan.html'));
+    path.resolve(ROOT, 'lib-jsqr.html'), path.resolve(ROOT, 'lib-quagga.html'), path.resolve(ROOT, 'camera-scan.html'),
+    path.resolve(ROOT, 'camera-css.html'));
   fs.writeFileSync(indexPath, html);
   console.log('[build] index.html: inlined css.html + js.html');
 } catch (e) {

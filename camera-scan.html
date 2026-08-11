@@ -4,34 +4,186 @@
   // TRƯỚC include('js') trong index.html, nên các hàm ở đây định nghĩa trước khi
   // js.html chạy (wiring DOMContentLoaded ở js.html gọi onCamFileChange).
   //
+  // CHẾ ĐỘ QUÉT: LIVE qua video stream (getUserMedia) — cách đúng của mọi app quét mã,
+  // decode liên tục từng frame → bắt được frame nét, KHÔNG phụ thuộc 1 ảnh chụp duy nhất
+  // (chụp tĩnh dễ mờ/nghiêng/chói → không nhận diện được mã vạch kẻ).
+  //
   // Chuỗi nhận diện mã:
   //   1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D, nhanh nhất)
-  //   2) jsQR (lib-jsqr.html) — QR code — mọi trình duyệt, đặc biệt iOS Safari
-  //      KHÔNG có BarcodeDetector (WebKit chưa hỗ trợ Shape Detection API)
-  //   3) Quagga (lib-quagga.html) — barcode vạch 1D (Code128/39/EAN/UPC/ITF…) — fallback iOS
+  //      → loop requestAnimationFrame trên <video> trực tiếp
+  //   2) jsQR (lib-jsqr.html) — QR code — iOS Safari (KHÔNG có BarcodeDetector)
+  //   3) Quagga (lib-quagga.html) — barcode vạch 1D (Code128/39/EAN/UPC/ITF…) — iOS
+  //      → không có BarcodeDetector: interval vẽ frame → jsQR → Quagga.decodeSingle
   // Kết quả đưa thẳng vào scanInput rồi gọi submitScan() → chạy ĐÚNG luồng quét
   // hiện tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
-  // Cách dùng: nút "📷 Quét camera" (#btnCamScan) → mở camera sau điện thoại qua
-  // <input type="file" capture="environment"> → chụp 1 ảnh → tự nhận diện.
-  var camDecoding = false;
+  //
+  // Cách dùng: nút "📷 Quét camera" (#btnCamScan) → mở modal live camera (#cameraModal).
+  // Fallback: nút 📸 Chụp (snap 1 frame) + nút 🖼 Chọn ảnh (file từ thư viện).
+  var camDecoding = false;   // đang decode 1 frame (chống chồng lấn decode)
+  var camSnapping = false;   // đang chụp/decode tĩnh (snap hoặc file)
+  var camStream = null;      // MediaStream đang mở
+  var camTimer = null;       // interval decode khi không có BarcodeDetector
+  var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
+  var camDetector = null;    // BarcodeDetector instance
+  var camLastFrame = 0;      // chống decode trùng frame liên tiếp
+  var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
+  var CAM_QUAGGA_READERS = ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader'];
 
   function openCameraScan() {
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+    startCameraLive();
+  }
+
+  // ===== LIVE SCAN =====
+  function startCameraLive() {
+    var modal = document.getElementById('cameraModal');
+    var video = document.getElementById('camVideo');
+    var statusEl = document.getElementById('camStatusLive');
+    if (!modal || !video) return;
+    if (camStream) return; // đang mở rồi
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    if (statusEl) statusEl.textContent = 'Đang mở camera…';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (statusEl) statusEl.textContent = 'Trình duyệt không hỗ trợ camera trực tiếp';
+      camStatus('Trình duyệt không hỗ trợ camera trực tiếp — bấm 🖼 Chọn ảnh để chọn ảnh mã', true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(function (stream) {
+        camStream = stream;
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('muted', '');
+        video.setAttribute('playsinline', '');
+        var p = video.play();
+        if (p && p.catch) p.catch(function () {});
+        if (statusEl) statusEl.textContent = 'Đưa mã vào khung — tự nhận diện';
+        startCameraDecodeLoop();
+      })
+      .catch(function () {
+        if (statusEl) statusEl.textContent = 'Không mở được camera';
+        camStatus('Không mở được camera — bấm 🖼 Chọn ảnh để chọn ảnh mã', true);
+      });
+  }
+
+  function startCameraDecodeLoop() {
+    stopCameraDecodeLoop();
+    // 1) BarcodeDetector — loop rAF trên video trực tiếp (QR + 1D)
+    if (window.BarcodeDetector) {
+      try { camDetector = new window.BarcodeDetector({ formats: CAM_FORMATS }); } catch (e) { camDetector = null; }
+    }
+    if (camDetector) {
+      var loop = function () {
+        var video = document.getElementById('camVideo');
+        if (!camStream || !video || !video.videoWidth) { camRaf = null; return; }
+        camDetector.detect(video).then(function (results) {
+          if (results && results.length && results[0].rawValue) {
+            onCameraDecoded(results[0].rawValue);
+            return;
+          }
+          camRaf = requestAnimationFrame(loop);
+        }).catch(function () { camRaf = requestAnimationFrame(loop); });
+      };
+      camRaf = requestAnimationFrame(loop);
+      return;
+    }
+    // 2) Không có BarcodeDetector (iOS Safari…) → vẽ frame → jsQR → Quagga
+    camTimer = setInterval(function () {
+      if (camDecoding || camSnapping || !camStream) return;
+      var video = document.getElementById('camVideo');
+      if (!video || video.readyState < 2 || !video.videoWidth) return;
+      var now = Date.now();
+      if (now - camLastFrame < 600) return;
+      camLastFrame = now;
+      var imageData = camFrameToImageData(video, 800);
+      if (!imageData) return;
+      camDecoding = true;
+      decodeCameraImageData(imageData.data, imageData.w, imageData.h, imageData.canvas, true);
+    }, 300);
+  }
+
+  function stopCameraDecodeLoop() {
+    if (camRaf) { cancelAnimationFrame(camRaf); camRaf = null; }
+    if (camTimer) { clearInterval(camTimer); camTimer = null; }
+    camDetector = null;
+    camDecoding = false;
+  }
+
+  function camFrameToImageData(video, maxSide) {
+    try {
+      var w = video.videoWidth || 0;
+      var h = video.videoHeight || 0;
+      if (!w || !h) return null;
+      var scale = Math.min(1, maxSide / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, cw, ch);
+      var imageData = ctx.getImageData(0, 0, cw, ch);
+      return { data: imageData, w: cw, h: ch, canvas: canvas };
+    } catch (e) { return null; }
+  }
+
+  function closeCameraModal() {
+    stopCameraDecodeLoop();
+    if (camStream) {
+      camStream.getTracks().forEach(function (t) { t.stop(); });
+      camStream = null;
+    }
+    camSnapping = false;
+    var video = document.getElementById('camVideo');
+    if (video) { video.srcObject = null; }
+    var modal = document.getElementById('cameraModal');
+    if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+  }
+
+  // 📸 Chụp frame hiện tại rồi decode tĩnh (fallback khi live không bắt được)
+  function snapCameraFrame() {
+    var video = document.getElementById('camVideo');
+    if (!video || !video.videoWidth) {
+      camStatus('Camera chưa sẵn sàng — chờ vài giây rồi thử lại', true);
+      return;
+    }
+    if (camSnapping) return;
+    camSnapping = true;
+    camDecoding = true;
+    var frame = camFrameToImageData(video, 1280);
+    if (!frame) { camSnapping = false; camDecoding = false; camStatus('Không đọc được khung hình — thử lại', true); return; }
+    decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, false);
+  }
+
+  // 🖼 Chọn ảnh từ thư viện (fallback)
+  function pickCameraImage() {
     var fileEl = document.getElementById('camFile');
     if (!fileEl) return;
-    fileEl.value = ''; // reset để chọn lại được cùng 1 file
+    fileEl.value = '';
     fileEl.click();
   }
 
   function onCamFileChange(e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
+    closeCameraModal();
     decodeCameraImage(file);
   }
 
   function camStatus(msg, isError) {
+    var modal = document.getElementById('cameraModal');
+    if (modal && modal.style.display === 'flex') {
+      var statusEl = document.getElementById('camStatusLive');
+      if (statusEl) {
+        statusEl.textContent = msg;
+        statusEl.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+        return;
+      }
+    }
     var card = document.getElementById('scanCard');
     if (!card) return;
     card.innerHTML = '';
@@ -44,9 +196,12 @@
 
   function camFail(msg) {
     camDecoding = false;
+    camSnapping = false;
     camStatus(msg, true);
   }
 
+  // ===== DECODE (dùng chung cho live loop + snap + file) =====
+  // quiet = true → decode fail không hiện thông báo (live loop tự tiếp tục)
   function decodeCameraImage(file) {
     if (camDecoding) return;
     camDecoding = true;
@@ -58,7 +213,6 @@
       var w = img.naturalWidth || 0;
       var h = img.naturalHeight || 0;
       if (!w || !h) { camFail('Không đọc được ảnh — thử lại'); return; }
-      // Thu nhỏ ảnh lớn về tối đa 1280px — đủ nét cho mã, decode nhanh hơn
       var scale = Math.min(1, 1280 / Math.max(w, h));
       var cw = Math.max(1, Math.round(w * scale));
       var ch = Math.max(1, Math.round(h * scale));
@@ -72,7 +226,7 @@
         camFail('Không đọc được ảnh — thử lại');
         return;
       }
-      decodeCameraImageData(imageData, cw, ch, canvas);
+      decodeCameraImageData(imageData, cw, ch, canvas, false);
     };
     img.onerror = function () {
       try { URL.revokeObjectURL(url); } catch (err) {}
@@ -81,27 +235,25 @@
     img.src = url;
   }
 
-  function decodeCameraImageData(imageData, w, h, canvas) {
+  function decodeCameraImageData(imageData, w, h, canvas, quiet) {
     // 1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D)
     if (window.BarcodeDetector) {
       try {
-        var detector = new window.BarcodeDetector({
-          formats: ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e']
-        });
+        var detector = new window.BarcodeDetector({ formats: CAM_FORMATS });
         detector.detect(canvas).then(function (results) {
           if (results && results.length && results[0].rawValue) {
             onCameraDecoded(results[0].rawValue);
           } else {
-            decodeCameraFallback(imageData, w, h);
+            decodeCameraFallback(imageData, w, h, quiet);
           }
-        }).catch(function () { decodeCameraFallback(imageData, w, h); });
+        }).catch(function () { decodeCameraFallback(imageData, w, h, quiet); });
         return;
       } catch (err) { /* BarcodeDetector tồn tại nhưng không khởi tạo được → fallback */ }
     }
-    decodeCameraFallback(imageData, w, h);
+    decodeCameraFallback(imageData, w, h, quiet);
   }
 
-  function decodeCameraFallback(imageData, w, h) {
+  function decodeCameraFallback(imageData, w, h, quiet) {
     // 2) jsQR — QR code (iOS Safari / trình duyệt không có BarcodeDetector)
     if (window.jsQR) {
       try {
@@ -117,27 +269,56 @@
         canvas.height = h;
         canvas.getContext('2d').putImageData(imageData, 0, 0);
         var src = canvas.toDataURL('image/jpeg', 0.92);
-        window.Quagga.decodeSingle({
-          src: src,
-          numOfWorkers: 0,
-          inputStream: { size: 800 },
-          locator: { patchSize: 'x-large', halfSample: true },
-          decoder: {
-            readers: ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader']
-          }
-        }, function (result) {
-          var code = result && result.codeResult && result.codeResult.code;
-          if (code) { onCameraDecoded(code); return; }
-          camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc');
-        });
+        // Live loop: dùng config nhanh nhất. Snap/file: thử nhiều config (nét hơn).
+        var configs = quiet ? [CAM_QUAGGA_CONFIG_FAST] : CAM_QUAGGA_CONFIGS;
+        runQuaggaConfigs(src, configs, 0, quiet);
         return;
       } catch (err) { /* tiếp tục xuống fail */ }
     }
-    camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng');
+    if (!quiet) camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc');
+    else camDecoding = false;
+  }
+
+  var CAM_QUAGGA_CONFIG_FAST = { patchSize: 'x-large', halfSample: true };
+  var CAM_QUAGGA_CONFIGS = [
+    { patchSize: 'x-large', halfSample: true },
+    { patchSize: 'x-large', halfSample: false },
+    { patchSize: 'medium', halfSample: false }
+  ];
+
+  function runQuaggaConfigs(src, configs, idx, quiet) {
+    if (idx >= configs.length) {
+      camDecoding = false;
+      camSnapping = false;
+      if (!quiet) camStatus('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc', true);
+      return;
+    }
+    var cfg = configs[idx];
+    window.Quagga.decodeSingle({
+      src: src,
+      numOfWorkers: 0,
+      inputStream: { size: 800 },
+      locator: cfg,
+      decoder: { readers: CAM_QUAGGA_READERS }
+    }, function (result) {
+      var code = result && result.codeResult && result.codeResult.code;
+      if (code) { onCameraDecoded(code); return; }
+      runQuaggaConfigs(src, configs, idx + 1, quiet);
+    });
   }
 
   function onCameraDecoded(code) {
+    stopCameraDecodeLoop();
+    if (camStream) {
+      camStream.getTracks().forEach(function (t) { t.stop(); });
+      camStream = null;
+    }
+    camSnapping = false;
     camDecoding = false;
+    var modal = document.getElementById('cameraModal');
+    if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+    var video = document.getElementById('camVideo');
+    if (video) { video.srcObject = null; }
     var input = document.getElementById('scanInput');
     if (!input) return;
     input.value = String(code || '').trim();

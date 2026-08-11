@@ -20,6 +20,7 @@ const fs = require('node:fs');
 
 const CSS_SCRIPTLET = "<?!= include('css') ?>";
 const MOBILE_SCRIPTLET = "<?!= include('mobile') ?>";
+const CAMERA_CSS_SCRIPTLET = "<?!= include('camera-css') ?>";
 const LIB_JSQR_SCRIPTLET = "<?!= include('lib-jsqr') ?>";
 const LIB_QUAGGA_SCRIPTLET = "<?!= include('lib-quagga') ?>";
 const CAMERA_SCRIPTLET = "<?!= include('camera-scan') ?>";
@@ -33,10 +34,11 @@ const JS_SCRIPTLET = "<?!= include('js') ?>";
  * @param {string} mobilePath đường dẫn mobile.html (CSS mobile — có thể '' để bỏ qua)
  * @returns {string} html sau inline (tự chứa)
  */
-function inlineHtml(html, cssPath, jsPath, mobilePath, libJsqrPath, libQuaggaPath, cameraPath) {
+function inlineHtml(html, cssPath, jsPath, mobilePath, libJsqrPath, libQuaggaPath, cameraPath, cameraCssPath) {
   if (!html.includes(CSS_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + CSS_SCRIPTLET);
   if (!html.includes(JS_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + JS_SCRIPTLET);
   if (!html.includes(MOBILE_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + MOBILE_SCRIPTLET);
+  if (!html.includes(CAMERA_CSS_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + CAMERA_CSS_SCRIPTLET);
   if (!html.includes(LIB_JSQR_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + LIB_JSQR_SCRIPTLET);
   if (!html.includes(LIB_QUAGGA_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + LIB_QUAGGA_SCRIPTLET);
   if (!html.includes(CAMERA_SCRIPTLET)) throw new Error('inlineHtml: không tìm thấy ' + CAMERA_SCRIPTLET);
@@ -46,9 +48,11 @@ function inlineHtml(html, cssPath, jsPath, mobilePath, libJsqrPath, libQuaggaPat
   const libJsqr = libJsqrPath ? fs.readFileSync(libJsqrPath, 'utf8') : '';
   const libQuagga = libQuaggaPath ? fs.readFileSync(libQuaggaPath, 'utf8') : '';
   const camera = cameraPath ? fs.readFileSync(cameraPath, 'utf8') : '';
+  const cameraCss = cameraCssPath ? fs.readFileSync(cameraCssPath, 'utf8') : '';
   let out = html;
   out = out.split(CSS_SCRIPTLET).join(css);
   out = out.split(MOBILE_SCRIPTLET).join(mobile);
+  out = out.split(CAMERA_CSS_SCRIPTLET).join(cameraCss);
   out = out.split(LIB_JSQR_SCRIPTLET).join(libJsqr);
   out = out.split(LIB_QUAGGA_SCRIPTLET).join(libQuagga);
   out = out.split(CAMERA_SCRIPTLET).join(camera);
@@ -56,5 +60,5 @@ function inlineHtml(html, cssPath, jsPath, mobilePath, libJsqrPath, libQuaggaPat
   return out;
 }
 
-module.exports = { inlineHtml, CSS_SCRIPTLET, MOBILE_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET };
+module.exports = { inlineHtml, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET };
 

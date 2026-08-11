@@ -30,8 +30,10 @@
 }
 @media (max-width: 600px) {
   .task-list-toolbar { margin-bottom: 8px; }
-  /* Nút quét camera full-width dưới ô quét — dễ bấm trên điện thoại */
-  .btn-camera { flex: 1 1 100%; justify-content: center; }
+  /* Nút quét camera gọn cạnh nút Quét (không full-width) */
+  .btn-camera { padding: 8px 12px; font-size: 13px; }
+  .camera-stage { max-width: 420px; }
+  .camera-view { aspect-ratio: 3 / 4; max-height: 58vh; }
   .task-count-badge { font-size: 11px; padding: 1px 8px; }
   .scan-hint { font-size: 11.5px; }
   /* Bảng scan: font nhỏ hơn cho vừa màn hình */

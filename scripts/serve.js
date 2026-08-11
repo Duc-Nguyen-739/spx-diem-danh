@@ -69,7 +69,8 @@ const server = http.createServer((req, res) => {
       try {
         const html = inlineHtml(fs.readFileSync(abs, 'utf8'),
           path.join(ROOT, 'css.html'), path.join(ROOT, 'js.html'), path.join(ROOT, 'mobile.html'),
-          path.join(ROOT, 'lib-jsqr.html'), path.join(ROOT, 'lib-quagga.html'), path.join(ROOT, 'camera-scan.html'));
+          path.join(ROOT, 'lib-jsqr.html'), path.join(ROOT, 'lib-quagga.html'), path.join(ROOT, 'camera-scan.html'),
+          path.join(ROOT, 'camera-css.html'));
         res.end(html);
         return;
       } catch (e) {

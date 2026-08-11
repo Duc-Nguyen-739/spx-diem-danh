@@ -37,6 +37,7 @@ let lastHtmlContent = '';
 // Mô phỏng template evaluate: thay scriptlet bằng nội dung file include
 const CSS_SC = "<?!= include('css') ?>";
 const MOBILE_SC = "<?!= include('mobile') ?>";
+const CAMERA_CSS_SC = "<?!= include('camera-css') ?>";
 const LIB_JSQR_SC = "<?!= include('lib-jsqr') ?>";
 const LIB_QUAGGA_SC = "<?!= include('lib-quagga') ?>";
 const CAMERA_SC = "<?!= include('camera-scan') ?>";
@@ -44,11 +45,13 @@ const JS_SC = "<?!= include('js') ?>";
 function evaluateTemplate(html) {
   const css = fs.readFileSync(path.join(ROOT, 'css.html'), 'utf8');
   const mobile = fs.readFileSync(path.join(ROOT, 'mobile.html'), 'utf8');
+  const cameraCss = fs.readFileSync(path.join(ROOT, 'camera-css.html'), 'utf8');
   const libJsqr = fs.readFileSync(path.join(ROOT, 'lib-jsqr.html'), 'utf8');
   const libQuagga = fs.readFileSync(path.join(ROOT, 'lib-quagga.html'), 'utf8');
   const camera = fs.readFileSync(path.join(ROOT, 'camera-scan.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'js.html'), 'utf8');
   return html.split(CSS_SC).join(css).split(MOBILE_SC).join(mobile)
+    .split(CAMERA_CSS_SC).join(cameraCss)
     .split(LIB_JSQR_SC).join(libJsqr).split(LIB_QUAGGA_SC).join(libQuagga)
     .split(CAMERA_SC).join(camera).split(JS_SC).join(js);
 }
@@ -129,6 +132,8 @@ test('doGet trả HTML tự chứa: css + js nhúng đầy đủ, không scriptl
   assert.ok(content.includes(css), 'CSS thiếu/khác');
   const mobile = fs.readFileSync(path.join(ROOT, 'mobile.html'), 'utf8');
   assert.ok(content.includes(mobile), 'mobile CSS thiếu/khác');
+  const cameraCss = fs.readFileSync(path.join(ROOT, 'camera-css.html'), 'utf8');
+  assert.ok(content.includes(cameraCss), 'camera-css thiếu/khác');
   const libJsqr = fs.readFileSync(path.join(ROOT, 'lib-jsqr.html'), 'utf8');
   assert.ok(content.includes(libJsqr), 'lib-jsqr thiếu/khác');
   const libQuagga = fs.readFileSync(path.join(ROOT, 'lib-quagga.html'), 'utf8');
@@ -144,14 +149,14 @@ test('doGet trả HTML tự chứa: css + js nhúng đầy đủ, không scriptl
   assert.ok(content.includes('window.Quagga'), 'thiếu Quagga');
 
   // không còn scriptlet / tag ngoài
-  const leftover = [CSS_SC, MOBILE_SC, LIB_JSQR_SC, LIB_QUAGGA_SC, CAMERA_SC, JS_SC].filter((s) => content.includes(s));
+  const leftover = [CSS_SC, MOBILE_SC, CAMERA_CSS_SC, LIB_JSQR_SC, LIB_QUAGGA_SC, CAMERA_SC, JS_SC].filter((s) => content.includes(s));
   assert.deepStrictEqual(leftover, [], 'còn scriptlet: ' + leftover.join(', '));
   assert.ok(!content.includes('href="css.html"') && !content.includes('src="js.html"') && !content.includes('src="mobile.html"'), 'còn tag ngoài');
 
-  // cân bằng tag: 2 cặp <style> (css + mobile), 4 cặp <script> (jsQR, quagga, camera, js)
+  // cân bằng tag: 3 cặp <style> (css + mobile + camera-css), 4 cặp <script> (jsQR, quagga, camera, js)
   const count = (re) => (content.match(re) || []).length;
-  assert.strictEqual(count(/<style>/g), 2, 'style phải là 2 cặp (css + mobile)');
-  assert.strictEqual(count(/<\/style>/g), 2, 'style đóng phải là 2');
+  assert.strictEqual(count(/<style>/g), 3, 'style phải là 3 cặp (css + mobile + camera-css)');
+  assert.strictEqual(count(/<\/style>/g), 3, 'style đóng phải là 3');
   assert.strictEqual(count(/<script>/g), 4, 'script phải là 4 cặp');
   assert.strictEqual(count(/<\/script>/g), 4, 'script đóng phải là 4');
 

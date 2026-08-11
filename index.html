@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0d111a">
   <?!= include('css') ?>
   <?!= include('mobile') ?>
+  <?!= include('camera-css') ?>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Chuyển đến nội dung chính</a>
@@ -426,6 +427,24 @@
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-ghost" id="confirmCancelBtn" onclick="closeConfirmModal()">Huỷ</button>
       <button class="btn btn-danger" id="confirmOkBtn">Đồng ý</button>
+    </div>
+  </div>
+</div>
+
+<div id="cameraModal" class="camera-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="cameraTitle" onclick="if(event.target===this)closeCameraModal()">
+  <div class="camera-stage">
+    <div class="camera-head">
+      <span class="camera-title" id="cameraTitle">📷 Quét mã bằng camera</span>
+      <button type="button" class="dialog-close camera-close" onclick="closeCameraModal()" aria-label="Đóng camera">✕</button>
+    </div>
+    <div class="camera-view">
+      <video id="camVideo" playsinline muted autoplay></video>
+      <div class="camera-frame"></div>
+      <div class="camera-status" id="camStatusLive">Đang mở camera…</div>
+    </div>
+    <div class="camera-actions">
+      <button type="button" class="btn btn-camera" onclick="snapCameraFrame()">📸 Chụp</button>
+      <button type="button" class="btn btn-ghost" onclick="pickCameraImage()">🖼 Chọn ảnh</button>
     </div>
   </div>
 </div>
