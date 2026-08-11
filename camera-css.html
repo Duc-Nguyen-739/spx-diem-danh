@@ -40,23 +40,8 @@
   .camera-stage { max-width: 420px; }
   .camera-view { aspect-ratio: 3 / 4; max-height: 58vh; }
 }
-/* ===== TAB QUÉT RIÊNG (?scan=1) — ẩn toàn app, camera fullscreen như AppSheet ===== */
-.scan-mode body { background: #000; }
-.scan-mode body > :not(#cameraModal) { display: none !important; }
-.scan-mode .camera-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  display: flex; align-items: center; justify-content: center;
-  background: #000; padding: 0;
-}
-.scan-mode .camera-stage { max-width: none; height: 100vh; justify-content: center; gap: 10px; }
-.scan-mode .camera-head { padding: 8px 14px 0; }
-.scan-mode .camera-view {
-  width: 100%; max-width: 560px;
-  aspect-ratio: auto; max-height: none; height: 74vh;
-  border-radius: 0;
-}
-.scan-mode .camera-frame { inset: 8% 6%; }
-.scan-mode .camera-status { font-size: 14px; padding: 12px; }
+/* Nút 📷 Quét camera CHỈ hiện trên mobile — desktop ẩn (hiện lại trong mobile.html ≤900px) */
+#btnCamScan { display: none; }
 .cam-start-btn {
   font-size: 17px; padding: 14px 30px; border-radius: 14px;
   box-shadow: 0 0 0 2px rgba(255,255,255,.3), 0 8px 30px rgba(255,95,46,.45);
