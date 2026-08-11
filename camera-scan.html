@@ -47,18 +47,33 @@
       // GAS iframe chặn getUserMedia → mở TAB QUÉT RIÊNG (?scan=1): tab mới là
       // trang top-level nên camera chạy được, TỰ quét live như AppSheet — không
       // cần bấm chụp. Kết quả gửi về qua localStorage (cùng origin) + postMessage.
-      if (window.open) {
-        var token = 'rc' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-        var base = location.href.split('?')[0] || location.href;
-        var scanUrl = base + (base.indexOf('?') === -1 ? '?' : '&') + 'scan=1&tk=' + encodeURIComponent(token);
-        var w = window.open(scanUrl, '_blank');
-        if (w) {
-          camStatus('📷 Đang mở camera quét…');
-          startScanResultPolling(token);
-          return;
-        }
-        // popup bị chặn → fallback chụp ảnh native
+      var token = 'rc' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      var base = location.href.split('?')[0] || location.href;
+      var scanUrl = base + (base.indexOf('?') === -1 ? '?' : '&') + 'scan=1&tk=' + encodeURIComponent(token);
+      var opened = false;
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+      if (isIOS) {
+        // iOS Safari chặn window.open() programmatic từ iframe (hiện prompt URL
+        // "Open?") — dùng anchor click với user gesture trực tiếp, Safari mở thẳng.
+        try {
+          var a = document.createElement('a');
+          a.href = scanUrl;
+          a.target = '_blank';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          opened = true; // iOS không cho biết chính xác — poll chờ kết quả
+        } catch (e) { opened = false; }
+      } else {
+        try { opened = !!window.open(scanUrl, '_blank'); } catch (e) { opened = false; }
       }
+      if (opened) {
+        camStatus('📷 Đang mở camera quét… Nếu Safari hỏi, chọn Mở/Open');
+        startScanResultPolling(token);
+        return;
+      }
+      // popup bị chặn → fallback chụp ảnh native
       pickCameraImage();
     } else {
       startCameraLive();
@@ -69,6 +84,10 @@
   function startScanResultPolling(token) {
     stopScanResultPolling();
     scanPollSince = Date.now();
+    // Nếu 8s chưa thấy kết quả (Safari chưa mở tab) → nhắc user bấm Mở/Open
+    var hintTimer = setTimeout(function () {
+      camStatus('Nếu camera chưa mở: bấm lại 📷 Quét Camera và chọn Mở/Open khi Safari hỏi', true);
+    }, 8000);
     scanPollTimer = setInterval(function () {
       var data = null;
       try {
@@ -81,10 +100,15 @@
       stopScanResultPolling();
       onCameraDecoded(data.code); // điền mã + submitScan() — Done
     }, 400);
+    scanPollTimer._hint = hintTimer;
   }
 
   function stopScanResultPolling() {
-    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+    if (scanPollTimer) {
+      if (scanPollTimer._hint) { clearTimeout(scanPollTimer._hint); }
+      clearInterval(scanPollTimer);
+      scanPollTimer = null;
+    }
   }
 
   // Nhận trực tiếp nếu popup có thể postMessage tới iframe này
