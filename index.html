@@ -649,13 +649,15 @@
     .dash-main .table-wrap { max-width: 100%; }
     .dash-reopen { position: fixed; left: 12px; bottom: 14px; top: auto; z-index: 200; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 15px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
     .dash-reopen:hover { color: #fff; border-color: #FF7A50; transform: scale(1.08); box-shadow: 0 0 20px rgba(255,95,46,.5); }
-    .task-pagin { position: sticky; bottom: 0; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; padding: 12px 10px 8px; margin-top: 12px; background: linear-gradient(180deg, rgba(11,13,19,.82), #0b0d13 60%); border-top: 1px solid rgba(255,95,46,.28); border-radius: 0 0 var(--card-radius) var(--card-radius); box-shadow: 0 -8px 20px rgba(0,0,0,.3); }
-    .task-pagin button { min-width: 36px; height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(255,95,46,.35); background: #0b0d13; color: #FFB59E; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s ease; }
-    .task-pagin button:hover:not(:disabled) { color: #fff; border-color: #FF7A50; box-shadow: 0 0 10px rgba(255,95,46,.4); }
-    .task-pagin button.active { background: linear-gradient(135deg, #ff5f2e, #d43b1f); color: #fff; border-color: transparent; }
+    .task-pagin { position: sticky; bottom: 0; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; padding: 6px 10px; margin-top: 8px; background: #fff; border-top: 1px solid var(--border); border-radius: 0 0 var(--card-radius) var(--card-radius); box-shadow: 0 -2px 8px rgba(15,23,42,.06); }
+    .task-pagin button { min-width: 28px; height: 26px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--border); background: #fff; color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+    .task-pagin button:hover:not(:disabled) { color: var(--primary-dark); border-color: var(--primary); }
+    .task-pagin button.active { background: var(--primary); color: #fff; border-color: transparent; }
     .task-pagin button:disabled { opacity: .4; cursor: not-allowed; }
-    .task-pagin .p-dots { color: #8a7a70; font-size: 13px; padding: 0 2px; }
-    .task-pagin .p-info { color: #e8c9ba; font-size: 12px; font-weight: 600; margin-left: 14px; white-space: nowrap; }
+    .task-pagin .p-dots { color: var(--muted); font-size: 12px; padding: 0 2px; }
+    .task-pagin .p-info { color: var(--muted); font-size: 11.5px; font-weight: 600; margin-left: 10px; white-space: nowrap; }
+    /* Thanh phân trang dính sát mép cuối card (bỏ padding đáy card) */
+    .card:has(.task-pagin) { padding-bottom: 0; }
     .dash-layout.mini .dash-side { flex: 0 0 0px; width: 0; max-width: 0; padding: 0; opacity: 0; border-width: 0; overflow: hidden; pointer-events: none; }
     .dash-layout.mini .dash-reopen { display: grid; }
     #dashScrollTop { position: fixed; right: 18px; bottom: 18px; z-index: 200; width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,95,46,.4); background: #0b0d13; color: #FFB59E; font-size: 17px; cursor: pointer; display: none; place-items: center; box-shadow: 0 0 16px rgba(255,95,46,.3), 0 10px 26px rgba(0,0,0,.5); transition: all .18s ease; }
@@ -1323,7 +1325,7 @@
       <div class="about-sample">
         <span class="about-sample-num">1</span>
         <div class="about-sample-body">
-          <b>Mẫu 1 — Tổng quan sản phẩm</b>
+          <b>Tổng Quan:</b>
           <p class="about-lead">Điểm danh kho SPX là hệ thống điểm danh nhân viên kho bằng mã barcode, thiết kế riêng cho môi trường kho hàng của SPX.</p>
           <ul class="about-points">
             <li><span class="pt-check">✓</span><span><b>Quét mã Ops nhanh chóng:</b> nhân viên chỉ cần đưa mã barcode qua máy quét là hệ thống nhận diện ngay — không còn ghi danh sách giấy tờ thủ công.</span></li>
