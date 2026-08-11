@@ -36,12 +36,12 @@ for (const entry of ENTRIES) {
   console.log(`[build] Copied: ${entry}`);
 }
 
-// index.html: inline css.html/js.html → bản tĩnh TỰ CHỨA (như trước khi tách),
+// index.html: inline css.html/mobile.html/js.html → bản tĩnh TỰ CHỨA (như trước khi tách),
 // hosting chỉ cần serve 1 file index.html + mock (không phụ thuộc MIME css/js).
 const indexPath = path.resolve(OUT, 'index.html');
 try {
   const html = inlineHtml(fs.readFileSync(indexPath, 'utf8'),
-    path.resolve(ROOT, 'css.html'), path.resolve(ROOT, 'js.html'));
+    path.resolve(ROOT, 'css.html'), path.resolve(ROOT, 'js.html'), path.resolve(ROOT, 'mobile.html'));
   fs.writeFileSync(indexPath, html);
   console.log('[build] index.html: inlined css.html + js.html');
 } catch (e) {

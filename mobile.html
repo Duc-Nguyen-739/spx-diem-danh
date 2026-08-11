@@ -1,0 +1,38 @@
+<style>
+/* ===== MOBILE — cấu hình điện thoại (file riêng, 2026-08-11) =====
+   Chỉ áp dụng trên màn hình hẹp (<= 900px). Desktop giữ nguyên layout hiện tại.
+   KHÔNG đổi logic / không ẩn bớt thao tác — chỉ cân đối trình bày cho vừa
+   màn hình điện thoại: bảng gọn hơn, khoảng cách nhỏ hơn, dashboard ẩn mặc
+   định (mở lại qua nút ☰ — cơ chế .dash-layout.mini đã có sẵn).
+   File được nhúng qua scriptlet include('mobile') (xem index.html) ngay sau include('css'). */
+@media (max-width: 900px) {
+  /* Bảng task 13 cột trên điện thoại: thu gọn font/padding → vừa khung,
+     vẫn cuộn ngang trong .table-wrap (overflow: auto có sẵn) */
+  .task-list-card th, .task-list-card td { padding: 6px 8px; font-size: 12px; }
+  .task-list-card th { font-size: 11.5px; }
+  .task-list-toolbar .section-heading { font-size: 14px; }
+  .intro-m10-desc { font-size: 12px; margin: 8px 0 0; line-height: 1.6; }
+  .intro-m10-badge { font-size: 9.5px; padding: 2px 8px; }
+  /* Nút +Task gọn lại cho vừa màn hình hẹp */
+  .btn-create { padding: 10px 16px; font-size: 14px; }
+  /* Dashboard ẩn mặc định trên mobile (thêm class mini ở js.html lúc boot).
+     Nút ☰ (dash-reopen) nổi lên, đặt cao hơn thanh phân trang để không đè */
+  .dash-layout.mini .dash-reopen { bottom: 70px; }
+  .dash-main { gap: 12px; }
+  /* Card danh sách task không kéo dài hết chiều cao trên mobile —
+     để nội dung tự nhiên, tránh bảng quá bé */
+  .task-list-card { flex: none; }
+  .task-list-card .table-wrap { max-height: 46vh; }
+  /* Thanh phân trang: nút nhỏ gọn hơn trên điện thoại */
+  .task-pagin { padding: 5px 8px; }
+  .task-pagin button { min-width: 24px; height: 24px; padding: 0 7px; font-size: 11px; }
+  .task-pagin .p-info { font-size: 10.5px; margin-left: 6px; }
+}
+@media (max-width: 600px) {
+  .task-list-toolbar { margin-bottom: 8px; }
+  .task-count-badge { font-size: 11px; padding: 1px 8px; }
+  .scan-hint { font-size: 11.5px; }
+  /* Bảng scan: font nhỏ hơn cho vừa màn hình */
+  .scan-col-right th, .scan-col-right td { padding: 5px 6px; font-size: 11.5px; }
+}
+</style>

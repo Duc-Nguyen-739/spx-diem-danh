@@ -63,12 +63,12 @@ const server = http.createServer((req, res) => {
       'Content-Type': type,
       'Cache-Control': 'no-store',
     });
-    // index.html: inline css.html/js.html lúc serve (khớp GAS doGet) — bản serve ra
+    // index.html: inline css.html/mobile.html/js.html lúc serve (khớp GAS doGet) — bản serve ra
     // tự chứa như trước khi tách, trình duyệt không cần fetch thêm asset nào.
     if (path.basename(abs) === 'index.html') {
       try {
         const html = inlineHtml(fs.readFileSync(abs, 'utf8'),
-          path.join(ROOT, 'css.html'), path.join(ROOT, 'js.html'));
+          path.join(ROOT, 'css.html'), path.join(ROOT, 'js.html'), path.join(ROOT, 'mobile.html'));
         res.end(html);
         return;
       } catch (e) {

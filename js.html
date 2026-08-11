@@ -60,6 +60,12 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     loadMetaAndOptions();
+    // Mobile: ẩn dashboard mặc định (bấm ☰ để mở lại — cơ chế .dash-layout.mini có sẵn).
+    // Giữ nguyên mọi logic lọc/KPI — chỉ ẩn sidebar khỏi màn hình chính.
+    if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+      var layout = document.querySelector('.dash-layout');
+      if (layout && !layout.classList.contains('mini')) layout.classList.add('mini');
+    }
     document.getElementById('scanInput').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         e.preventDefault();
