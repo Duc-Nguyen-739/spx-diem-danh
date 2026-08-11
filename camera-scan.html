@@ -23,6 +23,10 @@
   //   2) jsQR (lib-jsqr.html) — QR — iOS Safari (KHÔNG có BarcodeDetector)
   //   3) Quagga (lib-quagga.html) — barcode vạch 1D (Code128/39/EAN/UPC/ITF…) — iOS
   // Ảnh chụp decode ở NHIỀU kích thước (gốc → 1280 → 800) × 3 cấu hình Quagga.
+  // AUTO-SNAP (2026-08-11): live loop iOS (frame 800px + 1 config nhanh) KHÔNG bắt được
+  // mã vạch kẻ → đo độ rung frame; khi giữ yên ~1s → TỰ ĐỘNG chụp frame 1280px decode
+  // chain đầy đủ (jsQR + 3 config Quagga — đúng đường nút "📸 Chụp" đang chạy tốt) →
+  // thấy mã là Done, không cần bấm gì. Nút "📸 Chụp" vẫn giữ làm fallback thủ công.
   // Kết quả đưa thẳng vào scanInput rồi gọi submitScan() → ĐÚNG luồng quét hiện
   // tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
   //
@@ -37,6 +41,16 @@
   var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
   var camDetector = null;    // BarcodeDetector instance
   var camLastFrame = 0;      // chống decode trùng frame liên tiếp
+  // AUTO-SNAP (2026-08-11): live loop iOS không bắt được mã ở frame 800px 1 config →
+  // đo độ rung frame; khi giữ yên ~1s → TỰ ĐỘNG chụp frame 1280px decode chain đầy đủ
+  // (đúng đường nút "📸 Chụp" — đã hoạt động tốt). User chỉ cần đưa mã vào khung, giữ yên.
+  var camPrevFrame = null;   // frame nhỏ 20x15 frame trước — đo chuyển động (rung tay)
+  var camStableCount = 0;    // số frame liên tiếp ít chuyển động (đủ ổn định → auto-snap)
+  var camLastAutoSnap = 0;   // cooldown: thời điểm auto-snap gần nhất
+  var camAutoSnapFail = 0;   // số lần auto-snap fail liên tiếp → tăng cooldown (tránh snap liên tục)
+  var camTinyCanvas = null;  // canvas 20x15 tái dùng — không cấp phát mỗi frame
+  var CAM_STABLE_MOTION = 6;          // ngưỡng "frame ổn định" (lệch sáng trung bình 0-255)
+  var CAM_AUTO_SNAP_COOLDOWN = 1800;  // ms tối thiểu giữa 2 lần auto-snap
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
   var scanPollTimer = null;  // poll localStorage chờ kết quả từ tab quét
@@ -151,7 +165,7 @@
         video.setAttribute('playsinline', '');
         var p = video.play();
         if (p && p.catch) p.catch(function () {});
-        if (statusEl) statusEl.textContent = 'Đưa mã vào khung — tự nhận diện';
+        if (statusEl) statusEl.textContent = 'Đưa mã vào khung, giữ yên — tự nhận diện';
         var sb = document.getElementById('camStartBtn');
         if (sb) sb.style.display = 'none';
         startCameraDecodeLoop();
@@ -187,7 +201,10 @@
       camRaf = requestAnimationFrame(loop);
       return;
     }
-    // 2) Không có BarcodeDetector (iOS Safari…) → vẽ frame → jsQR → Quagga
+    // 2) Không có BarcodeDetector (iOS Safari…) → vẽ frame → jsQR → Quagga.
+    //    AUTO-SNAP: đo độ rung trên frame 800px; khi giữ yên ~2 frame liên tiếp →
+    //    TỰ ĐỘNG chụp frame 1280px decode chain đầy đủ (jsQR + 3 config Quagga) —
+    //    đúng đường nút "📸 Chụp" đang chạy tốt, nhưng không cần bấm gì.
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
       var video = document.getElementById('camVideo');
@@ -195,10 +212,20 @@
       var now = Date.now();
       if (now - camLastFrame < 600) return;
       camLastFrame = now;
-      var imageData = camFrameToImageData(video, 800);
-      if (!imageData) return;
+      var frame = camFrameToImageData(video, 800);
+      if (!frame) return;
+      var imageData = frame.data;
+      // Rẻ: đo chuyển động trên canvas 800px đã có sẵn (downscale 20x15 → diff sáng)
+      var motion = camMotionScore(frame.canvas, imageData.w, imageData.h);
+      var decide = camShouldAutoSnap(motion, camStableCount, now, camLastAutoSnap, camAutoSnapFail);
+      camStableCount = decide.stableCount;
+      if (decide.snap) {
+        camLastAutoSnap = now;
+        camAutoSnap();
+        return; // không decode frame nhỏ cùng lúc — tránh chồng lấn CPU
+      }
       camDecoding = true;
-      decodeCameraImageData(imageData.data, imageData.w, imageData.h, imageData.canvas, true);
+      decodeCameraImageData(imageData.data, imageData.w, imageData.h, imageData.canvas, true, false, null);
     }, 300);
   }
 
@@ -207,6 +234,8 @@
     if (camTimer) { clearInterval(camTimer); camTimer = null; }
     camDetector = null;
     camDecoding = false;
+    camPrevFrame = null;      // reset đo rung khi dừng/khởi động lại loop
+    camStableCount = 0;
   }
 
   function camFrameToImageData(video, maxSide) {
@@ -253,7 +282,63 @@
     camDecoding = true;
     var frame = camFrameToImageData(video, 1280);
     if (!frame) { camSnapping = false; camDecoding = false; camStatus('Không đọc được khung hình — thử lại', true); return; }
-    decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, false);
+    decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, false, true, null);
+  }
+
+  // ===== AUTO-SNAP: giữ yên ~1s → tự chụp frame nét 1280px + decode đầy đủ =====
+  function camMotionScore(canvas, w, h) {
+    try {
+      if (!camTinyCanvas) {
+        camTinyCanvas = document.createElement('canvas');
+        camTinyCanvas.width = 20;
+        camTinyCanvas.height = 15;
+      }
+      var tctx = camTinyCanvas.getContext('2d');
+      tctx.drawImage(canvas, 0, 0, 20, 15);
+      var d = tctx.getImageData(0, 0, 20, 15).data;
+      if (!camPrevFrame) { camPrevFrame = d; return 0; }
+      var diff = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        var v = (d[i] + d[i + 1] + d[i + 2]) / 3;
+        var p = camPrevFrame[i];
+        diff += v > p ? v - p : p - v;
+        camPrevFrame[i] = v; // lưu grayscale vào kênh R của bản cũ
+      }
+      return diff / (20 * 15); // lệch sáng trung bình mỗi điểm mẫu (0-255)
+    } catch (e) { return 999; } // lỗi → coi như đang chuyển động (không snap)
+  }
+
+  // PURE: quyết định auto-snap cho 1 tick (không chạm DOM — test được trong Node,
+  // xem tests/camera-autosnap.test.js). Trả { snap, stableCount } — snap=true khi
+  // frame ổn định đủ 2 lần liên tiếp VÀ qua cooldown (cooldown tăng 1s sau mỗi fail).
+  function camShouldAutoSnap(motion, stableCount, now, lastAutoSnap, autoSnapFail) {
+    if (motion < CAM_STABLE_MOTION) stableCount++;
+    else stableCount = 0;
+    var cooldown = CAM_AUTO_SNAP_COOLDOWN + autoSnapFail * 1000;
+    if (stableCount >= 2 && now - lastAutoSnap > cooldown) {
+      return { snap: true, stableCount: 0 };
+    }
+    return { snap: false, stableCount: stableCount };
+  }
+
+  // Chụp frame 1280px + decode chain đầy đủ (jsQR + 3 config Quagga) — y hệt nút
+  // "📸 Chụp" nhưng TỰ ĐỘNG; fail im lặng để loop live tiếp tục (cooldown tăng dần).
+  function camAutoSnap() {
+    if (camSnapping || camDecoding) return;
+    camSnapping = true;
+    camDecoding = true;
+    var statusEl = document.getElementById('camStatusLive');
+    if (statusEl) statusEl.textContent = '📷 Đang nhận diện mã…';
+    var video = document.getElementById('camVideo');
+    if (!video || !video.videoWidth) { camSnapping = false; camDecoding = false; return; }
+    var frame = camFrameToImageData(video, 1280);
+    if (!frame) { camSnapping = false; camDecoding = false; return; }
+    decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, true, true, function () {
+      camSnapping = false;
+      if (camAutoSnapFail < 3) camAutoSnapFail++;
+      var st = document.getElementById('camStatusLive');
+      if (st) st.textContent = 'Đưa mã vào khung, giữ yên — tự nhận diện';
+    });
   }
 
   // 🖼 Chụp ảnh qua camera native (input capture) — fallback khi popup bị chặn
@@ -399,7 +484,9 @@
     onDone();
   }
 
-  function decodeCameraImageData(imageData, w, h, canvas, quiet) {
+  // quiet=true → fail im lặng (live loop tiếp tục); fullChain=true → decode đủ 3 config
+  // Quagga như nút Chụp (auto-snap/snap); onFail → callback sau khi fail (reset cờ auto-snap).
+  function decodeCameraImageData(imageData, w, h, canvas, quiet, fullChain, onFail) {
     // 1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D)
     if (window.BarcodeDetector) {
       try {
@@ -408,16 +495,16 @@
           if (results && results.length && results[0].rawValue) {
             onCameraDecoded(results[0].rawValue);
           } else {
-            decodeCameraFallback(imageData, w, h, quiet);
+            decodeCameraFallback(imageData, w, h, quiet, fullChain, onFail);
           }
-        }).catch(function () { decodeCameraFallback(imageData, w, h, quiet); });
+        }).catch(function () { decodeCameraFallback(imageData, w, h, quiet, fullChain, onFail); });
         return;
       } catch (err) { /* BarcodeDetector tồn tại nhưng không khởi tạo được → fallback */ }
     }
-    decodeCameraFallback(imageData, w, h, quiet);
+    decodeCameraFallback(imageData, w, h, quiet, fullChain, onFail);
   }
 
-  function decodeCameraFallback(imageData, w, h, quiet) {
+  function decodeCameraFallback(imageData, w, h, quiet, fullChain, onFail) {
     // 2) jsQR — QR code (iOS Safari / trình duyệt không có BarcodeDetector)
     if (window.jsQR) {
       try {
@@ -427,7 +514,7 @@
     }
     // 3) Quagga — barcode vạch 1D (Code128/Code39/EAN…) — fallback iOS
     var onDone = quiet
-      ? function () { camDecoding = false; }                    // live loop: im lặng tiếp tục
+      ? function () { camDecoding = false; if (onFail) onFail(); }   // im lặng: loop tiếp tục
       : function () { camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc'); };
     if (window.Quagga) {
       try {
@@ -436,8 +523,8 @@
         canvas.height = h;
         canvas.getContext('2d').putImageData(imageData, 0, 0);
         var src = canvas.toDataURL('image/jpeg', 0.92);
-        // Live loop: dùng config nhanh nhất. Snap: thử nhiều config (nét hơn).
-        var configs = quiet ? [CAM_QUAGGA_CONFIG_FAST] : CAM_QUAGGA_CONFIGS;
+        // Live loop (fast): 1 config nhanh. Snap/auto-snap (fullChain): nhiều config (nét hơn).
+        var configs = fullChain ? CAM_QUAGGA_CONFIGS : [CAM_QUAGGA_CONFIG_FAST];
         runQuaggaConfigs(src, configs, 0, onDone);
         return;
       } catch (err) { /* tiếp tục xuống fail */ }
@@ -479,6 +566,7 @@
     }
     camSnapping = false;
     camDecoding = false;
+    camAutoSnapFail = 0; // nhận được mã → reset cooldown auto-snap
     var clean = String(code || '').trim();
     if (camScanMode) {
       // TAB QUÉT RIÊNG: gửi kết quả về trang gốc rồi đóng tab
