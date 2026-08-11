@@ -78,11 +78,27 @@ test('index.html THẬT: sau inline là bản tự chứa hoàn chỉnh', () => 
   assert.strictEqual(count(/<script>/g), count(/<\/script>/g), 'script mất cân bằng');
 });
 
-test('BẢN INLINE == index.html gốc trong git HEAD (byte-identical — không mất/đổi gì)', () => {
-  const execSync = require('node:child_process').execSync;
-  const original = execSync('git show HEAD:index.html', { encoding: 'utf8' });
+test('index.html CHỈ chứa tag ngoài — không có khối <style>/<script> inline (tách đúng)', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const restored = inlineHtml(html, CSS, JS);
-  assert.strictEqual(restored.length, original.length, 'độ dài khác — mất/thừa ký tự');
-  assert.strictEqual(restored, original, 'nội dung khác — split làm đổi nội dung');
+  assert.ok(html.includes(CSS_TAG), 'thiếu <link css.html>');
+  assert.ok(html.includes(JS_TAG), 'thiếu <script src js.html>');
+  assert.ok(!html.includes('<style>'), 'index.html vẫn còn khối <style> inline');
+  assert.ok(!html.includes('</style>'), 'index.html vẫn còn </style>');
+  // <script> chỉ tồn tại dưới dạng <script src=...> hoặc thẻ mở của JS_TAG — không có <script> inline trống
+  const inlineScripts = (html.match(/<script(?! src=)/g) || []);
+  assert.strictEqual(inlineScripts.length, 0, 'index.html còn <script> inline: ' + inlineScripts.length);
+});
+
+test('BẢN INLINE tự-chứa đầy đủ: css/js từ file, thứ tự css trước js, không sót asset ngoài', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const css = fs.readFileSync(CSS, 'utf8');
+  const js = fs.readFileSync(JS, 'utf8');
+  const out = inlineHtml(html, CSS, JS);
+  assert.ok(out.includes('<style>' + css + '</style>'), 'CSS inline không khớp nguyên bản');
+  assert.ok(out.includes('<script>' + js + '</script>'), 'JS inline không khớp nguyên bản');
+  assert.ok(out.indexOf('<style>') < out.indexOf('<script>'), 'thứ tự css/js sai');
+  assert.ok(!out.includes(CSS_TAG) && !out.includes(JS_TAG), 'còn sót tag ngoài');
+  const count = (re) => (out.match(re) || []).length;
+  assert.strictEqual(count(/<style>/g), count(/<\/style>/g), 'style mất cân bằng');
+  assert.strictEqual(count(/<script>/g), count(/<\/script>/g), 'script mất cân bằng');
 });

@@ -3,8 +3,9 @@
  *
  * Dự án không có build step (vanilla HTML/JS, không framework). Script này copy
  * đúng các file runtime cần thiết vào `dist/`:
- *   - index.html        → trang chính (1 file chứa toàn bộ UI)
- *   - mock/mock-google.js → mock tự nạp khi chạy ngoài GAS (xem index.html)
+ *   - index.html        → trang chính (HTML thuần; CSS/JS được INLINE từ
+ *                         css.html/js.html → dist tự-chứa như trước khi tách)
+ *   - mock/mock-google.js → mock tự nạp khi chạy ngoài GAS (xem js.html)
  *
  * Luôn exit 0 khi thành công — KHÔNG start server (đó là việc của preview command).
  *
