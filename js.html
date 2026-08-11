@@ -72,6 +72,8 @@
         submitScan();
       }
     });
+    var camFileEl = document.getElementById('camFile');
+    if (camFileEl) camFileEl.addEventListener('change', onCamFileChange);
     initNetworkStatus();
     initCreatePreview();
     initHeaderSearch();
@@ -1065,6 +1067,8 @@
     var canScan = data.task.status === TASK_STATUS_C.OPEN;
     document.getElementById('scanInput').disabled = !canScan;
     document.getElementById('scanInput').placeholder = canScan ? 'Quét hoặc dán mã nhân viên…' : 'Task đã kết thúc';
+    var camBtn = document.getElementById('btnCamScan');
+    if (camBtn) camBtn.disabled = !canScan;
     updateFinishBtnState();
     if (canScan) {
       document.getElementById('scanInput').focus();

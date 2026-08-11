@@ -88,6 +88,14 @@
     }
     .btn-ghost:hover { background: #f0f1f3; }
     .btn-sm { padding: 6px 12px; font-size: 13px; }  /* nút nhỏ trong bảng — hết inline style */
+    /* Nút quét bằng camera (2026-08-11) — nổi bật cạnh nút Quét, đủ to để chạm */
+    .btn-camera {
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-camera:hover { background: #eaf1fe; }
+    .btn-camera:disabled { opacity: .5; cursor: not-allowed; }
     td.stt { width: 40px; text-align: center; color: var(--muted); font-size: 13px; }  /* STT hẹp, không đẩy widths */
 
     main { width: 100%; max-width: 100%; margin: 0; padding: var(--space-4); }  /* bỏ cap 1920px — content trải full màn như header */
@@ -294,7 +302,7 @@
     .badge.tt-meal { background: rgba(67, 160, 71, .13); color: #2e7d32; border: 1px solid rgba(67,160,71,.38); }
 
     /* ===== Scan input ===== */
-    .scan-row { display: flex; gap: 10px; }
+    .scan-row { display: flex; gap: 10px; flex-wrap: wrap; }  /* camera button xuống dòng khi màn hẹp */
     .scan-input-wrap { flex: 1; position: relative; overflow: hidden; padding: 4px; border-radius: 8px; }
     .scan-input-wrap input {
       font-size: 28px;

@@ -1,0 +1,147 @@
+<script>
+  // ===== CAMERA-SCAN-START: Quét mã bằng camera điện thoại (2026-08-11) =====
+  // File riêng (camera-scan.html) — nhúng qua scriptlet include('camera-scan') NGAY
+  // TRƯỚC include('js') trong index.html, nên các hàm ở đây định nghĩa trước khi
+  // js.html chạy (wiring DOMContentLoaded ở js.html gọi onCamFileChange).
+  //
+  // Chuỗi nhận diện mã:
+  //   1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D, nhanh nhất)
+  //   2) jsQR (lib-jsqr.html) — QR code — mọi trình duyệt, đặc biệt iOS Safari
+  //      KHÔNG có BarcodeDetector (WebKit chưa hỗ trợ Shape Detection API)
+  //   3) Quagga (lib-quagga.html) — barcode vạch 1D (Code128/39/EAN/UPC/ITF…) — fallback iOS
+  // Kết quả đưa thẳng vào scanInput rồi gọi submitScan() → chạy ĐÚNG luồng quét
+  // hiện tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
+  // Cách dùng: nút "📷 Quét camera" (#btnCamScan) → mở camera sau điện thoại qua
+  // <input type="file" capture="environment"> → chụp 1 ảnh → tự nhận diện.
+  var camDecoding = false;
+
+  function openCameraScan() {
+    var btn = document.getElementById('btnCamScan');
+    if (btn && btn.disabled) return;
+    if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+    var fileEl = document.getElementById('camFile');
+    if (!fileEl) return;
+    fileEl.value = ''; // reset để chọn lại được cùng 1 file
+    fileEl.click();
+  }
+
+  function onCamFileChange(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    decodeCameraImage(file);
+  }
+
+  function camStatus(msg, isError) {
+    var card = document.getElementById('scanCard');
+    if (!card) return;
+    card.innerHTML = '';
+    var div = document.createElement('div');
+    div.className = 'sc-empty';
+    if (isError) div.style.color = 'var(--danger)';
+    div.textContent = msg;
+    card.appendChild(div);
+  }
+
+  function camFail(msg) {
+    camDecoding = false;
+    camStatus(msg, true);
+  }
+
+  function decodeCameraImage(file) {
+    if (camDecoding) return;
+    camDecoding = true;
+    camStatus('📷 Đang nhận diện mã…');
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      try { URL.revokeObjectURL(url); } catch (err) {}
+      var w = img.naturalWidth || 0;
+      var h = img.naturalHeight || 0;
+      if (!w || !h) { camFail('Không đọc được ảnh — thử lại'); return; }
+      // Thu nhỏ ảnh lớn về tối đa 1280px — đủ nét cho mã, decode nhanh hơn
+      var scale = Math.min(1, 1280 / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, cw, ch);
+      var imageData;
+      try { imageData = ctx.getImageData(0, 0, cw, ch); } catch (err2) {
+        camFail('Không đọc được ảnh — thử lại');
+        return;
+      }
+      decodeCameraImageData(imageData, cw, ch, canvas);
+    };
+    img.onerror = function () {
+      try { URL.revokeObjectURL(url); } catch (err) {}
+      camFail('Không đọc được ảnh — thử lại');
+    };
+    img.src = url;
+  }
+
+  function decodeCameraImageData(imageData, w, h, canvas) {
+    // 1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D)
+    if (window.BarcodeDetector) {
+      try {
+        var detector = new window.BarcodeDetector({
+          formats: ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e']
+        });
+        detector.detect(canvas).then(function (results) {
+          if (results && results.length && results[0].rawValue) {
+            onCameraDecoded(results[0].rawValue);
+          } else {
+            decodeCameraFallback(imageData, w, h);
+          }
+        }).catch(function () { decodeCameraFallback(imageData, w, h); });
+        return;
+      } catch (err) { /* BarcodeDetector tồn tại nhưng không khởi tạo được → fallback */ }
+    }
+    decodeCameraFallback(imageData, w, h);
+  }
+
+  function decodeCameraFallback(imageData, w, h) {
+    // 2) jsQR — QR code (iOS Safari / trình duyệt không có BarcodeDetector)
+    if (window.jsQR) {
+      try {
+        var qr = window.jsQR(imageData.data, w, h);
+        if (qr && qr.data) { onCameraDecoded(qr.data); return; }
+      } catch (err) { /* tiếp tục fallback */ }
+    }
+    // 3) Quagga — barcode vạch 1D (Code128/Code39/EAN…) — fallback iOS
+    if (window.Quagga) {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').putImageData(imageData, 0, 0);
+        var src = canvas.toDataURL('image/jpeg', 0.92);
+        window.Quagga.decodeSingle({
+          src: src,
+          numOfWorkers: 0,
+          inputStream: { size: 800 },
+          locator: { patchSize: 'x-large', halfSample: true },
+          decoder: {
+            readers: ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader']
+          }
+        }, function (result) {
+          var code = result && result.codeResult && result.codeResult.code;
+          if (code) { onCameraDecoded(code); return; }
+          camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc');
+        });
+        return;
+      } catch (err) { /* tiếp tục xuống fail */ }
+    }
+    camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng');
+  }
+
+  function onCameraDecoded(code) {
+    camDecoding = false;
+    var input = document.getElementById('scanInput');
+    if (!input) return;
+    input.value = String(code || '').trim();
+    submitScan(); // đúng luồng quét hiện tại (reconcile + meal-move Ra/Vào)
+  }
+  // ===== CAMERA-SCAN-END =====
+</script>
