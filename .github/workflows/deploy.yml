@@ -31,17 +31,19 @@ jobs:
         run: clasp push -f
 
       - name: Deploy new version to production (/exec)
-        # /exec (bản versioned) KHÔNG tự cập nhật theo push — cần tạo version mới + gắn
-        # vào deployment production (bug 2026-08-11: user thấy /exec chạy bản cũ).
-        # continue-on-error: push đã xong — deploy lỗi không chặn workflow.
+        # /exec (deployment versioned) KHONG tu cap nhat theo push — can tao version moi
+        # + redeploy vao deployment production hien co (bug 2026-08-11: user thay /exec
+        # van chay ban cu, khong thay nut quet camera).
+        # continue-on-error: push da xong — deploy loi khong chan workflow.
         continue-on-error: true
         run: |
           set -e
           VERSION=$(clasp version "auto $(git rev-parse --short HEAD)" | grep -oE '[0-9]+' | tail -1)
           if [ -z "$VERSION" ]; then
-            echo "Không tạo được version — bỏ qua deploy"
+            echo "Khong tao duoc version — bo qua deploy"
             exit 0
           fi
+          # clasp deployments --json: field la versionNumber (HEAD -> undefined), KHONG phai 'version'
           DEPLOY_ID=$(clasp deployments --json | node -e "
             let s = '';
             process.stdin.on('data', function (d) { s += d; });
@@ -49,17 +51,17 @@ jobs:
               try {
                 var arr = JSON.parse(s);
                 var prod = arr.filter(function (d) {
-                  return d.deploymentId && d.version && d.version !== 'HEAD';
+                  return d.deploymentId && d.versionNumber;
                 }).sort(function (a, b) {
-                  return String(b.updateTime || '').localeCompare(String(a.updateTime || ''));
+                  return (b.versionNumber || 0) - (a.versionNumber || 0);
                 })[0];
                 process.stdout.write(prod ? prod.deploymentId : '');
               } catch (e) { process.stdout.write(''); }
             });
           ")
           if [ -z "$DEPLOY_ID" ]; then
-            echo "Không tìm thấy deployment versioned — bỏ qua deploy"
+            echo "Khong tim thay deployment versioned — bo qua deploy"
             exit 0
           fi
-          clasp deploy --versionNumber "$VERSION" --deploymentId "$DEPLOY_ID"
-          echo "✅ Đã deploy version $VERSION lên deployment $DEPLOY_ID"
+          clasp redeploy "$DEPLOY_ID" --versionNumber "$VERSION" --description "auto $(git rev-parse --short HEAD)"
+          echo "REDEPLOYED version $VERSION to deployment $DEPLOY_ID"
