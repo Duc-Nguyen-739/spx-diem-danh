@@ -2046,6 +2046,9 @@
         fillChips('fTeam', res.teams);
         fillSelect('fDate', res.dates, '-- Tất cả ngày --');
         fillChips('fContractType', res.contractTypes || []);
+        // Tối ưu 2026-08-11: lưu options dùng chung cho modal meal-move — tránh gọi
+        // getFilterOptions RPC lần 2 khi mở modal (loadMealOptions chỉ chạy nếu chưa có).
+        _mealFilterOptions = res;
         var canCreate = res.stations.length > 0 && res.slotCodes.length > 0 && res.teams.length > 0;
         document.getElementById('btnCreateTask').disabled = !canCreate;
         updateCreateSubmitState();
@@ -3828,8 +3831,12 @@
     // timeScanText "HH:mm:ss" mất ngày, xuyên nửa đêm sẽ so sai.
     // P2: epoch là nguồn sự thật duy nhất (text mất ngày xuyên nửa đêm) — filter + so đều theo epoch.
     log.forEach(function (r) {
-      var e = Number(r.timeScanEpoch) || 0;
-      if (e > (last ? (Number(last.timeScanEpoch) || 0) : 0)) last = r;
+      // meal-move: lượt quét có thể là Ra (timeRaEpoch) hoặc Vào (timeScanEpoch) —
+      // lấy mốc MỚI NHẤT của cả 2 (fix 2026-08-11: trước đây chỉ xét timeScanEpoch
+      // → quét Ra xong reload không hiện NV vừa Ra trên scan card).
+      var e = Math.max(Number(r.timeScanEpoch) || 0, Number(r.timeRaEpoch) || 0);
+      var lastE = last ? Math.max(Number(last.timeScanEpoch) || 0, Number(last.timeRaEpoch) || 0) : 0;
+      if (e > lastE) last = r;
     });
     if (!last) { resetScanCard(); return; }
     card.className = last.status === STATUS_C.EXTRA ? 'scan-card extra' : 'scan-card ok';

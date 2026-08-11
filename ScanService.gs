@@ -49,12 +49,10 @@ function scanStaff(taskId, rawStaffId, mode) {
     );
     // Meal-move: branch riêng — 2 mốc Ra/Vào + mode + permission
     const isMealMove = task && task.taskType === TASK_TYPE.MEAL_MOVE;
-    // Meal-move: cần staffInfo để phân biệt NV hợp lệ (có trong StaffData) vs NV lạ
-    // khi task trống (log rỗng) — không phải mọi mã "không trong log" đều là Dư.
-    var mmStaffInfo = null;
-    if (isMealMove) {
-      mmStaffInfo = (readStaffIndex_())[staffId] || null;
-    }
+    // Tối ưu 2026-08-11: KHÔNG đọc staffIndex sớm cho meal-move — nhánh update không
+    // cần staffInfo (classifyMealMoveScan chỉ trả staffInfo ở kết quả append), và nhánh
+    // append bên dưới đã tự lookup 1 lần. Trước đây mỗi scan meal-move parse 52KB JSON
+    // staffIndex thừa (giống F1 của reconcile).
     const resultMM = isMealMove ? classifyMealMoveScan(
       { STATUS: STATUS, TASK_STATUS: TASK_STATUS, DUPLICATE_WINDOW_MS: DUPLICATE_WINDOW_MS },
       task,
@@ -62,7 +60,7 @@ function scanStaff(taskId, rawStaffId, mode) {
       staffId,
       resolveMealMoveMode_(task, mode),
       Date.now(),
-      mmStaffInfo
+      null
     ) : null;
     const effectiveResult = isMealMove ? resultMM : result;
 

@@ -75,16 +75,20 @@ function computeCounters(cfg, logRows) {
   let scanned = 0;
   let absent = 0;
   let extra = 0;
+  let out = 0;
   const total = logRows ? logRows.length : 0;
   (logRows || []).forEach(function (row) {
     // P2: epoch là nguồn sự thật duy nhất (text mất ngày xuyên nửa đêm; slim cache
     // không còn field timeScan Date) — khớp hướng scanCard/restoreScanCard.
+    // meal-move: NV đã Ra (OUT) chưa Vào → counter riêng "Ra ngoài", KHÔNG đếm absent
+    // (fix 2026-08-11: trước đây OUT bị đếm nhầm vào absent → lệch client optimistic).
+    if (cfg.STATUS.OUT && row.status === cfg.STATUS.OUT) { out++; return; }
     var hasScan = Number(row.timeScanEpoch) > 0;
     if (hasScan) scanned++;
     if (row.status === cfg.STATUS.EXTRA) extra++;
     else if (!hasScan) absent++;
   });
-  return { scanned: scanned, absent: absent, extra: extra, total: total };
+  return { scanned: scanned, absent: absent, extra: extra, out: out, total: total };
 }
 
 /**

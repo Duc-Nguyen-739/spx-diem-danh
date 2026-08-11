@@ -267,7 +267,8 @@
       MOCK_DATA.tasks.unshift(task);
       return { ok: true, taskId: taskId, count: 0, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
     },
-    scanStaffApi: function (taskId, staffId) {
+    scanStaffApi: function (taskId, staffId, mode) {
+      var isMeal = (mode === 'ra' || mode === 'vao');  // mock khớp server scanStaff(taskId, staffId, mode)
       var log = getLog(taskId);
       var hit = null;
       log.forEach(function (r) { if (r.staffId.toLowerCase() === staffId.toLowerCase()) hit = r; });
@@ -275,23 +276,32 @@
       var d = new Date(nowMs);
       var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
       var info = null;
-      if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư' || hit.status === 'Ra ngoài')) {
+      // Đã điểm danh: Có mặt (đủ Ra+Vào) hoặc Dư. 'Ra ngoài' chưa Vào → quét Vào tiếp được.
+      if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư')) {
         return { ok: false, message: 'Đã điểm danh', status: null, timeScanText: '', timeScanEpoch: 0, staffName: null, counters: counters(log) };
       }
-      if (hit) { hit.status = 'Có mặt'; hit.timeScanText = ts; hit.timeScanEpoch = nowMs; }
+      if (hit) {
+        if (isMeal && mode === 'ra') { hit.status = 'Ra ngoài'; hit.timeRaText = ts; hit.timeRaEpoch = nowMs; }
+        else { hit.status = 'Có mặt'; hit.timeScanText = ts; hit.timeScanEpoch = nowMs; }
+      }
       else {
         // NV lạ → tra StaffData: có thông tin thì điền ĐỦ NGAY (khớp server buildExtraRow
         // lookup staffIndex); không có → để trống. KHÔNG chờ Kết Thúc mới hiện thông tin.
         MOCK_DATA.staff.forEach(function (s) { if (s.staffId.toLowerCase() === staffId.toLowerCase()) info = s; });
+        var extraStatus = (isMeal && mode === 'ra') ? 'Ra ngoài' : 'Dư';
         log.push({ taskId: taskId, staffId: staffId, staffName: info ? info.staffName : '',
           slotCode: info ? info.slotCode : '', station: info ? info.station : '',
           team: info ? info.team : '', workstation: info ? info.workstation : '',
           agency: info ? (info.agency || '') : '', timeRefText: '',
-          timeScanText: ts, timeScanEpoch: nowMs, status: 'Dư' });
+          timeRaText: (isMeal && mode === 'ra') ? ts : '', timeRaEpoch: (isMeal && mode === 'ra') ? nowMs : 0,
+          timeScanText: (isMeal && mode === 'ra') ? '' : ts, timeScanEpoch: (isMeal && mode === 'ra') ? 0 : nowMs,
+          status: extraStatus });
       }
+      var resStatus = hit ? (isMeal && mode === 'ra' ? 'Ra ngoài' : 'Có mặt') : ((isMeal && mode === 'ra') ? 'Ra ngoài' : 'Dư');
       return {
-        ok: true, message: hit ? 'Có mặt' : 'Dư', status: hit ? 'Có mặt' : 'Dư',
-        timeScanText: ts, timeScanEpoch: nowMs,
+        ok: true, message: resStatus, status: resStatus,
+        timeRaText: (isMeal && mode === 'ra') ? ts : '', timeRaEpoch: (isMeal && mode === 'ra') ? nowMs : 0,
+        timeScanText: (isMeal && mode === 'ra') ? '' : ts, timeScanEpoch: nowMs,
         staffName: hit ? hit.staffName : (info ? info.staffName : ''),
         agency: info ? (info.agency || '') : '', slotCode: info ? (info.slotCode || '') : '',
         station: info ? (info.station || '') : '', team: info ? (info.team || '') : '',
@@ -346,6 +356,13 @@
     completeTaskApi: function (taskId) {
       MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) t.status = 'done'; });
       return { ok: true, message: 'Đã kết thúc task ' + taskId };
+    },
+    reopenTaskApi: function (taskId) {
+      var hit = null;
+      MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) hit = t; });
+      if (!hit) return { ok: false, message: 'Không tìm thấy task' };
+      hit.status = 'open';
+      return { ok: true, message: 'Đã mở lại task ' + taskId };
     },
   };
 

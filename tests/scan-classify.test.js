@@ -96,6 +96,23 @@ test('computeCounters: quy ước đã chốt', () => {
   assert.equal(c.total, 4);
 });
 
+test('computeCounters: meal-move NV đã Ra (OUT) → counter riêng out, KHÔNG đếm absent', () => {
+  const cfgOut = {
+    STATUS: { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' },
+    TASK_STATUS: { OPEN: 'open', DONE: 'done' },
+  };
+  const rows = [
+    makeRow({ staffId: 'OPS000001', timeScanEpoch: 0, timeRaEpoch: 1700000000000, status: cfgOut.STATUS.OUT }), // Ra ngoài
+    makeRow({ staffId: 'OPS000002', timeScanEpoch: 0, status: cfgOut.STATUS.ABSENT }), // absent
+    makeRow({ staffId: 'OPS000003', timeScanEpoch: 1700000000001, status: cfgOut.STATUS.PRESENT }), // scanned
+  ];
+  const c = ScanLogic.computeCounters(cfgOut, rows);
+  assert.equal(c.out, 1);
+  assert.equal(c.absent, 1);   // OUT không tính vào absent
+  assert.equal(c.scanned, 1);
+  assert.equal(c.total, 3);
+});
+
 test('buildExtraRow: tạo dòng Dư với thông tin staff nếu có', () => {
   const now = new Date('2026-08-02T08:00:00');
   const staffInfo = {
