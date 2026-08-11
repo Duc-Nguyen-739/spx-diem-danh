@@ -33,7 +33,17 @@
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
-    startCameraLive();
+    // GAS serve web app TRONG SANDBOXED IFRAME — getUserMedia bị chặn
+    // (Permissions Policy: camera not allowed). Trong iframe → mở thẳng camera
+    // native qua <input capture> (cách duy nhất hoạt động trên GAS).
+    // Ngoài iframe (preview/hosting local) → live scan qua video stream.
+    var inFrame = false;
+    try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+    if (inFrame) {
+      pickCameraImage();
+    } else {
+      startCameraLive();
+    }
   }
 
   // ===== LIVE SCAN =====
@@ -65,8 +75,9 @@
         startCameraDecodeLoop();
       })
       .catch(function () {
-        if (statusEl) statusEl.textContent = 'Không mở được camera';
-        camStatus('Không mở được camera — bấm 🖼 Chọn ảnh để chọn ảnh mã', true);
+        // getUserMedia bị chặn (GAS iframe / policy) → tự chuyển sang chụp ảnh native
+        closeCameraModal();
+        pickCameraImage();
       });
   }
 
@@ -159,10 +170,11 @@
     decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, false);
   }
 
-  // 🖼 Chọn ảnh từ thư viện (fallback)
+  // 🖼 Chụp ảnh qua camera native (input capture) — hoạt động trong GAS iframe
   function pickCameraImage() {
     var fileEl = document.getElementById('camFile');
     if (!fileEl) return;
+    camStatus('📷 Chụp ảnh mã — đưa mã vào khung rồi chụp');
     fileEl.value = '';
     fileEl.click();
   }
@@ -202,6 +214,9 @@
 
   // ===== DECODE (dùng chung cho live loop + snap + file) =====
   // quiet = true → decode fail không hiện thông báo (live loop tự tiếp tục)
+  // Ảnh chụp (GAS) → decode ở NHIỀU kích thước + nhiều cấu hình locator để tăng
+  // tỉ lệ bắt được mã vạch kẻ (mã nhỏ/mờ/nghiêng ở ảnh gốc có thể đọc được ở
+  // ảnh thu nhỏ hoặc ngược lại).
   function decodeCameraImage(file) {
     if (camDecoding) return;
     camDecoding = true;
@@ -213,26 +228,91 @@
       var w = img.naturalWidth || 0;
       var h = img.naturalHeight || 0;
       if (!w || !h) { camFail('Không đọc được ảnh — thử lại'); return; }
-      var scale = Math.min(1, 1280 / Math.max(w, h));
-      var cw = Math.max(1, Math.round(w * scale));
-      var ch = Math.max(1, Math.round(h * scale));
-      var canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      var ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, cw, ch);
-      var imageData;
-      try { imageData = ctx.getImageData(0, 0, cw, ch); } catch (err2) {
-        camFail('Không đọc được ảnh — thử lại');
-        return;
-      }
-      decodeCameraImageData(imageData, cw, ch, canvas, false);
+      decodeImageMultiScale(img, w, h);
     };
     img.onerror = function () {
       try { URL.revokeObjectURL(url); } catch (err) {}
       camFail('Không đọc được ảnh — thử lại');
     };
     img.src = url;
+  }
+
+  function decodeImageMultiScale(img, w, h) {
+    var maxSide = Math.max(w, h);
+    var scales = [];
+    var seen = {};
+    function add(s) {
+      if (s > 1) s = 1;
+      var key = s.toFixed(4);
+      if (!seen[key]) { seen[key] = true; scales.push(s); }
+    }
+    add(1);                // ảnh gốc — BarcodeDetector đọc tốt nhất
+    add(1280 / maxSide);   // 1280px
+    add(800 / maxSide);    // 800px — Quagga nhận diện nhanh/nét hơn
+    scales.sort(function (a, b) { return b - a; });
+    decodeScaleStep(img, w, h, scales, 0);
+  }
+
+  function decodeScaleStep(img, w, h, scales, idx) {
+    if (idx >= scales.length) {
+      camDecoding = false;
+      camSnapping = false;
+      camStatus('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc', true);
+      return;
+    }
+    var scale = scales[idx];
+    var cw = Math.max(1, Math.round(w * scale));
+    var ch = Math.max(1, Math.round(h * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, cw, ch);
+    var imageData;
+    try { imageData = ctx.getImageData(0, 0, cw, ch); } catch (e) {
+      decodeScaleStep(img, w, h, scales, idx + 1);
+      return;
+    }
+    // BarcodeDetector trên canvas ở scale này
+    if (window.BarcodeDetector) {
+      try {
+        var detector = new window.BarcodeDetector({ formats: CAM_FORMATS });
+        detector.detect(canvas).then(function (results) {
+          if (results && results.length && results[0].rawValue) {
+            onCameraDecoded(results[0].rawValue);
+          } else {
+            decodeFallbackChain(imageData, cw, ch, function () { decodeScaleStep(img, w, h, scales, idx + 1); });
+          }
+        }).catch(function () {
+          decodeFallbackChain(imageData, cw, ch, function () { decodeScaleStep(img, w, h, scales, idx + 1); });
+        });
+        return;
+      } catch (err) { /* không khởi tạo được → chain */ }
+    }
+    decodeFallbackChain(imageData, cw, ch, function () { decodeScaleStep(img, w, h, scales, idx + 1); });
+  }
+
+  function decodeFallbackChain(imageData, w, h, onDone) {
+    // jsQR — QR code
+    if (window.jsQR) {
+      try {
+        var qr = window.jsQR(imageData.data, w, h);
+        if (qr && qr.data) { onCameraDecoded(qr.data); return; }
+      } catch (err) { /* tiếp tục */ }
+    }
+    // Quagga — barcode vạch 1D (nhiều cấu hình locator)
+    if (window.Quagga) {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').putImageData(imageData, 0, 0);
+        var src = canvas.toDataURL('image/jpeg', 0.92);
+        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, onDone);
+        return;
+      } catch (err) { /* tiếp tục */ }
+    }
+    onDone();
   }
 
   function decodeCameraImageData(imageData, w, h, canvas, quiet) {
@@ -262,6 +342,9 @@
       } catch (err) { /* tiếp tục fallback */ }
     }
     // 3) Quagga — barcode vạch 1D (Code128/Code39/EAN…) — fallback iOS
+    var onDone = quiet
+      ? function () { camDecoding = false; }                    // live loop: im lặng tiếp tục
+      : function () { camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc'); };
     if (window.Quagga) {
       try {
         var canvas = document.createElement('canvas');
@@ -269,14 +352,13 @@
         canvas.height = h;
         canvas.getContext('2d').putImageData(imageData, 0, 0);
         var src = canvas.toDataURL('image/jpeg', 0.92);
-        // Live loop: dùng config nhanh nhất. Snap/file: thử nhiều config (nét hơn).
+        // Live loop: dùng config nhanh nhất. Snap: thử nhiều config (nét hơn).
         var configs = quiet ? [CAM_QUAGGA_CONFIG_FAST] : CAM_QUAGGA_CONFIGS;
-        runQuaggaConfigs(src, configs, 0, quiet);
+        runQuaggaConfigs(src, configs, 0, onDone);
         return;
       } catch (err) { /* tiếp tục xuống fail */ }
     }
-    if (!quiet) camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc');
-    else camDecoding = false;
+    onDone();
   }
 
   var CAM_QUAGGA_CONFIG_FAST = { patchSize: 'x-large', halfSample: true };
@@ -286,11 +368,9 @@
     { patchSize: 'medium', halfSample: false }
   ];
 
-  function runQuaggaConfigs(src, configs, idx, quiet) {
+  function runQuaggaConfigs(src, configs, idx, onDone) {
     if (idx >= configs.length) {
-      camDecoding = false;
-      camSnapping = false;
-      if (!quiet) camStatus('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc', true);
+      if (onDone) onDone();
       return;
     }
     var cfg = configs[idx];
@@ -303,7 +383,7 @@
     }, function (result) {
       var code = result && result.codeResult && result.codeResult.code;
       if (code) { onCameraDecoded(code); return; }
-      runQuaggaConfigs(src, configs, idx + 1, quiet);
+      runQuaggaConfigs(src, configs, idx + 1, onDone);
     });
   }
 
