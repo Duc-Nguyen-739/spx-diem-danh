@@ -31,7 +31,9 @@ function scanStaff(taskId, rawStaffId, mode) {
   lock.waitLock(10000);
   try {
     const t1 = Date.now();
-    const task = readTask_(taskId);
+    // F8: task read CACHE (15s) — trước đây full AttendanceTask sheet read mỗi scan.
+    // Chỉ đọc tươi (readTask_) ở write path (complete/reopen/note) — scan chỉ cần status/type/createdBy.
+    const task = readTaskCached_(taskId);
     // U2: dùng cache log rows (30s + incremental) — scan liên tiếp không getDataRange
     // full sheet log mỗi lần (v1 lesson: dynamic tail → v2 cache vì update-in-place).
     const logRows = readLogRowsCached_(taskId);
@@ -225,7 +227,7 @@ function pasteMealMoveScan(taskId, codes, mode) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const task = readTask_(taskId);
+    const task = readTaskCached_(taskId);
     if (!task) return { ok: false, message: 'Không tìm thấy task', summary: null, counters: null };
     if (task.taskType !== TASK_TYPE.MEAL_MOVE) {
       return { ok: false, message: 'Task không phải Đi ăn + Move', summary: null, counters: null };

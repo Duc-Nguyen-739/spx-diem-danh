@@ -1447,6 +1447,40 @@
   // Email người dùng hiện tại (từ getMeta) — phân quyền chuyển Ra/Vào meal-move:
   // CHỈ email tạo task (createdBy) được dùng mode 'ra' (Quét Danh Sách); người khác khóa 'vao'.
   var CURRENT_USER_EMAIL = '';
+  // ===== STAFF-CACHE-START =====
+  // Client staff index cache (staffId → thông tin hiển thị) — scan NV lạ (Dư) hiện thông tin
+  // NGAY từ cache, không chờ server round-trip (yêu cầu 2026-08-11). Tải lúc boot + tạo task.
+  var STAFF_INFO = {}; // { staffId: { staffName, slotCode, station, team, workstation, agency } }
+  function lookupStaffInfo(staffId) {
+    var q = String(staffId || '').toUpperCase();
+    return STAFF_INFO[q] || null;
+  }
+  // ===== STAFF-CACHE-END =====
+  var STAFF_INFO_LOADING = false;
+  // Tải staff index compact (getStaffIndexApi) + cache localStorage 12h — không tải lại mỗi lần mở app.
+  function loadStaffIndex() {
+    try {
+      var cachedTs = Number(localStorage.getItem('rc2_staffIndexTs') || 0);
+      if (cachedTs && Date.now() - cachedTs < 12 * 3600 * 1000) {
+        var cached = localStorage.getItem('rc2_staffIndex');
+        if (cached) { STAFF_INFO = JSON.parse(cached); return; }
+      }
+    } catch (e) { /* localStorage hỏng → tải lại từ server */ }
+    if (STAFF_INFO_LOADING) return;
+    STAFF_INFO_LOADING = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        STAFF_INFO_LOADING = false;
+        if (!res || !res.ok || !res.staff) return;
+        STAFF_INFO = res.staff || {};
+        try {
+          localStorage.setItem('rc2_staffIndex', JSON.stringify(STAFF_INFO));
+          localStorage.setItem('rc2_staffIndexTs', String(Date.now()));
+        } catch (e) {}
+      })
+      .withFailureHandler(function () { STAFF_INFO_LOADING = false; })
+      .getStaffIndexApi();
+  }
   var TT_LABEL_MEAL = { 'meal-move': 'Điểm danh Ra/Vào' };
   // Task status — khớp TASK_STATUS trong Config.gs
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
@@ -1900,6 +1934,7 @@
         META = meta;
         // Email người dùng hiện tại (GAS Session) — phân quyền chuyển Ra/Vào meal-move
         CURRENT_USER_EMAIL = String((meta && meta.currentUser) || '').trim().toLowerCase();
+        loadStaffIndex();  // cache staff index — scan NV lạ hiện thông tin ngay
         // Header mới không còn #appTitle — cập nhật brand title nếu có
         var brand = document.getElementById('brandTitle');
         if (brand && meta.appTitle) brand.textContent = meta.appTitle;
@@ -2338,6 +2373,7 @@
           closeCreateModal();
           showToast(res.message + ' — ' + res.count + ' NV', false);
           loadTaskList();
+          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
           openScan(res.taskId);
         } else {
           showToast(res.message, true);
@@ -3026,6 +3062,7 @@
           closeCreateMealModal();
           showToast(res.message, false);
           loadTaskList();
+          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
           openScan(res.taskId);
         } else {
           showToast(res.message, true);
@@ -3156,9 +3193,16 @@
     } else {
       // NV lạ → append EXTRA (meal-move cũng append mã lạ)
       item.optimisticNew = true;
+      // NV lạ → điền thông tin NGAY từ staff cache client (nếu có) — không chờ server round-trip.
+      var siInfo = lookupStaffInfo(staffId);
       target = {
-        staffId: staffId, staffName: '…', slotCode: '', station: '', team: '',
-        agency: '', timeRefText: '', timeRaText: '', timeScanText: '',
+        staffId: staffId, staffName: siInfo ? siInfo.staffName : '…',
+        slotCode: siInfo ? (siInfo.slotCode || '') : '',
+        station: siInfo ? (siInfo.station || '') : '',
+        team: siInfo ? (siInfo.team || '') : '',
+        workstation: siInfo ? (siInfo.workstation || '') : '',
+        agency: siInfo ? (siInfo.agency || '') : '',
+        timeRefText: '', timeRaText: '', timeScanText: '',
         timeRaEpoch: 0, timeScanEpoch: 0, durationMinutes: null,
         status: MEAL_MODE === 'ra' ? STATUS_C.OUT : STATUS_C.EXTRA,
       };
@@ -3440,8 +3484,16 @@
       target.timeScanEpoch = Date.now();  // sort key — quét tức thì nhảy lên đầu
     } else {
       item.optimisticNew = true;
-      // NV lạ → dòng tạm status Dư (khớp server), không phải Có mặt
-      target = { staffId: staffId, staffName: '…', slotCode: '', station: '', team: '',
+      // NV lạ → dòng tạm status Dư (khớp server), không phải Có mặt.
+      // Điền thông tin NGAY từ staff cache client (nếu có) — không chờ server round-trip.
+      var siInfo = lookupStaffInfo(staffId);
+      target = { staffId: staffId,
+                 staffName: siInfo ? siInfo.staffName : '…',
+                 slotCode: siInfo ? (siInfo.slotCode || '') : '',
+                 station: siInfo ? (siInfo.station || '') : '',
+                 team: siInfo ? (siInfo.team || '') : '',
+                 workstation: siInfo ? (siInfo.workstation || '') : '',
+                 agency: siInfo ? (siInfo.agency || '') : '',
                  timeRefText: '', timeScanText: fmtDate(new Date()), status: STATUS_C.EXTRA,
                  timeScanEpoch: Date.now() };
       item.target = target;
@@ -3572,6 +3624,12 @@
             if (res.timeScanText) item.target.timeScanText = res.timeScanText;
             // sort key chính xác từ server epoch (đồng bộ thời điểm thật)
             if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
+            // Dư: điền đủ Ca/Team/Station/Vender từ server (phòng cache client miss / data mới)
+            if (res.agency) item.target.agency = res.agency;
+            if (res.slotCode != null) item.target.slotCode = res.slotCode;
+            if (res.station != null) item.target.station = res.station;
+            if (res.team != null) item.target.team = res.team;
+            if (res.workstation != null) item.target.workstation = res.workstation;
           }
           // Toast optimistic đã hiện đúng → KHÔNG toast lại (tránh lặp/nháy).
           // Chỉ cập nhật nếu server trả status khác dự đoán.

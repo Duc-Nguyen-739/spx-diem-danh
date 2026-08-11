@@ -211,6 +211,18 @@
         taskCount: tasks.length,
       };
     },
+    getStaffIndexApi: function () {
+      // khớp contract server getStaffIndexApi — staff index compact cho client scan cache.
+      // Key UPPERCASE (giống normalizeStaffId server) — client lookupStaffInfo uppercase.
+      var out = {};
+      MOCK_DATA.staff.forEach(function (s) {
+        out[String(s.staffId).toUpperCase()] = {
+          staffName: s.staffName, slotCode: s.slotCode, station: s.station,
+          team: s.team, workstation: s.workstation, agency: s.agency || '',
+        };
+      });
+      return { ok: true, staff: out, count: Object.keys(out).length };
+    },
     getTaskListApi: function () {
       return MOCK_DATA.tasks.slice();
     },

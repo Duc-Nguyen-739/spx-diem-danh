@@ -227,6 +227,26 @@ function readTask_(taskId) {
   return null;
 }
 
+/**
+ * Đọc task có cache ngắn (15s) — ĐƯỜNG QUÉT (scanStaff/pasteMealMoveScan) không
+ * getDataRange AttendanceTask mỗi lần quét (task read per scan = full-sheet read).
+ * Bỏ _rowIndex (chỉ dùng khi GHI — mọi write path đọc tươi qua readTask_).
+ * Invalidate qua insertTask_/updateTaskStatus_/updateTaskNote_ (invalidateTaskCache_).
+ */
+function readTaskCached_(taskId) {
+  return cachedJson_(CACHE_KEYS.TASK + taskId, function () {
+    const task = readTask_(taskId);
+    if (task) delete task._rowIndex;
+    return task;
+  }, CACHE_TTL.TASK);
+}
+
+/** Xoá cache task — gọi sau mọi ghi task (insert/update status/update note). */
+function invalidateTaskCache_(taskId) {
+  try { cache_().remove(CACHE_KEYS.TASK + taskId); }
+  catch (e) { console.warn('invalidateTaskCache_ fail', taskId, e.message); }
+}
+
 /** Ghi task mới (append — tần suất thấp, chấp nhận appendRow). */
 function insertTask_(task) {
   getSheet_(SHEETS.ATTENDANCE_TASK).appendRow([
@@ -234,6 +254,7 @@ function insertTask_(task) {
     task.status, task.createdAt, task.createdBy, task.completedAt || '', task.note || '',
   ]);
   invalidateTaskListCache_();
+  invalidateTaskCache_(task.taskId);  // F8: phá negative-cache readTaskCached_ (taskId giờ-tạo có thể trùng)
   // F5: phá negative-cache (readTaskDetailCached_ cache null 15s nếu getTaskDetail gọi
   // trước khi task tồn tại — taskId dạng giờ-tạo có thể trùng giữa 2 lần create gần nhau).
   invalidateTaskDetailCache_(task.taskId);
@@ -245,6 +266,7 @@ function updateTaskNote_(taskId, note, rowIndex) {
   const write = function (r) {
     sheet.getRange(r, TASK_COLS.NOTE + 1).setValue(note || '');
     invalidateTaskListCache_();
+    invalidateTaskCache_(taskId);
     invalidateTaskDetailCache_(taskId);
     return true;
   };
@@ -274,6 +296,7 @@ function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
   if (rowIndex) {
     write(rowIndex);
     invalidateTaskListCache_();
+    invalidateTaskCache_(taskId);
     invalidateTaskDetailCache_(taskId);
     return true;
   }
@@ -282,6 +305,7 @@ function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
     if (String(values[i][TASK_COLS.TASK_ID] || '').trim() === taskId) {
       write(i + 1);
       invalidateTaskListCache_();
+      invalidateTaskCache_(taskId);
       invalidateTaskDetailCache_(taskId);
       return true;
     }

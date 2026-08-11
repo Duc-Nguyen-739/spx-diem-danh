@@ -196,6 +196,28 @@ function searchStaffApi(code) {
   return { ok: true, staff: staff, tasks: tasks, taskCount: tasks.length };
 }
 
+/**
+ * Staff index COMPACT cho CLIENT — scan mã Ops hiện thông tin NGAY từ cache client
+ * (Tên/Ca/Team/Station/Vender), không chờ server round-trip cho NV lạ (Dư).
+ * Server đã cache STAFF_INDEX 5m (readStaffIndex_) → RPC rẻ; client cache thêm localStorage.
+ */
+function getStaffIndexApi() {
+  const index = readStaffIndex_();
+  const out = {};
+  Object.keys(index).forEach(function (id) {
+    const s = index[id] || {};
+    out[id] = {
+      staffName: s.staffName || '',
+      slotCode: s.slotCode || '',
+      station: s.station || '',
+      team: s.team || '',
+      workstation: s.workstation || '',
+      agency: s.agency || '',
+    };
+  });
+  return { ok: true, staff: out, count: Object.keys(out).length };
+}
+
 /** Tạo task đối chiếu + pre-fill. */
 function createReconcileTaskApi(input) {
   return createReconcileTask(input);

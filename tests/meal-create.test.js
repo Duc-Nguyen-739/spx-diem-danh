@@ -110,6 +110,7 @@ global.getSelectedChips = (id) => (els[id] ? els[id].chips.filter((c) => c.class
 global.fillSelect = (id, values) => { if (els[id]) els[id]._options = values || []; };
 global.showToast = (msg) => { toastMsg = msg; };
 global.loadTaskList = () => {};
+global.loadStaffIndex = () => {};  // refresh staff cache sau khi tạo task (không liên quan input)
 global.openScan = (taskId) => { openedScanId = taskId; };
 global.markServerFail = () => {};
 global.markServerOk = () => {};
