@@ -130,3 +130,10 @@ Chi tiết: `README.md`, `docs/intent/rollcall-v2.md`, `docs/spec/2026-08-02-pha
 5. `freebuff-preview start` có thể mất vài lần thử sau khi sandbox restart — kiên nhẫn chờ, không báo lỗi vội; nếu CLI không hồi phục → báo user bấm **Start preview** từ UI.
 
 **Đã gặp nhiều lần (2026-08-10):** sau mỗi lần sửa code + verify trong sandbox, preview tự tắt do sandbox restart. Không phải do code hỏng — chỉ cần start lại + verify curl trước khi đưa link.
+
+## 19. Quy trình giao việc của user (2026-08-11)
+
+- **KHÔNG cần làm link test mockup nữa.** User không còn yêu cầu preview/test link cho từng thay đổi.
+- Quy trình chuẩn: sửa code → verify (node --check, `npm test`, mô phỏng mock nếu cần) → **push GitHub ngay** khi mọi thứ OK — không hỏi, không làm preview.
+- Chỉ dùng preview/test link khi user chủ động yêu cầu.
+- Commit message tiếng Anh, mô tả rõ vấn đề + giải pháp + verification, theo phong cách các commit trước (`feat(kiosk): ...` / `fix(kiosk): ...` / `perf(kiosk): ...` / `docs(about): ...`).
