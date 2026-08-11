@@ -790,6 +790,37 @@
       transform: scale(.96); transition: transform .2s ease-out;
     }
     .about-overlay.open .about-dialog { transform: scale(1); }
+    /* About mở rộng (danh sách mẫu giới thiệu) — rộng hơn + cuộn dọc khi nội dung dài */
+    .about-dialog--samples {
+      max-width: 640px; width: 94%;
+      max-height: 84vh;
+      display: flex; flex-direction: column;
+      padding: 20px 24px;
+    }
+    .about-samples-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .about-samples-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
+    .about-samples-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+    .about-samples-list {
+      flex: 1 1 auto; overflow-y: auto;
+      margin-top: 14px; padding-right: 6px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .about-sample {
+      display: flex; gap: 12px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .about-sample-num {
+      flex: 0 0 auto;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 2px;
+    }
+    .about-sample-body { font-size: 13px; line-height: 1.65; color: var(--text); }
+    .about-sample-body b { display: block; margin-bottom: 4px; font-size: 13.5px; color: var(--primary-dark); }
+    .about-samples-foot { display: flex; justify-content: flex-end; margin-top: 16px; }
 
     /* Chip filter (modal tạo task v2) — một chạm toggle, dễ dùng trên kiosk touch */
     .chip-field { margin-top: 14px; }
@@ -1275,10 +1306,27 @@
 </main>
 
 <div id="aboutModal" class="about-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="aboutTitle" onclick="if(event.target===this)closeAbout()">
-  <div class="about-dialog">
-    <h3 id="aboutTitle" style="margin:0 0 8px;font-size:16px;color:var(--text);">Giới thiệu</h3>
-    <p class="muted" id="aboutBody">RollCall v2 — Điểm danh kho SPX</p>
-    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+  <div class="about-dialog about-dialog--samples">
+    <div class="about-samples-head">
+      <div>
+        <h3 id="aboutTitle" class="about-samples-title">Điểm danh kho SPX</h3>
+        <p class="about-samples-sub">Giới thiệu hệ thống — 10 mẫu dùng cho thuyết trình / tài liệu / email</p>
+      </div>
+      <button type="button" class="dialog-close" onclick="closeAbout()" aria-label="Đóng hộp thoại">✕</button>
+    </div>
+    <div class="about-samples-list" id="aboutBody">
+      <div class="about-sample"><span class="about-sample-num">1</span><div class="about-sample-body"><b>Mẫu 1 — Tổng quan sản phẩm</b>Điểm danh kho SPX là hệ thống điểm danh nhân viên kho bằng mã barcode, thiết kế riêng cho môi trường kho hàng của SPX. Thay vì ghi danh sách giấy tờ thủ công, nhân viên chỉ cần quét mã Ops là hệ thống nhận diện ngay và đối chiếu với danh sách ca làm, team, station đã chốt trong task. Toàn bộ quy trình từ tạo task, quét mã đến tổng kết cuối ca diễn ra trên một màn hình duy nhất — giảm sai sót, tiết kiệm thời gian và kiểm soát chặt chẽ lực lượng lao động theo từng ca.</div></div>
+      <div class="about-sample"><span class="about-sample-num">2</span><div class="about-sample-body"><b>Mẫu 2 — Quét mã Ops nhanh, thông tin hiển thị tức thì</b>Hiệu năng là điểm cốt lõi: mỗi lần quét mã Ops, hệ thống hiển thị ngay tên nhân viên, ca làm, team, station và nhà thầu trên màn hình — không chờ đợi, không phải tìm kiếm lại trong danh sách. Bộ đếm Đã quét / Chưa điểm danh / Dư được cập nhật theo thời gian thực, giám sát viên chỉ cần nhìn màn hình là nắm được tình hình điểm danh của cả ca. Hệ thống cũng tự nhận diện mã đã quét trước đó để tránh nhầm lẫn khi quét trùng liên tiếp.</div></div>
+      <div class="about-sample"><span class="about-sample-num">3</span><div class="about-sample-body"><b>Mẫu 3 — Tạo task điểm danh linh hoạt, đúng nhu cầu</b>Hướng dẫn tạo task: bấm nút “+ Task”, chọn loại task, sau đó chọn Station, Ca, Team, ngày vào làm và loại hợp đồng. Hệ thống tự động lọc và báo trước số lượng nhân viên khớp điều kiện trước khi tạo, giúp tránh tạo nhầm task. Danh sách nhân viên được chốt ngay tại thời điểm tạo task — mọi lượt quét sau đó đều được đối chiếu với danh sách này; người không thuộc task sẽ được phân loại riêng (Dư) để giám sát xử lý.</div></div>
+      <div class="about-sample"><span class="about-sample-num">4</span><div class="about-sample-body"><b>Mẫu 4 — Điểm danh Ra/Vào cho nhân viên di chuyển</b>Ngoài điểm danh ca thông thường, hệ thống hỗ trợ task “Điểm danh Ra/Vào” dành cho nhân viên ra vào giữa các khu vực trong ca: ghi nhận hai mốc thời gian Ra và Vào, tự động tính số phút vắng mặt giữa hai lần quét. Hướng dẫn: chế độ quét do người tạo task kiểm soát — chỉ người tạo được chuyển giữa “Quét Danh Sách” và “Quét Điểm Danh”; các kiosk khác mặc định ở chế độ Điểm Danh để đảm bảo quy trình không bị can thiệp.</div></div>
+      <div class="about-sample"><span class="about-sample-num">5</span><div class="about-sample-body"><b>Mẫu 5 — Theo dõi tiến độ toàn cảnh trên dashboard</b>Màn hình danh sách task hiển thị trạng thái từng task (Đang mở / Kết thúc), số lượng nhân viên, số đã quét và số Dư ngay trên bảng. Hướng dẫn sử dụng bộ lọc: lọc theo Trạng thái, Station, Ca, Team hoặc Loại task để thu hẹp danh sách; danh sách dài được phân trang gọn gàng, kèm nút cuộn nhanh về đầu trang cố định ở góc màn hình — phù hợp với màn hình cảm ứng cỡ lớn đặt tại kho.</div></div>
+      <div class="about-sample"><span class="about-sample-num">6</span><div class="about-sample-body"><b>Mẫu 6 — Tra cứu nhân viên và lịch sử điểm danh</b>Ô tìm kiếm nhanh ở thanh tiêu đề cho phép nhập mã Ops để xem ngay thông tin nhân viên cùng danh sách các task mà mã này đã từng điểm danh; danh sách task trên màn hình tự động lọc theo kết quả tìm kiếm. Hướng dẫn: nhập mã Ops (đầy đủ hoặc một phần) rồi chọn kết quả hiện ra; bấm ✕ để xóa tìm kiếm và trở về danh sách đầy đủ. Công cụ hữu ích khi cần xác minh nhanh một nhân viên đã điểm danh ở task nào trong ngày.</div></div>
+      <div class="about-sample"><span class="about-sample-num">7</span><div class="about-sample-body"><b>Mẫu 7 — Trải nghiệm sử dụng mượt mà, phản hồi tức thì</b>Hệ thống được tối ưu để thao tác liên tục không bị gián đoạn: mỗi lượt quét được xử lý ngay, thông tin và trạng thái cập nhật tức thì trên màn hình dù mạng có chậm. Nếu có nhiều lượt quét cùng lúc, hệ thống xử lý tuần tự để không mất lượt nào, kèm thông báo rõ ràng khi có lỗi. Hướng dẫn: sau mỗi lần quét, ô nhập tự động xóa và sẵn sàng cho lượt tiếp theo — nhân viên chỉ việc đưa mã barcode vào và quét liên tục, không cần chạm bàn phím.</div></div>
+      <div class="about-sample"><span class="about-sample-num">8</span><div class="about-sample-body"><b>Mẫu 8 — Tổng kết ca rõ ràng, dễ đối soát</b>Khi kết thúc task, hệ thống tự động phân loại nhân viên chưa điểm danh thành Vắng và khóa task không cho quét thêm; trạng thái từng nhân viên (Có mặt / Vắng / Dư / Ra ngoài) hiển thị rõ ràng trong bảng chi tiết. Hướng dẫn: bấm “Kết Thúc” khi hoàn tất điểm danh để chốt task; nếu cần quét bổ sung, bấm “Mở Lại” — nhân viên bị đánh Vắng sẽ được đặt lại trạng thái chưa điểm danh để quét tiếp. Ghi chú của task có thể thêm/sửa bất cứ lúc nào để phục vụ đối soát cuối ca.</div></div>
+      <div class="about-sample"><span class="about-sample-num">9</span><div class="about-sample-body"><b>Mẫu 9 — Dán danh sách mã Ops hàng loạt</b>Với task “Điểm danh Ra/Vào”, thay vì quét từng mã, có thể dán một danh sách nhiều mã Ops vào ô quét để hệ thống xử lý hàng loạt trong một lần: ghi nhận Ra hoặc Vào cho toàn bộ danh sách, tách riêng mã trùng và mã đã điểm danh. Hướng dẫn: dán các mã Ops (mỗi mã một dòng hoặc cách nhau bởi dấu phẩy) vào ô quét rồi nhấn Enter; hệ thống báo cáo tổng kết số mã đã xử lý ngay sau đó — tiết kiệm thời gian đáng kể khi điểm danh cho nhóm đông.</div></div>
+      <div class="about-sample"><span class="about-sample-num">10</span><div class="about-sample-body"><b>Mẫu 10 — Giải pháp điểm danh kho trọn gói</b>Điểm danh kho SPX cung cấp đầy đủ tính năng cho một ca vận hành: tạo task theo tổ hợp Station/Ca/Team, quét mã Ops tốc độ cao, theo dõi tiến độ theo thời gian thực, tra cứu nhân viên, điểm danh Ra/Vào và tổng kết cuối ca với phân loại Vắng/Dư rõ ràng. Giao diện tiếng Việt, bố cục lớn, thao tác tối giản phù hợp cho kiosk cảm ứng tại kho. Hướng dẫn sử dụng đầy đủ có trong nút ⓘ này và từng màn hình chức năng — hệ thống sẵn sàng đưa vào vận hành thực tế ngay sau khi đồng bộ dữ liệu nhân viên.</div></div>
+    </div>
+    <div class="about-samples-foot">
       <button class="btn" onclick="closeAbout()">Đóng</button>
     </div>
   </div>
