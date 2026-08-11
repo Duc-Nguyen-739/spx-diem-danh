@@ -7,31 +7,40 @@
   // RÀNG BUỘC NỀN TẢNG (đã verify từ tài liệu chính thức):
   // - GAS serve web app TRONG SANDBOXED IFRAME chặn getUserMedia (Permissions
   //   Policy: camera not allowed — HTML Service restrictions + Issue Tracker
-  //   #489159857) → trong GAS, camera chỉ truy cập được qua <input capture>
-  //   (mở camera native, chụp 1 ảnh) — không có cách nào quét live trong iframe.
-  // - Ngoài GAS (preview/hosting top-level): getUserMedia chạy được → quét LIVE
-  //   qua video stream trong modal (#cameraModal).
+  //   #489159857) → trong iframe KHÔNG quét live được.
+  // - GAS sandbox CÓ allow-popups + allow-same-origin → mở TAB QUÉT RIÊNG
+  //   (?scan=1 qua window.open/anchor click): tab mới là trang top-level nên
+  //   camera chạy được → quét LIVE TỰ ĐỘNG (không cần bấm chụp). Kết quả gửi về
+  //   trang gốc qua localStorage (cùng origin) + postMessage.
+  // - BUG tab trắng đã fix (2026-08-11): mở thẳng URL content GAS không inject
+  //   google.script → js.html mock loader document.write sẽ XÓA TRẮNG trang.
+  //   Đã chặn document.write khi ?scan=1 + js.html skip app init trong scan mode.
+  // - iOS Safari: camera CHỈ bật khi có user gesture trong CHÍNH tab quét →
+  //   hiện nút "▶ Bật camera" để chạm 1 lần (giới hạn bảo mật của Apple).
   //
-  // CHUỖI NHẬN DIỆN (ảnh chụp lẫn frame live):
+  // CHUỖI NHẬN DIỆN (frame live lẫn ảnh chụp):
   //   1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D, nhanh nhất)
   //   2) jsQR (lib-jsqr.html) — QR — iOS Safari (KHÔNG có BarcodeDetector)
   //   3) Quagga (lib-quagga.html) — barcode vạch 1D (Code128/39/EAN/UPC/ITF…) — iOS
-  // Ảnh chụp được decode ở NHIỀU kích thước (gốc → 1280 → 800) × 3 cấu hình
-  // Quagga locator → tăng tỉ lệ bắt được mã vạch kẻ (mã nhỏ/mờ/nghiêng ở 1 scale
-  // có thể đọc được ở scale khác).
-  // Kết quả đưa thẳng vào scanInput rồi gọi submitScan() → chạy ĐÚNG luồng quét
-  // hiện tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
+  // Ảnh chụp decode ở NHIỀU kích thước (gốc → 1280 → 800) × 3 cấu hình Quagga.
+  // Kết quả đưa thẳng vào scanInput rồi gọi submitScan() → ĐÚNG luồng quét hiện
+  // tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
   //
-  // Nút "📷 Quét Camera" (#btnCamScan) CHỈ HIỆN trên mobile (desktop ẩn — CSS):
-  //   - GAS (iframe): mở camera native chụp ảnh → tự decode → Done
-  //   - Ngoài GAS (preview/hosting): mở modal live scan → quét liên tục
+  // Nút "📷 Quét Camera" (#btnCamScan) CHỈ hiện trên mobile (desktop ẩn — CSS):
+  //   - GAS (iframe): mở TAB QUÉT RIÊNG → quét live tự nhận (nếu popup bị chặn →
+  //     fallback chụp ảnh native)
+  //   - Ngoài GAS (preview/hosting top-level): live scan ngay trong modal
   var camDecoding = false;   // đang decode 1 ảnh/frame (chống chồng lấn)
   var camSnapping = false;   // đang chụp/decode tĩnh (snap hoặc file)
-  var camStream = null;      // MediaStream đang mở (live scan ngoài GAS)
+  var camStream = null;      // MediaStream đang mở
   var camTimer = null;       // interval decode khi không có BarcodeDetector
   var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
   var camDetector = null;    // BarcodeDetector instance
   var camLastFrame = 0;      // chống decode trùng frame liên tiếp
+  var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
+  var camScanToken = '';     // token định danh phiên quét
+  var scanPollTimer = null;  // poll localStorage chờ kết quả từ tab quét
+  var scanPollSince = 0;     // chỉ nhận kết quả mới hơn thời điểm mở tab
   var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
   var CAM_QUAGGA_READERS = ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader'];
 
@@ -42,16 +51,81 @@
     var inFrame = false;
     try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
     if (inFrame) {
-      // GAS iframe chặn getUserMedia → mở thẳng camera native (chụp ảnh) —
-      // cách duy nhất truy cập camera trên GAS. Chụp xong TỰ decode → Done.
+      // GAS iframe: mở TAB QUÉT RIÊNG (?scan=1) — tab top-level camera chạy được,
+      // quét LIVE tự nhận mã như AppSheet. Kết quả gửi về qua localStorage.
+      var token = 'rc' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      var base = location.href.split('?')[0] || location.href;
+      var scanUrl = base + (base.indexOf('?') === -1 ? '?' : '&') + 'scan=1&tk=' + encodeURIComponent(token);
+      var opened = false;
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+      if (isIOS) {
+        // iOS Safari chặn window.open() từ iframe → anchor click (user gesture) mở thẳng
+        try {
+          var a = document.createElement('a');
+          a.href = scanUrl;
+          a.target = '_blank';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          opened = true;
+        } catch (e) { opened = false; }
+      } else {
+        try { opened = !!window.open(scanUrl, '_blank'); } catch (e) { opened = false; }
+      }
+      if (opened) {
+        camStatus('📷 Đang mở camera quét…');
+        startScanResultPolling(token);
+        return;
+      }
+      // popup bị chặn → fallback chụp ảnh native (vẫn quét được)
       pickCameraImage();
     } else {
-      // Ngoài GAS (preview/hosting): quét LIVE qua video stream
+      // Ngoài GAS (preview/hosting): quét LIVE ngay trong trang
       startCameraLive();
     }
   }
 
-  // ===== LIVE SCAN (chỉ ngoài GAS — top-level) =====
+  // ===== NHẬN KẾT QUẢ TỪ TAB QUÉT RIÊNG =====
+  function startScanResultPolling(token) {
+    stopScanResultPolling();
+    scanPollSince = Date.now();
+    var hintTimer = setTimeout(function () {
+      camStatus('Nếu camera chưa mở: bấm lại 📷 Quét Camera và chọn Mở/Open khi trình duyệt hỏi', true);
+    }, 8000);
+    scanPollTimer = setInterval(function () {
+      var data = null;
+      try {
+        var raw = localStorage.getItem('rcScanResult');
+        if (raw) data = JSON.parse(raw);
+      } catch (e) { data = null; }
+      if (!data || !data.code) return;
+      if (data.token !== token || data.ts < scanPollSince) return;
+      try { localStorage.removeItem('rcScanResult'); } catch (e) {}
+      stopScanResultPolling();
+      onCameraDecoded(data.code); // điền mã + submitScan() — Done
+    }, 400);
+    scanPollTimer._hint = hintTimer;
+  }
+
+  function stopScanResultPolling() {
+    if (scanPollTimer) {
+      if (scanPollTimer._hint) clearTimeout(scanPollTimer._hint);
+      clearInterval(scanPollTimer);
+      scanPollTimer = null;
+    }
+  }
+
+  // Nhận trực tiếp nếu popup postMessage được tới iframe này
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('message', function (ev) {
+      if (ev.data && ev.data.type === 'rcScanResult' && ev.data.code) {
+        onCameraDecoded(String(ev.data.code));
+      }
+    });
+  }
+
+  // ===== LIVE SCAN (tab quét riêng + ngoài GAS) =====
   function startCameraLive() {
     var modal = document.getElementById('cameraModal');
     var video = document.getElementById('camVideo');
@@ -83,8 +157,8 @@
         startCameraDecodeLoop();
       })
       .catch(function () {
-        // getUserMedia bị chặn (iOS cần user gesture trong tab / quyền chưa cấp)
-        // → hiện nút để user chạm bật lại
+        // getUserMedia bị chặn: tab quét iOS chưa có gesture / quyền chưa cấp →
+        // hiện nút để user chạm bật lại
         var st = document.getElementById('camStatusLive');
         if (st) { st.textContent = '📷 Bấm nút dưới để bật camera'; st.style.color = '#ffd9a8'; }
         var sb = document.getElementById('camStartBtn');
@@ -164,6 +238,7 @@
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
     if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+    if (camScanMode) { try { window.close(); } catch (e) {} }
   }
 
   // 📸 Chụp frame hiện tại rồi decode tĩnh (fallback khi live không bắt được)
@@ -181,9 +256,7 @@
     decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, false);
   }
 
-  // 🖼 Chụp ảnh qua camera native (input capture) — HOẠT ĐỘNG TRONG GAS IFRAME.
-  // Đây là luồng chính trên mobile GAS: bấm nút → camera điện thoại hiện →
-  // chụp → decodeCameraImage tự nhận diện (nhiều kích thước) → Done.
+  // 🖼 Chụp ảnh qua camera native (input capture) — fallback khi popup bị chặn
   function pickCameraImage() {
     var fileEl = document.getElementById('camFile');
     if (!fileEl) return;
@@ -225,9 +298,9 @@
     camStatus(msg, true);
   }
 
-  // ===== DECODE (dùng chung: ảnh chụp GAS + live frame) =====
-  // Ảnh chụp → decode ở NHIỀU kích thước + nhiều cấu hình locator để tăng tỉ lệ
-  // bắt được mã vạch kẻ. quiet = true → fail không hiện thông báo (live loop).
+  // ===== DECODE (dùng chung: ảnh chụp + live frame) =====
+  // Ảnh chụp → decode ở NHIỀU kích thước + nhiều cấu hình locator.
+  // quiet = true → fail không hiện thông báo (live loop tự tiếp tục).
   function decodeCameraImage(file) {
     if (camDecoding) return;
     camDecoding = true;
@@ -406,14 +479,59 @@
     }
     camSnapping = false;
     camDecoding = false;
+    var clean = String(code || '').trim();
+    if (camScanMode) {
+      // TAB QUÉT RIÊNG: gửi kết quả về trang gốc rồi đóng tab
+      try {
+        localStorage.setItem('rcScanResult', JSON.stringify({ token: camScanToken, code: clean, ts: Date.now() }));
+      } catch (e) {}
+      try {
+        if (window.opener) window.opener.postMessage({ type: 'rcScanResult', code: clean }, '*');
+      } catch (e) {}
+      var statusEl = document.getElementById('camStatusLive');
+      if (statusEl) statusEl.textContent = '✅ Đã nhận mã: ' + clean + ' — tự đóng tab này';
+      setTimeout(function () {
+        closeCameraModal(); // đóng camera + window.close()
+      }, 1200);
+      return;
+    }
     var modal = document.getElementById('cameraModal');
     if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
     var video = document.getElementById('camVideo');
     if (video) { video.srcObject = null; }
     var input = document.getElementById('scanInput');
     if (!input) return;
-    input.value = String(code || '').trim();
+    input.value = clean;
     submitScan(); // đúng luồng quét hiện tại (reconcile + meal-move Ra/Vào)
   }
+
+  // ===== TAB QUÉT RIÊNG (?scan=1&tk=...): tự mở camera + quét LIVE =====
+  // Tab này là trang top-level (mở bằng window.open/anchor từ GAS iframe) →
+  // getUserMedia hoạt động → quét live liên tục như AppSheet, thấy mã là nhận.
+  function initScanModeIfNeeded() {
+    if (location.search.indexOf('scan=1') === -1) return;
+    camScanMode = true;
+    var m = location.search.match(/[?&]tk=([^&]+)/);
+    camScanToken = m ? decodeURIComponent(m[1]) : '';
+    try { document.body.classList.add('scan-mode'); } catch (e) {}
+    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (isIOS) {
+      // iOS Safari: camera CHỈ bật khi có user gesture trong chính tab này →
+      // hiện nút để chạm 1 lần, sau đó quét tự động
+      showScanStartButton();
+    } else {
+      setTimeout(function () { startCameraLive(); }, 60);
+    }
+  }
+
+  function showScanStartButton() {
+    var modal = document.getElementById('cameraModal');
+    if (modal) { modal.style.display = 'flex'; modal.setAttribute('aria-hidden', 'false'); }
+    var sb = document.getElementById('camStartBtn');
+    if (sb) sb.style.display = 'inline-flex';
+    var statusEl = document.getElementById('camStatusLive');
+    if (statusEl) { statusEl.textContent = '📷 Bấm nút để bật camera'; statusEl.style.color = ''; }
+  }
+  initScanModeIfNeeded();
   // ===== CAMERA-SCAN-END =====
 </script>

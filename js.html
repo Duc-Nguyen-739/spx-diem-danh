@@ -1,7 +1,9 @@
 <script>
   // Mock local: khi mở file:// trực tiếp (không qua GAS), nạp mock-google.js.
   // Deploy GAS: google.script luôn tồn tại → nhánh này không chạy → app thật.
-  if (typeof google === 'undefined' || !google.script) {
+  // TAB QUÉT (?scan=1): GAS mở thẳng URL content KHÔNG inject google.script —
+  // document.write lúc này sẽ XÓA TRẮNG trang (bug 2026-08-11) → bỏ qua.
+  if ((typeof google === 'undefined' || !google.script) && location.search.indexOf('scan=1') === -1) {
     document.write('<script src="mock/mock-google.js?v=' + Date.now() + '"><\/script>');
   }
 
@@ -59,6 +61,11 @@
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 
   document.addEventListener('DOMContentLoaded', function () {
+    if (location.search.indexOf('scan=1') !== -1) {
+      // TAB QUÉT RIÊNG: chỉ chạy camera (camera-scan.html tự khởi động trước đó) —
+      // KHÔNG init app (google.script có thể không tồn tại khi mở thẳng URL content).
+      return;
+    }
     loadMetaAndOptions();
     // Mobile: ẩn dashboard mặc định (bấm ☰ để mở lại — cơ chế .dash-layout.mini có sẵn).
     // Giữ nguyên mọi logic lọc/KPI — chỉ ẩn sidebar khỏi màn hình chính.
