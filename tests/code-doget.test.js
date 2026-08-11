@@ -1,10 +1,11 @@
 'use strict';
-// tests/code-doget.test.js — Simulation đường serve GAS: doGet phải trả về HTML
-// TỰ CHỨA (css.html + js.html đã inline), không còn tag link/script src ngoài.
+// tests/code-doget.test.js — Simulation đường serve GAS: doGet trả HTML TỰ CHỨA
+// (css.html + js.html đã nhúng qua template include), không còn scriptlet/tag ngoài.
 //
-// Nạp Code.gs vào vm với mock GAS API (giống môi trường thật nhất có thể):
-// HtmlService.createHtmlOutputFromFile('index'|'css'|'js') đọc file thật từ đĩa
-// (đuôi .html implicit), phần còn lại (SpreadsheetApp/CacheService/...) mock rỗng.
+// Mock HtmlService.createTemplateFromFile('index').evaluate() mô phỏng ĐÚNG cơ chế
+// GAS template: đọc file thật, thay scriptlet <?!= include('css') ?> /
+// <?!= include('js') ?> bằng nội dung css.html / js.html (include() đọc file thật
+// qua createHtmlOutputFromFile, đuôi .html implicit). Phần còn lại mock rỗng.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -32,23 +33,39 @@ function mockSheet(rows) {
 
 const store = {};
 let lastHtmlContent = '';
+
+// Mô phỏng template evaluate: thay scriptlet bằng nội dung file include
+const CSS_SC = "<?!= include('css') ?>";
+const JS_SC = "<?!= include('js') ?>";
+function evaluateTemplate(html) {
+  const css = fs.readFileSync(path.join(ROOT, 'css.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'js.html'), 'utf8');
+  return html.split(CSS_SC).join(css).split(JS_SC).join(js);
+}
+
 const context = {
   console, JSON, Date, Math, Object, Array, String, Number, Boolean, isNaN, parseFloat, parseInt,
-  // HtmlService: createHtmlOutputFromFile đọc file thật (đuôi .html implicit)
   HtmlService: {
     XFrameOptionsMode: { DEFAULT: 0 },
+    // include() trong Code.gs gọi hàm này (đuôi .html implicit) — trả nội dung thật
     createHtmlOutputFromFile: (name) => {
-      const file = path.join(ROOT, name + '.html');
-      const content = fs.readFileSync(file, 'utf8');
-      const out = {
-        getContent: () => content,
-        setContent: (c) => { lastHtmlContent = c; return out; },
-        setTitle: () => out,
-        addMetaTag: () => out,
-        setXFrameOptionsMode: () => out,
-      };
-      return out;
+      const content = fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8');
+      return { getContent: () => content };
     },
+    // doGet gọi createTemplateFromFile('index').evaluate() — mô phỏng GAS evaluate
+    createTemplateFromFile: (name) => ({
+      evaluate: () => {
+        const raw = fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8');
+        const content = evaluateTemplate(raw);
+        const out = {
+          getContent: () => content,
+          setTitle: () => out,
+          addMetaTag: () => out,
+          setXFrameOptionsMode: () => out,
+        };
+        return out;
+      },
+    }),
   },
   ContentService: { createTextOutput: () => ({ setMimeType: () => ({}) }), MimeType: {} },
   SpreadsheetApp: {
@@ -83,46 +100,39 @@ for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'Database.gs', 'C
   }
 }
 
-test('doGet trả HTML tự chứa: CSS + JS inline, không còn asset ngoài', () => {
+test('doGet trả HTML tự chứa: css + js nhúng đầy đủ, không scriptlet/tag ngoài', () => {
   const out = context.doGet({});
   assert.ok(out, 'doGet không trả output');
-  assert.ok(lastHtmlContent, 'setContent chưa được gọi (mock lỗi)');
+  const content = out.getContent();
+  assert.ok(content, 'output không có content');
 
   const css = fs.readFileSync(path.join(ROOT, 'css.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'js.html'), 'utf8');
-  const html = lastHtmlContent;
 
   // cấu trúc + mock loader + marker
-  assert.ok(html.startsWith('<!DOCTYPE html>'), 'mất DOCTYPE');
-  assert.ok(html.includes('</html>'), 'mất </html>');
-  assert.ok(html.includes('<!-- ================= VIEW 1: Tạo task / danh sách ================='), 'mất VIEW 1');
-  assert.ok(html.includes("document.write('<script src=\"mock/mock-google.js?v='"), 'mất mock loader');
+  assert.ok(content.startsWith('<!DOCTYPE html>'), 'mất DOCTYPE');
+  assert.ok(content.includes('</html>'), 'mất </html>');
+  assert.ok(content.includes('<!-- ================= VIEW 1: Tạo task / danh sách ================='), 'mất VIEW 1');
+  assert.ok(content.includes("document.write('<script src=\"mock/mock-google.js?v='"), 'mất mock loader');
 
-  // CSS + JS nguyên bản
-  assert.ok(html.includes('<style>' + css + '</style>'), 'CSS thiếu/khác');
-  assert.ok(html.includes('<script>' + js + '</script>'), 'JS thiếu/khác');
+  // CSS + JS nguyên bản (wrapper nằm trong css.html/js.html)
+  assert.ok(content.includes(css), 'CSS thiếu/khác');
+  assert.ok(content.includes(js), 'JS thiếu/khác');
 
-  // không còn asset ngoài
-  assert.ok(!html.includes('href="css.html"'), 'còn link css.html');
-  assert.ok(!html.includes('src="js.html"'), 'còn script src js.html');
+  // không còn scriptlet / tag ngoài
+  assert.ok(!content.includes(CSS_SC) && !content.includes(JS_SC), 'còn scriptlet');
+  assert.ok(!content.includes('href="css.html"') && !content.includes('src="js.html"'), 'còn tag ngoài');
 
   // cân bằng tag
-  const count = (re) => (html.match(re) || []).length;
+  const count = (re) => (content.match(re) || []).length;
   assert.strictEqual(count(/<style>/g), count(/<\/style>/g), 'style mất cân bằng');
   assert.strictEqual(count(/<script>/g), count(/<\/script>/g), 'script mất cân bằng');
 
-  // không lẫn nội dung css vào js (thứ tự giữ nguyên: css trước, js sau)
-  assert.ok(html.indexOf('<style>') < html.indexOf('<script>'), 'thứ tự css/js sai');
+  // thứ tự css trước js
+  assert.ok(content.indexOf('<style>') < content.indexOf('<script>'), 'thứ tự css/js sai');
 });
 
-test('inlineInclude_ giữ nguyên html khi thiếu tag (không crash)', () => {
-  const html = '<html>không có tag</html>';
-  const out = context.inlineInclude_(html, '<link rel="stylesheet" href="css.html">', '<style>', '</style>', 'css');
-  assert.strictEqual(out, html, 'phải giữ nguyên khi thiếu tag');
-});
-
-test('inlineInclude_ giữ nguyên html khi file thiếu (không crash)', () => {
-  const html = '<html><link rel="stylesheet" href="css.html"></html>';
-  const out = context.inlineInclude_(html, '<link rel="stylesheet" href="css.html">', '<style>', '</style>', 'khong-ton-tai');
-  assert.strictEqual(out, html, 'phải giữ nguyên khi thiếu file');
+test('include() trả nội dung file .html (đuôi implicit)', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'css.html'), 'utf8');
+  assert.strictEqual(context.include('css'), css, 'include(css) khác nội dung css.html');
 });

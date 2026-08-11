@@ -51,10 +51,14 @@ RollCall_2/
 
 > **CSS/JS tách file (2026-08-11):** GAS `HtmlService` không serve file tĩnh `.css`/`.js`
 > (clasp chỉ push `.gs/.js/.html/.json`) nên CSS/JS được giữ ở file đuôi `.html`
-> (`css.html` / `js.html`) và INLINE lại lúc serve bởi cùng transform
-> `scripts/inline-html.js` ở 3 nơi: `Code.gs doGet` (GAS), `scripts/serve.js` (preview),
-> `scripts/build-static.js` (hosting → dist tự-chứa). Bản serve ra **byte-identical**
-> với index.html 1-file cũ (verify: test `inline-html.test.js` so với `git HEAD`).
+> (`css.html` / `js.html`, bọc sẵn `<style>`/`<script>`) và nhúng qua **scriptlet
+> template** `<?!= include('css') ?>` / `<?!= include('js') ?>`:
+> `Code.gs doGet` dùng `createTemplateFromFile('index').evaluate()` + hàm `include()`
+> (KHÔNG dùng `createHtmlOutput`/`setContent` — GAS sanitize strip `<script>`).
+> `scripts/serve.js` (preview) + `scripts/build-static.js` (hosting → dist tự-chứa)
+> thay cùng scriptlet bằng nội dung file qua `scripts/inline-html.js`.
+> Bản serve ra **byte-identical** với index.html 1-file cũ (verify bằng cách so với
+> `git show c5dd5b4:index.html`).
 
 ## Sheet dữ liệu (Spreadsheet `1NQQn…`)
 

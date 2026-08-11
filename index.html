@@ -6,7 +6,7 @@
   <meta charset="utf-8">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#0d111a">
-  <link rel="stylesheet" href="css.html">
+  <?!= include('css') ?>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Chuyển đến nội dung chính</a>
@@ -428,7 +428,7 @@
 
 <div id="toast"></div>
 
-<script src="js.html"></script>
+<?!= include('js') ?>
 <button type="button" id="dashScrollTop" onclick="dashScrollTop()" title="Cuộn lên đầu trang" aria-label="Cuộn lên đầu trang">↑</button>
 </body>
 </html>

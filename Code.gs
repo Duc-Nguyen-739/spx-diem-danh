@@ -65,40 +65,25 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
   }
-  // index.html giờ chỉ chứa HTML (CSS/JS tách sang css.html/js.html — 2026-08-11).
-  // GAS KHÔNG serve file tĩnh .css/.js nên inline lại lúc serve → bản GAS vẫn
-  // tự-chứa y hệt trước khi tách (cùng nội dung, cùng thứ tự).
-  var out = HtmlService.createHtmlOutputFromFile('index');
-  var html = out.getContent();
-  html = inlineInclude_(html, '<link rel="stylesheet" href="css.html">', '<style>', '</style>', 'css');
-  html = inlineInclude_(html, '<script src="js.html"></script>', '<script>', '</script>', 'js');
-  out.setContent(html);
-  return out
+  // index.html chứa HTML thuần + scriptlet <?!= include('css') ?> / <?!= include('js') ?>.
+  // createTemplateFromFile().evaluate() là cơ chế CHUẨN của GAS để nhúng file .html
+  // khác (css.html/js.html) — KHÔNG bị sanitize như createHtmlOutput/setContent
+  // (sanitize sẽ strip <script> → app xoay tròn không load được, bug 2026-08-11).
+  // serve.js / build-static.js thay cùng scriptlet bằng nội dung file (scripts/inline-html.js).
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
     .setTitle(WEB_APP.PAGE_TITLE)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
 /**
- * Inline nội dung file .html (css.html / js.html) vào html tại vị trí tag.
- * createHtmlOutputFromFile('css') đọc file 'css.html' (đuôi .html là implicit).
- * Nếu tag/file thiếu → giữ nguyên html + log (không crash page).
+ * Helper include cho template: trả nội dung file .html (đuôi .html là implicit).
+ * Dùng trong index.html: <?!= include('css') ?> → nội dung css.html (đã bọc <style>),
+ * <?!= include('js') ?> → nội dung js.html (đã bọc <script>).
  */
-function inlineInclude_(html, tag, open, close, fileBase) {
-  if (html.indexOf(tag) === -1) {
-    Logger.warn('inlineInclude_: tag không tìm thấy — ' + tag);
-    return html;
-  }
-  var content;
-  try {
-    content = HtmlService.createHtmlOutputFromFile(fileBase).getContent();
-  } catch (e) {
-    Logger.warn('inlineInclude_: đọc file ' + fileBase + ' fail — ' + e);
-    return html;
-  }
-  // Không thêm newline bao quanh — nội dung css/js đã có newline đầu/cuối
-  // (khớp layout gốc khi còn 1 file) → bản serve byte-identical với trước tách.
-  return html.split(tag).join(open + content + close);
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 /** Debug: cấu trúc toàn bộ sheet (chạy qua ?debug=1). */

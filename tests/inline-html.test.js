@@ -1,52 +1,63 @@
 'use strict';
-// tests/inline-html.test.js — Transform inline css.html/js.html vào index.html.
-// Đảm bảo: (1) inline đúng nội dung, (2) lỗi rõ khi thiếu tag/file,
-// (3) bản inline trên index.html THẬT tự chứa (không còn link/script src ngoài).
+// tests/inline-html.test.js — Transform inline css.html/js.html vào index.html
+// qua scriptlet GAS template (<?!= include('css') ?> / <?!= include('js') ?>).
+// Đảm bảo: (1) index.html chỉ chứa scriptlet, không khối <style>/<script> inline;
+// (2) bản inline chứa đúng nội dung css.html/js.html (đã bọc wrapper);
+// (3) lỗi rõ khi thiếu scriptlet/file.
 
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { inlineHtml, CSS_TAG, JS_TAG } = require('../scripts/inline-html.js');
+const { inlineHtml, CSS_SCRIPTLET, JS_SCRIPTLET } = require('../scripts/inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const CSS = path.join(ROOT, 'css.html');
 const JS = path.join(ROOT, 'js.html');
 
-test('inline thay 2 tag bằng nội dung file', () => {
-  const html = '<html><head>' + CSS_TAG + '</head><body>' + JS_TAG + '</body></html>';
-  const out = inlineHtml(html, CSS, JS);
-  assert.ok(out.includes('<style>'), 'thiếu <style>');
-  assert.ok(out.includes('</style>'), 'thiếu </style>');
-  assert.ok(out.includes('<script>'), 'thiếu <script>');
-  assert.ok(out.includes('</script>'), 'thiếu </script>');
-  assert.ok(!out.includes(CSS_TAG), 'còn sót CSS_TAG');
-  assert.ok(!out.includes(JS_TAG), 'còn sót JS_TAG');
+test('css.html/js.html đã bọc wrapper <style>/<script> (đúng layout gốc)', () => {
+  const css = fs.readFileSync(CSS, 'utf8');
+  const js = fs.readFileSync(JS, 'utf8');
+  assert.ok(css.startsWith('<style>') && css.endsWith('</style>'), 'css.html thiếu wrapper <style>');
+  assert.ok(js.startsWith('<script>') && js.endsWith('</script>'), 'js.html thiếu wrapper <script>');
+  // wrapper chỉ 1 cặp — không bọc lồng
+  assert.strictEqual((css.match(/<style>/g) || []).length, 1, 'css.html lồng <style>');
+  assert.strictEqual((js.match(/<script>/g) || []).length, 1, 'js.html lồng <script>');
 });
 
-test('nội dung inline chính là nội dung css.html/js.html', () => {
-  const html = '<html><head>' + CSS_TAG + '</head><body>' + JS_TAG + '</body></html>';
+test('index.html chỉ chứa scriptlet — không khối <style>/<script> inline', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok(html.includes(CSS_SCRIPTLET), 'thiếu scriptlet css');
+  assert.ok(html.includes(JS_SCRIPTLET), 'thiếu scriptlet js');
+  assert.ok(!html.includes('<style>'), 'index.html vẫn còn <style>');
+  assert.ok(!html.includes('</style>'), 'index.html vẫn còn </style>');
+  assert.ok(!html.includes('<script'), 'index.html vẫn còn <script');
+  assert.ok(!html.includes('href="css.html"') && !html.includes('src="js.html"'), 'còn tag link/script src cũ');
+});
+
+test('inline thay scriptlet bằng nội dung file', () => {
+  const html = '<html><head>' + CSS_SCRIPTLET + '</head><body>' + JS_SCRIPTLET + '</body></html>';
   const css = fs.readFileSync(CSS, 'utf8');
   const js = fs.readFileSync(JS, 'utf8');
   const out = inlineHtml(html, CSS, JS);
-  assert.ok(out.includes('<style>' + css + '</style>'), 'CSS không khớp nguyên bản');
-  assert.ok(out.includes('<script>' + js + '</script>'), 'JS không khớp nguyên bản');
+  assert.ok(out.includes(css), 'CSS không khớp nguyên bản');
+  assert.ok(out.includes(js), 'JS không khớp nguyên bản');
+  assert.ok(!out.includes(CSS_SCRIPTLET) && !out.includes(JS_SCRIPTLET), 'còn sót scriptlet');
 });
 
-test('thiếu tag → throw rõ lỗi', () => {
-  assert.throws(() => inlineHtml('<html>no tags</html>', CSS, JS), /css\.html/);
-  const htmlNoJs = '<html>' + CSS_TAG + '</html>';
-  assert.throws(() => inlineHtml(htmlNoJs, CSS, JS), /js\.html/);
+test('thiếu scriptlet → throw rõ lỗi', () => {
+  assert.throws(() => inlineHtml('<html>no scriptlets</html>', CSS, JS), /css'/);
+  assert.throws(() => inlineHtml('<html>' + CSS_SCRIPTLET + '</html>', CSS, JS), /js'/);
 });
 
 test('thiếu file css/js → throw', () => {
-  const html = '<html>' + CSS_TAG + JS_TAG + '</html>';
+  const html = '<html>' + CSS_SCRIPTLET + JS_SCRIPTLET + '</html>';
   assert.throws(() => inlineHtml(html, '/nonexistent/css.html', JS), /ENOENT/);
   assert.throws(() => inlineHtml(html, CSS, '/nonexistent/js.html'), /ENOENT/);
 });
 
-test('index.html THẬT: sau inline là bản tự chứa hoàn chỉnh', () => {
+test('index.html THẬT: bản inline tự-chứa hoàn chỉnh', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const css = fs.readFileSync(CSS, 'utf8');
   const js = fs.readFileSync(JS, 'utf8');
@@ -61,43 +72,21 @@ test('index.html THẬT: sau inline là bản tự chứa hoàn chỉnh', () => 
   // mock document.write còn nguyên (nạp mock khi chạy ngoài GAS)
   assert.ok(out.includes("document.write('<script src=\"mock/mock-google.js?v='"), 'mất mock loader');
 
-  // CSS + JS đầy đủ (marker đầu/giữa/cuối)
-  assert.ok(out.includes('<style>' + css + '</style>'), 'CSS không đầy đủ');
-  assert.ok(out.includes('<script>' + js + '</script>'), 'JS không đầy đủ');
+  // CSS + JS đầy đủ (wrapper + nội dung)
+  assert.ok(out.includes(css), 'CSS không đầy đủ');
+  assert.ok(out.includes(js), 'JS không đầy đủ');
   for (const marker of ['--primary', '.task-pagin', 'STAFF-CACHE-START', 'function dashScrollTop', 'function submitScanMealMove']) {
     assert.ok(out.includes(marker), 'thiếu marker: ' + marker);
   }
 
-  // không còn asset ngoài (GAS không serve file tĩnh)
-  assert.ok(!out.includes('href="css.html"'), 'còn link css.html');
-  assert.ok(!out.includes('src="js.html"'), 'còn script src js.html');
-
-  // cân bằng tag
-  const count = (re) => (out.match(re) || []).length;
-  assert.strictEqual(count(/<style>/g), count(/<\/style>/g), 'style mất cân bằng');
-  assert.strictEqual(count(/<script>/g), count(/<\/script>/g), 'script mất cân bằng');
-});
-
-test('index.html CHỈ chứa tag ngoài — không có khối <style>/<script> inline (tách đúng)', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.ok(html.includes(CSS_TAG), 'thiếu <link css.html>');
-  assert.ok(html.includes(JS_TAG), 'thiếu <script src js.html>');
-  assert.ok(!html.includes('<style>'), 'index.html vẫn còn khối <style> inline');
-  assert.ok(!html.includes('</style>'), 'index.html vẫn còn </style>');
-  // <script> chỉ tồn tại dưới dạng <script src=...> hoặc thẻ mở của JS_TAG — không có <script> inline trống
-  const inlineScripts = (html.match(/<script(?! src=)/g) || []);
-  assert.strictEqual(inlineScripts.length, 0, 'index.html còn <script> inline: ' + inlineScripts.length);
-});
-
-test('BẢN INLINE tự-chứa đầy đủ: css/js từ file, thứ tự css trước js, không sót asset ngoài', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const css = fs.readFileSync(CSS, 'utf8');
-  const js = fs.readFileSync(JS, 'utf8');
-  const out = inlineHtml(html, CSS, JS);
-  assert.ok(out.includes('<style>' + css + '</style>'), 'CSS inline không khớp nguyên bản');
-  assert.ok(out.includes('<script>' + js + '</script>'), 'JS inline không khớp nguyên bản');
+  // thứ tự: css trước js
   assert.ok(out.indexOf('<style>') < out.indexOf('<script>'), 'thứ tự css/js sai');
-  assert.ok(!out.includes(CSS_TAG) && !out.includes(JS_TAG), 'còn sót tag ngoài');
+
+  // không còn scriptlet / asset ngoài
+  assert.ok(!out.includes(CSS_SCRIPTLET) && !out.includes(JS_SCRIPTLET), 'còn scriptlet');
+  assert.ok(!out.includes('href="css.html"') && !out.includes('src="js.html"'), 'còn tag ngoài');
+
+  // cân bằng tag (wrapper 1 cặp mỗi loại)
   const count = (re) => (out.match(re) || []).length;
   assert.strictEqual(count(/<style>/g), count(/<\/style>/g), 'style mất cân bằng');
   assert.strictEqual(count(/<script>/g), count(/<\/script>/g), 'script mất cân bằng');

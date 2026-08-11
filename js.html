@@ -1,4 +1,4 @@
-
+<script>
   // Mock local: khi mở file:// trực tiếp (không qua GAS), nạp mock-google.js.
   // Deploy GAS: google.script luôn tồn tại → nhánh này không chạy → app thật.
   if (typeof google === 'undefined' || !google.script) {
@@ -2404,3 +2404,4 @@
     }
     return ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) + ':' + ('0' + dt.getSeconds()).slice(-2);
   }
+</script>
