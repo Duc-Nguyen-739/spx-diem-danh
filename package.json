@@ -5,7 +5,7 @@
   "description": "RollCall v2 — GAS WebApp điểm danh kiểm-soát có/vắng/trễ cho kho chuyển phát nhanh",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/jsonp-api.test.js tests/batch-meal-move.test.js tests/cache-layer.test.js tests/camera-autosnap.test.js tests/code-doget.test.js tests/csv-normalize.test.js tests/header-search.test.js tests/inline-html.test.js tests/js-scanmode.test.js tests/meal-create.test.js tests/scan-classify.test.js tests/scan-logic.test.js tests/task-menu.test.js tests/task-search.test.js",
+    "test": "node --test tests/jsonp-api.test.js tests/batch-meal-move.test.js tests/cache-layer.test.js tests/camera-autosnap.test.js tests/camera-popup.test.js tests/code-doget.test.js tests/csv-normalize.test.js tests/header-search.test.js tests/inline-html.test.js tests/js-scanmode.test.js tests/meal-create.test.js tests/scan-classify.test.js tests/scan-logic.test.js tests/task-menu.test.js tests/task-search.test.js",
     "test:py": "python3 -m unittest discover -s api -p 'test_*.py'",
     "dev": "node scripts/serve.js",
     "build": "node scripts/build-static.js"
