@@ -113,6 +113,18 @@ CACHE_TTL = {
     "TZ": 24 * 60 * 60,
 }
 
+# ===== Cache keys (version-key để invalidate dễ — v1 lesson) =====
+CACHE_KEYS = {
+    "STAFF_INDEX": "rc2_staffIndex_v1",
+    "FILTER_OPTIONS": "rc2_filterOptions_v1",
+    "TASK_LIST": "rc2_taskList_v1",
+    "TASK_DETAIL": "rc2_taskDetail_v2_",
+    "TASK": "rc2_task_v1_",
+    "LOG_ROWS": "rc2_logRows_v2_",
+    "TASK_COUNTS": "rc2_taskCounts_v1_",
+    "TZ": "rc2_tz_v2",
+}
+
 # ===== Label UI (tiếng Việt) — CHỈ các message server trả về =====
 UI_LABELS = {
     "APP_TITLE": "Điểm danh kho",

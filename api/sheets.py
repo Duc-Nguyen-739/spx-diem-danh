@@ -10,18 +10,19 @@ cho email service account (vai trò Editor).
 import json
 import os
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-
 from api import config
 
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 _service = None
 
+# google-api-python-client / google-auth chỉ import trong hàm (lazy) — module
+# import được cả khi chưa cài deps (test logic chạy được trên máy không có google).
+
 
 def _load_credentials():
     """Service account credentials — fail rõ ràng nếu chưa cấu hình."""
+    from google.oauth2 import service_account
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     if raw:
         info = json.loads(raw)
@@ -38,6 +39,7 @@ def _load_credentials():
 def get_service():
     global _service
     if _service is None:
+        from googleapiclient.discovery import build
         _service = build("sheets", "v4", credentials=_load_credentials(), cache_discovery=False)
     return _service
 
@@ -47,11 +49,18 @@ def spreadsheet_id():
     return os.environ.get("RC_SPREADSHEET_ID") or config.DEFAULT_SPREADSHEET_ID
 
 
-def get_values(sheet_name, range_=None):
-    """Đọc mảng 2D (dòng 0 = header). range_: 'A1:Z100' hoặc None → cả sheet."""
+def get_values(sheet_name, range_=None, unformatted=True):
+    """Đọc mảng 2D (dòng 0 = header).
+
+    unformatted=True → UNFORMATTED_VALUE: cell date trả SERIAL NUMBER (float)
+    → convert qua cache.to_datetime giữ nguyên epoch (khớp GAS Date.getTime()).
+    unformatted=False → FORMATTED_VALUE: chuỗi hiển thị ("09:02:15") — mất ngày,
+    không dùng cho log.
+    """
     rng = f"'{sheet_name}'" + (f"!{range_}" if range_ else "")
     result = get_service().spreadsheets().values().get(
-        spreadsheetId=spreadsheet_id(), range=rng
+        spreadsheetId=spreadsheet_id(), range=rng,
+        valueRenderOption="UNFORMATTED_VALUE" if unformatted else "FORMATTED_VALUE",
     ).execute()
     return result.get("values", [])
 
