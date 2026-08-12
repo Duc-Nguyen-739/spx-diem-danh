@@ -830,6 +830,32 @@
   var _taskPage = 1;
   var _taskPageList = [];
   var TASK_PAGE_SIZE = 30;
+  // PURE (test được): HTML card task cho MOBILE (renderTaskList tự quyết qua matchMedia
+  // <=600px — bảng 13 cột quá chật trên điện thoại). Cùng dữ liệu + action với bảng
+  // desktop — 1 nguồn task data, chỉ khác hình thức trình bày.
+  function taskCardHTML(t) {
+    var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
+    var action = t.status === TASK_STATUS_C.OPEN
+      ? '<button class="btn btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>'
+      : '<button class="btn btn-ghost btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>';
+    // Loại task + Station · Ca · Team — bỏ phần rỗng (meal-move không có Ca)
+    var scope = [taskTypeBadge(t.taskType), esc(t.station), esc(t.slotCode), esc(t.team)]
+      .filter(function (s) { return String(s || '').trim(); })
+      .join(' · ');
+    var foot = String(t.createdAtText || t.createdAt || '');
+    if (t.createdBy) foot += (foot ? ' · ' : '') + creatorName(t.createdBy);
+    return '<div class="task-card">' +
+      '<div class="tc-head"><span class="tc-id">' + esc(t.taskId) + '</span>' + statusBadge + '</div>' +
+      '<div class="tc-type">' + scope + '</div>' +
+      '<div class="tc-mid">' +
+        '<span class="tc-count"><b>' + (t.total || 0) + '</b> NV</span>' +
+        '<span class="tc-count ok"><b>' + (t.scanned || 0) + '</b> Đã quét</span>' +
+        '<span class="tc-count extra"><b>' + (t.extra || 0) + '</b> Dư</span>' +
+        action +
+      '</div>' +
+      '<div class="tc-foot">' + esc(foot) + '</div>' +
+    '</div>';
+  }
   function renderTaskList(tasks) {
     var body = document.getElementById('taskListBody');
     if (!body) return;
@@ -848,6 +874,8 @@
     if (!list.length) {
       if (empty) empty.style.display = '';
       if (pagin) pagin.innerHTML = '';
+      var cw0 = document.getElementById('taskCards');
+      if (cw0) cw0.style.display = 'none';
       return;
     }
     if (empty) empty.style.display = 'none';
@@ -856,6 +884,25 @@
     if (_taskPage < 1) _taskPage = 1;
     var start = (_taskPage - 1) * TASK_PAGE_SIZE;
     var slice = list.slice(start, start + TASK_PAGE_SIZE);
+    // MOBILE (<=600px): bảng 13 cột quá chật trên điện thoại → chuyển sang dạng CARD
+    // (taskCardHTML) — cùng data + action, chỉ khác hình thức. Desktop giữ nguyên bảng.
+    var cardsWrap = document.getElementById('taskCards');
+    var isMobileCards = !!(window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
+    if (isMobileCards) {
+      if (tbl) tbl.style.display = 'none';
+      if (!cardsWrap) {
+        cardsWrap = document.createElement('div');
+        cardsWrap.id = 'taskCards';
+        cardsWrap.className = 'task-cards';
+        var listWrap = document.getElementById('taskListWrap');
+        if (listWrap) listWrap.appendChild(cardsWrap);
+      }
+      cardsWrap.style.display = '';
+      cardsWrap.innerHTML = slice.map(function (t) { return taskCardHTML(t); }).join('');
+      renderTaskPagin(list.length, pages);
+      return;
+    }
+    if (cardsWrap) cardsWrap.style.display = 'none';
     slice.forEach(function (t, i) {
       var idx = start + i;
       var tr = document.createElement('tr');
