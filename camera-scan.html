@@ -7,11 +7,19 @@
   // RÀNG BUỘC NỀN TẢNG (2026-08-12, cập nhật sau khi verify thực tế):
   // - GAS serve web app trong IFRAME WRAPPER (userHtmlFrame). getUserMedia live trong
   //   iframe BỊ CHẶN trên máy thật (Permissions Policy — wrapper allow="camera *" không
-  //   đủ; iOS Safari từ chối camera trong cross-origin iframe) → thử live trước chỉ
-  //   thêm bước chờ/"▶ Bật camera" → bỏ, vào camera native NGAY.
-  // - Camera native = <input type=file capture> gọi ĐỒNG BỘ trong click handler (đang
-  //   trong user gesture) → iOS/Android mở camera LẬP TỨC, chạy 100% trong iframe GAS.
-  //   Chụp xong TỰ decode multi-scale (jsQR + 3 config Quagga) → điền mã → Done.
+  //   đủ; iOS Safari từ chối camera trong cross-origin iframe).
+  // - GIẢI PHÁP POPUP (2026-08-12, hướng A — user chọn): bấm "📷 Quét Camera" trong
+  //   iframe GAS → mở POPUP top-level (window.open — trang top-level nên getUserMedia
+  //   chạy được trên iOS, đã verify với demo standalone) → popup TỰ nhận diện mã vạch
+  //   (BarcodeDetector → jsQR → Quagga — lấy thư viện từ trang mở qua window.opener,
+  //   about:blank kế thừa origin → cùng origin) → postMessage {type:'rcScanResult',
+  //   code} về iframe → onCameraDecoded → Done. iOS lần đầu có thể cần chạm nút
+  //   "▶ Bật camera" trong popup (user gesture không qua được document mới).
+  // - Fallback an toàn (giữ nguyên đường cũ): popup bị chặn (window.open null) hoặc
+  //   camera trong popup bị chặn → camera native = <input type=file capture> gọi ĐỒNG
+  //   BỘ trong click handler (đang trong user gesture) → iOS/Android mở camera LẬP TỨC,
+  //   chạy 100% trong iframe GAS. Chụp xong TỰ decode multi-scale (jsQR + 3 config
+  //   Quagga) → điền mã → Done.
   // - BỎ TAB QUÉT RIÊNG (?scan=1) làm đường chính (bug 2026-08-12): mở URL content
   //   GAS trong tab mới bị TRẮNG lặp lại NHIỀU LẦN trên Safari/Chrome dù đã fix nhiều
   //   lần — wrapper GAS nạp app qua postMessage handshake vào iframe /blank, tab mới
@@ -32,8 +40,8 @@
   // tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
   //
   // Nút "📷 Quét Camera" (#btnCamScan) CHỈ hiện trên mobile (desktop ẩn — CSS):
-  //   - GAS (iframe): mở THẲNG camera native (chụp xong tự decode → Done) — không
-  //     bước chọn nào (user yêu cầu "vào camera luôn", 2026-08-12)
+  //   - GAS (iframe): mở POPUP quét LIVE (tự nhận mã → postMessage về app → Done);
+  //     popup/camera bị chặn → fallback camera native (chụp xong tự decode → Done)
   //   - Ngoài GAS (preview/hosting top-level): live scan ngay trong modal
   var camDecoding = false;   // đang decode 1 ảnh/frame (chống chồng lấn)
   var camSnapping = false;   // đang chụp/decode tĩnh (snap hoặc file)
@@ -62,18 +70,249 @@
     var inFrame = false;
     try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
     if (inFrame) {
-      // GAS iframe: mở THẲNG camera native (<input capture>) — gọi ĐỒNG BỘ ngay trong
-      // click handler (đang trong user gesture → iOS/Android mở camera LẬP TỨC, không
-      // bước chọn nào). getUserMedia live trong iframe GAS bị chặn trên máy thật
-      // (Permissions Policy) — thử trước chỉ thêm bước "▶ Bật camera"/chờ đợi
-      // (user yêu cầu "vào camera luôn, bỏ qua các phần chọn" 2026-08-12).
-      // Chụp xong TỰ decode multi-scale (ảnh gốc → 1280 → 800) × jsQR × 3 config
-      // Quagga → điền mã → Done — KHÔNG đổi logic quét.
-      pickCameraImage();
+      // GAS iframe: mở POPUP top-level quét LIVE (tự nhận mã vạch — getUserMedia chạy
+      // được ở trang top-level trên iOS, đã verify với demo standalone 2026-08-12).
+      // Popup bị chặn (window.open null) hoặc camera trong popup bị chặn → fallback
+      // camera native (<input capture>) — không bao giờ kẹt.
+      openScanPopup();
       return;
     }
     // Ngoài GAS (preview/hosting top-level): quét LIVE ngay trong trang
     startCameraLive();
+  }
+
+  // ===== POPUP QUÉT LIVE (2026-08-12, hướng A) =====
+  // Bấm "📷 Quét Camera" trong iframe GAS → mở POPUP top-level chứa màn hình quét LIVE.
+  // Popup là trang top-level → getUserMedia hoạt động trên iOS (iframe GAS bị chặn).
+  // Popup tự nhận mã (BarcodeDetector → jsQR → Quagga — lấy thư viện từ trang mở qua
+  // window.opener, cùng origin vì about:blank kế thừa origin) → gửi về iframe qua
+  // postMessage {type:'rcScanResult', code} → onCameraDecoded → Done. Nếu popup không
+  // mở được (window.open null) hoặc camera popup bị chặn → fallback camera native.
+  var CAM_POPUP_NAME = 'rcCamScanPopup';
+  var camPopupBusy = false;
+
+  function buildScanPopupHtml() {
+    return [
+      '<!doctype html>',
+      '<html lang="vi">',
+      '<head>',
+      '<meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">',
+      '<title>Quét mã vạch</title>',
+      // Ghép chuỗi như thẻ mở script bên trên — file không được chứa literal thẻ
+      // style mở/đóng (test inline-html đếm số cặp theo file).
+      '<sty' + 'le>',
+      'html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,sans-serif;}',
+      '#wrap{position:fixed;inset:0;display:flex;flex-direction:column;}',
+      '#view{position:relative;flex:1;overflow:hidden;background:#000;}',
+      '#video{width:100%;height:100%;object-fit:cover;display:block;}',
+      '#frame{position:absolute;inset:12% 8%;border:2px dashed rgba(255,255,255,.85);border-radius:14px;pointer-events:none;}',
+      '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
+      '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
+      'button{font-size:16px;padding:12px 22px;border-radius:12px;border:0;cursor:pointer;}',
+      '#startBtn{background:#e85d04;color:#fff;display:none;}',
+      '#cancelBtn{background:rgba(255,255,255,.12);color:#fff;}',
+      '</sty' + 'le>',
+      '</head>',
+      '<body>',
+      '<div id="wrap">',
+      '<div id="view">',
+      '<video id="video" autoplay playsinline muted></video>',
+      '<div id="frame"></div>',
+      '<div id="status">Đang mở camera…</div>',
+      '</div>',
+      '<div id="bar">',
+      '<button id="startBtn" type="button">▶ Bật camera</button>',
+      '<button id="cancelBtn" type="button">✕ Đóng</button>',
+      '</div>',
+      '</div>',
+      // Ghép chuỗi thẻ mở script của popup — file này không được chứa literal thẻ
+      // mở script (test inline-html đếm số thẻ theo file; browser nhạy với chuỗi này).
+      '<scr' + 'ipt>',
+      '(function(){',
+      '  var video = document.getElementById("video");',
+      '  var statusEl = document.getElementById("status");',
+      '  var startBtn = document.getElementById("startBtn");',
+      '  var cancelBtn = document.getElementById("cancelBtn");',
+      '  var stream = null;',
+      '  var timer = null;',
+      '  var busy = false;',
+      '  var detected = false;',
+      '  var tick = 0;',
+      '  var FORMATS = ["qr_code","code_128","code_39","code_93","codabar","ean_13","ean_8","itf","upc_a","upc_e"];',
+      '  function getLibs() {',
+      '    try {',
+      '      var o = window.opener;',
+      '      if (!o) return null;',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null };',
+      '    } catch (e) { return null; }',
+      '  }',
+      '  var LIBS = getLibs();',
+      '  function sendResult(code) {',
+      '    if (detected) return;',
+      '    detected = true;',
+      '    var clean = String(code || "").trim();',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanResult", code: clean }, "*"); } catch (e) {}',
+      '    statusEl.textContent = "✅ Đã nhận mã: " + clean;',
+      '    stop();',
+      '    setTimeout(function () { try { window.close(); } catch (e) {} }, 1000);',
+      '  }',
+      '  function sendFailed() {',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, "*"); } catch (e) {}',
+      '    setTimeout(function () { try { window.close(); } catch (e) {} }, 500);',
+      '  }',
+      '  function frameToImageData(maxSide) {',
+      '    var w = video.videoWidth || 0;',
+      '    var h = video.videoHeight || 0;',
+      '    if (!w || !h) return null;',
+      '    var scale = Math.min(1, maxSide / Math.max(w, h));',
+      '    var cw = Math.max(1, Math.round(w * scale));',
+      '    var ch = Math.max(1, Math.round(h * scale));',
+      '    var canvas = document.createElement("canvas");',
+      '    canvas.width = cw;',
+      '    canvas.height = ch;',
+      '    var ctx = canvas.getContext("2d");',
+      '    ctx.drawImage(video, 0, 0, cw, ch);',
+      '    var imageData;',
+      '    try { imageData = ctx.getImageData(0, 0, cw, ch); } catch (e) { return null; }',
+      '    return { canvas: canvas, imageData: imageData, w: cw, h: ch };',
+      '  }',
+      '  function decodeChain(f, onDone) {',
+      '    if (window.BarcodeDetector) {',
+      '      try {',
+      '        var d = new window.BarcodeDetector({ formats: FORMATS });',
+      '        d.detect(f.canvas).then(function (res) {',
+      '          if (res && res.length && res[0].rawValue) sendResult(res[0].rawValue);',
+      '          else decodeFallback(f, onDone);',
+      '        }).catch(function () { decodeFallback(f, onDone); });',
+      '        return;',
+      '      } catch (e) { /* tiếp tục fallback */ }',
+      '    }',
+      '    decodeFallback(f, onDone);',
+      '  }',
+      '  function decodeFallback(f, onDone) {',
+      '    if (LIBS && LIBS.jsQR) {',
+      '      try {',
+      '        var qr = LIBS.jsQR(f.imageData.data, f.w, f.h);',
+      '        if (qr && qr.data) { sendResult(qr.data); return; }',
+      '      } catch (e) { /* tiếp tục */ }',
+      '    }',
+      '    if (LIBS && LIBS.Quagga && LIBS.readers) {',
+      '      try {',
+      '        var canvas = document.createElement("canvas");',
+      '        canvas.width = f.w;',
+      '        canvas.height = f.h;',
+      '        canvas.getContext("2d").putImageData(f.imageData, 0, 0);',
+      '        var src = canvas.toDataURL("image/jpeg", 0.92);',
+      '        runQuagga(src, LIBS.configs || [{ patchSize: "x-large", halfSample: true }], 0, onDone);',
+      '        return;',
+      '      } catch (e) { /* tiếp tục */ }',
+      '    }',
+      '    onDone();',
+      '  }',
+      '  function runQuagga(src, configs, idx, onDone) {',
+      '    if (idx >= configs.length) { onDone(); return; }',
+      '    LIBS.Quagga.decodeSingle({',
+      '      src: src,',
+      '      numOfWorkers: 0,',
+      '      inputStream: { size: 800 },',
+      '      locator: configs[idx],',
+      '      decoder: { readers: LIBS.readers }',
+      '    }, function (result) {',
+      '      var code = result && result.codeResult && result.codeResult.code;',
+      '      if (code) { sendResult(code); return; }',
+      '      runQuagga(src, configs, idx + 1, onDone);',
+      '    });',
+      '  }',
+      '  // AUTO-DECODE theo nhịp cố định (không gate độ rung — bug 2026-08-12): chạy',
+      '  // full chain 1280px + jsQR + 3 config Quagga mỗi 2 tick (~1.2s) — đưa mã vào',
+      '  // khung là tự nhận, không cần bấm gì.',
+      '  function loop() {',
+      '    if (!stream || busy || detected) return;',
+      '    if (!video.videoWidth) return;',
+      '    tick++;',
+      '    if (tick % 2 !== 0) return;',
+      '    busy = true;',
+      '    var f = frameToImageData(1280);',
+      '    if (!f) { busy = false; return; }',
+      '    decodeChain(f, function () { busy = false; });',
+      '  }',
+      '  function start(force) {',
+      '    if (stream) return;',
+      '    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {',
+      '      statusEl.textContent = "Trình duyệt không hỗ trợ camera";',
+      '      sendFailed();',
+      '      return;',
+      '    }',
+      '    if (!window.BarcodeDetector && !(LIBS && (LIBS.jsQR || LIBS.Quagga))) {',
+      '      statusEl.textContent = "Không có thư viện quét — dùng chụp ảnh thay thế";',
+      '      sendFailed();',
+      '      return;',
+      '    }',
+      '    statusEl.textContent = "Đang mở camera…";',
+      '    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })',
+      '      .then(function (s) {',
+      '        stream = s;',
+      '        video.srcObject = s;',
+      '        video.setAttribute("muted", "");',
+      '        video.setAttribute("playsinline", "");',
+      '        var p = video.play();',
+      '        if (p && p.catch) p.catch(function () {});',
+      '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
+      '        startBtn.style.display = "none";',
+      '        timer = setInterval(loop, 600);',
+      '      })',
+      '      .catch(function () {',
+      '        if (force) {',
+      '          statusEl.textContent = "Không mở được camera — quay lại chụp ảnh";',
+      '          sendFailed();',
+      '          return;',
+      '        }',
+      '        statusEl.textContent = "📷 Bấm nút dưới để bật camera";',
+      '        startBtn.style.display = "inline-block";',
+      '      });',
+      '  }',
+      '  function stop() {',
+      '    if (timer) { clearInterval(timer); timer = null; }',
+      '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
+      '    video.srcObject = null;',
+      '  }',
+      '  startBtn.addEventListener("click", function () { start(true); });',
+      '  cancelBtn.addEventListener("click", function () { stop(); try { window.close(); } catch (e) {} });',
+      '  window.addEventListener("unload", stop);',
+      '  setTimeout(function () { start(false); }, 120);',
+      '})();',
+      '<\/script>',
+      '</body>',
+      '</html>'
+    ].join('\n');
+  }
+
+  function openScanPopup() {
+    var popup = null;
+    try { popup = window.open('', CAM_POPUP_NAME); } catch (e) { popup = null; }
+    if (!popup) {
+      // Popup bị chặn (trình duyệt không cho mở) → fallback camera native
+      camStatus('📷 Trình duyệt chặn popup — dùng camera chụp ảnh thay thế', true);
+      pickCameraImage();
+      return;
+    }
+    if (camPopupBusy && !popup.closed) {
+      // Popup quét đang mở (chưa nhận mã / chưa đóng) → đưa về popup đó
+      try { popup.focus(); } catch (e) {}
+      return;
+    }
+    camPopupBusy = true;
+    var html = buildScanPopupHtml();
+    try {
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+      camStatus('📷 Quét mã trong cửa sổ vừa mở — đưa mã vào khung là tự nhận', false);
+    } catch (e) {
+      camPopupBusy = false;
+      pickCameraImage();
+    }
   }
 
   // ===== NHẬN KẾT QUẢ TỪ TAB QUÉT RIÊNG =====
@@ -106,11 +345,19 @@
     }
   }
 
-  // Nhận trực tiếp nếu popup postMessage được tới iframe này
+  // Nhận kết quả từ POPUP quét live / tab quét (postMessage về iframe này)
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('message', function (ev) {
-      if (ev.data && ev.data.type === 'rcScanResult' && ev.data.code) {
+      if (!ev.data || typeof ev.data !== 'object') return;
+      if (ev.data.type === 'rcScanResult' && ev.data.code) {
         onCameraDecoded(String(ev.data.code));
+        return;
+      }
+      if (ev.data.type === 'rcScanPopup' && ev.data.state === 'failed') {
+        // Popup không mở được camera (bị chặn/không hỗ trợ) → fallback camera native
+        camPopupBusy = false;
+        camStatus('📷 Camera popup bị chặn — dùng camera chụp ảnh thay thế', true);
+        setTimeout(pickCameraImage, 250);
       }
     });
   }
@@ -520,6 +767,7 @@
     }
     camSnapping = false;
     camDecoding = false;
+    camPopupBusy = false; // popup đã gửi kết quả → mở popup mới được ở lần sau
     camFullChainTick = 0; // nhận được mã → reset đếm tick (lần mở sau quét lại từ đầu)
     var clean = String(code || '').trim();
     if (camScanMode) {
