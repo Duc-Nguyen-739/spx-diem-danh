@@ -60,5 +60,43 @@ function inlineHtml(html, cssPath, jsPath, mobilePath, libJsqrPath, libQuaggaPat
   return out;
 }
 
-module.exports = { inlineHtml, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET };
+/**
+ * URL mặc định của deployment GAS (JSONP endpoint) cho bản standalone tĩnh.
+ * GAS không set CORS → trang top-level (preview/hosting) gọi GAS qua JSONP
+ * (script tag — không bị CORS chặn), endpoint = chính deployment /exec này.
+ * Override bằng env RC_API_BASE nếu deploy sang script khác.
+ */
+const RC_API_BASE_DEFAULT =
+  'https://script.google.com/macros/s/AKfycbz421TMJ_dh5isHjbQJTGrmnJR-nX3y5Ikl3pBra4gFwZ5JFWGCGT1kctIpaH-EarNu/exec';
+
+/**
+ * Chèn cờ STANDALONE vào HTML (bản tĩnh preview/hosting) trước </head>.
+ * js.html shim đọc window.__RC_STANDALONE__ + window.__RC_API_BASE__ để kích hoạt
+ * google.script.run → JSONP (xem js.html đầu file). Idempotent — chèn 1 lần.
+ * KHÔNG dùng marker __RC_STANDALONE__ (js.html có chứa chuỗi đó) — dùng đúng chuỗi
+ * gán `window.__RC_STANDALONE__=true` làm marker.
+ * @param {string} html — HTML đã inline (hoặc bất kỳ)
+ * @param {string} [apiBase] — URL JSONP endpoint; mặc định RC_API_BASE_DEFAULT
+ * @returns {string}
+ */
+function injectStandaloneFlags(html, apiBase) {
+  if (html.indexOf('window.__RC_STANDALONE__=true') >= 0) return html;
+  const base = String(apiBase || process.env.RC_API_BASE || RC_API_BASE_DEFAULT);
+  const tag = '<script>window.__RC_STANDALONE__=true;window.__RC_API_BASE__='
+    + JSON.stringify(base) + ';</script>';
+  if (html.indexOf('</head>') >= 0) return html.replace('</head>', tag + '</head>');
+  return tag + html;
+}
+
+module.exports = {
+  inlineHtml,
+  injectStandaloneFlags,
+  CSS_SCRIPTLET,
+  MOBILE_SCRIPTLET,
+  CAMERA_CSS_SCRIPTLET,
+  LIB_JSQR_SCRIPTLET,
+  LIB_QUAGGA_SCRIPTLET,
+  CAMERA_SCRIPTLET,
+  JS_SCRIPTLET,
+};
 

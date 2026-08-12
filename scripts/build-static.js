@@ -15,7 +15,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { inlineHtml } = require('./inline-html.js');
+const { inlineHtml, injectStandaloneFlags } = require('./inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.resolve(ROOT, 'dist');
@@ -44,7 +44,9 @@ try {
     path.resolve(ROOT, 'css.html'), path.resolve(ROOT, 'js.html'), path.resolve(ROOT, 'mobile.html'),
     path.resolve(ROOT, 'lib-jsqr.html'), path.resolve(ROOT, 'lib-quagga.html'), path.resolve(ROOT, 'camera-scan.html'),
     path.resolve(ROOT, 'camera-css.html'));
-  fs.writeFileSync(indexPath, html);
+  // STANDALONE (2026-08-12): hosting = trang top-level thật → camera live hoạt động.
+  // Chèn cờ để js.html shim gọi GAS qua JSONP (xem inline-html.js injectStandaloneFlags).
+  fs.writeFileSync(indexPath, injectStandaloneFlags(html));
   console.log('[build] index.html: inlined css.html + js.html');
 } catch (e) {
   console.error('[build] inlineHtml fail:', e.message);

@@ -10,7 +10,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { inlineHtml, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET } = require('../scripts/inline-html.js');
+const { inlineHtml, injectStandaloneFlags, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET } = require('../scripts/inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const CSS = path.join(ROOT, 'css.html');
@@ -55,6 +55,29 @@ test('index.html chỉ chứa scriptlet — không khối <style>/<script> inlin
   assert.ok(!html.includes('</style>'), 'index.html vẫn còn </style>');
   assert.ok(!html.includes('<script'), 'index.html vẫn còn <script');
   assert.ok(!html.includes('href="css.html"') && !html.includes('src="js.html"'), 'còn tag link/script src cũ');
+});
+
+test('injectStandaloneFlags: chèn cờ __RC_STANDALONE__ + __RC_API_BASE__ trước </head>', () => {
+  const out = injectStandaloneFlags('<html><head><title>x</title></head><body></body></html>', 'https://x.test/exec');
+  assert.ok(out.includes('window.__RC_STANDALONE__=true'), 'thiếu cờ standalone');
+  assert.ok(out.includes('window.__RC_API_BASE__="https://x.test/exec"'), 'thiếu api base');
+  assert.ok(out.indexOf('__RC_STANDALONE__') < out.indexOf('</head>'), 'cờ phải nằm trong <head>');
+  assert.ok(out.indexOf('</head>') < out.indexOf('<body>'), 'vẫn còn cấu trúc HTML');
+});
+
+test('injectStandaloneFlags: idempotent — không chèn 2 lần', () => {
+  const once = injectStandaloneFlags('<html><head></head><body></body></html>', 'https://x.test/exec');
+  const twice = injectStandaloneFlags(once, 'https://x.test/exec');
+  assert.equal(once, twice);
+  assert.strictEqual((once.match(/window\.__RC_STANDALONE__=true/g) || []).length, 1);
+});
+
+test('injectStandaloneFlags: bản inline thật (index + css + js) nhận cờ — app standalone chạy được', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const out = injectStandaloneFlags(inlineHtml(html, CSS, JS, MOBILE, LIB_JSQR, LIB_QUAGGA, CAMERA, CAMERA_CSS));
+  // js.html (shim) đã inline → kiểm tra đúng 1 cờ, đứng trước khi shim chạy
+  assert.ok(out.includes('window.__RC_STANDALONE__=true'));
+  assert.ok(out.indexOf('window.__RC_STANDALONE__=true') < out.indexOf('STANDALONE (?app=1)'), 'cờ phải inject trước khi js.html shim chạy');
 });
 
 test('inline thay scriptlet bằng nội dung file (cả lib + camera)', () => {

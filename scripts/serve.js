@@ -12,7 +12,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { inlineHtml } = require('./inline-html.js');
+const { inlineHtml, injectStandaloneFlags } = require('./inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const HOST = '0.0.0.0';
@@ -71,7 +71,10 @@ const server = http.createServer((req, res) => {
           path.join(ROOT, 'css.html'), path.join(ROOT, 'js.html'), path.join(ROOT, 'mobile.html'),
           path.join(ROOT, 'lib-jsqr.html'), path.join(ROOT, 'lib-quagga.html'), path.join(ROOT, 'camera-scan.html'),
           path.join(ROOT, 'camera-css.html'));
-        res.end(html);
+        // STANDALONE (2026-08-12): preview = trang top-level thật (không iframe GAS) →
+        // camera live hoạt động. Chèn cờ để js.html shim gọi GAS qua JSONP thay
+        // google.script.run (không có trong trang ngoài GAS).
+        res.end(injectStandaloneFlags(html));
         return;
       } catch (e) {
         console.error('[serve] inlineHtml fail:', e.message);
