@@ -21,3 +21,5 @@ Thumbs.db
 # Codegraph — index cục bộ (theo yêu cầu: không commit codegraph.json)
 codegraph.json
 .codegraph/
+__pycache__/
+*.pyc
