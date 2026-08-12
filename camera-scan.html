@@ -4,19 +4,18 @@
   // TRƯỚC include('js') trong index.html, nên các hàm ở đây định nghĩa trước khi
   // js.html chạy (wiring DOMContentLoaded ở js.html gọi onCamFileChange).
   //
-  // RÀNG BUỘC NỀN TẢNG (đã verify từ tài liệu chính thức):
-  // - GAS serve web app TRONG SANDBOXED IFRAME chặn getUserMedia (Permissions
-  //   Policy: camera not allowed — HTML Service restrictions + Issue Tracker
-  //   #489159857) → trong iframe KHÔNG quét live được.
-  // - GAS sandbox CÓ allow-popups + allow-same-origin → mở TAB QUÉT RIÊNG
-  //   (?scan=1 qua window.open/anchor click): tab mới là trang top-level nên
-  //   camera chạy được → quét LIVE TỰ ĐỘNG (không cần bấm chụp). Kết quả gửi về
-  //   trang gốc qua localStorage (cùng origin) + postMessage.
-  // - BUG tab trắng đã fix (2026-08-11): mở thẳng URL content GAS không inject
-  //   google.script → js.html mock loader document.write sẽ XÓA TRẮNG trang.
-  //   Đã chặn document.write khi ?scan=1 + js.html skip app init trong scan mode.
-  // - iOS Safari: camera CHỈ bật khi có user gesture trong CHÍNH tab quét →
-  //   hiện nút "▶ Bật camera" để chạm 1 lần (giới hạn bảo mật của Apple).
+  // RÀNG BUỘC NỀN TẢNG (2026-08-12, cập nhật sau khi verify thực tế):
+  // - GAS serve web app trong IFRAME WRAPPER (userHtmlFrame). Tài liệu cũ (2021-2022)
+  //   nói iframe chặn camera — nhưng wrapper GAS HIỆN TẠI có allow="camera *" →
+  //   getUserMedia TRONG iframe có thể chạy được → THỬ quét live NGAY TRONG TRANG
+  //   trước; nếu trình duyệt chặn (Permissions Policy / iOS chưa cấp) → fallback
+  //   camera native (<input capture> — chạy 100% trong iframe GAS).
+  // - BỎ TAB QUÉT RIÊNG (?scan=1) làm đường chính (bug 2026-08-12): mở URL content
+  //   GAS trong tab mới bị TRẮNG lặp lại NHIỀU LẦN trên Safari/Chrome dù đã fix nhiều
+  //   lần — wrapper GAS nạp app qua postMessage handshake vào iframe /blank, tab mới
+  //   không render được nội dung app → không đáng dựa vào.
+  // - iOS Safari: getUserMedia cần user gesture TRONG iframe → nút "▶ Bật camera"
+  //   (chạm 1 lần); vẫn fail → tự chuyển camera native (chụp xong tự decode → Done).
   //
   // CHUỖI NHẬN DIỆN (frame live lẫn ảnh chụp):
   //   1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D, nhanh nhất)
@@ -33,8 +32,9 @@
   // tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
   //
   // Nút "📷 Quét Camera" (#btnCamScan) CHỈ hiện trên mobile (desktop ẩn — CSS):
-  //   - GAS (iframe): mở TAB QUÉT RIÊNG → quét live tự nhận (nếu popup bị chặn →
-  //     fallback chụp ảnh native)
+  //   - GAS (iframe): THỬ quét live NGAY TRONG TRANG (wrapper cho phép camera);
+  //     trình duyệt chặn → nút "▶ Bật camera" (iOS cần 1 chạm) → vẫn chặn → camera
+  //     native (chụp xong tự decode → Done)
   //   - Ngoài GAS (preview/hosting top-level): live scan ngay trong modal
   var camDecoding = false;   // đang decode 1 ảnh/frame (chống chồng lấn)
   var camSnapping = false;   // đang chụp/decode tĩnh (snap hoặc file)
@@ -60,44 +60,16 @@
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
-    var inFrame = false;
-    try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
-    if (inFrame) {
-      // GAS iframe: mở TAB QUÉT RIÊNG (?scan=1) — tab top-level camera chạy được,
-      // quét LIVE tự nhận mã như AppSheet. Kết quả gửi về qua localStorage.
-      // GIỮ NGUYÊN query params hiện có của URL app (wrapper GAS có thể cần chúng để
-      // nạp app; split('?')[0] cũ sẽ strip → tab trắng, bug 2026-08-12) + thêm scan=1&tk.
-      var token = 'rc' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-      var sep = location.href.indexOf('?') === -1 ? '?' : '&';
-      var scanUrl = location.href + sep + 'scan=1&tk=' + encodeURIComponent(token);
-      var opened = false;
-      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-      if (isIOS) {
-        // iOS Safari chặn window.open() từ iframe → anchor click (user gesture) mở thẳng
-        try {
-          var a = document.createElement('a');
-          a.href = scanUrl;
-          a.target = '_blank';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          opened = true;
-        } catch (e) { opened = false; }
-      } else {
-        try { opened = !!window.open(scanUrl, '_blank'); } catch (e) { opened = false; }
-      }
-      if (opened) {
-        camStatus('📷 Đang mở camera quét…');
-        startScanResultPolling(token);
-        return;
-      }
-      // popup bị chặn → fallback chụp ảnh native (vẫn quét được)
-      pickCameraImage();
-    } else {
-      // Ngoài GAS (preview/hosting): quét LIVE ngay trong trang
-      startCameraLive();
-    }
+    // LUÔN quét LIVE ngay trong trang (modal #cameraModal):
+    //   - Ngoài GAS (preview/hosting top-level): getUserMedia chạy bình thường.
+    //   - GAS (wrapper iframe userHtmlFrame có allow="camera *"): THỬ getUserMedia —
+    //     nếu trình duyệt chặn (Permissions Policy cũ) → startCameraLive hiện nút
+    //     "▶ Bật camera"; chạm lần nữa vẫn fail → fallback camera native (input
+    //     capture — chạy 100% trong iframe GAS, chụp xong tự decode → Done).
+    // KHÔNG mở TAB QUÉT RIÊNG (?scan=1) nữa: URL content GAS trong tab mới bị TRẮNG
+    // lặp lại nhiều lần trên Safari/Chrome (bug 2026-08-12) — wrapper nạp app qua
+    // handshake vào iframe /blank, tab mới không render được nội dung app.
+    startCameraLive();
   }
 
   // ===== NHẬN KẾT QUẢ TỪ TAB QUÉT RIÊNG =====
@@ -139,8 +111,11 @@
     });
   }
 
-  // ===== LIVE SCAN (tab quét riêng + ngoài GAS) =====
-  function startCameraLive() {
+  // ===== LIVE SCAN (trong trang — GAS iframe + ngoài GAS) =====
+  // force=true khi gọi từ nút "▶ Bật camera" (user đã chạm — có gesture). Nếu getUserMedia
+  // vẫn fail lúc này → iframe/trình duyệt chặn camera trực tiếp → fallback camera native
+  // (<input capture>) để không kẹt ở màn hình đen.
+  function startCameraLive(force) {
     var modal = document.getElementById('cameraModal');
     var video = document.getElementById('camVideo');
     var statusEl = document.getElementById('camStatusLive');
@@ -171,8 +146,14 @@
         startCameraDecodeLoop();
       })
       .catch(function () {
-        // getUserMedia bị chặn: tab quét iOS chưa có gesture / quyền chưa cấp →
-        // hiện nút để user chạm bật lại
+        if (force) {
+          // Đã có user gesture mà getUserMedia VẪN fail → trình duyệt/iframe chặn
+          // camera trực tiếp → dùng camera native (chạy 100% trong iframe GAS).
+          camStatus('📷 Trình duyệt chặn camera trực tiếp — dùng camera chụp ảnh thay thế', true);
+          setTimeout(pickCameraImage, 250);
+          return;
+        }
+        // Lần đầu iOS chưa có user gesture (NotAllowedError) → hiện nút để chạm 1 lần
         var st = document.getElementById('camStatusLive');
         if (st) { st.textContent = '📷 Bấm nút dưới để bật camera'; st.style.color = '#ffd9a8'; }
         var sb = document.getElementById('camStartBtn');
