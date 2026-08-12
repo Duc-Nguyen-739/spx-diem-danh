@@ -10,7 +10,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { inlineHtml, injectStandaloneFlags, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET } = require('../scripts/inline-html.js');
+const { inlineHtml, injectStandaloneFlags, injectDemoFlag, CSS_SCRIPTLET, MOBILE_SCRIPTLET, CAMERA_CSS_SCRIPTLET, LIB_JSQR_SCRIPTLET, LIB_QUAGGA_SCRIPTLET, CAMERA_SCRIPTLET, JS_SCRIPTLET } = require('../scripts/inline-html.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const CSS = path.join(ROOT, 'css.html');
@@ -63,6 +63,13 @@ test('injectStandaloneFlags: chèn cờ __RC_STANDALONE__ + __RC_API_BASE__ trư
   assert.ok(out.includes('window.__RC_API_BASE__="https://x.test/exec"'), 'thiếu api base');
   assert.ok(out.indexOf('__RC_STANDALONE__') < out.indexOf('</head>'), 'cờ phải nằm trong <head>');
   assert.ok(out.indexOf('</head>') < out.indexOf('<body>'), 'vẫn còn cấu trúc HTML');
+});
+
+test('injectDemoFlag: chèn cờ __RC_DEMO__ trước </head> + idempotent', () => {
+  const out = injectDemoFlag('<html><head><title>x</title></head><body></body></html>');
+  assert.ok(out.includes('window.__RC_DEMO__=true'), 'thiếu cờ demo');
+  assert.ok(out.indexOf('window.__RC_DEMO__=true') < out.indexOf('</head>'), 'cờ phải trước </head>');
+  assert.strictEqual(injectDemoFlag(out), out, 'không chèn 2 lần');
 });
 
 test('injectStandaloneFlags: idempotent — không chèn 2 lần', () => {

@@ -88,9 +88,24 @@ function injectStandaloneFlags(html, apiBase) {
   return tag + html;
 }
 
+/**
+ * Chèn cờ DEMO vào HTML trước </head> — chế độ test UI/camera KHÔNG cần GAS:
+ * js.html shim JSONP skip khi __RC_DEMO__ → khối mock load mock-google.js (task/staff giả).
+ * Chỉ dùng cho preview (?demo=1) — production/hosting KHÔNG chèn cờ này.
+ * @param {string} html
+ * @returns {string}
+ */
+function injectDemoFlag(html) {
+  if (html.indexOf('window.__RC_DEMO__=true') >= 0) return html;
+  const tag = '<script>window.__RC_DEMO__=true;</script>';
+  if (html.indexOf('</head>') >= 0) return html.replace('</head>', tag + '</head>');
+  return tag + html;
+}
+
 module.exports = {
   inlineHtml,
   injectStandaloneFlags,
+  injectDemoFlag,
   CSS_SCRIPTLET,
   MOBILE_SCRIPTLET,
   CAMERA_CSS_SCRIPTLET,

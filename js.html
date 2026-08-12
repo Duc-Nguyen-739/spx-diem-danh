@@ -10,6 +10,9 @@
   // Server: Code.gs doGet ?action=..&args=..&cb=.. → JsonpApi.gs.
   (function () {
     if (!window.__RC_STANDALONE__) return;
+    // DEMO (?demo=1 preview): không gọi GAS — load mock-google.js (khối dưới) để test UI/camera
+    // với dữ liệu giả. Chỉ serve.js chèn cờ __RC_DEMO__ khi URL có demo=1 — production không đổi.
+    if (window.__RC_DEMO__) return;
     if (window.google && window.google.script && window.google.script.run) return;
     var base = window.__RC_API_BASE__ || '';
     if (!base) return;
