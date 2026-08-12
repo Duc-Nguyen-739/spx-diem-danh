@@ -29,6 +29,13 @@
   .task-pagin .p-info { font-size: 10.5px; margin-left: 6px; }
 }
 @media (max-width: 600px) {
+  /* Topbar scan cố định trên mobile (fix 2026-08-12): header (logo/thanh trên) CUỘN
+     ĐI (position static), scan-topbar sticky giữ nguyên ở đỉnh màn hình — trước đây
+     cả 2 cùng sticky top:0 → topbar (z-30) đè lên header (z-10) che logo khi cuộn. */
+  header { position: static; }
+  /* Danh sách task không tràn sát chân trang (fix 2026-08-12): chừa khoảng trống dưới
+     cho thanh phân trang cố định + mép dưới màn hình (iPhone home indicator). */
+  .dash-main { padding-bottom: 88px; }
   .task-list-toolbar { margin-bottom: 8px; }
   /* Nút 📷 Quét camera hiện/ẩn được quản lý trong camera-css.html (cả 2 rule cùng file) */
   .camera-stage { max-width: 420px; }
@@ -37,41 +44,52 @@
   .scan-hint { font-size: 11.5px; }
   /* Bảng scan: font nhỏ hơn cho vừa màn hình */
   .scan-col-right th, .scan-col-right td { padding: 5px 6px; font-size: 11.5px; }
+  /* Menu +Task: không tràn màn hình trên máy nhỏ (fix 2026-08-12) — bỏ min-width cứng
+     320px, co theo màn hình, item gọn hơn cho chạm. */
+  .task-menu { min-width: 0; width: min(320px, calc(100vw - 40px)); }
+  .task-menu-item { padding: 8px 10px; }
+  .task-menu-txt b { font-size: 13.5px; }
+  .task-menu-txt small { font-size: 11px; line-height: 1.4; }
   /* ===== Danh sách task — dạng CARD trên mobile (2026-08-12) =====
      Bảng 13 cột quá chật trên điện thoại → renderTaskList đổi sang card
      (js.html tự quyết qua matchMedia <=600px; desktop giữ nguyên bảng).
-     Card nổi, chạm dễ, thấy ngay trạng thái + 3 số đếm + nút Quét/Xem. */
+     Card bo gọn, không tràn màn hình (fix 2026-08-12): min-width 0 + overflow hidden
+     chống phình; dòng đếm không kéo giãn 2 bên (bỏ margin-left:auto của nút). */
   .task-cards { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 6px; }
   .task-card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
-  .task-card .tc-head { display: flex; align-items: center; gap: 8px; }
+  .task-card .tc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .task-card .tc-id {
     font-family: Consolas, 'Courier New', monospace;
     font-size: 13px; font-weight: 800; color: var(--text);
-    flex: 1; min-width: 0; word-break: break-all;
+    flex: 1 1 auto; min-width: 0; word-break: break-all;
   }
   .task-card .tc-type {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px;
     font-size: 11.5px; color: var(--muted);
-    margin-top: 7px; line-height: 1.55; word-break: break-word;
+    margin-top: 6px; line-height: 1.5; min-width: 0; word-break: break-word;
   }
   .task-card .tc-mid {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-top: 10px;
+    display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap;
+    margin-top: 9px; min-width: 0;
   }
   .task-card .tc-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .task-card .tc-count b { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
   .task-card .tc-count.ok b { color: var(--success); }
   .task-card .tc-count.extra b { color: var(--warning); }
-  .task-card .tc-btn { margin-left: auto; min-height: 34px; padding: 8px 14px; }
+  .task-card .tc-btn { flex: 0 0 auto; min-height: 32px; padding: 7px 13px; }
   .task-card .tc-foot {
     font-size: 11px; color: var(--muted);
-    margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--border);
-    word-break: break-word;
+    margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--border);
+    word-break: break-word; min-width: 0;
   }
 }
 </style>

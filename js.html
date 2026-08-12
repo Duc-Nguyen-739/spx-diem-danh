@@ -176,6 +176,11 @@
     });
     var camFileEl = document.getElementById('camFile');
     if (camFileEl) camFileEl.addEventListener('change', onCamFileChange);
+    // +Task: bấm ra ngoài menu (backdrop phủ toàn màn) → tự cuộn lại — không cần bấm
+    // đúng nút +Task (yêu cầu 2026-08-12). Nút +Task z-index cao hơn backdrop nên bấm
+    // nút vẫn toggle như cũ; menu items cao hơn backdrop nên chọn task không bị chặn.
+    var taskMenuBackdrop = document.getElementById('taskMenuBackdrop');
+    if (taskMenuBackdrop) taskMenuBackdrop.addEventListener('click', function () { closeTaskMenu(); });
     initNetworkStatus();
     initCreatePreview();
     initHeaderSearch();
