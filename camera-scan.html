@@ -5,17 +5,17 @@
   // js.html chạy (wiring DOMContentLoaded ở js.html gọi onCamFileChange).
   //
   // RÀNG BUỘC NỀN TẢNG (2026-08-12, cập nhật sau khi verify thực tế):
-  // - GAS serve web app trong IFRAME WRAPPER (userHtmlFrame). Tài liệu cũ (2021-2022)
-  //   nói iframe chặn camera — nhưng wrapper GAS HIỆN TẠI có allow="camera *" →
-  //   getUserMedia TRONG iframe có thể chạy được → THỬ quét live NGAY TRONG TRANG
-  //   trước; nếu trình duyệt chặn (Permissions Policy / iOS chưa cấp) → fallback
-  //   camera native (<input capture> — chạy 100% trong iframe GAS).
+  // - GAS serve web app trong IFRAME WRAPPER (userHtmlFrame). getUserMedia live trong
+  //   iframe BỊ CHẶN trên máy thật (Permissions Policy — wrapper allow="camera *" không
+  //   đủ; iOS Safari từ chối camera trong cross-origin iframe) → thử live trước chỉ
+  //   thêm bước chờ/"▶ Bật camera" → bỏ, vào camera native NGAY.
+  // - Camera native = <input type=file capture> gọi ĐỒNG BỘ trong click handler (đang
+  //   trong user gesture) → iOS/Android mở camera LẬP TỨC, chạy 100% trong iframe GAS.
+  //   Chụp xong TỰ decode multi-scale (jsQR + 3 config Quagga) → điền mã → Done.
   // - BỎ TAB QUÉT RIÊNG (?scan=1) làm đường chính (bug 2026-08-12): mở URL content
   //   GAS trong tab mới bị TRẮNG lặp lại NHIỀU LẦN trên Safari/Chrome dù đã fix nhiều
   //   lần — wrapper GAS nạp app qua postMessage handshake vào iframe /blank, tab mới
   //   không render được nội dung app → không đáng dựa vào.
-  // - iOS Safari: getUserMedia cần user gesture TRONG iframe → nút "▶ Bật camera"
-  //   (chạm 1 lần); vẫn fail → tự chuyển camera native (chụp xong tự decode → Done).
   //
   // CHUỖI NHẬN DIỆN (frame live lẫn ảnh chụp):
   //   1) BarcodeDetector — native Chrome/Edge/Android (QR + vạch 1D, nhanh nhất)
@@ -32,9 +32,8 @@
   // tại (reconcile lẫn meal-move Ra/Vào), KHÔNG đổi logic quét.
   //
   // Nút "📷 Quét Camera" (#btnCamScan) CHỈ hiện trên mobile (desktop ẩn — CSS):
-  //   - GAS (iframe): THỬ quét live NGAY TRONG TRANG (wrapper cho phép camera);
-  //     trình duyệt chặn → nút "▶ Bật camera" (iOS cần 1 chạm) → vẫn chặn → camera
-  //     native (chụp xong tự decode → Done)
+  //   - GAS (iframe): mở THẲNG camera native (chụp xong tự decode → Done) — không
+  //     bước chọn nào (user yêu cầu "vào camera luôn", 2026-08-12)
   //   - Ngoài GAS (preview/hosting top-level): live scan ngay trong modal
   var camDecoding = false;   // đang decode 1 ảnh/frame (chống chồng lấn)
   var camSnapping = false;   // đang chụp/decode tĩnh (snap hoặc file)
@@ -60,15 +59,20 @@
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
-    // LUÔN quét LIVE ngay trong trang (modal #cameraModal):
-    //   - Ngoài GAS (preview/hosting top-level): getUserMedia chạy bình thường.
-    //   - GAS (wrapper iframe userHtmlFrame có allow="camera *"): THỬ getUserMedia —
-    //     nếu trình duyệt chặn (Permissions Policy cũ) → startCameraLive hiện nút
-    //     "▶ Bật camera"; chạm lần nữa vẫn fail → fallback camera native (input
-    //     capture — chạy 100% trong iframe GAS, chụp xong tự decode → Done).
-    // KHÔNG mở TAB QUÉT RIÊNG (?scan=1) nữa: URL content GAS trong tab mới bị TRẮNG
-    // lặp lại nhiều lần trên Safari/Chrome (bug 2026-08-12) — wrapper nạp app qua
-    // handshake vào iframe /blank, tab mới không render được nội dung app.
+    var inFrame = false;
+    try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+    if (inFrame) {
+      // GAS iframe: mở THẲNG camera native (<input capture>) — gọi ĐỒNG BỘ ngay trong
+      // click handler (đang trong user gesture → iOS/Android mở camera LẬP TỨC, không
+      // bước chọn nào). getUserMedia live trong iframe GAS bị chặn trên máy thật
+      // (Permissions Policy) — thử trước chỉ thêm bước "▶ Bật camera"/chờ đợi
+      // (user yêu cầu "vào camera luôn, bỏ qua các phần chọn" 2026-08-12).
+      // Chụp xong TỰ decode multi-scale (ảnh gốc → 1280 → 800) × jsQR × 3 config
+      // Quagga → điền mã → Done — KHÔNG đổi logic quét.
+      pickCameraImage();
+      return;
+    }
+    // Ngoài GAS (preview/hosting top-level): quét LIVE ngay trong trang
     startCameraLive();
   }
 
