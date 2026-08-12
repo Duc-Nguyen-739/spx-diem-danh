@@ -1606,9 +1606,12 @@
     var body = document.getElementById('scanTableBody');
     var empty = document.getElementById('scanEmpty');
     var tbl = document.getElementById('scanTable');
+    var cardsWrap = document.getElementById('scanCards');
+    function hideCards() { if (cardsWrap) cardsWrap.style.display = 'none'; }
     if (!log || !log.length) {
       // P3: log rỗng → ẩn luôn bảng (header trống + empty div gây rối mắt)
       body.innerHTML = '';
+      hideCards();
       if (tbl) tbl.style.display = 'none';
       empty.textContent = 'Không có nhân viên nào trong danh sách';
       empty.style.display = '';
@@ -1618,12 +1621,27 @@
     if (!rows.length) {
       // C3: có log nhưng bộ lọc loại hết → báo khác empty thật
       body.innerHTML = '';
+      hideCards();
       if (tbl) tbl.style.display = 'none';
       empty.textContent = 'Không có NV khớp bộ lọc';
       empty.style.display = '';
       return;
     }
     empty.style.display = 'none';
+    // Mobile (<=600px): bảng 8–10 cột kéo dài ngang quá khổ màn hình điện thoại → chuyển
+    // sang dạng CARD (scanRowCardHTML) — cùng data + filter/sort, chỉ khác hình thức (2026-08-13).
+    var isCards = !!(window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
+    if (isCards) {
+      hideCards();
+      var wrap = getScanCardsWrap();
+      if (tbl) tbl.style.display = 'none';
+      if (wrap) {
+        wrap.style.display = '';
+        _paintScanRowCards(wrap, rows);
+      }
+      return;
+    }
+    hideCards();
     if (tbl) tbl.style.display = '';
     _paintScanRows(body, rows);
   }
@@ -1696,6 +1714,79 @@
       ];
     }
     return cells;
+  }
+
+  // Mobile (<=600px): container card NV trong task — tạo 1 lần trong .table-wrap scan
+  // (cùng vùng cuộn bảng; desktop không dùng). renderScanTable tự quyết qua matchMedia.
+  function getScanCardsWrap() {
+    var wrap = document.getElementById('scanCards');
+    if (wrap) return wrap;
+    var holder = document.querySelector('.scan-col-right .table-wrap');
+    if (!holder) return null;
+    wrap = document.createElement('div');
+    wrap.id = 'scanCards';
+    wrap.className = 'scan-cards';
+    holder.appendChild(wrap);
+    return wrap;
+  }
+
+  // PURE card HTML cho NV trong task (mobile <=600px) — cùng data + filter/sort với bảng,
+  // chỉ khác hình thức. Header card: Mã NV + Tên + badge trạng thái; dưới = chips thông tin.
+  // Lưu ý tên scanRowCardHTML (KHÔNG trùng scanCardHTML — hàm đó đã tồn tại cho scan-card
+  // kết quả quét (status,target); function declaration sau ghi đè → crash, bug 2026-08-13).
+  function scanRowCardHTML(r) {
+    var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
+    var chips = [];
+    if (isMealMove) {
+      if (r.slotCode) chips.push('<span>' + esc(r.slotCode) + '</span>');
+      if (r.team) chips.push('<span>' + esc(r.team) + '</span>');
+      if (r.station) chips.push('<span>' + esc(r.station) + '</span>');
+      chips.push('<span><i>Ra</i>' + esc(r.timeRaText || '—') + '</span>');
+      chips.push('<span><i>Vào</i>' + esc(r.timeScanText || '—') + '</span>');
+      if (r.agency) chips.push('<span><i>Thầu</i>' + esc(r.agency) + '</span>');
+      if (r.durationMinutes != null) chips.push('<span><i>Phút</i>' + r.durationMinutes + '</span>');
+    } else {
+      if (r.agency) chips.push('<span>' + esc(r.agency) + '</span>');
+      if (r.slotCode) chips.push('<span>' + esc(r.slotCode) + '</span>');
+      if (r.team) chips.push('<span>' + esc(r.team) + '</span>');
+      if (r.station) chips.push('<span>' + esc(r.station) + '</span>');
+      chips.push('<span><i>Giờ</i>' + esc(r.timeScanText || '—') + '</span>');
+    }
+    return '<div class="scan-row-card' + (r.status === STATUS_C.EXTRA ? ' extra' : '') + '" data-id="' + escAttr(r.staffId) + '">' +
+      '<div class="src-head">' +
+        '<b class="src-id">' + esc(r.staffId) + '</b>' +
+        '<span class="src-name">' + esc(r.staffName || '') + '</span>' +
+        '<span class="src-badge">' + badgeFor(r.status) + '</span>' +
+      '</div>' +
+      (chips.length ? '<div class="src-meta">' + chips.join('') + '</div>' : '') +
+    '</div>';
+  }
+
+  // Keyed diff cho card (giống _paintScanRows) — chỉ update card thay đổi, không flicker.
+  function _paintScanRowCards(wrap, rows) {
+    var existing = {};
+    var i, el;
+    for (i = 0; i < wrap.children.length; i++) {
+      el = wrap.children[i];
+      if (el.dataset && el.dataset.id) existing[el.dataset.id] = el;
+    }
+    var keep = {};
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var html = scanRowCardHTML(r);
+      el = existing[r.staffId];
+      if (!el) { el = document.createElement('div'); el.dataset.id = r.staffId; wrap.appendChild(el); }
+      if (el.innerHTML !== html) el.innerHTML = html;
+      keep[r.staffId] = el;
+    }
+    for (i = wrap.children.length - 1; i >= 0; i--) {
+      el = wrap.children[i];
+      if (!keep[el.dataset && el.dataset.id]) el.remove();
+    }
+    for (i = 0; i < rows.length; i++) {
+      el = keep[rows[i].staffId];
+      if (wrap.lastChild !== el) wrap.appendChild(el);
+    }
   }
 
   function updateSortIndicators() {
