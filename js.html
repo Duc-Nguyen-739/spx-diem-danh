@@ -17,23 +17,38 @@
     var base = window.__RC_API_BASE__ || '';
     if (!base) return;
     var seq = 0;
+    function resolveRpc(res, handlers) {
+      if (res && res.ok === false) {
+        if (handlers.failure) handlers.failure({ message: res.error || 'Lỗi server' });
+      } else if (handlers.success) {
+        handlers.success(res && res.ok === true ? res.result : res);
+      }
+    }
     function jsonpCall(fnName, args, handlers) {
       var cbName = '__rcJsonp' + (++seq) + '_' + Date.now();
       var scriptId = '__rcScript_' + cbName;
-      window[cbName] = function (res) {
-        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-        var el = document.getElementById(scriptId);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-        if (res && res.ok === false) {
-          if (handlers.failure) handlers.failure({ message: res.error || 'Lỗi server' });
-        } else if (handlers.success) {
-          handlers.success(res && res.ok === true ? res.result : res);
-        }
-      };
       var sep = base.indexOf('?') >= 0 ? '&' : '?';
       var url = base + sep + 'action=' + encodeURIComponent(fnName)
         + '&args=' + encodeURIComponent(JSON.stringify(args || []))
         + '&cb=' + encodeURIComponent(cbName);
+      // PRODUCTION (2026-08-12): backend Python api cùng origin (Freebuff hosting) →
+      // fetch JSON thay JSONP (không cần CORS). API trả JSON khi không có cb.
+      var sameOrigin = url.indexOf('//') < 0 || url.indexOf(window.location.origin) === 0;
+      if (sameOrigin && typeof window.fetch === 'function') {
+        fetch(url)
+          .then(function (r) { return r.json(); })
+          .then(function (res) { resolveRpc(res, handlers); })
+          .catch(function () {
+            if (handlers.failure) handlers.failure({ message: 'Không kết nối được server' });
+          });
+        return;
+      }
+      window[cbName] = function (res) {
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        var el = document.getElementById(scriptId);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        resolveRpc(res, handlers);
+      };
       var s = document.createElement('script');
       s.id = scriptId;
       s.src = url;
