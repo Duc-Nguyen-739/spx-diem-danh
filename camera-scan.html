@@ -65,9 +65,11 @@
     if (inFrame) {
       // GAS iframe: mở TAB QUÉT RIÊNG (?scan=1) — tab top-level camera chạy được,
       // quét LIVE tự nhận mã như AppSheet. Kết quả gửi về qua localStorage.
+      // GIỮ NGUYÊN query params hiện có của URL app (wrapper GAS có thể cần chúng để
+      // nạp app; split('?')[0] cũ sẽ strip → tab trắng, bug 2026-08-12) + thêm scan=1&tk.
       var token = 'rc' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-      var base = location.href.split('?')[0] || location.href;
-      var scanUrl = base + (base.indexOf('?') === -1 ? '?' : '&') + 'scan=1&tk=' + encodeURIComponent(token);
+      var sep = location.href.indexOf('?') === -1 ? '?' : '&';
+      var scanUrl = location.href + sep + 'scan=1&tk=' + encodeURIComponent(token);
       var opened = false;
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
       if (isIOS) {
@@ -564,9 +566,18 @@
   // Tab này là trang top-level (mở bằng window.open/anchor từ GAS iframe) →
   // getUserMedia hoạt động → quét live liên tục như AppSheet, thấy mã là nhận.
   function initScanModeIfNeeded() {
-    if (location.search.indexOf('scan=1') === -1) return;
+    // Detect scan mode bằng CẢ location.search LẪN document.referrer: wrapper GAS nạp
+    // app vào iframe có thể KHÔNG forward query (location.search rỗng) nhưng referrer
+    // vẫn là URL tab quét (có scan=1&tk) — bug 2026-08-12 tab trắng/không vào scan mode.
+    var scanDetected = location.search.indexOf('scan=1') !== -1
+      || (document.referrer || '').indexOf('scan=1') !== -1;
+    if (!scanDetected) return;
     camScanMode = true;
-    var m = location.search.match(/[?&]tk=([^&]+)/);
+    // Cờ cho js.html (include sau file này): mock loader + DOMContentLoaded skip app init.
+    // Cờ bền hơn location.search vì wrapper có thể không forward query vào URL app.
+    try { window.__RC_SCAN_MODE__ = true; } catch (e) {}
+    var m = location.search.match(/[?&]tk=([^&]+)/)
+      || (document.referrer || '').match(/[?&]tk=([^&]+)/);
     camScanToken = m ? decodeURIComponent(m[1]) : '';
     try { document.body.classList.add('scan-mode'); } catch (e) {}
     var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');

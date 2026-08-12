@@ -40,9 +40,13 @@
   .camera-stage { max-width: 420px; }
   .camera-view { aspect-ratio: 3 / 4; max-height: 58vh; }
 }
-/* ===== TAB QUÉT RIÊNG (?scan=1) — ẩn toàn app, camera fullscreen ===== */
-.scan-mode body { background: #000; }
-.scan-mode body > :not(#cameraModal) { display: none !important; }
+/* ===== TAB QUÉT RIÊNG (?scan=1) — ẩn toàn app, camera fullscreen =====
+   Class scan-mode được thêm vào <body> (camera-scan.html initScanModeIfNeeded) →
+   selector phải là body.scan-mode, KHÔNG phải .scan-mode body (không bao giờ khớp —
+   body không phải descendant của .scan-mode, bug 2026-08-12 app hiện sau modal). */
+body.scan-mode { background: #000; }
+body.scan-mode > :not(#cameraModal) { display: none !important; }
+body.scan-mode #loadingOverlay { display: none !important; }
 .scan-mode .camera-overlay {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;

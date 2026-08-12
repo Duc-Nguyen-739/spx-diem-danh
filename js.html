@@ -1,10 +1,21 @@
 <script>
   // Mock local: khi mở file:// trực tiếp (không qua GAS), nạp mock-google.js.
-  // Deploy GAS: google.script luôn tồn tại → nhánh này không chạy → app thật.
-  // TAB QUÉT (?scan=1): GAS mở thẳng URL content KHÔNG inject google.script —
-  // document.write lúc này sẽ XÓA TRẮNG trang (bug 2026-08-11) → bỏ qua.
-  if ((typeof google === 'undefined' || !google.script) && location.search.indexOf('scan=1') === -1) {
-    document.write('<script src="mock/mock-google.js?v=' + Date.now() + '"><\/script>');
+  // Deploy GAS: google.script được wrapper GAS inject vào iframe → nhánh này không chạy.
+  // TAB QUÉT (?scan=1): camera-scan.html (include TRƯỚC js.html) đã đặt
+  // window.__RC_SCAN_MODE__ = true khi phát hiện scan mode → bỏ qua mock (app không init).
+  // BUG trang trắng (2026-08-11 + 2026-08-12): mở thẳng URL content GAS, google.script
+  // chưa kịp inject + scan=1 KHÔNG nằm trong location.search (wrapper GAS nạp app qua
+  // document.write vào iframe /blank → query bị nuốt) → document.write lúc này XÓA TRẮNG
+  // toàn trang. Giờ: document.write CHỈ khi document còn đang parse (an toàn — thêm nội
+  // dung), còn lại dùng DOM injection (appendChild) — không bao giờ xoá trang.
+  if (!window.__RC_SCAN_MODE__ && (typeof google === 'undefined' || !google.script)) {
+    if (document.readyState === 'loading') {
+      document.write('<script src="mock/mock-google.js?v=' + Date.now() + '"><\/script>');
+    } else {
+      var __mockEl = document.createElement('script');
+      __mockEl.src = 'mock/mock-google.js?v=' + Date.now();
+      document.head.appendChild(__mockEl);
+    }
   }
 
   var META = null;
@@ -61,9 +72,11 @@
   var TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 
   document.addEventListener('DOMContentLoaded', function () {
-    if (location.search.indexOf('scan=1') !== -1) {
+    if (window.__RC_SCAN_MODE__ || location.search.indexOf('scan=1') !== -1) {
       // TAB QUÉT RIÊNG: chỉ chạy camera (camera-scan.html tự khởi động trước đó) —
       // KHÔNG init app (google.script có thể không tồn tại khi mở thẳng URL content).
+      // __RC_SCAN_MODE__ do camera-scan.html đặt (cờ bền hơn location.search — wrapper
+      // GAS có thể không forward query vào URL app trong iframe, bug 2026-08-12).
       return;
     }
     loadMetaAndOptions();

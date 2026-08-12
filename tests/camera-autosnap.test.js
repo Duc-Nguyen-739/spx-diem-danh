@@ -96,3 +96,35 @@ test('camShouldFullDecode: không đọc biến toàn cục — nhịp ổn đ�
   assert.equal(typeof ctx.camShouldAutoSnap, 'undefined', 'camShouldAutoSnap (motion gate cũ) phải bị xoá');
   assert.equal(typeof ctx.camMotionScore, 'undefined', 'camMotionScore (motion gate cũ) phải bị xoá');
 });
+
+// ---- initScanModeIfNeeded: detect scan mode khi wrapper GAS nuốt query (bug 2026-08-12) ----
+// Tab quét mở = URL ...userCodeAppPanel?scan=1&tk=... → wrapper GAS nạp app vào iframe
+// qua document.write (URL app = /blank, location.search RỖNG) → phải detect qua referrer.
+function makeScanSandbox(locationSearch, referrer) {
+  const c = makeSandbox();
+  c.location = { search: locationSearch, href: 'https://example.test/userCodeAppPanel' + (locationSearch ? '?' + locationSearch.replace(/^\?/, '') : '') };
+  c.document = Object.assign({}, c.document, { referrer: referrer });
+  vm.createContext(c);
+  vm.runInContext(script, c);
+  return c;
+}
+
+test('initScanModeIfNeeded: wrapper nuốt query (location.search rỗng) nhưng referrer có scan=1 → vào scan mode', () => {
+  const c = makeScanSandbox('', 'https://example.test/userCodeAppPanel?scan=1&tk=rc123_456');
+  assert.equal(c.camScanMode, true, 'phải vào scan mode qua referrer');
+  assert.equal(c.window.__RC_SCAN_MODE__, true, 'phải đặt cờ cho js.html');
+  assert.equal(c.camScanToken, 'rc123_456', 'token phải lấy được từ referrer');
+});
+
+test('initScanModeIfNeeded: scan=1 có trong location.search → vào scan mode (đường cũ)', () => {
+  const c = makeScanSandbox('?scan=1&tk=rc456_789', '');
+  assert.equal(c.camScanMode, true);
+  assert.equal(c.window.__RC_SCAN_MODE__, true);
+  assert.equal(c.camScanToken, 'rc456_789');
+});
+
+test('initScanModeIfNeeded: không có scan=1 ở đâu → KHÔNG vào scan mode, không set cờ', () => {
+  const c = makeScanSandbox('', 'https://example.test/userCodeAppPanel');
+  assert.equal(c.camScanMode, false);
+  assert.notEqual(c.window.__RC_SCAN_MODE__, true);
+});
