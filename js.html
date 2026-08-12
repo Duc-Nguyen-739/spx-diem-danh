@@ -1104,6 +1104,7 @@
         : 'Đang xử lý lượt quét — chờ xong rồi quay lại', true);
       return;
     }
+    stopScanPolling();  // rời màn quét → dừng poll đồng bộ
     document.getElementById('viewScan').classList.add('hidden');
     document.getElementById('viewList').classList.remove('hidden');
     loadTaskList();
@@ -1205,6 +1206,7 @@
         renderScanView(res);
         LAST_SCAN_VIEW = { taskId: taskId, ts: Date.now() };
         hideLoadingOverlay();  // P2: load xong → ẩn spinner
+        startScanPolling(taskId);  // đồng bộ real-time với thiết bị khác cùng mở task này
       })
       .withFailureHandler(function (err) {
         if (seq !== SCAN_LOAD_SEQ) return; // response của task cũ — bỏ qua
@@ -1238,6 +1240,106 @@
     var lbl = document.querySelector('.counter.absent .lbl');
     if (lbl) {
       lbl.textContent = (!CURRENT_TASK || CURRENT_TASK.status === TASK_STATUS_C.OPEN) ? 'Chưa điểm danh' : 'Vắng';
+    }
+  }
+
+  // ===== ĐỒNG BỘ REAL-TIME 2 THIẾT BỊ (2026-08-12) =====
+  // Mobile + PC cùng mở 1 task: thiết bị này quét → thiết bị kia phải cập nhật NGAY
+  // (không cần F5). GAS không có push (WebSocket/Channel) → poll getTaskDetailApi định
+  // kỳ khi đang ở màn quét. Server cache detail 15s bị invalidate MỌI khi ghi log/đổi
+  // status (scanStaff / append Dư / meal-move / completeTask đều invalidateTaskDetailCache_)
+  // → poll trúng cache (không đọc sheet) hầu hết thời gian, chỉ đọc lại ngay sau khi có
+  // ghi từ thiết bị khác → bên kia hiển thị mới trong vòng 1 chu kỳ poll (~4s).
+  var SCAN_POLL_MS = 4000;
+  var scanPollTimer = null;
+  var scanPollInFlight = false;
+  var lastScanPollSig = null;
+
+  // PURE (test được): signature của task detail — so bằng nhau = không có gì đổi → bỏ
+  // qua re-render (tránh renderScanView reset sort/filter/focus vô ích mỗi 4s).
+  function scanDetailSignature(data) {
+    var task = (data && data.task) || {};
+    var c = (data && data.counters) || {};
+    var log = (data && data.log) || [];
+    var parts = [task.status, c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
+    for (var i = 0; i < log.length; i++) {
+      var r = log[i] || {};
+      parts.push(String(r.staffId || '') + '|' + String(r.status || '') + '|'
+        + (Number(r.timeScanEpoch) || 0) + '|' + (Number(r.timeRaEpoch) || 0));
+    }
+    return parts.join(';');
+  }
+
+  // PURE (test được): poll trả data "cũ hơn" state local không (chống race RPC out-of-order
+  // — response poll cũ có thể về SAU response quét mới). True → bỏ qua, poll kế sẽ đúng.
+  function scanPollBehind(data, currentTask, currentCounters) {
+    if (!data || !data.task || !currentTask) return true;
+    if (currentTask.taskId !== data.task.taskId) return true;
+    var pd = data.counters || {};
+    var cd = currentCounters || {};
+    if ((pd.scanned || 0) < (cd.scanned || 0)) return true;
+    if ((pd.extra || 0) < (cd.extra || 0)) return true;
+    if ((pd.out || 0) < (cd.out || 0)) return true;
+    // Local đã thấy task DONE nhưng poll vẫn OPEN → poll là response cũ
+    if (currentTask.status === TASK_STATUS_C.DONE && data.task.status === TASK_STATUS_C.OPEN) return true;
+    return false;
+  }
+
+  function startScanPolling(taskId) {
+    stopScanPolling();
+    if (window.__RC_DEMO__) return; // demo = dữ liệu giả tĩnh — không cần poll
+    lastScanPollSig = scanDetailSignature({ task: CURRENT_TASK, log: CURRENT_LOG, counters: CURRENT_COUNTERS });
+    scanPollTimer = setInterval(function () { scanPollTick(taskId); }, SCAN_POLL_MS);
+  }
+
+  function stopScanPolling() {
+    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+    scanPollInFlight = false;
+  }
+
+  // 1 chu kỳ poll — bỏ qua khi không đủ điều kiện (ẩn tab / có modal / đang xử lý quét
+  // local — lúc đó UI tự cập nhật rồi, poll sẽ đè state local).
+  function scanPollTick(taskId) {
+    if (scanPollInFlight) return; // RPC trước chưa về — không chồng
+    var vs = document.getElementById('viewScan');
+    if (!vs || vs.classList.contains('hidden')) return;   // không ở màn quét
+    if (document.visibilityState === 'hidden') return;     // tab ẩn — Safari/Chrome throttle sẵn
+    if (anyModalOpen()) return;                            // có modal (tạo task/confirm) — không phá
+    if (scanBusy()) return;                                // queue quét đang chạy — state local là mới nhất
+    scanPollInFlight = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        scanPollInFlight = false;
+        if (!res || !res.ok) return;
+        applyPolledScanDetail(res);
+      })
+      .withFailureHandler(function () { scanPollInFlight = false; })
+      .getTaskDetailApi(taskId);
+  }
+
+  // Áp dữ liệu poll vào màn quét — chỉ re-render khi THỰC SỰ có thay đổi (signature guard).
+  function applyPolledScanDetail(data) {
+    if (!CURRENT_TASK) return;
+    if (scanPollBehind(data, CURRENT_TASK, CURRENT_COUNTERS)) return; // response cũ hơn local
+    var sig = scanDetailSignature(data);
+    if (sig === lastScanPollSig) return; // không đổi → không re-render (giữ sort/filter/focus)
+    lastScanPollSig = sig;
+    var prevMealMode = MEAL_MODE;
+    var prevActive = document.activeElement;
+    var prevActiveId = prevActive && prevActive.id;
+    var wasOpen = CURRENT_TASK.status === TASK_STATUS_C.OPEN;
+    renderScanView(data);
+    // renderScanView mặc định reset meal-mode (creator → 'ra') → khôi phục chế độ người
+    // dùng đang dùng (Ra/Vào là state UI local, KHÔNG đồng bộ giữa các thiết bị).
+    if (CURRENT_TASK.taskType === 'meal-move' && MEAL_MODE !== prevMealMode) setMealMode(prevMealMode);
+    // renderScanView focus về ô quét — đang gõ ô tìm/lọc thì trả lại focus
+    if (prevActiveId === 'scanSearch' || prevActiveId === 'scanStatusFilter') {
+      var prev = document.getElementById(prevActiveId);
+      if (prev && prev.focus) prev.focus();
+    }
+    LAST_SCAN_VIEW = { taskId: data.task.taskId, ts: Date.now() };
+    if (wasOpen && data.task.status === TASK_STATUS_C.DONE) {
+      showToast('Task đã kết thúc từ thiết bị khác');
     }
   }
 
