@@ -167,13 +167,17 @@ function getMeta() {
 /** Distinct values cho dropdown. */
 function getFilterOptions() {
   const staffList = readStaffList_();
+  // Yêu cầu 2026-08-12: "Loại hợp đồng" đọc THẬT từ cột G (Contract Type) StaffData
+  // thay vì hardcode FTE/BPO/OS — distinctValues đã lọc rỗng + sort. Fallback hằng số
+  // CONTRACT_TYPES khi sheet không có dữ liệu (tránh dropdown rỗng).
+  const contractTypes = distinctValues(staffList, 'contractType');
   return {
     ok: true,
     stations: distinctValues(staffList, 'station'),
     slotCodes: distinctValues(staffList, 'slotCode'),
     teams: distinctValues(staffList, 'team'),
     dates: distinctValues(staffList, 'date'),  // ngay vao lam — dropdown modal
-    contractTypes: CONTRACT_TYPES,
+    contractTypes: contractTypes.length ? contractTypes : CONTRACT_TYPES,
   };
 }
 

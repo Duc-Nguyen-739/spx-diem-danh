@@ -101,6 +101,8 @@ const TASK_TYPE = {
 };
 
 // ===== Loại hợp đồng (filter khi tạo task) =====
+// Fallback "Loại hợp đồng" khi StaffData trống — getFilterOptions đọc THẬT từ cột G
+// (Contract Type) qua distinctValues(staffList, 'contractType') (yêu cầu 2026-08-12).
 const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
 
 // Meal-move: khoảng thời gian chống quét trùng (ms) — 2 lần quét cùng mã trong cửa này = 'Trùng mã'

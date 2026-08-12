@@ -112,7 +112,7 @@ context.globalThis = context;
 vm.createContext(context);
 
 // nạp theo thứ tự phụ thuộc (như GAS share global scope)
-for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'Database.gs', 'JsonpApi.gs', 'Code.gs']) {
+for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'CsvUtil.gs', 'Database.gs', 'JsonpApi.gs', 'Code.gs']) {
   try {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), context, { filename: f });
   } catch (e) {
@@ -120,6 +120,34 @@ for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'Database.gs', 'J
     process.exit(1);
   }
 }
+
+test('getFilterOptions: contractTypes đọc THẬT từ cột Contract Type (distinct, lọc rỗng, sort)', () => {
+  // Seed StaffData: header + 4 NV với loại hợp đồng khác nhau (kể cả trùng + rỗng)
+  const header = ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency', 'Contract Type',
+    'Event ID', 'Matching Type', 'Gender', 'Department', 'Clock In Time', 'Clock Out Time', 'Actual Hours',
+    'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation', 'Team', 'Station'];
+  const staffRows = [
+    header,
+    [1, '2026-08-01', 'OPS001', 'NV A', '', '', 'FTE', '', '', '', '', '', '', '', '', '', '08:00-17:00', '', 'Outbound', 'HN2 SOC'],
+    [2, '2026-08-01', 'OPS002', 'NV B', '', '', 'BPO', '', '', '', '', '', '', '', '', '', '08:00-17:00', '', 'Outbound', 'HN2 SOC'],
+    [3, '2026-08-01', 'OPS003', 'NV C', '', '', 'FTE', '', '', '', '', '', '', '', '', '', '08:00-17:00', '', 'Outbound', 'HN2 SOC'],   // trùng contractType — distinct
+    [4, '2026-08-01', 'OPS004', 'NV D', '', '', 'OS', '', '', '', '', '', '', '', '', '', '08:00-17:00', '', 'Inbound', 'HN2 SOC'],
+    [5, '2026-08-01', 'OPS005', 'NV E', '', '', '', '', '', '', '', '', '', '', '', '', '08:00-17:00', '', 'Inbound', 'HN3 SOC'],   // contractType rỗng — bỏ qua
+  ];
+  sheets.StaffData = { rows: staffRows.map((r) => r.slice()) }; // SHEETS.STAFF_DATA = 'StaffData'
+  store.rc2_filterOptions_v1 = null; // CACHE_KEYS.FILTER_OPTIONS — bỏ cache, đọc tươi
+  const out = context.getFilterOptions();
+  // Array.from(): mảng từ vm realm khác (Array.prototype khác) — deepStrictEqual trực tiếp fail dù nội dung giống
+  assert.deepStrictEqual(Array.from(out.contractTypes), ['BPO', 'FTE', 'OS'], 'contractTypes phải là distinct + sort từ cột G');
+  assert.deepStrictEqual(Array.from(out.stations), ['HN2 SOC', 'HN3 SOC'], 'stations vẫn đọc distinct từ dữ liệu');
+});
+
+test('getFilterOptions: contractTypes fallback CONTRACT_TYPES khi StaffData trống', () => {
+  sheets.StaffData = { rows: [[]] }; // không có dữ liệu
+  store.rc2_filterOptions_v1 = null;
+  const out = context.getFilterOptions();
+  assert.deepStrictEqual(Array.from(out.contractTypes), ['FTE', 'BPO', 'OS'], 'fallback hằng số khi trống');
+});
 
 test('doGet trả HTML tự chứa: css + js nhúng đầy đủ, không scriptlet/tag ngoài', () => {
   const out = context.doGet({});

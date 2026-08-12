@@ -44,14 +44,14 @@
       },
     },
     staff: [
-      { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:15', cardOut: '06:20' },
-      { staffId: 'Ops196935', staffName: 'NV002', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:18', cardOut: '06:25' },
-      { staffId: 'Ops229444', staffName: 'NV003', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', cardIn: '20:22', cardOut: '06:30' },
-      { staffId: 'Ops110512', staffName: 'NV004', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', cardIn: '20:25', cardOut: '06:35' },
-      { staffId: 'Ops124563', staffName: 'NV005', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', cardIn: '20:28', cardOut: '' },
-      { staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', cardIn: '06:10', cardOut: '14:20' },
-      { staffId: 'Ops126503', staffName: 'NV105', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', cardIn: '06:12', cardOut: '14:22' },
-      { staffId: 'Ops133754', staffName: 'NV020', slotCode: '22:00-06:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBMove', agency: 'GRG', cardIn: '10:15', cardOut: '18:19' },
+      { staffId: 'Ops237511', staffName: 'NV001', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', contractType: 'FTE', cardIn: '20:15', cardOut: '06:20' },
+      { staffId: 'Ops196935', staffName: 'NV002', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', contractType: 'FTE', cardIn: '20:18', cardOut: '06:25' },
+      { staffId: 'Ops229444', staffName: 'NV003', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBLoading', agency: 'GRG', contractType: 'BPO', cardIn: '20:22', cardOut: '06:30' },
+      { staffId: 'Ops110512', staffName: 'NV004', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', contractType: 'OS', cardIn: '20:25', cardOut: '06:35' },
+      { staffId: 'Ops124563', staffName: 'NV005', slotCode: '08:00-17:00', station: 'HN2 SOC', team: 'Outbound', workstation: 'OBHandover', agency: 'GRG', contractType: 'BPO', cardIn: '20:28', cardOut: '' },
+      { staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', contractType: 'FTE', cardIn: '06:10', cardOut: '14:20' },
+      { staffId: 'Ops126503', staffName: 'NV105', slotCode: '18:00-02:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG', contractType: 'OS', cardIn: '06:12', cardOut: '14:22' },
+      { staffId: 'Ops133754', staffName: 'NV020', slotCode: '22:00-06:00', station: 'HN2 SOC', team: 'Inbound', workstation: 'IBMove', agency: 'GRG', contractType: 'FTE', cardIn: '10:15', cardOut: '18:19' },
     ],
     tasks: [
       {taskId:'R20260802-0900',taskType:'reconcile',station:'HN2 SOC',slotCode:'08:00-17:00',team:'Outbound',status:'open',total:5,scanned:2,extra:1,createdBy:'web',createdAtText:'2026-08-02 09:00:00'},
@@ -171,12 +171,21 @@
       return { ok: true, appTitle: MOCK_DATA.meta.appTitle, labels: MOCK_DATA.meta.labels, tableHeaders: MOCK_DATA.meta.tableHeaders, currentUser: MOCK_CURRENT_USER };
     },
     getFilterOptions: function () {
+      // contractTypes đọc distinct từ staff (khớp server 2026-08-12) — sort A-Z, lọc rỗng
+      var cts = [];
+      var seen = {};
+      MOCK_DATA.staff.forEach(function (s) {
+        var v = String(s.contractType || '').trim();
+        if (v && !seen[v]) { seen[v] = true; cts.push(v); }
+      });
+      cts.sort();
       return {
         ok: true,
         stations: ['HN2 SOC'],
         slotCodes: ['08:00-17:00', '13:00-22:00', '18:00-02:00', '22:00-06:00'],
         teams: ['Inbound', 'Outbound'],
         dates: ['2026-08-01', '2026-08-02', '2026-08-03'],
+        contractTypes: cts,
       };
     },
     previewStaffApi: function (input) {
