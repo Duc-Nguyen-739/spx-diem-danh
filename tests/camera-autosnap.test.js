@@ -1,8 +1,10 @@
 /**
  * tests/camera-autosnap.test.js — Node thuần (không cần GAS, không cần DOM thật).
- * Test AUTO-SNAP của camera-scan.html (2026-08-11): iOS live loop frame 800px/1 config
- * không bắt được mã vạch kẻ → đo độ rung frame (camMotionScore) + quyết định tự chụp
- * frame 1280px decode đầy đủ (camShouldAutoSnap) → Done không cần bấm "📸 Chụp".
+ * Test AUTO-DECODE của camera-scan.html (2026-08-12): live loop iOS frame 800px/1 config
+ * không bắt được mã vạch kẻ; auto-snap cũ gate theo độ rung (CAM_STABLE_MOTION=6/255)
+ * quá nhạy với noise camera iPhone → không bao giờ kích hoạt (bug 2026-08-12). Giờ loop
+ * TỰ ĐỘNG chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px + jsQR + 3 config Quagga) theo nhịp
+ * cố định — quyết định thuần nằm ở camShouldFullDecode(tickCount, interval).
  *
  * Cách load: trích toàn bộ <script> trong camera-scan.html (file thật deploy), chạy
  * trong vm sandbox có DOM mock tối thiểu → test ĐÚNG code được deploy (không bản sao).
@@ -58,81 +60,39 @@ const ctx = makeSandbox();
 vm.createContext(ctx);
 vm.runInContext(script, ctx);
 
-// ---- camShouldAutoSnap: quyết định thuần ----
-test('camShouldAutoSnap: đủ ổn định 2 lần liên tiếp → snap', () => {
-  const r = ctx.camShouldAutoSnap(2, 1, 5000, 1000, 0); // motion 2 < 6, lần stable thứ 2, qua cooldown 1800
-  assert.equal(r.snap, true);
-  assert.equal(r.stableCount, 0); // reset sau khi snap
+// ---- camShouldFullDecode: quyết định thuần (nhịp full-chain decode) ----
+test('camShouldFullDecode: đủ interval tick → run, reset tickCount', () => {
+  // interval=2: tick 0 (đếm 1) chưa run; tick 1 → run
+  const r1 = ctx.camShouldFullDecode(0, 2);
+  assert.equal(r1.run, false);
+  assert.equal(r1.tickCount, 1);
+  const r2 = ctx.camShouldFullDecode(1, 2);
+  assert.equal(r2.run, true);
+  assert.equal(r2.tickCount, 0); // reset sau khi run
 });
 
-test('camShouldAutoSnap: frame chuyển động → không snap, reset stableCount', () => {
-  const r = ctx.camShouldAutoSnap(30, 1, 5000, 1000, 0);
-  assert.equal(r.snap, false);
-  assert.equal(r.stableCount, 0);
+test('camShouldFullDecode: interval=1 → run ngay tick đầu (full chain mọi tick)', () => {
+  const r = ctx.camShouldFullDecode(0, 1);
+  assert.equal(r.run, true);
+  assert.equal(r.tickCount, 0);
 });
 
-test('camShouldAutoSnap: ổn định nhưng chưa đủ 2 lần → chờ', () => {
-  const r = ctx.camShouldAutoSnap(2, 1, 5000, 1000, 0);
-  assert.equal(r.snap, true); // lần 2
-  const r1 = ctx.camShouldAutoSnap(2, 0, 6000, 1000, 0);
-  assert.equal(r1.snap, false); // mới 1 lần
-  assert.equal(r1.stableCount, 1);
+test('camShouldFullDecode: interval=3 → chạy đúng mỗi 3 tick, không phụ thuộc trạng thái khác', () => {
+  let tick = 0;
+  const runs = [];
+  for (let i = 0; i < 8; i++) {
+    const d = ctx.camShouldFullDecode(tick, 3);
+    tick = d.tickCount;
+    if (d.run) runs.push(i);
+  }
+  assert.deepEqual(runs, [2, 5]);    // 0,1 đếm; 2 run; 3,4 đếm; 5 run; 6,7 đếm tiếp
+  assert.equal(tick, 2);             // đang đếm đến tick 3 (chưa run) — nhịp tiếp tục sau
 });
 
-test('camShouldAutoSnap: tôn trọng cooldown (không snap liên tục)', () => {
-  // vừa snap xong (lastAutoSnap = now) → chưa qua 1800ms
-  const r = ctx.camShouldAutoSnap(2, 1, 2000, 1900, 0);
-  assert.equal(r.snap, false);
-  assert.equal(r.stableCount, 2); // vẫn đếm ổn định, chỉ chờ cooldown
-});
-
-test('camShouldAutoSnap: fail nhiều → cooldown tăng (tránh snap liên tục khi cảnh tĩnh)', () => {
-  // fail=3 → cooldown 1800 + 3000 = 4800ms
-  const r = ctx.camShouldAutoSnap(2, 1, 5000, 1000, 3);
-  assert.equal(r.snap, false); // 5000-1000=4000 < 4800
-  const r2 = ctx.camShouldAutoSnap(2, 1, 7000, 1000, 3);
-  assert.equal(r2.snap, true); // 7000-1000=6000 > 4800
-});
-
-// ---- camMotionScore: đo độ rung trên frame downscale 20x15 ----
-test('camMotionScore: frame y hệt nhau → điểm thấp (ổn định)', () => {
-  // Tạo sandbox riêng để camTinyCanvas/camPrevFrame sạch
-  const c2 = makeSandbox();
-  vm.createContext(c2);
-  vm.runInContext(script, c2);
-  let framePixels = new Uint8ClampedArray(20 * 15 * 4); // toàn 0
-  c2.document.createElement = function () {
-    return {
-      width: 0, height: 0,
-      getContext: function () {
-        return {
-          drawImage: function () {},
-          // getImageData thật trả MẢNG MỚI mỗi lần gọi → mock phải copy, không trả cùng tham chiếu
-          getImageData: function () { return { data: framePixels.slice() }; },
-        };
-      },
-    };
-  };
-  const canvas = {};
-  assert.equal(c2.camMotionScore(canvas, 800, 600), 0); // frame đầu: lưu mốc, trả 0
-  const score = c2.camMotionScore(canvas, 800, 600);     // y hệt → 0
-  assert.ok(score < 6, 'frame y hệt phải ổn định, score=' + score);
-});
-
-test('camMotionScore: sáng đổi nhẹ đều → vẫn ổn định; đổi mạnh → chuyển động', () => {
-  const c3 = makeSandbox();
-  vm.createContext(c3);
-  vm.runInContext(script, c3);
-  let px = new Uint8ClampedArray(20 * 15 * 4);
-  const fill = (v) => { for (let i = 0; i < px.length; i++) px[i] = v; };
-  fill(100);
-  c3.document.createElement = function () {
-    return { width: 0, height: 0, getContext: function () { return { drawImage: function () {}, getImageData: function () { return { data: px.slice() }; } }; } };
-  };
-  const canvas = {};
-  c3.camMotionScore(canvas, 800, 600);   // mốc: 100
-  fill(103);                             // lệch 3/255 → ổn định
-  assert.ok(c3.camMotionScore(canvas, 800, 600) < 6, 'lệch nhẹ phải ổn định');
-  fill(200);                             // lệch ~97/255 → chuyển động
-  assert.ok(c3.camMotionScore(canvas, 800, 600) >= 6, 'lệch mạnh phải phát hiện chuyển động');
+test('camShouldFullDecode: không đọc biến toàn cục — nhịp ổn định bất kể chạy nền', () => {
+  // Không có phụ thuộc camStableCount/motion/cooldown — xác nhận không còn motion gate
+  const r = ctx.camShouldFullDecode(1, 2);
+  assert.equal(r.run, true);
+  assert.equal(typeof ctx.camShouldAutoSnap, 'undefined', 'camShouldAutoSnap (motion gate cũ) phải bị xoá');
+  assert.equal(typeof ctx.camMotionScore, 'undefined', 'camMotionScore (motion gate cũ) phải bị xoá');
 });
