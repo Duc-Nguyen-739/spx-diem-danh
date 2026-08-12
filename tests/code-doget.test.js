@@ -80,7 +80,16 @@ const context = {
       },
     }),
   },
-  ContentService: { createTextOutput: () => ({ setMimeType: () => ({}) }), MimeType: {} },
+  ContentService: {
+    // capture text + mime — test nhánh ?app=1 (HTML top-level) và JSONP API
+    createTextOutput: (text) => {
+      const o = { text: text === undefined || text === null ? '' : String(text), mime: null };
+      o.setMimeType = (m) => { o.mime = m; return o; };
+      return o;
+    },
+    MimeType: { JSON: 'application/json', HTML: 'text/html', JAVASCRIPT: 'text/javascript' },
+  },
+  ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }) },
   SpreadsheetApp: {
     getActiveSpreadsheet: () => ({
       getSheetByName: (n) => (sheets[n] ? mockSheet(sheets[n].rows) : null),
@@ -104,7 +113,7 @@ context.globalThis = context;
 vm.createContext(context);
 
 // nạp theo thứ tự phụ thuộc (như GAS share global scope)
-for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'Database.gs', 'Code.gs']) {
+for (const f of ['Config.gs', 'CacheLayer.gs', 'ScanLogic.gs', 'Database.gs', 'JsonpApi.gs', 'Code.gs']) {
   try {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), context, { filename: f });
   } catch (e) {
@@ -167,4 +176,32 @@ test('doGet trả HTML tự chứa: css + js nhúng đầy đủ, không scriptl
 test('include() trả nội dung file .html (đuôi implicit)', () => {
   const css = fs.readFileSync(path.join(ROOT, 'css.html'), 'utf8');
   assert.strictEqual(context.include('css'), css, 'include(css) khác nội dung css.html');
+});
+
+test('doGet ?app=1 → ContentService HTML top-level: đủ nội dung + inject __RC_API_BASE__ trước </head>', () => {
+  const out = context.doGet({ parameter: { app: '1' } });
+  assert.ok(out.text, 'app=1 không trả content');
+  assert.ok(out.text.startsWith('<!DOCTYPE html>'), 'mất DOCTYPE');
+  assert.ok(out.text.includes('window.__RC_STANDALONE__ = true'), 'thiếu cờ standalone');
+  assert.ok(out.text.includes('window.__RC_API_BASE__='), 'thiếu inject base URL');
+  assert.ok(out.text.includes('"https://script.google.com/macros/s/TEST/exec"'), 'base URL sai');
+  assert.ok(out.text.indexOf('__RC_API_BASE__') < out.text.indexOf('</head>'), 'base URL phải nằm trong <head>');
+  const js = fs.readFileSync(path.join(ROOT, 'js.html'), 'utf8');
+  assert.ok(out.text.includes(js), 'JS thiếu/khác');
+  const camera = fs.readFileSync(path.join(ROOT, 'camera-scan.html'), 'utf8');
+  assert.ok(out.text.includes(camera), 'camera-scan thiếu/khác');
+  assert.ok(out.text.includes('function openCameraScan'), 'thiếu openCameraScan');
+});
+
+test('doGet JSONP (?action&args&cb) → cb(JSON); — plumbing end-to-end', () => {
+  // stub hàm nghiệp vụ ngay trong vm context — verify param parsing + whitelist + thứ tự args
+  context.scanStaffApi = function (a, b, c) { return { got: [a, b, c] }; };
+  const out = context.doGet({ parameter: { action: 'scanStaffApi', args: '["R1","OPS1","vao"]', cb: 'cbX' } });
+  assert.equal(out.mime, 'text/javascript');
+  assert.equal(out.text, 'cbX({"ok":true,"result":{"got":["R1","OPS1","vao"]}});');
+});
+
+test('doGet JSONP: cb nguy hiểm → fallback "callback" (chống XSS phản chiếu)', () => {
+  const out = context.doGet({ parameter: { action: 'nosuch', cb: 'alert(1)' } });
+  assert.equal(out.text, 'callback({"ok":false,"error":"Unknown action: nosuch"});');
 });

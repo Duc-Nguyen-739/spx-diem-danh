@@ -1,4 +1,68 @@
 <script>
+  // ===== STANDALONE (?app=1): google.script.run → JSONP (2026-08-12) =====
+  // GAS serve ?app=1 qua ContentService → trang TOP-LEVEL (KHÔNG iframe wrapper) →
+  // camera live hoạt động trên iOS (quét tự nhận mã vạch). Trang top-level KHÔNG có
+  // google.script.run (chỉ wrapper iframe mới inject) → shim dưới đây bắt chước ĐÚNG
+  // API google.script.run bằng JSONP tới chính deployment này. Kích hoạt CHỈ khi doGet
+  // inject cờ window.__RC_STANDALONE__ (cờ này bền hơn location.search — GAS redirect
+  // tới URL one-time có thể bỏ query ?app=1) VÀ google.script.run chưa có sẵn — iframe
+  // GAS / local mock / hosting tĩnh không có cờ → shim không chạy, mọi thứ như cũ.
+  // Server: Code.gs doGet ?action=..&args=..&cb=.. → JsonpApi.gs.
+  (function () {
+    if (!window.__RC_STANDALONE__) return;
+    if (window.google && window.google.script && window.google.script.run) return;
+    var base = window.__RC_API_BASE__ || '';
+    if (!base) return;
+    var seq = 0;
+    function jsonpCall(fnName, args, handlers) {
+      var cbName = '__rcJsonp' + (++seq) + '_' + Date.now();
+      var scriptId = '__rcScript_' + cbName;
+      window[cbName] = function (res) {
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        var el = document.getElementById(scriptId);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        if (res && res.ok === false) {
+          if (handlers.failure) handlers.failure({ message: res.error || 'Lỗi server' });
+        } else if (handlers.success) {
+          handlers.success(res && res.ok === true ? res.result : res);
+        }
+      };
+      var sep = base.indexOf('?') >= 0 ? '&' : '?';
+      var url = base + sep + 'action=' + encodeURIComponent(fnName)
+        + '&args=' + encodeURIComponent(JSON.stringify(args || []))
+        + '&cb=' + encodeURIComponent(cbName);
+      var s = document.createElement('script');
+      s.id = scriptId;
+      s.src = url;
+      s.onerror = function () {
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        var el = document.getElementById(scriptId);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        if (handlers.failure) handlers.failure({ message: 'Không kết nối được server' });
+      };
+      (document.head || document.documentElement).appendChild(s);
+    }
+    function makeRunner(state) {
+      state = state || { success: null, failure: null };
+      var runner = {
+        withSuccessHandler: function (f) { return makeRunner({ success: f, failure: state.failure }); },
+        withFailureHandler: function (f) { return makeRunner({ success: state.success, failure: f }); },
+        withUserObject: function () { return runner; }
+      };
+      return new Proxy(runner, {
+        get: function (target, prop) {
+          if (prop in target) return target[prop];
+          return function () {
+            jsonpCall(String(prop), Array.prototype.slice.call(arguments), state);
+          };
+        }
+      });
+    }
+    window.google = window.google || {};
+    window.google.script = window.google.script || {};
+    window.google.script.run = makeRunner();
+  })();
+
   // Mock local: khi mở file:// trực tiếp (không qua GAS), nạp mock-google.js.
   // Deploy GAS: google.script được wrapper GAS inject vào iframe → nhánh này không chạy.
   // TAB QUÉT (?scan=1): camera-scan.html (include TRƯỚC js.html) đã đặt

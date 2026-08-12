@@ -13,6 +13,13 @@
  *   completeTask(taskId)         → { ok, message }
  *   searchStaffApi(code)         → { ok, staff, tasks, taskCount } — NV + task đã điểm danh (header search)
  *   syncFromCsv()                → { ok, count, message } — gọi từ editor (Phase 0)
+ *
+ * HTTP GET (doGet) ngoài google.script.run:
+ *   ?debug=1 / ?debug=createTask   → QA, editor-only (gate isEditor_)
+ *   ?app=1                         → serve CÙNG app qua ContentService: trang TOP-LEVEL
+ *                                    (KHÔNG iframe wrapper GAS) → camera live hoạt động
+ *                                    trên iOS (quét tự nhận mã vạch) — xem JsonpApi.gs
+ *   ?action=..&args=..&cb=..       → JSONP API cho trang ?app=1 (whitelist — JsonpApi.gs)
  */
 
 /** WebApp: trả về index.html. */
@@ -64,6 +71,32 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify({ error: String(err) }))
         .setMimeType(ContentService.MimeType.JSON);
     }
+  }
+  // JSONP API cho trang STANDALONE (?app=1): google.script.run ngoài iframe GAS gọi
+  // về đây (xem JsonpApi.gs). PHẢI đặt TRƯỚC nhánh serve trang (app=1 không có action
+  // nên không va nhau — ?action=.. luôn là API, ?app=1 luôn là trang).
+  if (e && e.parameter && e.parameter.action) {
+    return handleJsonpRequest_(e);
+  }
+  // STANDALONE TOP-LEVEL (?app=1): serve CÙNG app nhưng qua ContentService thay vì
+  // HtmlService → GAS KHÔNG bọc iframe wrapper → trang top-level → getUserMedia hoạt
+  // động trên iOS → quét camera LIVE tự nhận mã vạch (đúng UX mong muốn, 2026-08-12).
+  // Trang top-level không có google.script.run → js.html tự cài shim JSONP (chỉ khi
+  // ?app=1) gọi về chính deployment này qua window.__RC_API_BASE__ (inject dưới đây).
+  if (e && e.parameter && e.parameter.app === '1') {
+    var html = HtmlService.createTemplateFromFile('index').evaluate().getContent();
+    var apiBase = '';
+    try { apiBase = ScriptApp.getService().getUrl(); } catch (err) { /* fallback '' → shim tắt */ }
+    // Inject cờ + base URL vào <head> — shim trong js.html đọc chúng. KHÔNG dựa vào
+    // location.search (GAS redirect tới URL one-time có thể bỏ query ?app=1) → cờ
+    // __RC_STANDALONE__ là nguồn sự thật cho chế độ standalone.
+    // Dùng </script> THẬT (output HTML qua ContentService — không qua sanitize, chuỗi
+    // inject chỉ là boolean + URL an toàn, không thể chứa </script>).
+    html = html.replace('</head>',
+      '<script>window.__RC_STANDALONE__ = true;window.__RC_API_BASE__='
+      + JSON.stringify(apiBase) + ';</script></head>');
+    return ContentService.createTextOutput(html)
+      .setMimeType(ContentService.MimeType.HTML);
   }
   // index.html chứa HTML thuần + scriptlet <?!= include('css') ?> / <?!= include('js') ?>.
   // createTemplateFromFile().evaluate() là cơ chế CHUẨN của GAS để nhúng file .html
