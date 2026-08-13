@@ -18,9 +18,9 @@
   var MOCK_DATA = {
     meta: {
       ok: true,
-      appTitle: 'Điểm danh kho [LOCAL MOCK]',
+      appTitle: 'Điểm Danh Kho - HN2 [LOCAL MOCK]',
       labels: {
-        APP_TITLE: 'Điểm danh kho',
+        APP_TITLE: 'Điểm Danh Kho - HN2',
         BTN_RECONCILE: '+ Đối chiếu danh sách',
         BTN_CREATE: '+ Tạo task',
         BTN_SCAN: 'Quét',
