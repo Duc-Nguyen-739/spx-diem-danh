@@ -135,7 +135,7 @@ const CACHE_KEYS = {
 // ===== Label UI (tiếng Việt) — CHỈ các message server trả về =====
 // Text giao diện khác đã hardcode trong index.html (client tự quản lý).
 const UI_LABELS = {
-  APP_TITLE: 'Điểm Danh Kho - HN2',
+  APP_TITLE: 'Điểm Danh HN2 SOC',
   ALREADY_SCANNED: 'Đã điểm danh',
   TASK_CLOSED: 'Task đã kết thúc',
   STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
@@ -148,5 +148,5 @@ const UI_LABELS = {
 
 // ===== Cấu hình WebApp =====
 const WEB_APP = {
-  PAGE_TITLE: 'Điểm Danh Kho - HN2',
+  PAGE_TITLE: 'Điểm Danh HN2 SOC',
 };
