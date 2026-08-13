@@ -169,5 +169,20 @@
   .scan-topbar-title .task-meta { font-size: 12px; line-height: 1.5; margin-bottom: 0; }
   #btnMealSwitch { order: 4; flex: 1 1 100%; justify-content: center; }
   #btnReopen { order: 5; flex: 1 1 100%; justify-content: center; }
+  /* ===== Modal tạo task — vừa màn hình điện thoại (2026-08-13) =====
+     Trước đây .create-dialog không có max-height → nội dung (Station/Date + 3 nhóm
+     chip + preview + ghi chú) cao hơn viewport, phần nút Huỷ / + Tạo task ở đáy
+     không nhìn thấy/cuộn tới được. Giờ: dialog giới hạn bằng chiều cao màn hình
+     (100dvh - lề 20px) + cuộn nội dung bên trong; hud-bar dính đỉnh, thanh hành
+     động dính đáy → nút luôn hiện, chỉ phần filter ở giữa cuộn. Áp cho cả 2 modal
+     (Điểm danh ca + Điểm danh Ra/Vào — cùng class create-dialog). */
+  .create-dialog {
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .create-dialog .hud-bar { position: sticky; top: 0; z-index: 3; }
+  .create-dialog .create-actions { position: sticky; bottom: 0; z-index: 3; }
 }
 </style>
