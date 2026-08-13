@@ -24,6 +24,34 @@
      Nút ☰ (dash-reopen) nổi lên, đặt cao hơn thanh phân trang để không đè */
   .dash-layout.mini .dash-reopen { bottom: 70px; }
   .dash-main { gap: 12px; }
+  /* Dashboard = DRAWER xổ từ TRÁI trên mobile (yêu cầu 2026-08-13): sidebar không
+     còn chèn ngang phía trên danh sách (flex-direction:column cũ của css.html) —
+     thành panel cố định bên trái, trượt vào từ mép trái, đè lên nội dung + backdrop
+     mờ phía sau (giống logic sidebar trái trên PC). ☰ mở, bấm ra ngoài panel đóng. */
+  .dash-side {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: min(320px, 85vw); max-width: min(320px, 85vw); flex-basis: auto;
+    z-index: 300; margin: 0;
+    border-left: 1px solid rgba(255,95,46,.3); border-radius: 0 16px 16px 0;
+    transform: translateX(-100%);  /* ẩn: trượt hẳn ra ngoài mép trái */
+    transition: transform .3s ease;
+    overflow-y: auto;
+  }
+  /* Ghi đè rule collapse .dash-layout.mini .dash-side của css.html (width:0/opacity:0):
+     drawer ẩn bằng transform chứ không thu nhỏ — mở/đóng đều trượt ngang mượt. */
+  .dash-layout.mini .dash-side {
+    flex: 0 0 auto; width: min(320px, 85vw); max-width: min(320px, 85vw);
+    padding: 16px; opacity: 1; border-width: 1px; overflow: hidden;
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+  .dash-layout:not(.mini) .dash-side { transform: translateX(0); }
+  /* Backdrop mờ phía sau drawer — bấm vào là đóng (js.html xử lý click) */
+  .dash-layout:not(.mini)::after {
+    content: ''; position: fixed; inset: 0; z-index: 290;
+    background: rgba(0,0,0,.55);
+  }
+  .dash-kpis { grid-template-columns: 1fr 1fr; }
   /* Danh sách task KÉO DÀI sát thanh phân trang trên mobile (yêu cầu 2026-08-13):
      dash-layout có chiều cao viewport (giống desktop) → task-list-card flex:1 + table-wrap
      flex:1 (rule gốc css.html) trải đầy phần còn lại, bảng cuộn bên trong. Bỏ override

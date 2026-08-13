@@ -162,11 +162,31 @@
       return;
     }
     loadMetaAndOptions();
-    // Mobile: ẩn dashboard mặc định (bấm ☰ để mở lại — cơ chế .dash-layout.mini có sẵn).
+    // Mobile: ẩn dashboard mặc định (bấm ☰ để mở lại — drawer xổ từ trái, 2026-08-13).
     // Giữ nguyên mọi logic lọc/KPI — chỉ ẩn sidebar khỏi màn hình chính.
     if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
       var layout = document.querySelector('.dash-layout');
       if (layout && !layout.classList.contains('mini')) layout.classList.add('mini');
+      // Drawer: bấm ra ngoài panel (backdrop/main) → tự đóng, không cần bấm « hay ☰.
+      // Loại trừ .dash-reopen vì bấm ☰ để MỞ — nếu không sẽ đóng ngay sau khi mở.
+      if (layout) {
+        layout.addEventListener('click', function (e) {
+          if (layout.classList.contains('mini')) return;
+          var t = e.target;
+          if (t && t.closest && !t.closest('.dash-side, .dash-reopen')) layout.classList.add('mini');
+        });
+      }
+    }
+    // Co màn hình xuống mobile bất kỳ lúc nào → tự ẩn dashboard (tránh drawer tự
+    // bung ra che cả màn hình khi thu nhỏ cửa sổ từ desktop).
+    var mqDash = window.matchMedia ? window.matchMedia('(max-width: 900px)') : null;
+    if (mqDash) {
+      var syncDashMini = function (m) {
+        var layout = document.querySelector('.dash-layout');
+        if (layout && m.matches && !layout.classList.contains('mini')) layout.classList.add('mini');
+      };
+      if (mqDash.addEventListener) mqDash.addEventListener('change', syncDashMini);
+      else if (mqDash.addListener) mqDash.addListener(syncDashMini);
     }
     document.getElementById('scanInput').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
