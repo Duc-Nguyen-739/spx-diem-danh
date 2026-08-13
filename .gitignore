@@ -1,6 +1,7 @@
 # Credentials — TUYỆT ĐỐI không commit
 .clasprc.json
 *.clasprc.json
+.env
 
 # Node
 node_modules/
