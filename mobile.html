@@ -154,5 +154,20 @@
   .scan-row-card .src-meta i {
     font-style: normal; font-weight: 700; color: var(--text); margin-right: 4px;
   }
+  /* ===== Topbar scan — xếp dọc gọn trên điện thoại (2026-08-13) =====
+     Trước đây: nút back + tiêu đề + nút (Chuyển Quét/Hoàn Thành) nằm chung 1 hàng
+     flex-wrap → trên màn hình hẹp wrap loạn, meta + ghi chú lẫn giữa các nút. Giờ
+     dùng order + flex-basis trên CÙNG markup (không đổi HTML):
+       Hàng 1: ← Danh sách task (trái) ...... Hoàn Thành (phải)
+       Hàng 2: Mã task đậm + meta mờ + ghi chú — căn trái, full width
+       Hàng 3: nút Chuyển Quét / Mở Lại — full width (dễ chạm) */
+  .scan-topbar { gap: 8px 10px; padding: 10px 12px; }
+  .scan-topbar > .btn-ghost:first-child { order: 1; }
+  #btnFinish { order: 2; margin-left: auto; }
+  .scan-topbar-title { order: 3; flex: 1 1 100%; text-align: left; }
+  .scan-topbar-title .task-title { font-size: 16px; margin-bottom: 2px; }
+  .scan-topbar-title .task-meta { font-size: 12px; line-height: 1.5; margin-bottom: 0; }
+  #btnMealSwitch { order: 4; flex: 1 1 100%; justify-content: center; }
+  #btnReopen { order: 5; flex: 1 1 100%; justify-content: center; }
 }
 </style>

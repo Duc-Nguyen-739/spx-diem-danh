@@ -1183,7 +1183,6 @@
     metaEl.innerHTML =
       esc(TT_LABEL[data.task.taskType] || 'Task') +
       (isMealMove ? '' : ' · ' + esc(data.task.station) + ' · ' + esc(data.task.slotCode) + ' · ' + esc(data.task.team)) +
-      (isMealMove && data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '') +
       (data.task.status === TASK_STATUS_C.DONE ? ' · <b>Đã kết thúc</b>' : ' · Đang mở') +
       // Hiện email creator cho mọi loại task (giống meal-move)
       (data.task.createdBy ? ' · ' + esc(creatorName(data.task.createdBy)) : '');
