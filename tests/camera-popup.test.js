@@ -133,3 +133,37 @@ test('popup gửi rcScanResult → onCameraDecoded (điền mã vào scanInput)'
   sb.handlers.message({ data: { type: 'rcScanResult', code: 'Ops123' } });
   assert.equal(sb.els.scanInput.value, 'Ops123', 'mã phải được điền vào ô quét');
 });
+
+test('bấm ✕ Đóng trong popup (message closed) → mở lại ghi nội dung, không tab trắng', () => {
+  const written = [];
+  const sb = makeSandbox({ popupFactory: () => fakePopup(written) });
+  // Lần 1: mở popup quét — ghi nội dung
+  sb.ctx.openScanPopup();
+  assert.equal(written.length, 1, 'popup lần 1 phải có nội dung');
+  // User bấm "✕ Đóng" trong popup → popup gửi {type:'rcScanPopup', state:'closed'} rồi tự đóng
+  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'closed' } });
+  assert.equal(sb.ctx.camPopupBusy, false, 'cờ busy phải được reset khi popup đóng');
+  // Lần 2: mở lại → phải ghi nội dung popup mới (nếu chỉ focus → TAB TRẮNG, bug 2026-08-13)
+  sb.ctx.openScanPopup();
+  assert.equal(written.length, 2, 'popup lần 2 phải được viết nội dung');
+});
+
+test('popup bị đóng bằng tab trình duyệt (không có message) → mở lại vẫn ghi nội dung', () => {
+  const written = [];
+  const popups = [];
+  const sb = makeSandbox({
+    popupFactory: () => {
+      const p = fakePopup(written);
+      popups.push(p);
+      return p;
+    },
+  });
+  sb.ctx.openScanPopup();
+  assert.equal(popups.length, 1, 'popup lần 1 được mở');
+  // User đóng tab popup bằng UI trình duyệt → KHÔNG có message nào về trang cha
+  popups[0].closed = true;
+  assert.equal(sb.ctx.camPopupBusy, true, 'busy vẫn true vì không có message');
+  sb.ctx.openScanPopup();
+  assert.equal(popups.length, 2, 'phải mở window mới (window cũ cùng tên đã đóng)');
+  assert.equal(written.length, 2, 'window mới phải được ghi nội dung — không tab trắng');
+});

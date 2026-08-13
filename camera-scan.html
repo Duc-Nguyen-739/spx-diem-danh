@@ -90,6 +90,8 @@
   // mở được (window.open null) hoặc camera popup bị chặn → fallback camera native.
   var CAM_POPUP_NAME = 'rcCamScanPopup';
   var camPopupBusy = false;
+  var camPopupRef = null;  // reference popup đang mở — check .closed để biết popup đã đóng
+                             // (đóng bằng ✕ Đóng / đóng tab đều không gửi message về parent)
 
   function buildScanPopupHtml() {
     return [
@@ -278,7 +280,12 @@
       '    video.srcObject = null;',
       '  }',
       '  startBtn.addEventListener("click", function () { start(true); });',
-      '  cancelBtn.addEventListener("click", function () { stop(); try { window.close(); } catch (e) {} });',
+      '  cancelBtn.addEventListener("click", function () {',
+      '    // Báo về trang cha để reset cờ busy — nếu không, lần bấm "Quét Camera" sau mở',
+      '    // window mới mà bị kẹt ở nhánh focus → TAB TRẮNG (bug 2026-08-13).',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "closed" }, "*"); } catch (e) {}',
+      '    stop(); try { window.close(); } catch (e) {}',
+      '  });',
       '  window.addEventListener("unload", stop);',
       '  setTimeout(function () { start(false); }, 120);',
       '})();',
@@ -297,12 +304,16 @@
       pickCameraImage();
       return;
     }
-    if (camPopupBusy && !popup.closed) {
+    if (camPopupBusy && camPopupRef && !camPopupRef.closed) {
       // Popup quét đang mở (chưa nhận mã / chưa đóng) → đưa về popup đó
-      try { popup.focus(); } catch (e) {}
+      try { camPopupRef.focus(); } catch (e) {}
       return;
     }
+    // Popup trước đã đóng (bấm ✕ Đóng / đóng tab) hoặc chưa từng mở → mở popup mới.
+    // KHÔNG được chỉ focus rồi return: window.open('', tên) tạo window MỚI khi window
+    // cũ cùng tên đã đóng — nếu bỏ qua không viết nội dung → TAB TRẮNG (bug 2026-08-13).
     camPopupBusy = true;
+    camPopupRef = popup;
     var html = buildScanPopupHtml();
     try {
       popup.document.open();
@@ -311,6 +322,7 @@
       camStatus('📷 Quét mã trong cửa sổ vừa mở — đưa mã vào khung là tự nhận', false);
     } catch (e) {
       camPopupBusy = false;
+      camPopupRef = null;
       pickCameraImage();
     }
   }
@@ -356,8 +368,15 @@
       if (ev.data.type === 'rcScanPopup' && ev.data.state === 'failed') {
         // Popup không mở được camera (bị chặn/không hỗ trợ) → fallback camera native
         camPopupBusy = false;
+        camPopupRef = null;
         camStatus('📷 Camera popup bị chặn — dùng camera chụp ảnh thay thế', true);
         setTimeout(pickCameraImage, 250);
+        return;
+      }
+      if (ev.data.type === 'rcScanPopup' && ev.data.state === 'closed') {
+        // User bấm "✕ Đóng" trong popup → popup tự đóng → cho mở popup mới ở lần sau
+        camPopupBusy = false;
+        camPopupRef = null;
       }
     });
   }
@@ -768,6 +787,7 @@
     camSnapping = false;
     camDecoding = false;
     camPopupBusy = false; // popup đã gửi kết quả → mở popup mới được ở lần sau
+    camPopupRef = null;
     camFullChainTick = 0; // nhận được mã → reset đếm tick (lần mở sau quét lại từ đầu)
     var clean = String(code || '').trim();
     if (camScanMode) {
