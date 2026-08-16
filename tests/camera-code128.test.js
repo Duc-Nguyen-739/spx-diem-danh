@@ -170,3 +170,61 @@ test('camQuaggaResultAllowed: rỗng / không có code → false', () => {
   assert.equal(ctx.camQuaggaResultAllowed({}), false);
   assert.equal(ctx.camQuaggaResultAllowed({ code: '', format: 'code_128' }), false);
 });
+
+// ---- camFastDecode: FAST PATH 1 config Quagga (2026-08-16 tối ưu tốc độ) ----
+// Mỗi tick chạy 1 config mạnh nhất (full-res + x-large) — CHỈ nhận mã khớp NV đã biết
+// (STAFF_INFO = nguồn chuẩn) → done NGAY, không chờ 3 config. NV lạ → null (full chain lo).
+function fastEnv(quaggaImpl, staffInfo, fn) {
+  const savedQ = ctx.window.Quagga;
+  const savedS = ctx.STAFF_INFO;
+  ctx.window.Quagga = quaggaImpl;
+  ctx.STAFF_INFO = staffInfo;
+  try { fn(); } finally { ctx.window.Quagga = savedQ; ctx.STAFF_INFO = savedS; }
+}
+
+function fastFrame() {
+  return { canvas: { toDataURL() { return 'data:image/jpeg;base64,x'; } }, w: 1280, h: 960, data: {} };
+}
+
+test('camFastDecode: đọc đúng mã NV đã biết → trả mã (done ngay tick đầu)', () => {
+  const cfg = [];
+  fastEnv({ decodeSingle(c, cb) { cfg.push(c); cb({ codeResult: { code: 'Ops129481', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, 'Ops129481');
+    assert.equal(cfg.length, 1, 'chỉ chạy 1 config');
+    assert.equal(cfg[0].locator.patchSize, 'x-large', 'config mạnh nhất (full-res)');
+  });
+});
+
+test('camFastDecode: thừa checksum digit → normalize về mã NV đã biết → vẫn nhận', () => {
+  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: 'Ops1294814', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, 'Ops129481');
+  });
+});
+
+test('camFastDecode: misread không khớp NV nào → null (không nhận sai, để full chain lo)', () => {
+  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: 'Ops129480', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, null);
+  });
+});
+
+test('camFastDecode: reader số thuần (EAN) → bị lọc format → null', () => {
+  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: '123456789012', format: 'ean_13' } }); } }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, null);
+  });
+});
+
+test('camFastDecode: không có Quagga → null (fail an toàn, không crash)', () => {
+  fastEnv(undefined, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, null);
+  });
+});

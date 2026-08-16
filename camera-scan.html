@@ -165,7 +165,7 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null, fast: o.camFastDecode || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
@@ -274,11 +274,19 @@
       '    tick++;',
       '    if (tick % 2 === 0) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
       '    if (busy) return;',
-      '    if (!findMode && tick % 2 !== 0) return;',
-      '    busy = true;',
-      '    var f = frameToImageData(1280);',
-      '    if (!f) { busy = false; return; }',
-      '    decodeChain(f, function () { busy = false; });',
+      '    if (findMode || tick % 2 === 0) {',
+      '      busy = true;',
+      '      var f = frameToImageData(1280);',
+      '      if (!f) { busy = false; return; }',
+      '      decodeChain(f, function () { busy = false; });',
+      '      return;',
+      '    }',
+      '    // FAST PATH (2026-08-16 tối ưu): 1 config Quagga qua window.opener — chỉ nhận',
+      '    // mã khớp NV đã biết (opener camFastDecode) → done nhanh hơn, không chờ 3 config.',
+      '    if (LIBS.fast) {',
+      '      var f2 = frameToImageData(1280);',
+      '      if (f2) LIBS.fast(f2, function (code) { if (code) sendResult(code); });',
+      '    }',
       '  }',
       '  function start(force) {',
       '    if (stream) return;',
@@ -495,10 +503,11 @@
       camRaf = requestAnimationFrame(loop);
       return;
     }
-    // 2) Không có BarcodeDetector (iOS Safari…) → vẽ frame → jsQR (bắt QR nhanh) +
-    //    AUTO-DECODE: mỗi 2 tick → TỰ ĐỘNG chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px
-    //    + jsQR + 3 config Quagga — đường đang chạy tốt). Đưa mã vào khung là tự nhận,
-    //    không cần bấm gì (không dùng motion gate — bug 2026-08-12, xem ở trên).
+    // 2) Không có BarcodeDetector (iOS Safari…) → TỐI ƯU 2026-08-16: 1 canvas 1280px dùng
+    //    chung cho cả fast path lẫn full chain (không chụp 2 lần). FAST PATH mỗi tick:
+    //    jsQR + 1 config Quagga mạnh nhất — CHỈ nhận khi khớp NV đã biết (STAFF_INFO =
+    //    nguồn chuẩn) → done NGAY, không chờ 3 config. Full chain mỗi 2 tick (majority)
+    //    lo NV lạ (Dư). Đưa mã vào khung là tự nhận (không dùng motion gate — bug 2026-08-12).
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
       var video = document.getElementById('camVideo');
@@ -506,18 +515,26 @@
       var now = Date.now();
       if (now - camLastFrame < 600) return;
       camLastFrame = now;
-      var frame = camFrameToImageData(video, 800);
+      var frame = camFrameToImageData(video, 1280);
       if (!frame) return;
-      var imageData = frame.data;
-      // Tìm Mã bật → full-chain decode MỖI tick (interval=1) — quét nhanh hơn
       var decide = camShouldFullDecode(camFullChainTick, camFindMode ? 1 : CAM_FULL_CHAIN_INTERVAL);
       camFullChainTick = decide.tickCount;
       if (decide.run) {
-        camAutoDecode(); // 1280px + chain đầy đủ (như nút Chụp) — fail im lặng, loop tiếp
+        camAutoDecode(frame); // full chain (jsQR + 3 config + majority) — nhận cả NV lạ
         return;
       }
       camDecoding = true;
-      decodeCameraImageData(imageData.data, imageData.w, imageData.h, imageData.canvas, true, false, null);
+      // jsQR trước (QR code — rẻ); rồi fast path Quagga 1 config
+      if (window.jsQR) {
+        try {
+          var qr = window.jsQR(frame.data.data, frame.w, frame.h);
+          if (qr && qr.data) { camDecoding = false; onCameraDecoded(qr.data); return; }
+        } catch (err) { /* tiếp tục fast path */ }
+      }
+      camFastDecode(frame, function (code) {
+        camDecoding = false;
+        if (code) onCameraDecoded(code);
+      });
     }, 300);
   }
 
@@ -627,18 +644,51 @@
     return { run: false, tickCount: tickCount + 1 };
   }
 
+  // FAST PATH (2026-08-16 tối ưu): 1 config Quagga mạnh nhất (full-res + x-large), format
+  // đã lọc + normalize checksum — CHỈ nhận khi khớp NV đã biết (STAFF_INFO = nguồn chuẩn,
+  // mã quét là mã NV → misread không khớp sẽ bị loại). Khớp → done NGAY tick đầu, không
+  // chờ 3 config. Không khớp → cb(null), full chain (majority) lo NV lạ (Dư). onCode(code|null).
+  var CAM_FAST_QUAGGA_CONFIG = { patchSize: 'x-large', halfSample: false };
+
+  function camFastDecode(frame, onCode) {
+    if (!window.Quagga) { onCode(null); return; }
+    try {
+      var src = frame.canvas.toDataURL('image/jpeg', 0.92);
+      window.Quagga.decodeSingle({
+        src: src,
+        numOfWorkers: 0,
+        inputStream: { size: 1280 },
+        locator: CAM_FAST_QUAGGA_CONFIG,
+        decoder: { readers: CAM_QUAGGA_READERS }
+      }, function (result) {
+        var code = result && result.codeResult && result.codeResult.code;
+        var format = result && result.codeResult && result.codeResult.format;
+        var clean = null;
+        if (code && camQuaggaResultAllowed({ code: String(code).trim(), format: format })) {
+          clean = normalizeQuaggaCode128(String(code).trim(), camKnownStaffCode);
+        }
+        var known = clean && camKnownStaffCode(clean);
+        onCode(known ? clean : null);
+      });
+    } catch (e) { onCode(null); }
+  }
+
   // Chụp frame 1280px + decode chain đầy đủ (jsQR + 3 config Quagga) — y hệt nút
   // "📸 Chụp" nhưng TỰ ĐỘNG theo nhịp; fail im lặng để loop live tiếp tục.
-  function camAutoDecode() {
+  // optionalFrame: truyền frame đã chụp sẵn ở tick (tối ưu 2026-08-16 — không chụp 2 lần).
+  function camAutoDecode(optionalFrame) {
     if (camSnapping || camDecoding) return;
     camSnapping = true;
     camDecoding = true;
     var statusEl = document.getElementById('camStatusLive');
     if (statusEl) statusEl.textContent = '📷 Đang nhận diện mã…';
-    var video = document.getElementById('camVideo');
-    if (!video || !video.videoWidth) { camSnapping = false; camDecoding = false; return; }
-    var frame = camFrameToImageData(video, 1280);
-    if (!frame) { camSnapping = false; camDecoding = false; return; }
+    var frame = optionalFrame;
+    if (!frame) {
+      var video = document.getElementById('camVideo');
+      if (!video || !video.videoWidth) { camSnapping = false; camDecoding = false; return; }
+      frame = camFrameToImageData(video, 1280);
+      if (!frame) { camSnapping = false; camDecoding = false; return; }
+    }
     decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, true, true, function () {
       camSnapping = false;
       var st = document.getElementById('camStatusLive');
@@ -968,7 +1018,7 @@
   var OCR_WORKER_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
   var OCR_CORE_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5';
   var OCR_LANG_PATH = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0';
-  var CAM_OCR_INTERVAL_MS = 2500;   // nhịp quét OCR song song (không chặn decode barcode)
+  var CAM_OCR_INTERVAL_MS = 2000;   // nhịp quét OCR song song (không chặn decode barcode)
   var CAM_OCR_MIN_CONFIDENCE = 70;  // NV lạ cần confidence >= mức này; NV khớp STAFF_INFO nhận luôn
   var camOcrEnabled = false;   // đã load xong script Tesseract
   var camOcrLoading = false;   // đang load script (chống load lặp)
@@ -1136,6 +1186,36 @@
     });
   }
 
+  // Cắt ĐÚNG vùng khung dẫn hướng (.camera-frame — inset 9% ngang, 12% dọc) + xám hóa
+  // → OCR ít pixel hơn + ít nhiễu nền → nhận diện chữ Ops… NHANH hơn (2026-08-16 tối ưu).
+  function camOcrPrepareFrame(video) {
+    try {
+      var vw = video.videoWidth || 0;
+      var vh = video.videoHeight || 0;
+      if (!vw || !vh) return null;
+      var x = Math.round(vw * 0.09), y = Math.round(vh * 0.12);
+      var w = Math.max(1, Math.round(vw * 0.82)), h = Math.max(1, Math.round(vh * 0.76));
+      var scale = Math.min(1, 800 / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(video, x, y, w, h, 0, 0, cw, ch);
+      // xám hóa nhẹ — OCR nhanh hơn trên ảnh xám
+      try {
+        var img = ctx.getImageData(0, 0, cw, ch);
+        var d = img.data;
+        for (var i = 0; i < d.length; i += 4) {
+          var g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+          d[i] = g; d[i + 1] = g; d[i + 2] = g;
+        }
+        ctx.putImageData(img, 0, 0);
+      } catch (e2) { /* không xám được → giữ màu */ }
+      return canvas;
+    } catch (e) { return null; }
+  }
+
   function stopOcrLoop() {
     if (camOcrTimer) { clearInterval(camOcrTimer); camOcrTimer = null; }
   }
@@ -1144,9 +1224,9 @@
     if (!camStream || camOcrBusy) return;
     var video = document.getElementById('camVideo');
     if (!video || video.readyState < 2 || !video.videoWidth) return;
-    var frame = camFrameToImageData(video, 800);
-    if (!frame) return;
-    camOcrFrame(frame.canvas, function (code) {
+    var canvas = camOcrPrepareFrame(video);
+    if (!canvas) return;
+    camOcrFrame(canvas, function (code) {
       if (code && camStream) onCameraDecoded(code); // camera còn mở mới nhận (đã đóng → bỏ qua)
     });
   }
