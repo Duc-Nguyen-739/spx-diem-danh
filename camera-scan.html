@@ -146,7 +146,7 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
@@ -229,7 +229,9 @@
       '      decoder: { readers: LIBS.readers }',
       '    }, function (result) {',
       '      var code = result && result.codeResult && result.codeResult.code;',
-      '      if (code) results.push(String(code).trim());',
+      '      var format = result && result.codeResult && result.codeResult.format;',
+      '      // Cùng lọc format như trang app (bỏ EAN/UPC/i2of5 numeric-only — bug 2026-08-16)',
+      '      if (code && (!LIBS.allow || LIBS.allow({ code: String(code).trim(), format: format }))) results.push(String(code).trim());',
       '      runQuagga(src, configs, idx + 1, results, onDone);',
       '    });',
       '  }',
@@ -823,6 +825,23 @@
   }
   // ===== CODE128 NORMALIZE + ĐỒNG THUẬN — END =====
 
+  // ===== LỌC KẾT QUẢ QUAGGA THEO FORMAT (2026-08-16, tiếp nối fix độ chính xác) =====
+  // Mã NV dạng 'Ops…' có CHỮ → reader SỐ THUẦN (EAN/UPC/i2of5) KHÔNG BAO GIỜ decode đúng
+  // mã NV. Nhưng chúng vẫn chạy chung (CAM_QUAGGA_READERS) và misread của chúng DETERMINISTIC
+  // (cùng ảnh + cùng reader → cùng chuỗi số trên MỌI config) → lọt qua cổng đồng thuận ≥2
+  // config → vẫn submit mã SAI (bug 2026-08-16 — camera nhận được mã nhưng sai, còn sót sau
+  // cổng majority). Loại kết quả numeric-only ngay tại nguồn.
+  var CAM_QUAGGA_NUMERIC_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'i2of5', '2of5'];
+
+  // PURE — test được trên Node (tests/camera-code128.test.js). r = { code, format }.
+  // Không có format (reader lạ/thiếu dữ liệu) → cho qua, không chặn nhầm.
+  function camQuaggaResultAllowed(r) {
+    if (!r || !r.code) return false;
+    var fmt = String(r.format || '').toLowerCase();
+    if (!fmt) return true;
+    return CAM_QUAGGA_NUMERIC_FORMATS.indexOf(fmt) === -1;
+  }
+
   var CAM_QUAGGA_CONFIGS = [
     // Full-res trước (Code128 dày đọc chuẩn hơn — halfSample gộp vạch dễ SAI), patch
     // medium thứ 2 (mã nhỏ), halfSample cuối (ảnh mờ/lớn). Thứ tự chỉ ảnh hưởng tốc độ
@@ -849,7 +868,12 @@
       decoder: { readers: CAM_QUAGGA_READERS }
     }, function (result) {
       var code = result && result.codeResult && result.codeResult.code;
-      if (code) results.push(String(code).trim());
+      var format = result && result.codeResult && result.codeResult.format;
+      // Chỉ nhận format có thể chứa chữ (code_128/code_39/code_93/codabar…) — bỏ
+      // EAN/UPC/i2of5 numeric-only (misread deterministic lọt cổng majority, bug 2026-08-16).
+      if (code && camQuaggaResultAllowed({ code: String(code).trim(), format: format })) {
+        results.push(String(code).trim());
+      }
       runQuaggaConfigs(src, configs, idx + 1, results, onDone);
     });
   }

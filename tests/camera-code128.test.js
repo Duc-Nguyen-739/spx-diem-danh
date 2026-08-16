@@ -137,3 +137,36 @@ test('camPickQuaggaMajority: không cần biến toàn cục STAFF_INFO — isKn
   const res = ctx.camPickQuaggaMajority(['Ops129481', 'Ops129481'], function () { return false; }, 2);
   assert.equal(res, 'Ops129481');
 });
+
+// ---- camQuaggaResultAllowed: loại reader SỐ THUẦN ngay tại nguồn ----
+// Mã NV dạng 'Ops…' có CHỮ → EAN/UPC/i2of5 không bao giờ decode đúng; misread của chúng
+// DETERMINISTIC (cùng ảnh + cùng reader → cùng số trên mọi config) → vẫn lọt cổng majority
+// ≥2 config → submit mã SAI (bug 2026-08-16 còn sót sau cổng đồng thuận).
+test('camQuaggaResultAllowed: EAN/UPC/i2of5 (numeric-only) → false', () => {
+  ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'i2of5', '2of5'].forEach((f) => {
+    assert.equal(ctx.camQuaggaResultAllowed({ code: '123456789012', format: f }), false, f);
+  });
+});
+
+test('camQuaggaResultAllowed: format chứa được chữ (code_128/code_39/code_93/codabar) → true', () => {
+  ['code_128', 'code_39', 'code_93', 'codabar', 'code_39_vin', 'unknown'].forEach((f) => {
+    assert.equal(ctx.camQuaggaResultAllowed({ code: 'Ops129481', format: f }), true, f);
+  });
+});
+
+test('camQuaggaResultAllowed: format hoa/thường không phân biệt (EAN_13 → ean_13)', () => {
+  assert.equal(ctx.camQuaggaResultAllowed({ code: '123', format: 'EAN_13' }), false);
+  assert.equal(ctx.camQuaggaResultAllowed({ code: 'Ops129481', format: 'Code_128' }), true);
+});
+
+test('camQuaggaResultAllowed: không có format → cho qua (không chặn nhầm reader lạ)', () => {
+  assert.equal(ctx.camQuaggaResultAllowed({ code: 'Ops129481', format: '' }), true);
+  assert.equal(ctx.camQuaggaResultAllowed({ code: 'Ops129481', format: null }), true);
+  assert.equal(ctx.camQuaggaResultAllowed({ code: 'Ops129481' }), true);
+});
+
+test('camQuaggaResultAllowed: rỗng / không có code → false', () => {
+  assert.equal(ctx.camQuaggaResultAllowed(null), false);
+  assert.equal(ctx.camQuaggaResultAllowed({}), false);
+  assert.equal(ctx.camQuaggaResultAllowed({ code: '', format: 'code_128' }), false);
+});
