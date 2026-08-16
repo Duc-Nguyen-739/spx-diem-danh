@@ -267,3 +267,73 @@ test('camFastPickCode: không phải dạng Ops + 3..9 số → null (không nh�
     assert.equal(ctx.camFastPickCode(null), null);
   });
 });
+
+// ---- runQuaggaConfigs: EARLY-EXIT khi đủ ≥2 config đồng thuận (2026-08-16 tối ưu) ----
+// Full chain trước đây LUÔN chạy đủ 3 config dù 2 config đầu đã đồng thuận → thẻ nét phải
+// chờ config thừa. Giờ sau mỗi config: nếu results.length ≥ 2 mà camPickQuaggaMajority(…, 2)
+// ra mã → dừng sớm, onDone(results) ngay — majority vẫn giữ nguyên (caller gate ≥2).
+function quaggaSeq(results) {
+  let calls = 0;
+  return {
+    impl: {
+      decodeSingle(opts, cb) {
+        calls++;
+        cb(results[Math.min(calls - 1, results.length - 1)]);
+      },
+    },
+    calls() { return calls; },
+  };
+}
+
+function withQuagga(q, fn) {
+  const savedQ = ctx.window.Quagga;
+  const savedS = ctx.STAFF_INFO;
+  ctx.window.Quagga = q.impl;
+  ctx.STAFF_INFO = { OPS129481: {} };
+  try { fn(); } finally { ctx.window.Quagga = savedQ; ctx.STAFF_INFO = savedS; }
+}
+
+test('runQuaggaConfigs: 2 config đầu đồng thuận → dừng sớm, KHÔNG chạy config thứ 3', () => {
+  const q = quaggaSeq([
+    { codeResult: { code: 'Ops129481', format: 'code_128' } },
+    { codeResult: { code: 'Ops129481', format: 'code_128' } },
+    { codeResult: { code: 'Ops129481', format: 'code_128' } },
+  ]);
+  withQuagga(q, () => {
+    let done = null;
+    ctx.runQuaggaConfigs('data:image/jpeg;base64,x', ctx.CAM_QUAGGA_CONFIGS, 0, [], (results) => { done = results; });
+    assert.ok(done, 'onDone phải được gọi (early-exit)');
+    assert.equal(q.calls(), 2, 'decodeSingle chỉ chạy 2 lần — bỏ config thứ 3');
+    assert.equal(done.length, 2);
+    assert.equal(done[0], 'Ops129481');
+  });
+});
+
+test('runQuaggaConfigs: 2 config khác nhau (chưa đồng thuận) → vẫn chạy tiếp config 3', () => {
+  const q = quaggaSeq([
+    { codeResult: { code: 'Ops111111', format: 'code_128' } },
+    { codeResult: { code: 'Ops222222', format: 'code_128' } },
+    { codeResult: { code: 'Ops129481', format: 'code_128' } },
+  ]);
+  withQuagga(q, () => {
+    let done = null;
+    ctx.runQuaggaConfigs('data:image/jpeg;base64,x', ctx.CAM_QUAGGA_CONFIGS, 0, [], (results) => { done = results; });
+    assert.equal(q.calls(), 3, 'không đồng thuận ở 2 config đầu → chạy đủ 3');
+    assert.equal(done.length, 3);
+  });
+});
+
+test('runQuaggaConfigs: kết quả EAN numeric bị lọc format → không tính vào early-exit', () => {
+  const q = quaggaSeq([
+    { codeResult: { code: '123456789012', format: 'ean_13' } },
+    { codeResult: { code: '123456789012', format: 'ean_13' } },
+    { codeResult: { code: 'Ops129481', format: 'code_128' } },
+  ]);
+  withQuagga(q, () => {
+    let done = null;
+    ctx.runQuaggaConfigs('data:image/jpeg;base64,x', ctx.CAM_QUAGGA_CONFIGS, 0, [], (results) => { done = results; });
+    assert.equal(q.calls(), 3, '2 kết quả numeric-only bị bỏ → phải chạy tới config có format hợp lệ');
+    assert.equal(done.length, 1);
+    assert.equal(done[0], 'Ops129481');
+  });
+});

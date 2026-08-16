@@ -251,6 +251,10 @@
       '      var format = result && result.codeResult && result.codeResult.format;',
       '      // Cùng lọc format như trang app (bỏ EAN/UPC/i2of5 numeric-only — bug 2026-08-16)',
       '      if (code && (!LIBS.allow || LIBS.allow({ code: String(code).trim(), format: format }))) results.push(String(code).trim());',
+      '      // TỐI ƯU 2026-08-16: đủ ≥2 config đồng thuận (sau normalize) → dừng sớm, không',
+      '      // chờ config còn lại — thẻ nét nhận nhanh hơn (majority vẫn giữ nguyên).',
+      '      var agree2 = LIBS.majority ? LIBS.majority(results, LIBS.known || function () { return false; }, 2) : null;',
+      '      if (agree2) { sendResult(agree2); return; }',
       '      runQuagga(src, configs, idx + 1, results, onDone);',
       '    });',
       '  }',
@@ -268,25 +272,32 @@
       '  // AUTO-DECODE theo nhịp cố định (không gate độ rung — bug 2026-08-12): chạy',
       '  // full chain 1280px + jsQR + 3 config Quagga mỗi 2 tick (~1.2s) — đưa mã vào',
       '  // khung là tự nhận, không cần bấm gì.',
+      '  // FAST PATH MỖI tick (2026-08-16 tối ưu): 1 config Quagga mạnh nhất qua window.opener',
+      '  // — nhận MỌI mã dạng "Ops…" (kể cả NV chưa có StaffData → Dư) → done NGAY, không chờ',
+      '  // full chain. Full chain (majority ≥2) chỉ chạy khi fast fail VÀ tới nhịp (Tìm Mã = mọi tick).',
+      '  function runFullChain(f) {',
+      '    if (!(findMode || tick % 2 === 0)) return;', // chưa tới nhịp full chain — bỏ qua
+      '    busy = true;',
+      '    decodeChain(f, function () { busy = false; });',
+      '  }',
       '  function loop() {',
       '    if (!stream || detected) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
       '    if (tick % 2 === 0) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
       '    if (busy) return;',
-      '    if (findMode || tick % 2 === 0) {',
+      '    var f = frameToImageData(1280);',
+      '    if (!f) return;',
+      '    if (LIBS.fast) {',
       '      busy = true;',
-      '      var f = frameToImageData(1280);',
-      '      if (!f) { busy = false; return; }',
-      '      decodeChain(f, function () { busy = false; });',
+      '      LIBS.fast(f, function (code) {',
+      '        busy = false;',
+      '        if (code) { sendResult(code); return; }',
+      '        runFullChain(f);',
+      '      });',
       '      return;',
       '    }',
-      '    // FAST PATH (2026-08-16 tối ưu): 1 config Quagga qua window.opener — chỉ nhận',
-      '    // mã khớp NV đã biết (opener camFastDecode) → done nhanh hơn, không chờ 3 config.',
-      '    if (LIBS.fast) {',
-      '      var f2 = frameToImageData(1280);',
-      '      if (f2) LIBS.fast(f2, function (code) { if (code) sendResult(code); });',
-      '    }',
+      '    runFullChain(f);',
       '  }',
       '  function start(force) {',
       '    if (stream) return;',
@@ -307,7 +318,13 @@
       '        video.srcObject = s;',
       '        video.setAttribute("muted", "");',
       '        video.setAttribute("playsinline", "");',
-      '        var p = video.play();',
+      '        // Lấy nét liên tục MẶC ĐỊNH (2026-08-16): thẻ nét lấy nét nhanh hơn ngay từ',
+      '        // đầu, không cần bấm 🔍 Tìm Mã. iOS Safari không expose focus control → no-op.',
+      '        try {',
+      '          var track0 = s.getVideoTracks && s.getVideoTracks()[0];',
+      '          if (track0 && track0.applyConstraints) track0.applyConstraints({ advanced: [{ focusMode: "continuous" }] });',
+      '        } catch (e2) {}',
+      '        var p = video.play();', 
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
@@ -458,6 +475,14 @@
         video.playsInline = true;
         video.setAttribute('muted', '');
         video.setAttribute('playsinline', '');
+        // Lấy nét liên tục MẶC ĐỊNH (2026-08-16): thẻ nét lấy nét nhanh hơn ngay từ đầu,
+        // không cần bấm 🔍 Tìm Mã. iOS Safari không expose focus control → no-op, bỏ qua im lặng.
+        try {
+          var camTrack = stream.getVideoTracks && stream.getVideoTracks()[0];
+          if (camTrack && camTrack.applyConstraints) {
+            camTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch (e) { /* không hỗ trợ focus control — bỏ qua */ }
         var p = video.play();
         if (p && p.catch) p.catch(function () {});
         if (statusEl) statusEl.textContent = 'Đưa mã vào khung, giữ yên — tự nhận diện';
@@ -504,10 +529,11 @@
       return;
     }
     // 2) Không có BarcodeDetector (iOS Safari…) → TỐI ƯU 2026-08-16: 1 canvas 1280px dùng
-    //    chung cho cả fast path lẫn full chain (không chụp 2 lần). FAST PATH mỗi tick:
-    //    jsQR + 1 config Quagga mạnh nhất — CHỈ nhận khi khớp NV đã biết (STAFF_INFO =
-    //    nguồn chuẩn) → done NGAY, không chờ 3 config. Full chain mỗi 2 tick (majority)
-    //    lo NV lạ (Dư). Đưa mã vào khung là tự nhận (không dùng motion gate — bug 2026-08-12).
+    //    chung cho cả fast path lẫn full chain (không chụp 2 lần). FAST PATH MỖI tick:
+    //    jsQR + 1 config Quagga mạnh nhất — nhận MỌI mã dạng "Ops…" (OPS + 3..9 số), kể cả
+    //    NV chưa có trong StaffData (Dư) → done NGAY tick đầu, không chờ 3 config. Chỉ khi
+    //    fast fail mới chạy full chain (theo nhịp / Tìm Mã = mọi tick) — majority ≥2 config
+    //    chống đọc SAI. Đưa mã vào khung là tự nhận (không dùng motion gate — bug 2026-08-12).
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
       var video = document.getElementById('camVideo');
@@ -517,23 +543,26 @@
       camLastFrame = now;
       var frame = camFrameToImageData(video, 1280);
       if (!frame) return;
-      var decide = camShouldFullDecode(camFullChainTick, camFindMode ? 1 : CAM_FULL_CHAIN_INTERVAL);
-      camFullChainTick = decide.tickCount;
-      if (decide.run) {
-        camAutoDecode(frame); // full chain (jsQR + 3 config + majority) — nhận cả NV lạ
-        return;
-      }
       camDecoding = true;
-      // jsQR trước (QR code — rẻ); rồi fast path Quagga 1 config
+      // jsQR trước (QR code — rẻ)
       if (window.jsQR) {
         try {
           var qr = window.jsQR(frame.data.data, frame.w, frame.h);
           if (qr && qr.data) { camDecoding = false; onCameraDecoded(qr.data); return; }
         } catch (err) { /* tiếp tục fast path */ }
       }
+      // FAST PATH MỖI tick (2026-08-16 tối ưu): thẻ nét là done NGAY — thắng thì không
+      // cần full chain 3 config. Full chain chỉ chạy khi fast fail VÀ tới nhịp (Tìm Mã = mọi tick).
       camFastDecode(frame, function (code) {
+        if (code) { camDecoding = false; onCameraDecoded(code); return; }
+        var decide = camShouldFullDecode(camFullChainTick, camFindMode ? 1 : CAM_FULL_CHAIN_INTERVAL);
+        camFullChainTick = decide.tickCount;
+        if (decide.run) {
+          camDecoding = false;
+          camAutoDecode(frame); // full chain (jsQR + 3 config + majority) — camAutoDecode tự set cờ
+          return;
+        }
         camDecoding = false;
-        if (code) onCameraDecoded(code);
       });
     }, 300);
   }
@@ -1017,6 +1046,12 @@
       // EAN/UPC/i2of5 numeric-only (misread deterministic lọt cổng majority, bug 2026-08-16).
       if (code && camQuaggaResultAllowed({ code: String(code).trim(), format: format })) {
         results.push(String(code).trim());
+      }
+      // TỐI ƯU 2026-08-16 (thẻ nét nhận nhanh hơn): đủ ≥2 config đồng thuận (sau normalize)
+      // → dừng sớm, KHÔNG chờ config còn lại. Majority vẫn giữ nguyên (caller gate ≥2).
+      if (results.length >= 2) {
+        var early = camPickQuaggaMajority(results, camKnownStaffCode, 2);
+        if (early) { if (onDone) onDone(results); return; }
       }
       runQuaggaConfigs(src, configs, idx + 1, results, onDone);
     });
