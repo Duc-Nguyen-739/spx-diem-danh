@@ -265,3 +265,105 @@ test('applyPolledScanDetail: poll cũ hơn local (behind) → bỏ qua, không r
   });
   assert.equal(domTouched, false, 'response cũ hơn → không được chạm DOM');
 });
+
+// ===== TASK LIST POLL — đồng bộ danh sách task nhiều người truy cập (2026-08-16) =====
+// Người này tạo/kết thúc/mở lại task → người khác đang ở màn danh sách phải thấy NGAY
+// (không cần bấm "⟳ Làm mới"). Poll getTaskListApi mỗi 5s khi viewList hiện; chỉ
+// re-render khi signature đổi (tránh reset sort/filter/phân trang vô ích).
+
+function listStub(tasks) {
+  return {
+    withSuccessHandler: function (fn) { this._ok = fn; return this; },
+    withFailureHandler: function (fn) { this._err = fn; return this; },
+    getTaskListApi: function () { if (this._ok) this._ok(tasks); },
+  };
+}
+
+function taskA(status) {
+  return { taskId: 'R1', status: status || 'open', total: 5, scanned: 2, extra: 0, createdAtText: '12:00', completedAtText: '', note: '' };
+}
+
+// ---- taskListSignature ----
+test('taskListSignature: danh sách giống nhau → signature giống nhau (bỏ qua re-render)', () => {
+  const sb = run(makeSandbox());
+  const a = [taskA('open'), { taskId: 'R2', status: 'done', total: 3, scanned: 3, extra: 1, createdAtText: '11:00', completedAtText: '13:00', note: 'x' }];
+  const b = JSON.parse(JSON.stringify(a));
+  assert.equal(sb.ctx.taskListSignature(a), sb.ctx.taskListSignature(b));
+});
+
+test('taskListSignature: status/counter/note đổi → signature đổi (phải re-render)', () => {
+  const sb = run(makeSandbox());
+  const a = [taskA('open')];
+  const b1 = [taskA('done')];                 // người khác kết thúc task
+  const b2 = [taskA('open')]; b2[0].scanned = 3; // người khác quét thêm
+  const b3 = [taskA('open')]; b3[0].note = 'ghi chú'; // đổi ghi chú
+  const b4 = [taskA('open'), taskA('open')];  // thêm task mới
+  assert.notEqual(sb.ctx.taskListSignature(a), sb.ctx.taskListSignature(b1));
+  assert.notEqual(sb.ctx.taskListSignature(a), sb.ctx.taskListSignature(b2));
+  assert.notEqual(sb.ctx.taskListSignature(a), sb.ctx.taskListSignature(b3));
+  assert.notEqual(sb.ctx.taskListSignature(a), sb.ctx.taskListSignature(b4));
+});
+
+// ---- taskListPollTick: điều kiện gọi RPC ----
+test('taskListPollTick: viewList ẩn (đang ở màn quét) → không gọi RPC', () => {
+  const sb = run(makeSandbox({ els: { viewList: { classList: { contains: function (c) { return c === 'hidden'; } } } } }));
+  let rpc = 0;
+  sb.ctx.google.script.run = { withSuccessHandler: function () { return this; }, withFailureHandler: function () { return this; }, getTaskListApi: function () { rpc++; } };
+  sb.ctx.taskListPollTick();
+  assert.equal(rpc, 0, 'không ở màn danh sách → không poll');
+});
+
+test('taskListPollTick: đang lọc theo mã NV (header search) → không đè bộ lọc, không poll', () => {
+  const sb = run(makeSandbox());
+  sb.ctx._taskFilterStaff = 'Ops129481';
+  let rpc = 0;
+  sb.ctx.google.script.run = { withSuccessHandler: function () { return this; }, withFailureHandler: function () { return this; }, getTaskListApi: function () { rpc++; } };
+  sb.ctx.taskListPollTick();
+  assert.equal(rpc, 0, 'đang lọc mã Ops → poll không được đè bộ lọc');
+});
+
+test('taskListPollTick: đang "Làm mới" tay (_refreshLock) / RPC trước chưa về → không chồng', () => {
+  const sb = run(makeSandbox());
+  let rpc = 0;
+  sb.ctx.google.script.run = { withSuccessHandler: function () { return this; }, withFailureHandler: function () { return this; }, getTaskListApi: function () { rpc++; } };
+  sb.ctx._refreshLock = true;
+  sb.ctx.taskListPollTick();
+  assert.equal(rpc, 0, '_refreshLock → không poll (RPC Làm mới tay đang lo)');
+  sb.ctx._refreshLock = false;
+  sb.ctx.taskListPollInFlight = true;
+  sb.ctx.taskListPollTick();
+  assert.equal(rpc, 0, 'in-flight → không chồng RPC');
+});
+
+test('taskListPollTick: dữ liệu không đổi → KHÔNG re-render (giữ sort/filter/phân trang)', () => {
+  const sb = run(makeSandbox({ runStub: function () { return listStub([taskA('open')]); } }));
+  sb.ctx._taskFilterStaff = null;
+  sb.ctx.lastTaskListSig = sb.ctx.taskListSignature([taskA('open')]);
+  let dashCalls = 0;
+  sb.ctx.renderDash = function () { dashCalls++; };
+  sb.ctx.taskListPollTick();
+  assert.equal(dashCalls, 0, 'signature giống nhau → không được render lại');
+});
+
+test('taskListPollTick: người khác kết thúc task (signature đổi) → renderDash cập nhật', () => {
+  const sb = run(makeSandbox({ runStub: function () { return listStub([taskA('done')]); } }));
+  sb.ctx._taskFilterStaff = null;
+  sb.ctx.lastTaskListSig = sb.ctx.taskListSignature([taskA('open')]);
+  let dashCalls = 0;
+  sb.ctx.renderDash = function () { dashCalls++; };
+  sb.ctx.taskListPollTick();
+  assert.equal(dashCalls, 1, 'có thay đổi từ thiết bị khác → phải render lại');
+});
+
+test('startTaskListPolling: ghi signature hiện tại + interval; demo mode → không poll', () => {
+  const sb = run(makeSandbox());
+  sb.ctx._taskPageList = [taskA('open')];
+  sb.ctx.startTaskListPolling();
+  assert.equal(sb.timers.filter(function (t) { return t.kind === 'interval'; }).length, 1, 'phải có 1 interval poll danh sách');
+  assert.equal(sb.ctx.lastTaskListSig, sb.ctx.taskListSignature([taskA('open')]), 'signature phải khớp list đang hiển thị');
+
+  const sbDemo = run(makeSandbox({ demo: true }));
+  sbDemo.ctx._taskPageList = [taskA('open')];
+  sbDemo.ctx.startTaskListPolling();
+  assert.equal(sbDemo.timers.filter(function (t) { return t.kind === 'interval'; }).length, 0, 'demo mode không cần poll');
+});
