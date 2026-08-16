@@ -50,6 +50,9 @@
   var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
   var camDetector = null;    // BarcodeDetector instance
   var camLastFrame = 0;      // chống decode trùng frame liên tiếp
+  var camSharedCanvas = null; // 1 canvas dùng chung cho mọi frame tick (2026-08-16 tối ưu:
+                             // hết tạo canvas+context mới mỗi ~600ms → giảm GC trên iOS)
+  var camSharedCtx = null;
   // AUTO-DECODE (2026-08-12): live loop iOS chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px
   // + jsQR + 3 config Quagga — đường đã chạy tốt) theo nhịp cố định, KHÔNG gate theo độ
   // rung (threshold 6/255 quá nhạy với noise camera iPhone thật → auto-snap không bao giờ
@@ -329,6 +332,9 @@
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
       '        timer = setInterval(loop, 600);',
+      '        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — decode MỖI tick',
+      '        // + ép focus liên tục), không cần bấm "🔍 Tìm Mã". Nút vẫn giữ để tắt/bật lại.',
+      '        setFindMode(true);',
       '      })',
       '      .catch(function () {',
       '        if (force) {',
@@ -490,6 +496,10 @@
         if (sb) sb.style.display = 'none';
         startCameraDecodeLoop();
         startOcrLoop(); // song song: OCR đọc chữ Ops… khi mã vạch mờ (2026-08-16)
+        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — full-chain decode
+        // MỖI tick + ép focus liên tục), không cần bấm "🔍 Tìm Mã" nữa. Nút vẫn giữ để
+        // tắt/bật lại thủ công (tiết pin). resetCamFindUi khi đóng modal → mở lại tự bật.
+        if (!camFindMode) toggleCamFind();
       })
       .catch(function () {
         if (force) {
@@ -583,13 +593,22 @@
       var scale = Math.min(1, maxSide / Math.max(w, h));
       var cw = Math.max(1, Math.round(w * scale));
       var ch = Math.max(1, Math.round(h * scale));
-      var canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      var ctx = canvas.getContext('2d');
+      // Tối ưu 2026-08-16: DÙNG LẠI 1 canvas/context — không tạo mới mỗi tick (~600ms).
+      // An toàn: mọi consumer đọc frame ĐỒNG BỘ trong tick (jsQR đọc ImageData snapshot;
+      // Quagga/fast dùng canvas.toDataURL — snapshot ngay lúc gọi; decode ảnh chụp dùng
+      // canvas riêng của nó). camDecoding/camSnapping chặn redraw giữa chừng.
+      if (!camSharedCanvas) {
+        camSharedCanvas = document.createElement('canvas');
+        camSharedCtx = camSharedCanvas.getContext('2d');
+      }
+      if (camSharedCanvas.width !== cw || camSharedCanvas.height !== ch) {
+        camSharedCanvas.width = cw;
+        camSharedCanvas.height = ch;
+      }
+      var ctx = camSharedCtx;
       ctx.drawImage(video, 0, 0, cw, ch);
       var imageData = ctx.getImageData(0, 0, cw, ch);
-      return { data: imageData, w: cw, h: ch, canvas: canvas };
+      return { data: imageData, w: cw, h: ch, canvas: camSharedCanvas };
     } catch (e) { return null; }
   }
 
