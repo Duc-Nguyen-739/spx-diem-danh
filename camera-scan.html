@@ -645,10 +645,29 @@
   }
 
   // FAST PATH (2026-08-16 tối ưu): 1 config Quagga mạnh nhất (full-res + x-large), format
-  // đã lọc + normalize checksum — CHỈ nhận khi khớp NV đã biết (STAFF_INFO = nguồn chuẩn,
-  // mã quét là mã NV → misread không khớp sẽ bị loại). Khớp → done NGAY tick đầu, không
-  // chờ 3 config. Không khớp → cb(null), full chain (majority) lo NV lạ (Dư). onCode(code|null).
+  // đã lọc — NHẬN MỌI MÃ DẠNG "Ops…" (OPS + 3..9 số), KỂ CẢ CHƯA CÓ TRONG StaffData (Dư),
+  // để done NGAY tick đầu không chờ 3 config. NV đã biết → khớp STAFF_INFO (nguồn chuẩn,
+  // cắt đúng checksum dư); NV lạ → ưu tiên cắt 1 ký tự cuối (quirk +1 chiếm đa số — full
+  // chain majority trước giờ cũng nhận +1 cho NV lạ, deterministic, không khá hơn).
   var CAM_FAST_QUAGGA_CONFIG = { patchSize: 'x-large', halfSample: false };
+
+  // PURE — chọn mã từ 1 kết quả Quagga (fast path). Trả mã hợp lệ hoặc null:
+  // - Khớp NV đã biết → trả mã chính xác (normalizeQuaggaCode128 dùng STAFF_INFO cắt checksum).
+  // - NV lạ: FNC1 cuối bị bỏ; thử raw / cắt 1 / cắt 2 ký tự cuối còn đúng dạng Ops + 3..9 số
+  //   → ưu tiên CẮT 1 (quirk +1 chiếm đa số), rồi raw (checksum là special code — hiếm),
+  //   rồi cắt 2 (quirk +2 rất hiếm).
+  function camFastPickCode(raw) {
+    var s = String(raw || '').trim();
+    if (!s) return null;
+    while (s.length && s.charCodeAt(s.length - 1) === 29) s = s.slice(0, -1); // FNC1 (GS1) cuối
+    if (!s) return null;
+    var knownNorm = normalizeQuaggaCode128(s, camKnownStaffCode);
+    if (camKnownStaffCode(knownNorm)) return knownNorm; // NV đã biết — nguồn chuẩn
+    var c0 = normalizeOpsCode(knownNorm);
+    var c1 = knownNorm.length > 4 ? normalizeOpsCode(knownNorm.slice(0, -1)) : null;
+    var c2 = knownNorm.length > 5 ? normalizeOpsCode(knownNorm.slice(0, -2)) : null;
+    return c1 || c0 || c2;
+  }
 
   function camFastDecode(frame, onCode) {
     if (!window.Quagga) { onCode(null); return; }
@@ -665,10 +684,9 @@
         var format = result && result.codeResult && result.codeResult.format;
         var clean = null;
         if (code && camQuaggaResultAllowed({ code: String(code).trim(), format: format })) {
-          clean = normalizeQuaggaCode128(String(code).trim(), camKnownStaffCode);
+          clean = String(code).trim();
         }
-        var known = clean && camKnownStaffCode(clean);
-        onCode(known ? clean : null);
+        onCode(clean ? camFastPickCode(clean) : null);
       });
     } catch (e) { onCode(null); }
   }

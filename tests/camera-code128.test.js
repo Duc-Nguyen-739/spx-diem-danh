@@ -205,11 +205,20 @@ test('camFastDecode: thừa checksum digit → normalize về mã NV đã biết
   });
 });
 
-test('camFastDecode: misread không khớp NV nào → null (không nhận sai, để full chain lo)', () => {
-  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: 'Ops129480', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
+test('camFastDecode: mã Ops chưa có trong StaffData (Dư) → vẫn nhận nhanh (không chờ full chain)', () => {
+  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: 'Ops777777', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
     let got = 'pending';
     ctx.camFastDecode(fastFrame(), (code) => { got = code; });
-    assert.equal(got, null);
+    // Quagga quirk +1 chiếm đa số → ưu tiên cắt 1 ký tự cuối (giống mọi mã NV lạ qua fast path)
+    assert.equal(got, 'OPS77777');
+  });
+});
+
+test('camFastDecode: NV lạ thừa 1 digit checksum (quirk) → cắt về mã đúng dạng', () => {
+  fastEnv({ decodeSingle(c, cb) { cb({ codeResult: { code: 'Ops7777774', format: 'code_128' } }); } }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, 'OPS777777');
   });
 });
 
@@ -226,5 +235,35 @@ test('camFastDecode: không có Quagga → null (fail an toàn, không crash)', 
     let got = 'pending';
     ctx.camFastDecode(fastFrame(), (code) => { got = code; });
     assert.equal(got, null);
+  });
+});
+
+// ---- camFastPickCode: chọn mã nhanh từ 1 kết quả Quagga (nhận cả NV lạ → Dư) ----
+test('camFastPickCode: NV đã biết → trả mã chính xác (STAFF_INFO là nguồn chuẩn)', () => {
+  fastEnv(null, { OPS129481: {} }, () => {
+    assert.equal(ctx.camFastPickCode('Ops129481'), 'Ops129481');
+    // thừa checksum digit → normalize về mã NV đã biết
+    assert.equal(ctx.camFastPickCode('Ops1294814'), 'Ops129481');
+    // trailing FNC1 bị bỏ
+    assert.equal(ctx.camFastPickCode('Ops129481' + String.fromCharCode(29)), 'Ops129481');
+  });
+});
+
+test('camFastPickCode: NV lạ đúng dạng Ops… → nhận (Dư), ưu tiên cắt 1 ký tự cuối (quirk +1)', () => {
+  fastEnv(null, {}, () => {
+    assert.equal(ctx.camFastPickCode('Ops777777'), 'OPS77777');
+    assert.equal(ctx.camFastPickCode('Ops7777774'), 'OPS777777');
+    assert.equal(ctx.camFastPickCode('Ops7562'), 'OPS756');
+    assert.equal(ctx.camFastPickCode('0ps 158392'), 'OPS15839'); // OCR-noise prefix cũng chuẩn hóa
+  });
+});
+
+test('camFastPickCode: không phải dạng Ops + 3..9 số → null (không nhận nhầm EAN/rác)', () => {
+  fastEnv(null, {}, () => {
+    assert.equal(ctx.camFastPickCode('123456789012'), null);
+    assert.equal(ctx.camFastPickCode('Ops'), null);
+    assert.equal(ctx.camFastPickCode('Ops12'), null);
+    assert.equal(ctx.camFastPickCode(''), null);
+    assert.equal(ctx.camFastPickCode(null), null);
   });
 });
