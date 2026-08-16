@@ -77,6 +77,26 @@ test('camShouldFullDecode: interval=1 → run ngay tick đầu (full chain mọi
   assert.equal(r.tickCount, 0);
 });
 
+test('toggleCamFind: bật → camFindMode + reset tick (full chain chạy ngay); tắt → về thường', () => {
+  assert.equal(ctx.camFindMode, false);
+  ctx.camFullChainTick = 1;
+  ctx.toggleCamFind();
+  assert.equal(ctx.camFindMode, true, 'bật chế độ Tìm Mã');
+  assert.equal(ctx.camFullChainTick, 0, 'reset tick → full-chain decode ngay tick tiếp theo');
+  ctx.toggleCamFind();
+  assert.equal(ctx.camFindMode, false, 'bấm lần nữa → tắt');
+  ctx.resetCamFindUi();
+  assert.equal(ctx.camFindMode, false, 'reset không làm bật lại');
+});
+
+test('toggleCamFind: không có DOM (camFindBtn null) / chưa có stream → không throw', () => {
+  ctx.camFindMode = false;
+  ctx.camStream = null;
+  assert.doesNotThrow(() => ctx.toggleCamFind());
+  assert.equal(ctx.camFindMode, true);
+  ctx.resetCamFindUi();
+});
+
 test('camShouldFullDecode: interval=3 → chạy đúng mỗi 3 tick, không phụ thuộc trạng thái khác', () => {
   let tick = 0;
   const runs = [];

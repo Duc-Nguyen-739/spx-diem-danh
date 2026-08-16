@@ -56,6 +56,7 @@
   // kích hoạt → user vẫn phải bấm Chụp, bug 2026-08-12). Đưa mã vào khung là tự nhận.
   var camFullChainTick = 0;       // đếm tick frame giữa 2 lần chạy full-chain decode
   var CAM_FULL_CHAIN_INTERVAL = 2; // chạy full chain mỗi N tick frame (1 tick ≈ 600ms)
+  var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
   var scanPollTimer = null;  // poll localStorage chờ kết quả từ tab quét
@@ -113,6 +114,8 @@
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       'button{font-size:16px;padding:12px 22px;border-radius:12px;border:0;cursor:pointer;}',
       '#startBtn{background:#e85d04;color:#fff;display:none;}',
+      '#findBtn{background:#0b57d0;color:#fff;}',
+      '#findBtn.active{background:#e85d04;box-shadow:0 0 0 2px rgba(255,255,255,.4);}',
       '#cancelBtn{background:rgba(255,255,255,.12);color:#fff;}',
       '</sty' + 'le>',
       '</head>',
@@ -125,6 +128,7 @@
       '</div>',
       '<div id="bar">',
       '<button id="startBtn" type="button">▶ Bật camera</button>',
+      '<button id="findBtn" type="button">🔍 Tìm Mã</button>',
       '<button id="cancelBtn" type="button">✕ Đóng</button>',
       '</div>',
       '</div>',
@@ -141,6 +145,21 @@
       '  var busy = false;',
       '  var detected = false;',
       '  var tick = 0;',
+      '  var findMode = false;',
+      '  var findBtn = document.getElementById("findBtn");',
+      '  // 🔍 Tìm Mã (2026-08-16): ép focus liên tục (nếu trình duyệt hỗ trợ) + decode MỖI',
+      '  // tick thay vì mỗi 2 tick — đưa mã vào khung là nhận nhanh hơn. Bấm lần nữa để tắt.',
+      '  function setFindMode(on) {',
+      '    findMode = !!on;',
+      '    if (findBtn) { findBtn.classList.toggle("active", findMode); findBtn.textContent = findMode ? "🔍 Tìm Mã…" : "🔍 Tìm Mã"; }',
+      '    if (findMode && stream) {',
+      '      try {',
+      '        var track = stream.getVideoTracks && stream.getVideoTracks()[0];',
+      '        if (track && track.applyConstraints) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });',
+      '      } catch (e) {}',
+      '    }',
+      '    if (findMode) statusEl.textContent = "🔍 Đang tìm mã — giữ yên camera";',
+      '  }',
       '  var FORMATS = ["qr_code","code_128","code_39","code_93","codabar","ean_13","ean_8","itf","upc_a","upc_e"];',
       '  function getLibs() {',
       '    try {',
@@ -242,7 +261,7 @@
       '    if (!stream || busy || detected) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
-      '    if (tick % 2 !== 0) return;',
+      '    if (!findMode && tick % 2 !== 0) return;',
       '    busy = true;',
       '    var f = frameToImageData(1280);',
       '    if (!f) { busy = false; return; }',
@@ -288,6 +307,7 @@
       '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
       '    video.srcObject = null;',
       '  }',
+      '  findBtn.addEventListener("click", function () { setFindMode(!findMode); });',
       '  startBtn.addEventListener("click", function () { start(true); });',
       '  cancelBtn.addEventListener("click", function () {',
       '    // Báo về trang cha để reset cờ busy — nếu không, lần bấm "Quét Camera" sau mở',
@@ -475,7 +495,8 @@
       var frame = camFrameToImageData(video, 800);
       if (!frame) return;
       var imageData = frame.data;
-      var decide = camShouldFullDecode(camFullChainTick, CAM_FULL_CHAIN_INTERVAL);
+      // Tìm Mã bật → full-chain decode MỖI tick (interval=1) — quét nhanh hơn
+      var decide = camShouldFullDecode(camFullChainTick, camFindMode ? 1 : CAM_FULL_CHAIN_INTERVAL);
       camFullChainTick = decide.tickCount;
       if (decide.run) {
         camAutoDecode(); // 1280px + chain đầy đủ (như nút Chụp) — fail im lặng, loop tiếp
@@ -512,6 +533,43 @@
     } catch (e) { return null; }
   }
 
+  // "🔍 Tìm Mã" (2026-08-16, cạnh nút Đóng): bấm để camera lấy nét + tìm mã nhanh hơn.
+  // - Ép focus liên tục qua applyConstraints({ focusMode: 'continuous' }) — Android
+  //   Chrome/iOS 17+ hỗ trợ; trình duyệt không hỗ trợ → bỏ qua im lặng (iOS Safari
+  //   không expose focus control qua web API, nhưng nhịp decode nhanh hơn vẫn giúp).
+  // - Tăng nhịp decode: full chain (1280px + jsQR + 3 config Quagga) chạy MỖI tick thay
+  //   vì mỗi 2 tick (camShouldFullDecode interval=1 — đã có test) → đưa mã vào khung là
+  //   nhận nhanh hơn. Bấm lần nữa (hoặc nhận được mã / đóng modal) → tự tắt.
+  function toggleCamFind() {
+    camFindMode = !camFindMode;
+    var btn = document.getElementById('camFindBtn');
+    if (btn) {
+      btn.classList.toggle('active', camFindMode);
+      btn.textContent = camFindMode ? '🔍 Tìm Mã…' : '🔍 Tìm Mã';
+    }
+    if (camFindMode) {
+      camFullChainTick = 0; // full chain chạy NGAY tick tiếp theo
+      if (camStream) {
+        try {
+          var track = camStream.getVideoTracks && camStream.getVideoTracks()[0];
+          if (track && track.applyConstraints) {
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch (e) { /* không hỗ trợ focus control — bỏ qua */ }
+      }
+      var statusEl = document.getElementById('camStatusLive');
+      if (statusEl) statusEl.textContent = '🔍 Đang tìm mã — giữ yên camera';
+    }
+  }
+
+  // Reset trạng thái + UI nút Tìm Mã (đóng modal / nhận được mã) — không reset camStream
+  // (người gọi tự xử lý).
+  function resetCamFindUi() {
+    camFindMode = false;
+    var btn = document.getElementById('camFindBtn');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '🔍 Tìm Mã'; }
+  }
+
   function closeCameraModal() {
     stopCameraDecodeLoop();
     if (camStream) {
@@ -519,6 +577,7 @@
       camStream = null;
     }
     camSnapping = false;
+    resetCamFindUi();
     var video = document.getElementById('camVideo');
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
@@ -889,6 +948,7 @@
     camPopupBusy = false; // popup đã gửi kết quả → mở popup mới được ở lần sau
     camPopupRef = null;
     camFullChainTick = 0; // nhận được mã → reset đếm tick (lần mở sau quét lại từ đầu)
+    resetCamFindUi(); // nhận được mã → tắt chế độ Tìm Mã (nút về trạng thái thường)
     var clean = String(code || '').trim();
     if (camScanMode) {
       // TAB QUÉT RIÊNG: gửi kết quả về trang gốc rồi đóng tab

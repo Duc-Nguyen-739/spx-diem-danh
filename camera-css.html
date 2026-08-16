@@ -17,6 +17,18 @@
 }
 .camera-title { color: #fff; font-size: 15px; font-weight: 600; }
 .camera-close { color: #fff; background: rgba(255,255,255,.08); border-radius: 10px; }
+.camera-head-actions { display: flex; align-items: center; gap: 8px; }
+/* Nút 🔍 Tìm Mã (2026-08-16): cạnh nút Đóng — ép focus liên tục + quét nhanh hơn.
+   active = đang tìm (nền cam SPX + viền sáng), bấm lần nữa để tắt. */
+.cam-find-btn {
+  font-size: 13px; padding: 7px 12px; border-radius: 10px; border: 0;
+  background: #0b57d0; color: #fff; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.18);
+}
+.cam-find-btn.active {
+  background: #e85d04;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.45), 0 0 18px rgba(232,93,4,.55);
+}
 .camera-view {
   position: relative; border-radius: 16px; overflow: hidden;
   background: #000; aspect-ratio: 3 / 4; max-height: 64vh;

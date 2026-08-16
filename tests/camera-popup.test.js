@@ -96,6 +96,8 @@ test('openCameraScan trong iframe → mở popup quét live (window.open + docum
   assert.ok(html.indexOf('BarcodeDetector') >= 0, 'popup có chain decode');
   assert.ok(html.indexOf('Quagga') >= 0, 'popup decode vạch 1D bằng Quagga');
   assert.ok(html.indexOf('Đưa mã vào khung') >= 0, 'popup có hướng dẫn tự nhận');
+  assert.ok(html.indexOf('🔍 Tìm Mã') >= 0, 'popup có nút Tìm Mã cạnh nút Đóng');
+  assert.ok(html.indexOf('findMode') >= 0, 'popup có logic chế độ Tìm Mã (focus + decode nhanh)');
   assert.equal(sb.ctx.camPopupBusy, true, 'cờ busy được bật khi popup mở');
 });
 
