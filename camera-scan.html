@@ -165,7 +165,7 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
@@ -254,13 +254,26 @@
       '      runQuagga(src, configs, idx + 1, results, onDone);',
       '    });',
       '  }',
+      '  var ocrBusy = false;',
+      '  // OCR song song (2026-08-16): đọc chữ Ops… khi mã vạch mờ — gọi qua window.opener',
+      '  // (trang app giữ worker Tesseract + STAFF_INFO) — cái nào ra trước thì sendResult.',
+      '  function ocrTick() {',
+      '    if (!LIBS.ocr || ocrBusy || detected || !stream) return;',
+      '    if (!video.videoWidth) return;',
+      '    ocrBusy = true;',
+      '    var f = frameToImageData(800);',
+      '    if (!f) { ocrBusy = false; return; }',
+      '    LIBS.ocr(f.canvas, function (code) { ocrBusy = false; if (code) sendResult(code); });',
+      '  }',
       '  // AUTO-DECODE theo nhịp cố định (không gate độ rung — bug 2026-08-12): chạy',
       '  // full chain 1280px + jsQR + 3 config Quagga mỗi 2 tick (~1.2s) — đưa mã vào',
       '  // khung là tự nhận, không cần bấm gì.',
       '  function loop() {',
-      '    if (!stream || busy || detected) return;',
+      '    if (!stream || detected) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
+      '    if (tick % 2 === 0) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
+      '    if (busy) return;',
       '    if (!findMode && tick % 2 !== 0) return;',
       '    busy = true;',
       '    var f = frameToImageData(1280);',
@@ -443,6 +456,7 @@
         var sb = document.getElementById('camStartBtn');
         if (sb) sb.style.display = 'none';
         startCameraDecodeLoop();
+        startOcrLoop(); // song song: OCR đọc chữ Ops… khi mã vạch mờ (2026-08-16)
       })
       .catch(function () {
         if (force) {
@@ -572,6 +586,9 @@
 
   function closeCameraModal() {
     stopCameraDecodeLoop();
+    stopOcrLoop();
+    camOcrQueue = [];
+    camOcrBusy = false;
     if (camStream) {
       camStream.getTracks().forEach(function (t) { t.stop(); });
       camStream = null;
@@ -714,7 +731,7 @@
     if (idx >= scales.length) {
       camDecoding = false;
       camSnapping = false;
-      camStatus('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc', true);
+      ocrPhotoFallback(img, w, h); // mã vạch mờ → thử đọc chữ Ops… (2026-08-16)
       return;
     }
     var scale = scales[idx];
@@ -937,8 +954,230 @@
     });
   }
 
+  // ===== OCR-SCAN-START (2026-08-16): đọc chữ "Ops…" khi mã vạch mờ =====
+  // Thẻ NV in mã vạch Code128 + kèm dòng chữ "Ops…" (vd Ops7562, Ops158392) ngay trên/dưới
+  // vạch kẻ. Khi vạch quá mờ camera không decode được → OCR đọc dòng chữ. CHẠY SONG SONG
+  // với decode barcode (timer riêng, không chặn nhau) — cái nào phát hiện trước → done.
+  //
+  // Thư viện: Tesseract.js v5 tải TỪ CDN lúc runtime (script tag) — KHÔNG vendor được vì
+  // core wasm + eng.traineddata > 500KB giới hạn file GAS. GAS HtmlService cho phép active
+  // content HTTPS ngoài; jsDelivr có CORS; worker v5 load qua Blob URL (workerBlobURL mặc
+  // định true) nên cross-origin OK. Lỗi load/không có mạng → im lặng tắt OCR, barcode vẫn
+  // chạy bình thường (fail-open an toàn).
+  var OCR_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  var OCR_WORKER_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
+  var OCR_CORE_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5';
+  var OCR_LANG_PATH = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0';
+  var CAM_OCR_INTERVAL_MS = 2500;   // nhịp quét OCR song song (không chặn decode barcode)
+  var CAM_OCR_MIN_CONFIDENCE = 70;  // NV lạ cần confidence >= mức này; NV khớp STAFF_INFO nhận luôn
+  var camOcrEnabled = false;   // đã load xong script Tesseract
+  var camOcrLoading = false;   // đang load script (chống load lặp)
+  var camOcrLoadFailed = false;// load fail → bỏ OCR cả phiên (không làm chậm quét)
+  var camOcrWorker = null;     // worker tái dùng trong cả phiên
+  var camOcrBusy = false;      // đang có 1 OCR chạy
+  var camOcrQueue = [];        // frame chờ khi busy (photo fallback đợi live OCR xong)
+  var camOcrTimer = null;      // timer quét OCR song song
+
+  // PURE — chuẩn hóa chuỗi OCR → mã 'OPS…' (test được trên Node).
+  // OCR hay nhầm: chữ O ↔ số 0, p ↔ b, dính khoảng trắng/colon/gạch. Chỉ chấp nhận dạng
+  // Ops + 3..9 chữ số (mã NV thật — Ops7562, Ops158392…); trả null nếu không phải.
+  function normalizeOpsCode(raw) {
+    var s = String(raw || '').replace(/\s+/g, '').replace(/[:：\-]/g, '').toUpperCase();
+    if (/^0PS/.test(s)) s = 'OPS' + s.slice(3); // O → 0
+    if (/^OBS/.test(s)) s = 'OPS' + s.slice(3); // p → b
+    if (!/^OPS\d{3,9}$/.test(s)) return null;
+    return s;
+  }
+
+  // PURE — tách mã "Ops…" từ kết quả OCR (text + words có confidence riêng).
+  // Ưu tiên: (1) candidate khớp NV đã biết (STAFF_INFO = nguồn chuẩn, nhận luôn kể cả
+  // confidence thấp); (2) candidate có confidence cao nhất >= minConfidenceUnknown (NV lạ/Dư
+  // — tránh nhận nhầm chữ "Ops" trên bảng/hình nền). Trả { code, confidence } hoặc null.
+  function pickOpsCandidate(text, words, isKnownCode, minConfidenceUnknown) {
+    var min = minConfidenceUnknown == null ? CAM_OCR_MIN_CONFIDENCE : minConfidenceUnknown;
+    var candidates = [];
+    function add(raw, conf) {
+      var code = normalizeOpsCode(raw);
+      if (!code) return;
+      for (var i = 0; i < candidates.length; i++) {
+        if (candidates[i].code === code) {
+          if (conf > candidates[i].confidence) candidates[i].confidence = conf;
+          return;
+        }
+      }
+      candidates.push({ code: code, confidence: conf });
+    }
+    if (words && words.length) {
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i] || {};
+        add(w.text, Number(w.confidence) || 0);
+      }
+    }
+    // Fallback regex trên text thô — OCR dính chữ/số thành 1 token
+    if (text) {
+      var re = /(?:^|[^A-Za-z0-9])([O0][PpBb]s)\s*[:：\-]?\s*(\d{3,9})(?![0-9])/gi;
+      var m;
+      while ((m = re.exec(text)) !== null) {
+        add(m[1] + m[2], 60); // không có per-word confidence → ước lượng trung bình
+        if (re.lastIndex === m.index) re.lastIndex++;
+      }
+    }
+    if (!candidates.length) return null;
+    var known = [], unknown = [];
+    candidates.forEach(function (c) {
+      if (isKnownCode && isKnownCode(c.code)) known.push(c);
+      else unknown.push(c);
+    });
+    var pool = known.length ? known : unknown;
+    pool.sort(function (a, b) { return b.confidence - a.confidence; });
+    var best = pool[0];
+    if (known.length) return best;          // khớp NV đã biết → nhận (nguồn chuẩn)
+    if (best.confidence >= min) return best; // NV lạ → cần confidence đủ cao
+    return null;
+  }
+
+  // Load script Tesseract từ CDN (1 lần mỗi phiên; fail → tắt OCR im lặng)
+  function ensureOcrLib(cb) {
+    if (camOcrEnabled || camOcrLoadFailed || camOcrLoading) { if (cb) cb(); return; }
+    if (typeof window.Tesseract !== 'undefined') {
+      camOcrEnabled = true;
+      initOcrWorker();
+      if (cb) cb();
+      return;
+    }
+    camOcrLoading = true;
+    var head = null;
+    try { head = document.head || document.getElementsByTagName('head')[0] || document.documentElement; } catch (e) { head = null; }
+    var s = document.createElement('script');
+    s.src = OCR_SCRIPT_URL;
+    s.async = true;
+    s.onload = function () {
+      camOcrLoading = false;
+      if (typeof window.Tesseract !== 'undefined') { camOcrEnabled = true; initOcrWorker(); }
+      else camOcrLoadFailed = true;
+      if (cb) cb();
+    };
+    s.onerror = function () {
+      camOcrLoading = false;
+      camOcrLoadFailed = true;
+      if (cb) cb();
+    };
+    if (head) head.appendChild(s);
+    else { camOcrLoading = false; camOcrLoadFailed = true; if (cb) cb(); }
+  }
+
+  // Khởi tạo worker (tải core wasm + eng.traineddata lần đầu) — tái dùng cho cả phiên
+  function initOcrWorker() {
+    if (camOcrWorker || typeof window.Tesseract === 'undefined') return;
+    try {
+      window.Tesseract.createWorker('eng', 1, {
+        workerPath: OCR_WORKER_PATH,
+        corePath: OCR_CORE_PATH,
+        langPath: OCR_LANG_PATH
+      }).then(function (w) {
+        camOcrWorker = w;
+        var statusEl = document.getElementById('camStatusLive');
+        if (statusEl) statusEl.textContent = '📷 Đưa mã vào khung — tự nhận diện (vạch + chữ Ops)';
+      }).catch(function () { camOcrWorker = null; });
+    } catch (e) { camOcrWorker = null; }
+  }
+
+  // OCR 1 frame (canvas) → cb(code | null). Busy → xếp hàng (frame cũ chờ OCR đang chạy xong).
+  function camOcrFrame(canvas, cb) {
+    if (!camOcrEnabled || !camOcrWorker) { if (cb) cb(null); return; }
+    if (camOcrBusy) { camOcrQueue.push({ canvas: canvas, cb: cb }); return; }
+    camOcrBusy = true;
+    try {
+      camOcrWorker.recognize(canvas).then(function (res) {
+        camOcrBusy = false;
+        var code = null;
+        try {
+          var hit = pickOpsCandidate(
+            res && res.data && res.data.text,
+            res && res.data && res.data.words,
+            camKnownStaffCode,
+            CAM_OCR_MIN_CONFIDENCE
+          );
+          if (hit) code = hit.code;
+        } catch (e2) { code = null; }
+        if (cb) cb(code);
+        drainOcrQueue();
+      }).catch(function () {
+        camOcrBusy = false;
+        if (cb) cb(null);
+        drainOcrQueue();
+      });
+    } catch (e) {
+      camOcrBusy = false;
+      if (cb) cb(null);
+      drainOcrQueue();
+    }
+  }
+
+  function drainOcrQueue() {
+    if (camOcrBusy || !camOcrQueue.length) return;
+    var next = camOcrQueue.shift();
+    camOcrFrame(next.canvas, next.cb);
+  }
+
+  // Timer song song: mỗi CAM_OCR_INTERVAL_MS chụp frame 800px → OCR chữ Ops…
+  // KHÔNG chặn decode barcode (khác cờ busy) — cái nào ra trước thì done.
+  function startOcrLoop() {
+    stopOcrLoop();
+    if (camOcrLoadFailed) return;
+    var statusEl = document.getElementById('camStatusLive');
+    if (!camOcrEnabled && !camOcrLoading && statusEl) {
+      statusEl.textContent = '📷 Đang tải nhận diện chữ Ops… (lần đầu hơi lâu)';
+    }
+    ensureOcrLib(function () {
+      if (camOcrEnabled) {
+        camOcrTimer = setInterval(function () { ocrTick(); }, CAM_OCR_INTERVAL_MS);
+      }
+    });
+  }
+
+  function stopOcrLoop() {
+    if (camOcrTimer) { clearInterval(camOcrTimer); camOcrTimer = null; }
+  }
+
+  function ocrTick() {
+    if (!camStream || camOcrBusy) return;
+    var video = document.getElementById('camVideo');
+    if (!video || video.readyState < 2 || !video.videoWidth) return;
+    var frame = camFrameToImageData(video, 800);
+    if (!frame) return;
+    camOcrFrame(frame.canvas, function (code) {
+      if (code && camStream) onCameraDecoded(code); // camera còn mở mới nhận (đã đóng → bỏ qua)
+    });
+  }
+
+  // OCR fallback cho ảnh chụp (nút 🖼/camera native): mọi scale decode barcode fail → thử đọc chữ
+  function ocrPhotoFallback(img, w, h) {
+    var showFail = function () {
+      camStatus('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc', true);
+    };
+    if (!camOcrEnabled || !camOcrWorker) { showFail(); return; }
+    var maxSide = Math.max(w || 0, h || 0);
+    var scale = maxSide ? Math.min(1, 800 / maxSide) : 1;
+    var cw = Math.max(1, Math.round((w || 0) * scale));
+    var ch = Math.max(1, Math.round((h || 0) * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    try { canvas.getContext('2d').drawImage(img, 0, 0, cw, ch); } catch (e) { showFail(); return; }
+    camStatus('🔍 Mã vạch mờ — đang thử nhận diện chữ Ops…', false);
+    camOcrFrame(canvas, function (code) {
+      if (code) onCameraDecoded(code);
+      else showFail();
+    });
+  }
+  // ===== OCR-SCAN-END =====
+
   function onCameraDecoded(code) {
     stopCameraDecodeLoop();
+    stopOcrLoop();
+    camOcrQueue = [];
+    camOcrBusy = false;
     if (camStream) {
       camStream.getTracks().forEach(function (t) { t.stop(); });
       camStream = null;
