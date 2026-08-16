@@ -146,7 +146,7 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
@@ -206,24 +206,31 @@
       '        canvas.height = f.h;',
       '        canvas.getContext("2d").putImageData(f.imageData, 0, 0);',
       '        var src = canvas.toDataURL("image/jpeg", 0.92);',
-      '        runQuagga(src, LIBS.configs || [{ patchSize: "x-large", halfSample: true }], 0, onDone);',
+      '        runQuagga(src, LIBS.configs || [{ patchSize: "x-large", halfSample: false }], 0, [], onDone);',
       '        return;',
       '      } catch (e) { /* tiếp tục */ }',
       '    }',
       '    onDone();',
       '  }',
-      '  function runQuagga(src, configs, idx, onDone) {',
-      '    if (idx >= configs.length) { onDone(); return; }',
+      '  function runQuagga(src, configs, idx, results, onDone) {',
+      '    if (idx >= configs.length) {',
+      '      // Chạy HẾT config rồi mới nhận — chỉ nhận mã được ≥2 config đồng thuận',
+      '      // (sau normalize — Quagga quirk thừa checksum digit, bug 2026-08-16).',
+      '      var agree = LIBS.majority ? LIBS.majority(results, LIBS.known || function () { return false; }, 2) : null;',
+      '      if (agree) { sendResult(agree); return; }',
+      '      onDone();',
+      '      return;',
+      '    }',
       '    LIBS.Quagga.decodeSingle({',
       '      src: src,',
       '      numOfWorkers: 0,',
-      '      inputStream: { size: 800 },',
+      '      inputStream: { size: 1280 },',
       '      locator: configs[idx],',
       '      decoder: { readers: LIBS.readers }',
       '    }, function (result) {',
       '      var code = result && result.codeResult && result.codeResult.code;',
-      '      if (code) { sendResult(code); return; }',
-      '      runQuagga(src, configs, idx + 1, onDone);',
+      '      if (code) results.push(String(code).trim());',
+      '      runQuagga(src, configs, idx + 1, results, onDone);',
       '    });',
       '  }',
       '  // AUTO-DECODE theo nhịp cố định (không gate độ rung — bug 2026-08-12): chạy',
@@ -689,7 +696,9 @@
         if (qr && qr.data) { onCameraDecoded(qr.data); return; }
       } catch (err) { /* tiếp tục */ }
     }
-    // Quagga — barcode vạch 1D (nhiều cấu hình locator)
+    // Quagga — barcode vạch 1D (Code128/Code39/EAN…): chạy HẾT các config rồi CHỈ nhận
+    // mã được ≥2 config đồng thuận (sau normalize) — chống đọc SAI (bug 2026-08-16, xem
+    // normalizeQuaggaCode128/camPickQuaggaMajority bên dưới).
     if (window.Quagga) {
       try {
         var canvas = document.createElement('canvas');
@@ -697,7 +706,11 @@
         canvas.height = h;
         canvas.getContext('2d').putImageData(imageData, 0, 0);
         var src = canvas.toDataURL('image/jpeg', 0.92);
-        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, onDone);
+        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
+          var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
+          if (agree) { onCameraDecoded(agree); return; }
+          onDone();
+        });
         return;
       } catch (err) { /* tiếp tục */ }
     }
@@ -736,45 +749,108 @@
     var onDone = quiet
       ? function () { camDecoding = false; if (onFail) onFail(); }   // im lặng: loop tiếp tục
       : function () { camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc'); };
-    if (window.Quagga) {
+    if (window.Quagga && fullChain) {
       try {
         var canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         canvas.getContext('2d').putImageData(imageData, 0, 0);
         var src = canvas.toDataURL('image/jpeg', 0.92);
-        // Live loop (fast): 1 config nhanh. Snap/auto-snap (fullChain): nhiều config (nét hơn).
-        var configs = fullChain ? CAM_QUAGGA_CONFIGS : [CAM_QUAGGA_CONFIG_FAST];
-        runQuaggaConfigs(src, configs, 0, onDone);
+        // Chỉ chạy Quagga ở full chain (auto-snap/snap/ảnh) + ≥2 config đồng thuận.
+        // FAST PATH (tick live 800px + halfSample) KHÔNG chạy Quagga nữa — config yếu đó
+        // từng nhận NHẦM mã (bug 2026-08-16); tick live chỉ bắt bằng BarcodeDetector/jsQR,
+        // mã vạch 1D do full chain (mỗi 2 tick) xử lý với đồng thuận.
+        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
+          var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
+          if (agree) { onCameraDecoded(agree); return; }
+          onDone();
+        });
         return;
       } catch (err) { /* tiếp tục xuống fail */ }
     }
     onDone();
   }
 
-  var CAM_QUAGGA_CONFIG_FAST = { patchSize: 'x-large', halfSample: true };
+  // ===== CODE128 NORMALIZE + ĐỒNG THUẬN (PURE — test được trên Node: tests/camera-code128.test.js) =====
+  // Vì sao cần (bug 2026-08-16 — camera nhận mã vạch nhưng SAI, user test trên iPhone):
+  // Quagga vendored (lib-quagga.html, upstream 2016) code_128_reader có 2 quirk làm sai mã:
+  //   1) checksum symbol ở CODE_C (mã SỐ) là symbol 2 ký tự (00-99) nhưng decode() chỉ
+  //      v.splice(v.length-1, 1) → output CÒN THỪA 1 digit checksum.
+  //   2) codeset kết thúc bằng special code (FNC1/switch) → checksum char KHÔNG bị bỏ →
+  //      output kèm cả checksum char (thừa 1 ký tự).
+  // Mã quét là mã NV (staffId, prefix Ops) → dùng STAFF_INFO (js.html, global — file này
+  // load trước js.html nhưng hàm chỉ gọi lúc runtime) làm nguồn chuẩn: raw không khớp NV
+  // nào mà bỏ 1 (hoặc 2) ký tự cuối khớp đúng 1 NV → cắt. Không khớp → giữ nguyên (NV
+  // lạ / Dư vẫn quét được — không phá mã thật).
+  function camKnownStaffCode(code) {
+    var q = String(code || '').trim().toUpperCase();
+    if (!q) return false;
+    try { return !!(typeof STAFF_INFO !== 'undefined' && STAFF_INFO[q]); } catch (e) { return false; }
+  }
+
+  function normalizeQuaggaCode128(raw, isKnownCode) {
+    var s = String(raw || '').trim();
+    if (!s) return s;
+    // FNC1 (chr 29) cuối không thuộc mã NV (GS1-128) — bỏ trước khi check
+    while (s.length && s.charCodeAt(s.length - 1) === 29) s = s.slice(0, -1);
+    if (!s) return s;
+    if (isKnownCode(s)) return s;
+    var candidates = [];
+    if (s.length >= 2) candidates.push(s.slice(0, -1));   // thừa 1 digit (quirk #1/#2)
+    if (s.length >= 3) candidates.push(s.slice(0, -2));   // thừa nguyên checksum 2 ký tự
+    for (var i = 0; i < candidates.length; i++) {
+      if (isKnownCode(candidates[i])) return candidates[i];
+    }
+    return s;
+  }
+
+  // Chỉ nhận mã được ≥ minAgree (mặc định 2) config cho CÙNG kết quả (sau normalize) —
+  // misread ngẫu nhiên của từng config không trùng nhau → bị loại. Trả null nếu không đủ.
+  function camPickQuaggaMajority(results, isKnownCode, minAgree) {
+    var min = minAgree == null ? 2 : minAgree;
+    if (!results || !results.length) return null;
+    var counts = {};
+    results.forEach(function (raw) {
+      var key = normalizeQuaggaCode128(raw, isKnownCode);
+      if (!key) return;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    var best = null, bestN = 0;
+    Object.keys(counts).forEach(function (key) {
+      if (counts[key] > bestN) { bestN = counts[key]; best = key; }
+    });
+    return bestN >= min ? best : null;
+  }
+  // ===== CODE128 NORMALIZE + ĐỒNG THUẬN — END =====
+
   var CAM_QUAGGA_CONFIGS = [
-    { patchSize: 'x-large', halfSample: true },
+    // Full-res trước (Code128 dày đọc chuẩn hơn — halfSample gộp vạch dễ SAI), patch
+    // medium thứ 2 (mã nhỏ), halfSample cuối (ảnh mờ/lớn). Thứ tự chỉ ảnh hưởng tốc độ
+    // đạt đồng thuận — kết quả luôn qua camPickQuaggaMajority (≥2 config giống nhau).
     { patchSize: 'x-large', halfSample: false },
-    { patchSize: 'medium', halfSample: false }
+    { patchSize: 'medium', halfSample: false },
+    { patchSize: 'x-large', halfSample: true }
   ];
 
-  function runQuaggaConfigs(src, configs, idx, onDone) {
+  // Chạy HẾT các config, gom kết quả thô vào results[] rồi onDone(results) — người gọi
+  // quyết định nhận/loại (camPickQuaggaMajority). inputStream.size 1280 (không hạ xuống
+  // 800 như cũ — vạch Code128 dày bị gộp ở 800px dễ đọc SAI).
+  function runQuaggaConfigs(src, configs, idx, results, onDone) {
     if (idx >= configs.length) {
-      if (onDone) onDone();
+      if (onDone) onDone(results || []);
       return;
     }
     var cfg = configs[idx];
     window.Quagga.decodeSingle({
       src: src,
       numOfWorkers: 0,
-      inputStream: { size: 800 },
+      inputStream: { size: 1280 },
       locator: cfg,
       decoder: { readers: CAM_QUAGGA_READERS }
     }, function (result) {
       var code = result && result.codeResult && result.codeResult.code;
-      if (code) { onCameraDecoded(code); return; }
-      runQuaggaConfigs(src, configs, idx + 1, onDone);
+      if (code) results.push(String(code).trim());
+      runQuaggaConfigs(src, configs, idx + 1, results, onDone);
     });
   }
 
