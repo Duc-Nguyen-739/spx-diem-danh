@@ -53,6 +53,13 @@
   var camSharedCanvas = null; // 1 canvas dùng chung cho mọi frame tick (2026-08-16 tối ưu:
                              // hết tạo canvas+context mới mỗi ~600ms → giảm GC trên iOS)
   var camSharedCtx = null;
+  var camVideoEl = null; // cache element #camVideo — loop live đọc mỗi tick/frame (rAF
+                         // ~60fps + interval 300ms + OCR 2s); element tĩnh trong modal →
+                         // cache 1 lần, hết query DOM mỗi lần (2026-08-16 tối ưu)
+  function camVideo() {
+    if (!camVideoEl) camVideoEl = document.getElementById('camVideo');
+    return camVideoEl;
+  }
   // AUTO-DECODE (2026-08-12): live loop iOS chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px
   // + jsQR + 3 config Quagga — đường đã chạy tốt) theo nhịp cố định, KHÔNG gate theo độ
   // rung (threshold 6/255 quá nhạy với noise camera iPhone thật → auto-snap không bao giờ
@@ -460,7 +467,7 @@
   // (<input capture>) để không kẹt ở màn hình đen.
   function startCameraLive(force) {
     var modal = document.getElementById('cameraModal');
-    var video = document.getElementById('camVideo');
+    var video = camVideo();
     var statusEl = document.getElementById('camStatusLive');
     if (!modal || !video) return;
     if (camStream) return; // đang mở rồi
@@ -525,7 +532,7 @@
     }
     if (camDetector) {
       var loop = function () {
-        var video = document.getElementById('camVideo');
+        var video = camVideo();
         if (!camStream || !video || !video.videoWidth) { camRaf = null; return; }
         camDetector.detect(video).then(function (results) {
           if (results && results.length && results[0].rawValue) {
@@ -546,7 +553,7 @@
     //    chống đọc SAI. Đưa mã vào khung là tự nhận (không dùng motion gate — bug 2026-08-12).
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
-      var video = document.getElementById('camVideo');
+      var video = camVideo();
       if (!video || video.readyState < 2 || !video.videoWidth) return;
       var now = Date.now();
       if (now - camLastFrame < 600) return;
@@ -660,7 +667,7 @@
     }
     camSnapping = false;
     resetCamFindUi();
-    var video = document.getElementById('camVideo');
+    var video = camVideo();
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
     if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
@@ -669,7 +676,7 @@
 
   // 📸 Chụp frame hiện tại rồi decode tĩnh (fallback khi live không bắt được)
   function snapCameraFrame() {
-    var video = document.getElementById('camVideo');
+    var video = camVideo();
     if (!video || !video.videoWidth) {
       camStatus('Camera chưa sẵn sàng — chờ vài giây rồi thử lại', true);
       return;
@@ -750,7 +757,7 @@
     if (statusEl) statusEl.textContent = '📷 Đang nhận diện mã…';
     var frame = optionalFrame;
     if (!frame) {
-      var video = document.getElementById('camVideo');
+      var video = camVideo();
       if (!video || !video.videoWidth) { camSnapping = false; camDecoding = false; return; }
       frame = camFrameToImageData(video, 1280);
       if (!frame) { camSnapping = false; camDecoding = false; return; }
@@ -893,22 +900,26 @@
     // Quagga — barcode vạch 1D (Code128/Code39/EAN…): chạy HẾT các config rồi CHỈ nhận
     // mã được ≥2 config đồng thuận (sau normalize) — chống đọc SAI (bug 2026-08-16, xem
     // normalizeQuaggaCode128/camPickQuaggaMajority bên dưới).
-    if (window.Quagga) {
-      try {
-        var canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').putImageData(imageData, 0, 0);
-        var src = canvas.toDataURL('image/jpeg', 0.92);
-        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
-          var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
-          if (agree) { onCameraDecoded(agree); return; }
-          onDone();
-        });
-        return;
-      } catch (err) { /* tiếp tục */ }
-    }
-    onDone();
+    quaggaDecodeImageData(imageData, w, h, onCameraDecoded, onDone);
+  }
+
+  // Dùng chung cho ảnh chụp lẫn live frame (tách 2 khối trùng y hệt 2026-08-16): chạy
+  // full chain Quagga (≥2 config đồng thuận sau normalize) trên 1 ImageData.
+  // onCode(agree) khi nhận mã; onDone() khi không nhận / Quagga không có / lỗi.
+  function quaggaDecodeImageData(imageData, w, h, onCode, onDone) {
+    if (!window.Quagga) { onDone(); return; }
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').putImageData(imageData, 0, 0);
+      var src = canvas.toDataURL('image/jpeg', 0.92);
+      runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
+        var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
+        if (agree) { onCode(agree); return; }
+        onDone();
+      });
+    } catch (err) { onDone(); }
   }
 
   // quiet=true → fail im lặng (live loop tiếp tục); fullChain=true → decode đủ 3 config
@@ -944,23 +955,12 @@
       ? function () { camDecoding = false; if (onFail) onFail(); }   // im lặng: loop tiếp tục
       : function () { camFail('Không nhận diện được mã — chụp lại gần hơn, đủ sáng, thẳng góc'); };
     if (window.Quagga && fullChain) {
-      try {
-        var canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').putImageData(imageData, 0, 0);
-        var src = canvas.toDataURL('image/jpeg', 0.92);
-        // Chỉ chạy Quagga ở full chain (auto-snap/snap/ảnh) + ≥2 config đồng thuận.
-        // FAST PATH (tick live 800px + halfSample) KHÔNG chạy Quagga nữa — config yếu đó
-        // từng nhận NHẦM mã (bug 2026-08-16); tick live chỉ bắt bằng BarcodeDetector/jsQR,
-        // mã vạch 1D do full chain (mỗi 2 tick) xử lý với đồng thuận.
-        runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
-          var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
-          if (agree) { onCameraDecoded(agree); return; }
-          onDone();
-        });
-        return;
-      } catch (err) { /* tiếp tục xuống fail */ }
+      // Chỉ chạy Quagga ở full chain (auto-snap/snap/ảnh) + ≥2 config đồng thuận.
+      // FAST PATH (tick live 800px + halfSample) KHÔNG chạy Quagga nữa — config yếu đó
+      // từng nhận NHẦM mã (bug 2026-08-16); tick live chỉ bắt bằng BarcodeDetector/jsQR,
+      // mã vạch 1D do full chain (mỗi 2 tick) xử lý với đồng thuận.
+      quaggaDecodeImageData(imageData, w, h, onCameraDecoded, onDone);
+      return;
     }
     onDone();
   }

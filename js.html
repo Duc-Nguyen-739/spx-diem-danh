@@ -992,7 +992,7 @@
   }
   // ===== DASH-SIDEBAR (MẪU 6 — Executive Dark): KPI + bộ lọc lọc data thật =====
   var _dashTasks = [];
-  function setText(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+  function setText(id, v) { var e = byId(id); if (e) e.textContent = v; }
   function toggleDashGroup(btn) { var g = btn.parentElement; if (g) g.classList.toggle('open'); }
   function buildDashOpts(containerId, name, tasks, field) {
     var box = document.getElementById(containerId);
