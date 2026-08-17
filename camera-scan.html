@@ -185,9 +185,9 @@
       '.rrow.new{animation:rrowNew .9s ease-out;}',
       '@keyframes rrowNew{0%{background:rgba(74,222,128,.18);}100%{background:transparent;}}',
       // Chỉ báo trạng thái worker (2026-08-17): "⚙️ Worker: bật/tắt" — kiểm tra worker chạy được trên máy thật không
-      '#popWorkerStatus{font-size:11px;color:#64748b;}',
+      '#popWorkerStatus{position:absolute;left:0;right:0;bottom:36px;text-align:center;z-index:4;pointer-events:none;font-size:11px;color:#64748b;text-shadow:0 1px 4px rgba(0,0,0,.8);}',
       '#popWorkerStatus.on{color:#81c784;font-weight:700;}',
-      '#popWorkerStatus.off{color:#f87171;}',
+      '#popWorkerStatus.off{color:#f87171;font-weight:700;}',
       '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
@@ -218,7 +218,10 @@
       '<div id="frame"></div>',
       '<div id="scanline"></div>',
       '<div id="flash"><b>✓</b></div>',
-      '<div id="status">Đang mở camera… <span id="popWorkerStatus"></span></div>',
+      '<div id="status">Đang mở camera…</div>',
+      '<!-- Trạng thái worker decode — ĐỂ NGOÀI #status: statusEl.textContent set nhiều chỗ',
+      '     (mở camera/nhận mã…) sẽ XÓA span con → không bao giờ hiện (bug 2026-08-17). -->',
+      '<span id="popWorkerStatus"></span>',
       '</div>',
       // QUÉT LIÊN TỤC (2026-08-17): chia đôi — trên là camera, dưới là kết quả quét
       '<div id="results">',
