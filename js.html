@@ -2148,7 +2148,7 @@
         playBeep('error');
         showScanCard('Trùng mã', target, true);
         input.value = '';
-        input.focus();
+        if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
         return;
       }
     }
@@ -2169,12 +2169,12 @@
       playBeep('error');
       showScanCard('Đã điểm danh', target, true);
       input.value = '';
-      input.focus();
+      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
       return;
     }
 
     input.value = '';
-    input.focus();
+    if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
 
     var item = {
       staffId: staffId,
@@ -2457,13 +2457,15 @@
       playBeep('error');
       showScanCard('Sai mã', { staffId: staffId }, true);
       input.value = '';
-      input.focus();
+      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
       return false;
     }
 
     // ---- Capture ngay: clear + focus + optimistic + toast tức thì (0ms) ----
+    // focus bỏ qua khi camera đang mở (quét liên tục 2026-08-17) — tránh bàn phím
+    // bật lên che camera trên mobile.
     input.value = '';
-    input.focus();
+    if (!window.__RC_CAM_OPEN__) input.focus();
 
     // Tìm dòng NV trong log hiện tại; nếu chưa có → tạo dòng tạm.
     var norm = staffId.toUpperCase();
@@ -2770,6 +2772,12 @@
     var cls = isError ? 'err' : (status === STATUS_C.EXTRA ? 'extra' : 'ok');
     card.className = 'scan-card ' + cls;
     card.innerHTML = scanCardHTML(isError ? 'Lỗi' : status, target);
+    // QUÉT LIÊN TỤC (2026-08-17): camera đang mở → đẩy kết quả vào danh sách NGAY DƯỚI
+    // CAMERA (camera-scan.html camAppendResult — render #camResultsBody / postMessage cho
+    // popup GAS). Không bật camera → bỏ qua im lặng (hành vi cũ giữ nguyên).
+    if (typeof camAppendResult === 'function' && window.__RC_CAM_OPEN__) {
+      camAppendResult(status, target, isError);
+    }
   }
 
   function resetScanCard() {

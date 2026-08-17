@@ -50,8 +50,46 @@
 .camera-actions .btn { min-width: 110px; }
 @media (max-width: 600px) {
   .camera-stage { max-width: 420px; }
-  .camera-view { aspect-ratio: 3 / 4; max-height: 58vh; }
+  .camera-view { aspect-ratio: 3 / 4; max-height: 46vh; }
+  .camera-results { max-height: 30vh; }
 }
+/* ===== QUÉT LIÊN TỤC (2026-08-17): camera trên, kết quả quét dưới =====
+   Panel nằm trong #cameraModal — chia đôi màn hình quét: trên là ô camera,
+   dưới là danh sách thông tin vừa quét (mã + tên + giờ + badge trạng thái).
+   Media ≤600px (mobile) co camera-view nhường chỗ cho danh sách cuộn được. */
+.camera-results {
+  flex: 0 0 auto;
+  max-height: 28vh;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, .62);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 14px;
+}
+.camera-results-head {
+  position: sticky; top: 0;
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(2, 6, 23, .96);
+}
+.camera-results-body { padding: 4px 0; }
+.camera-results-body:empty::after {
+  content: 'Quét mã để xem kết quả ở đây — camera không tự đóng';
+  display: block; padding: 10px 14px;
+  color: #64748b; font-size: 12.5px;
+}
+.cr-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; font-size: 13px; color: #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.cr-row:last-child { border-bottom: 0; }
+.cr-code { font-weight: 700; color: #fff; white-space: nowrap; }
+.cr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-time { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+.cr-badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.cr-badge.ok { background: rgba(46, 125, 50, .28); color: #81c784; }
+.cr-badge.extra { background: rgba(255, 152, 0, .22); color: #ffb74d; }
+.cr-badge.err { background: rgba(211, 47, 47, .28); color: #ef9a9a; }
 /* ===== TAB QUÉT RIÊNG (?scan=1) — ẩn toàn app, camera fullscreen =====
    Class scan-mode được thêm vào <body> (camera-scan.html initScanModeIfNeeded) →
    selector phải là body.scan-mode, KHÔNG phải .scan-mode body (không bao giờ khớp —

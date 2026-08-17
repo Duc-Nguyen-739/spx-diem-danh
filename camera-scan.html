@@ -60,6 +60,15 @@
     if (!camVideoEl) camVideoEl = document.getElementById('camVideo');
     return camVideoEl;
   }
+  // QUÉT LIÊN TỤC (2026-08-17): camera KHÔNG đóng sau 1 mã — quét mã tiếp theo ngay;
+  // kết quả hiện NGAY DƯỚI CAMERA (modal render #camResultsBody / popup nhận rcScanInfo).
+  var camOpen = false;        // phiên quét camera đang hoạt động (modal live HOẶC popup)
+  var camLastCode = '';       // mã vừa nhận — dedup: thẻ vẫn nằm trong khung
+  var camLastCodeTs = 0;
+  var camResultCode = '';     // mã lượt quét gần nhất (merge optimistic + server response)
+  var camResultTs = 0;
+  var CAM_CODE_COOLDOWN_MS = 10000;  // cùng mã trong 10s → bỏ qua (khớp DUPLICATE_WINDOW_MS server)
+  var CAM_RESULT_MERGE_MS = 2500;    // optimistic + server response cùng lượt → cập nhật 1 dòng
   // AUTO-DECODE (2026-08-12): live loop iOS chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px
   // + jsQR + 3 config Quagga — đường đã chạy tốt) theo nhịp cố định, KHÔNG gate theo độ
   // rung (threshold 6/255 quá nhạy với noise camera iPhone thật → auto-snap không bao giờ
@@ -78,6 +87,11 @@
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+    // QUÉT LIÊN TỤC (2026-08-17): đánh dấu phiên quét đang hoạt động — js.html
+    // showScanCard đẩy kết quả xuống danh sách dưới camera; bỏ input.focus() khi
+    // camera mở (tránh bàn phím bật lên che camera trên mobile).
+    camOpen = true;
+    try { window.__RC_CAM_OPEN__ = true; } catch (e) {}
     var inFrame = false;
     try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
     if (inFrame) {
@@ -122,6 +136,20 @@
       '#frame{position:absolute;inset:12% 8%;border:2px dashed rgba(255,255,255,.85);border-radius:14px;pointer-events:none;}',
       '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
+      // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
+      // camera ở trên (#view), thông tin vừa quét ở dưới (#results), cuộn được.
+      '#results{flex:0 0 auto;max-height:30vh;overflow-y:auto;background:#0d111a;border-top:1px solid rgba(255,255,255,.12);}',
+      '#resultsHead{padding:8px 14px;font-size:13px;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,.08);}',
+      '#resultsBody{padding:4px 0;}',
+      '#resultsBody:empty::after{content:"Quét mã để xem kết quả ở đây — camera không tự đóng";display:block;padding:10px 14px;color:#64748b;font-size:12.5px;}',
+      '.rrow{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:13px;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,.06);}',
+      '.rrow:last-child{border-bottom:0;}',
+      '.rrow b{color:#fff;white-space:nowrap;}',
+      '.rrow .rtime{color:#94a3b8;font-size:11px;}',
+      '.rbadge{margin-left:auto;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;}',
+      '.rbadge.ok{background:rgba(46,125,50,.28);color:#81c784;}',
+      '.rbadge.extra{background:rgba(255,152,0,.22);color:#ffb74d;}',
+      '.rbadge.err{background:rgba(211,47,47,.28);color:#ef9a9a;}',
       'button{font-size:16px;padding:12px 22px;border-radius:12px;border:0;cursor:pointer;}',
       '#startBtn{background:#e85d04;color:#fff;display:none;}',
       '#findBtn{background:#0b57d0;color:#fff;}',
@@ -135,6 +163,11 @@
       '<video id="video" autoplay playsinline muted></video>',
       '<div id="frame"></div>',
       '<div id="status">Đang mở camera…</div>',
+      '</div>',
+      // QUÉT LIÊN TỤC (2026-08-17): chia đôi — trên là camera, dưới là kết quả quét
+      '<div id="results">',
+      '<div id="resultsHead">Kết quả quét</div>',
+      '<div id="resultsBody"></div>',
       '</div>',
       '<div id="bar">',
       '<button id="startBtn" type="button">▶ Bật camera</button>',
@@ -153,7 +186,6 @@
       '  var stream = null;',
       '  var timer = null;',
       '  var busy = false;',
-      '  var detected = false;',
       '  var tick = 0;',
       '  var findMode = false;',
       '  var findBtn = document.getElementById("findBtn");',
@@ -179,14 +211,21 @@
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
+      '  var lastCode = "";',
+      '  var lastCodeTs = 0;',
+      '  // QUÉT LIÊN TỤC (2026-08-17): KHÔNG dừng camera / không đóng popup sau 1 mã —',
+      '  // gửi mã về trang cha xử lý rồi quét mã tiếp theo. Cùng mã trong 10s → bỏ qua',
+      '  // (thẻ vẫn nằm trong khung — không spam). Kết quả hiện ở #results dưới camera',
+      '  // (trang cha gửi {type:"rcScanInfo"} về → addResultRow bên dưới).',
       '  function sendResult(code) {',
-      '    if (detected) return;',
-      '    detected = true;',
       '    var clean = String(code || "").trim();',
+      '    if (!clean) return;',
+      '    var now = Date.now();',
+      '    if (clean === lastCode && now - lastCodeTs < 10000) return;',
+      '    lastCode = clean;',
+      '    lastCodeTs = now;',
       '    try { if (window.opener) window.opener.postMessage({ type: "rcScanResult", code: clean }, "*"); } catch (e) {}',
-      '    statusEl.textContent = "✅ Đã nhận mã: " + clean;',
-      '    stop();',
-      '    setTimeout(function () { try { window.close(); } catch (e) {} }, 1000);',
+      '    statusEl.textContent = "✅ Đã nhận mã: " + clean + " — quét mã tiếp theo";',
       '  }',
       '  function sendFailed() {',
       '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, "*"); } catch (e) {}',
@@ -272,7 +311,7 @@
       '  // OCR song song (2026-08-16): đọc chữ Ops… khi mã vạch mờ — gọi qua window.opener',
       '  // (trang app giữ worker Tesseract + STAFF_INFO) — cái nào ra trước thì sendResult.',
       '  function ocrTick() {',
-      '    if (!LIBS.ocr || ocrBusy || detected || !stream) return;',
+      '    if (!LIBS.ocr || ocrBusy || !stream) return;',
       '    if (!video.videoWidth) return;',
       '    ocrBusy = true;',
       '    var f = frameToImageData(800);',
@@ -291,7 +330,7 @@
       '    decodeChain(f, function () { busy = false; });',
       '  }',
       '  function loop() {',
-      '    if (!stream || detected) return;',
+      '    if (!stream) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
       '    if (tick % 2 === 0) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
@@ -366,6 +405,40 @@
       '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "closed" }, "*"); } catch (e) {}',
       '    stop(); try { window.close(); } catch (e) {}',
       '  });',
+      '  // Danh sách kết quả quét dưới camera: trang cha xử lý xong 1 mã (submitScan) gửi',
+      '  // {type:"rcScanInfo", code, status, staffName, time, update} về đây → thêm dòng.',
+      '  // Dựng bằng DOM + textContent (không innerHTML) — khỏi escape, an toàn XSS.',
+      '  function addResultRow(d) {',
+      '    var body = document.getElementById("resultsBody");',
+      '    var head = document.getElementById("resultsHead");',
+      '    if (!body || !d || !d.code) return;',
+      '    var row = null;',
+      '    if (d.update) {',
+      '      row = body.lastElementChild;',
+      '      if (!row || row.getAttribute("data-code") !== String(d.code)) row = null;',
+      '    }',
+      '    if (!row) {',
+      '      row = document.createElement("div");',
+      '      row.className = "rrow";',
+      '      row.setAttribute("data-code", String(d.code));',
+      '      body.appendChild(row);',
+      '    } else {',
+      '      row.innerHTML = "";',
+      '    }',
+      '    var b = document.createElement("b"); b.textContent = d.code; row.appendChild(b);',
+      '    var name = document.createElement("span"); name.textContent = d.staffName || ""; row.appendChild(name);',
+      '    var time = document.createElement("span"); time.className = "rtime"; time.textContent = d.time || ""; row.appendChild(time);',
+      '    var badge = document.createElement("span");',
+      '    badge.className = "rbadge " + (d.isError ? "err" : (d.status === "Dư" ? "extra" : "ok"));',
+      '    badge.textContent = d.status || "";',
+      '    row.appendChild(badge);',
+      '    body.scrollTop = body.scrollHeight;',
+      '    if (head) head.textContent = "Kết quả quét (" + body.children.length + ")";',
+      '  }',
+      '  window.addEventListener("message", function (ev) {',
+      '    if (!ev.data || typeof ev.data !== "object") return;',
+      '    if (ev.data.type === "rcScanInfo") addResultRow(ev.data);',
+      '  });',
       '  window.addEventListener("unload", stop);',
       '  setTimeout(function () { start(false); }, 120);',
       '})();',
@@ -403,6 +476,8 @@
     } catch (e) {
       camPopupBusy = false;
       camPopupRef = null;
+      camOpen = false;
+      try { window.__RC_CAM_OPEN__ = false; } catch (e2) {}
       pickCameraImage();
     }
   }
@@ -449,6 +524,8 @@
         // Popup không mở được camera (bị chặn/không hỗ trợ) → fallback camera native
         camPopupBusy = false;
         camPopupRef = null;
+        camOpen = false;
+        try { window.__RC_CAM_OPEN__ = false; } catch (e2) {}
         camStatus('📷 Camera popup bị chặn — dùng camera chụp ảnh thay thế', true);
         setTimeout(pickCameraImage, 250);
         return;
@@ -457,6 +534,8 @@
         // User bấm "✕ Đóng" trong popup → popup tự đóng → cho mở popup mới ở lần sau
         camPopupBusy = false;
         camPopupRef = null;
+        camOpen = false;
+        try { window.__RC_CAM_OPEN__ = false; } catch (e2) {}
       }
     });
   }
@@ -667,6 +746,18 @@
     }
     camSnapping = false;
     resetCamFindUi();
+    // QUÉT LIÊN TỤC (2026-08-17): kết thúc phiên quét — tắt cờ, xoá dedup + danh sách
+    // kết quả (mở lại camera → phiên mới, danh sách mới).
+    camOpen = false;
+    try { window.__RC_CAM_OPEN__ = false; } catch (e) {}
+    camLastCode = '';
+    camLastCodeTs = 0;
+    camResultCode = '';
+    camResultTs = 0;
+    var resBody = document.getElementById('camResultsBody');
+    if (resBody) { resBody.innerHTML = ''; }
+    var resHead = document.getElementById('camResultsHead');
+    if (resHead) { resHead.textContent = 'Kết quả quét'; }
     var video = camVideo();
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
@@ -1325,22 +1416,96 @@
   }
   // ===== OCR-SCAN-END =====
 
-  function onCameraDecoded(code) {
-    stopCameraDecodeLoop();
-    stopOcrLoop();
-    camOcrQueue = [];
-    camOcrBusy = false;
-    if (camStream) {
-      camStream.getTracks().forEach(function (t) { t.stop(); });
-      camStream = null;
+  // ===== QUÉT LIÊN TỤC: danh sách kết quả quét ngay dưới camera (2026-08-17) =====
+  // js.html showScanCard gọi camAppendResult sau mỗi lượt quét (optimistic + server
+  // response) khi phiên quét camera đang mở → hiện kết quả NGAY DƯỚI CAMERA: modal
+  // render #camResultsBody; popup GAS nhận postMessage {type:'rcScanInfo'} và tự render.
+  // CAM_RESULT_MERGE_MS: optimistic và server response của CÙNG lượt quét (cùng mã
+  // trong 2.5s) → cập nhật 1 dòng thay vì thêm dòng mới (server trả tên thật NV lạ).
+
+  // PURE (test được trong Node): có nên merge vào dòng kết quả cuối cùng không?
+  function camShouldMergeResult(prevCode, prevTs, code, now, mergeMs) {
+    return !!(code && code === prevCode && prevTs > 0 && now - prevTs < mergeMs);
+  }
+
+  function camEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtTimeNow() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  // PURE: HTML 1 dòng kết quả (không chạm DOM — test được trong Node)
+  function camResultRowHTML(p) {
+    var badgeCls = p.isError ? 'err' : (p.status === 'Dư' ? 'extra' : 'ok');
+    return '<span class="cr-code">' + camEsc(p.code) + '</span>' +
+      '<span class="cr-name">' + camEsc(p.staffName || '') + '</span>' +
+      '<span class="cr-time">' + camEsc(p.time || '') + '</span>' +
+      '<span class="cr-badge ' + badgeCls + '">' + camEsc(p.status || '') + '</span>';
+  }
+
+  function camAppendResult(status, target, isError) {
+    if (!camOpen) return;         // chỉ khi đang quét camera (modal live HOẶC popup)
+    if (!target) return;
+    var code = String(target.staffId || '').trim();
+    if (!code) return;
+    var now = Date.now();
+    var isUpdate = camShouldMergeResult(camResultCode, camResultTs, code, now, CAM_RESULT_MERGE_MS);
+    if (!isUpdate) { camResultCode = code; camResultTs = now; }
+    var payload = {
+      type: 'rcScanInfo',
+      code: code,
+      status: String(status || ''),
+      staffName: String(target.staffName || ''),
+      time: fmtTimeNow(),
+      isError: !!isError,
+      update: isUpdate,
+    };
+    // POPUP đang mở (GAS iframe): gửi thông tin về popup — popup tự render danh sách
+    if (camPopupRef && !camPopupRef.closed) {
+      try { camPopupRef.postMessage(payload, '*'); } catch (e) {}
+      return;
     }
-    camSnapping = false;
-    camDecoding = false;
-    camPopupBusy = false; // popup đã gửi kết quả → mở popup mới được ở lần sau
-    camPopupRef = null;
-    camFullChainTick = 0; // nhận được mã → reset đếm tick (lần mở sau quét lại từ đầu)
-    resetCamFindUi(); // nhận được mã → tắt chế độ Tìm Mã (nút về trạng thái thường)
+    // MODAL đang mở (preview/hosting top-level): render trong #camResultsBody.
+    // Chỉ render khi modal THẬT SỰ hiện (display:flex) — tránh tích dòng ẩn khi
+    // popup GAS vừa đóng mà không gửi message (tab đóng bằng trình duyệt).
+    var camModalEl = document.getElementById('cameraModal');
+    if (!camModalEl || camModalEl.style.display !== 'flex') return;
+    var body = document.getElementById('camResultsBody');
+    if (!body) return;
+    if (isUpdate) {
+      var last = body.lastElementChild;
+      if (last && last.getAttribute && last.getAttribute('data-code') === code) {
+        last.innerHTML = camResultRowHTML(payload);
+        return;
+      }
+    }
+    var row = document.createElement('div');
+    row.className = 'cr-row';
+    row.setAttribute('data-code', code);
+    row.innerHTML = camResultRowHTML(payload);
+    body.appendChild(row);
+    body.scrollTop = body.scrollHeight;
+    var head = document.getElementById('camResultsHead');
+    if (head) head.textContent = 'Kết quả quét (' + body.children.length + ')';
+  }
+  // ===== QUÉT LIÊN TỤC-END =====
+
+  function onCameraDecoded(code) {
     var clean = String(code || '').trim();
+    if (!clean) return;
+    // QUÉT LIÊN TỤC (2026-08-17): cùng mã trong CAM_CODE_COOLDOWN_MS → bỏ qua. Thẻ vẫn
+    // nằm trong khung → nếu không chặn, mỗi tick (~600ms) submit 1 lần → spam toast +
+    // danh sách kết quả. Cooldown khớp DUPLICATE_WINDOW_MS server (10s) nên không làm
+    // mất lượt quét Ra→Vào hợp lệ (phải cách nhau >10s mới ghi được).
+    var now = Date.now();
+    if (clean === camLastCode && now - camLastCodeTs < CAM_CODE_COOLDOWN_MS) return;
+    camLastCode = clean;
+    camLastCodeTs = now;
     if (camScanMode) {
       // TAB QUÉT RIÊNG: gửi kết quả về trang gốc rồi đóng tab
       try {
@@ -1356,14 +1521,20 @@
       }, 1200);
       return;
     }
-    var modal = document.getElementById('cameraModal');
-    if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
-    var video = document.getElementById('camVideo');
-    if (video) { video.srcObject = null; }
+    // QUÉT LIÊN TỤC: KHÔNG dừng camera / không đóng modal / không đóng popup — điền mã
+    // vào ô quét + submit như quét tay (reconcile + meal-move Ra/Vào). Kết quả hiện NGAY
+    // DƯỚI CAMERA: js.html showScanCard → camAppendResult (render modal / postMessage
+    // popup). Nút ✕ Đóng mới kết thúc phiên quét.
     var input = document.getElementById('scanInput');
     if (!input) return;
     input.value = clean;
+    var st = document.getElementById('camStatusLive');
+    if (st && camOpen) st.textContent = '✅ ' + clean + ' — quét mã tiếp theo';
     submitScan(); // đúng luồng quét hiện tại (reconcile + meal-move Ra/Vào)
+    // Đường ảnh chụp (decodeCameraImage) set camDecoding=true — reset để lượt quét sau
+    // không bị chặn bởi cờ còn treo (quét liên tục nhiều ảnh).
+    camDecoding = false;
+    camSnapping = false;
   }
 
   // ===== TAB QUÉT RIÊNG (?scan=1&tk=...): tự mở camera + quét LIVE =====
