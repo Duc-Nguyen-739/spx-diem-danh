@@ -131,14 +131,20 @@
       '<sty' + 'le>',
       'html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,sans-serif;}',
       '#wrap{position:fixed;inset:0;display:flex;flex-direction:column;}',
-      '#view{position:relative;flex:1;overflow:hidden;background:#000;}',
+      // CHIA 50/50 (2026-08-17): #view và #results mỗi bên nửa chiều cao — camera
+      // trên, thông tin quét dưới (flex 1 1 50%). Video object-fit:cover lấp kín ô.
+      '#view{position:relative;flex:1 1 50%;min-height:0;overflow:hidden;background:#000;}',
       '#video{width:100%;height:100%;object-fit:cover;display:block;}',
       '#frame{position:absolute;inset:12% 8%;border:2px dashed rgba(255,255,255,.85);border-radius:14px;pointer-events:none;}',
+      // Thanh căn chỉnh mã vạch (2026-08-17): đường ngang sáng giữa khung — đưa mã
+      // vạch nằm đúng lên đường này để decode nhanh hơn (căn theo #frame ngang 8%).
+      '#scanline{position:absolute;left:8%;right:8%;top:50%;height:2px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(255,109,0,0),#ff6d00 15%,#ff6d00 85%,rgba(255,109,0,0));box-shadow:0 0 10px rgba(255,109,0,.85);pointer-events:none;animation:scanPulse 1.6s ease-in-out infinite;}',
+      '@keyframes scanPulse{0%,100%{opacity:.6;}50%{opacity:1;}}',
       '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
       // camera ở trên (#view), thông tin vừa quét ở dưới (#results), cuộn được.
-      '#results{flex:0 0 auto;max-height:30vh;overflow-y:auto;background:#0d111a;border-top:1px solid rgba(255,255,255,.12);}',
+      '#results{flex:1 1 50%;min-height:0;overflow-y:auto;background:#0d111a;border-top:1px solid rgba(255,255,255,.12);}',
       '#resultsHead{padding:8px 14px;font-size:13px;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,.08);}',
       '#resultsBody{padding:4px 0;}',
       '#resultsBody:empty::after{content:"Quét mã để xem kết quả ở đây — camera không tự đóng";display:block;padding:10px 14px;color:#64748b;font-size:12.5px;}',
@@ -162,6 +168,7 @@
       '<div id="view">',
       '<video id="video" autoplay playsinline muted></video>',
       '<div id="frame"></div>',
+      '<div id="scanline"></div>',
       '<div id="status">Đang mở camera…</div>',
       '</div>',
       // QUÉT LIÊN TỤC (2026-08-17): chia đôi — trên là camera, dưới là kết quả quét

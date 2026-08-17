@@ -10,6 +10,7 @@
 }
 .camera-stage {
   width: 100%; max-width: 480px;
+  height: 100%;
   display: flex; flex-direction: column; gap: 12px;
 }
 .camera-head {
@@ -29,9 +30,13 @@
   background: #e85d04;
   box-shadow: 0 0 0 2px rgba(255,255,255,.45), 0 0 18px rgba(232,93,4,.55);
 }
+/* CHIA 50/50 (2026-08-17, yêu cầu user): ô camera và phần thông tin quét mỗi bên
+   chiếm nửa chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view +
+   camera-results chia đều (flex 1 1 50%). Video object-fit:cover lấp kín ô. */
 .camera-view {
   position: relative; border-radius: 16px; overflow: hidden;
-  background: #000; aspect-ratio: 3 / 4; max-height: 64vh;
+  background: #000;
+  flex: 1 1 50%; min-height: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 24px 60px rgba(0,0,0,.55);
 }
 .camera-view video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -39,6 +44,38 @@
   position: absolute; inset: 12% 9%;
   border: 2px dashed rgba(255,255,255,.8); border-radius: 12px;
   pointer-events: none;
+}
+/* Thanh căn chỉnh mã vạch (2026-08-17, yêu cầu user): đường ngang sáng giữa
+   khung — đưa mã vạch nằm đúng lên đường này để decode nhanh hơn. Căn theo
+   .camera-frame (ngang 9%). */
+.camera-guide {
+  position: absolute; left: 9%; right: 9%; top: 50%;
+  height: 2px; transform: translateY(-50%);
+  background: linear-gradient(90deg, rgba(255,109,0,0), #ff6d00 15%, #ff6d00 85%, rgba(255,109,0,0));
+  box-shadow: 0 0 10px rgba(255,109,0,.85), 0 0 22px rgba(255,109,0,.4);
+  pointer-events: none; z-index: 2;
+  animation: camGuidePulse 1.6s ease-in-out infinite;
+}
+@keyframes camGuidePulse {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
+}
+/* 2 đầu ngoặc — nhìn rõ điểm đặt mã vạch */
+.camera-guide::before,
+.camera-guide::after {
+  content: '';
+  position: absolute; top: 50%;
+  width: 16px; height: 20px;
+  border: 2px solid rgba(255,255,255,.9);
+  transform: translateY(-50%);
+}
+.camera-guide::before {
+  left: 0; border-right: 0;
+  border-radius: 6px 0 0 6px;
+}
+.camera-guide::after {
+  right: 0; border-left: 0;
+  border-radius: 0 6px 6px 0;
 }
 .camera-status {
   position: absolute; left: 0; right: 0; bottom: 0;
@@ -50,16 +87,13 @@
 .camera-actions .btn { min-width: 110px; }
 @media (max-width: 600px) {
   .camera-stage { max-width: 420px; }
-  .camera-view { aspect-ratio: 3 / 4; max-height: 46vh; }
-  .camera-results { max-height: 30vh; }
 }
 /* ===== QUÉT LIÊN TỤC (2026-08-17): camera trên, kết quả quét dưới =====
    Panel nằm trong #cameraModal — chia đôi màn hình quét: trên là ô camera,
    dưới là danh sách thông tin vừa quét (mã + tên + giờ + badge trạng thái).
    Media ≤600px (mobile) co camera-view nhường chỗ cho danh sách cuộn được. */
 .camera-results {
-  flex: 0 0 auto;
-  max-height: 28vh;
+  flex: 1 1 50%; min-height: 0;
   overflow-y: auto;
   background: rgba(2, 6, 23, .62);
   border: 1px solid rgba(255, 255, 255, .1);
@@ -107,9 +141,12 @@ body.scan-mode #loadingOverlay { display: none !important; }
 .scan-mode .camera-view {
   width: 100%; max-width: 560px;
   aspect-ratio: auto; max-height: none; height: 74vh;
+  flex: 0 0 auto;
   border-radius: 0;
 }
 .scan-mode .camera-frame { inset: 8% 6%; }
+.scan-mode .camera-guide { left: 6%; right: 6%; }
+.scan-mode .camera-results { flex: 0 0 auto; max-height: 28vh; }
 .scan-mode .camera-status { font-size: 14px; padding: 12px; }
 /* Nút 📷 Quét camera CHỈ hiện trên mobile — desktop ẩn, hiện lại ≤900px.
    QUAN TRỌNG: giữ cả 2 rule CÙNG FILE — camera-css include SAU mobile.html
