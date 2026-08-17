@@ -399,7 +399,8 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
-      '        timer = setInterval(loop, 600);',
+      '        // Nhịp tick 450ms (2026-08-17, giảm từ 600ms — khớp cooldown 1.5s mới)',
+      '        timer = setInterval(loop, 450);',
       '        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — decode MỖI tick',
       '        // + ép focus liên tục), không cần bấm "🔍 Tìm Mã". Nút vẫn giữ để tắt/bật lại.',
       '        setFindMode(true);',
@@ -698,31 +699,35 @@
     }
     // 2) Không có BarcodeDetector (iOS Safari…) → TỐI ƯU 2026-08-16: 1 canvas 1280px dùng
     //    chung cho cả fast path lẫn full chain (không chụp 2 lần). FAST PATH MỖI tick:
-    //    jsQR + 1 config Quagga mạnh nhất — nhận MỌI mã dạng "Ops…" (OPS + 3..9 số), kể cả
-    //    NV chưa có trong StaffData (Dư) → done NGAY tick đầu, không chờ 3 config. Chỉ khi
-    //    fast fail mới chạy full chain (theo nhịp / Tìm Mã = mọi tick) — majority ≥2 config
-    //    chống đọc SAI. Đưa mã vào khung là tự nhận (không dùng motion gate — bug 2026-08-12).
+    //    1 config Quagga mạnh nhất — nhận MỌI mã dạng "Ops…" (OPS + 3..9 số), kể cả NV
+    //    chưa có trong StaffData (Dư) → done NGAY tick đầu, không chờ 3 config. TỐI ƯU
+    //    2026-08-17: fast path Quagga chạy TRƯỚC jsQR — mã NV là Code128/39 1D nên jsQR
+    //    (QR) fail ~mọi lần; chỉ chạy jsQR khi fast fail (QR hiếm trong use case này) →
+    //    tiết ~30-80ms mỗi tick. Chỉ khi fast fail mới chạy full chain (theo nhịp /
+    //    Tìm Mã = mọi tick) — majority ≥2 config chống đọc SAI. Nhịp tick 450ms
+    //    (2026-08-17, giảm từ 600ms — khớp cooldown 1.5s mới). Đưa mã vào khung là tự
+    //    nhận (không dùng motion gate — bug 2026-08-12).
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
       var video = camVideo();
       if (!video || video.readyState < 2 || !video.videoWidth) return;
       var now = Date.now();
-      if (now - camLastFrame < 600) return;
+      if (now - camLastFrame < 450) return;
       camLastFrame = now;
       var frame = camFrameToImageData(video, 1280);
       if (!frame) return;
       camDecoding = true;
-      // jsQR trước (QR code — rẻ)
-      if (window.jsQR) {
-        try {
-          var qr = window.jsQR(frame.data.data, frame.w, frame.h);
-          if (qr && qr.data) { camDecoding = false; onCameraDecoded(qr.data); return; }
-        } catch (err) { /* tiếp tục fast path */ }
-      }
       // FAST PATH MỖI tick (2026-08-16 tối ưu): thẻ nét là done NGAY — thắng thì không
-      // cần full chain 3 config. Full chain chỉ chạy khi fast fail VÀ tới nhịp (Tìm Mã = mọi tick).
+      // cần jsQR/full chain. jsQR chỉ chạy khi fast fail (2026-08-17 đảo thứ tự).
       camFastDecode(frame, function (code) {
         if (code) { camDecoding = false; onCameraDecoded(code); return; }
+        // jsQR sau (QR code) — mã NV 1D thường không phải QR nên chỉ thử khi fast fail
+        if (window.jsQR) {
+          try {
+            var qr = window.jsQR(frame.data.data, frame.w, frame.h);
+            if (qr && qr.data) { camDecoding = false; onCameraDecoded(qr.data); return; }
+          } catch (err) { /* tiếp tục full chain */ }
+        }
         var decide = camShouldFullDecode(camFullChainTick, camFindMode ? 1 : CAM_FULL_CHAIN_INTERVAL);
         camFullChainTick = decide.tickCount;
         if (decide.run) {
@@ -732,7 +737,7 @@
         }
         camDecoding = false;
       });
-    }, 300);
+    }, 250);
   }
 
   function stopCameraDecodeLoop() {
