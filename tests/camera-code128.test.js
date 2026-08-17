@@ -662,6 +662,50 @@ test('ensureZxingWorker: không có Worker/Blob API → failed, không crash (fa
   } finally { ctx.Worker = savedW; ctx.Blob = savedB; ctx.camWorkerFailed = savedF; ctx.camWorker = savedWk; }
 });
 
+// ===== WORKER CODE THẬT (2026-08-17): chạy decodeOne trong vm — verify worker code không lỗi =====
+test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmessage decode + try/catch (2026-08-17)', () => {
+  // Lấy worker source THẬT (đang deploy), chạy trong vm với ZXing mock — bỏ importScripts
+  // (vm không có) nhưng GIỮ NGUYÊN decodeOne + onmessage + postMessage ready → verify toàn
+  // bộ logic bên trong worker hoạt động (không lỗi cú pháp/ref, không crash khi decode fail).
+  let src = String(ctx.CAM_WORKER_SRC).replace(/importScripts\([^)]*\);\s*/, '');
+  const posted = [];
+  const wctx = {
+    ZXing: {
+      MultiFormatReader: function () { this.decode = function () { return { getText: function () { return 'Ops129481'; } }; }; },
+      RGBLuminanceSource: function (b, w, h) { this.b = b; },
+      BinaryBitmap: function (b) { this.b = b; },
+      HybridBinarizer: function (s) { this.s = s; },
+      DecodeHintType: { POSSIBLE_FORMATS: 'PF', TRY_HARDER: 'TH' },
+      BarcodeFormat: { CODE_128: 1, CODE_39: 2, CODE_93: 3, CODABAR: 4, QR_CODE: 5 },
+    },
+    self: { postMessage: function (m) { posted.push(m); } },
+  };
+  wctx.buf = new Uint8ClampedArray(4 * 4 * 4).buffer;
+  vm.createContext(wctx);
+  vm.runInContext(src, wctx);
+  assert.equal(posted.length, 1, 'worker postMessage đúng 1 tín hiệu ready');
+  assert.equal(posted[0].ready, true, 'worker postMessage ready sau khi load xong');
+  // onmessage decode thành công → trả text
+  vm.runInContext('self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops129481', 'worker decode trả text');
+  // decode throw (NotFound) → onmessage try/catch → trả null (worker không crash)
+  vm.runInContext('reader = null; ZXing.MultiFormatReader = function () { this.decode = function () { throw new Error("nf"); }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, null, 'decode lỗi → null (không crash worker)');
+});
+
+test('camWorkerOnMessage: nhận {ready:true} → KHÔNG decode, chỉ cập nhật trạng thái worker', () => {
+  fastEnv(null, {}, () => {
+    const calls = [];
+    const saved = ctx.onCameraDecoded;
+    ctx.onCameraDecoded = (code) => { calls.push(code); };
+    try {
+      ctx.camWorkerOnMessage({ ready: true });
+      assert.equal(calls.length, 0, 'ready không phải mã — không submit');
+      assert.equal(ctx.camWorkerIdle, true, 'ready cũng reset idle (worker rảnh)');
+    } finally { ctx.onCameraDecoded = saved; }
+  });
+});
+
 test('camFastDecode: ZXing enabled + ra mã → nhận mã ZXing, Quagga KHÔNG chạy', () => {
   withZxing(() => {
     zxingDecodeImpl = function () { return { getText: function () { return 'Ops777777'; } }; };
