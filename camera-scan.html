@@ -1749,16 +1749,27 @@
       // đầu (~100-150ms) thay vì luôn chạy TRY_HARDER chậm trên toàn frame 1920.
       var text = zxingDecodeImageData(img, w, h, false);
       if (text) { onCode(camZxingPickCode(text)); return; }
-      // BẬC 2 (2026-08-17): crop vùng khung KHÔNG upscale + không TRY_HARDER — mã XA nằm trong
+      // BẬC 2 (2026-08-17, ĐA PHÂN GIẢI — user yêu cầu): full frame DOWNSCALE 1280 + không TH.
+      // Mã GẦN/vừa (vạch dày, lấp nhiều khung) đôi khi ZXing miss ở 1920 (nhiễu nền/binarizer
+      // xé vạch) — bản 1280 (box-filter) khử nhiễu mịn → vạch sạch hơn + decode NHANH hơn
+      // (~60-80ms, ít hơn 1920 ~40%). Mã XA KHÔNG dùng bản này (downscale làm vạch mảnh hơn →
+      // miss) — bậc 3/4 xử lý mã xa. Frame ≤ 1280 → camDownscaleFrame trả frame gốc → skip
+      // (tránh decode trùng). camDownscaleFrame reuse 1 canvas — decode đồng bộ trong tick.
+      var small = camDownscaleFrame(frame, 1280);
+      if (small && (small.w !== w || small.h !== h)) {
+        var textS = zxingDecodeImageData(small.data, small.w, small.h, false);
+        if (textS) { onCode(camZxingPickCode(textS)); return; }
+      }
+      // BẬC 3 (2026-08-17): crop vùng khung KHÔNG upscale + không TRY_HARDER — mã XA nằm trong
       // khung (inset 8%/10%) nhưng NÉT → decode vùng nhỏ (0.9M px) nhanh (~60ms) bắt NGAY thay
-      // vì chờ bậc 3 upscale+TRY_HARDER (~200ms). Cùng vùng quét như bậc 3 nhưng rẻ hơn — bậc 3
+      // vì chờ bậc 4 upscale+TRY_HARDER (~200ms). Cùng vùng quét như bậc 4 nhưng rẻ hơn — bậc 4
       // chỉ chạy khi mã chưa đủ nét cho đường nhanh này. (Node test: frame.canvas mock → null)
       var croppedFast = camZxingCrop(frame, w, h, 1);
       if (croppedFast) {
         var text1 = zxingDecodeImageData(croppedFast.img, croppedFast.w, croppedFast.h, false);
         if (text1) { onCode(camZxingPickCode(text1)); return; }
       }
-      // BẬC 3: crop vùng khung UPSCALE 1.4x + TRY_HARDER — mã XA (30cm) nhỏ được phóng to
+      // BẬC 4: crop vùng khung UPSCALE 1.4x + TRY_HARDER — mã XA (30cm) nhỏ được phóng to
       // (vạch dày hơn) + quét thêm góc → bắt được mã mà full frame miss (đây là đường chính
       // cho mã để xa — user báo "để xa nhận hơi lâu", 2026-08-17).
       var cropped = camZxingCrop(frame, w, h, 1.4);

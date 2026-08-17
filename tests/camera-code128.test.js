@@ -492,6 +492,54 @@ test('camZxingDecode: full frame fail → BẬC 2 crop native (không TH) TRƯ�
   });
 });
 
+test('camZxingDecode: full 1920 fail → BẬC 2 downscale 1280 decode (đa phân giải) TRƯỚC crop (2026-08-17)', () => {
+  withZxing(() => {
+    let call = 0;
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = {
+      decode: function (b, hints) {
+        call++;
+        if (call === 1) return null; // bậc 1: full 1920 fail
+        return { getText: function () { return 'Ops777777'; } }; // bậc 2: bản 1280 ra mã
+      },
+    };
+    const savedDs = ctx.camDownscaleFrame;
+    // frame 4x4 nhưng camDownscaleFrame trả bản 8x8 (giả lập downscale 1920→1280) → bậc 2 chạy
+    ctx.camDownscaleFrame = function (frame, maxSide) {
+      return { data: { data: new Uint8ClampedArray(8 * 8 * 4), width: 8, height: 8 }, w: 8, h: 8, canvas: frame.canvas };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, 'OPS777777', 'bản 1280 bắt được mã — không chờ crop/upscale');
+      assert.equal(call, 2, 'dừng ngay ở bậc 2 (đa phân giải)');
+    } finally { ctx.camZxingReader = savedR; ctx.camDownscaleFrame = savedDs; }
+  });
+});
+
+test('camZxingDecode: frame ≤ 1280 → camDownscaleFrame trả frame gốc → SKIP bậc 2 (không decode trùng) (2026-08-17)', () => {
+  withZxing(() => {
+    let call = 0;
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = { decode: function (b, hints) { call++; return null; } };
+    const savedCrop = ctx.camZxingCrop;
+    // camZxingCrop stub hợp lệ — để bậc 3/4 chạy tới được (assert số decode)
+    ctx.camZxingCrop = function (frame, w, h, scale) {
+      const s = scale || 1;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      return { img: { data: new Uint8ClampedArray(cw * ch * 4), width: cw, height: ch }, w: cw, h: ch };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, null, 'cả 4 bậc fail → null');
+      // camDownscaleFrame thật với frame 4x4: scale = min(1, 1280/4) = 1 → trả frame gốc → skip
+      assert.equal(call, 3, 'decode: bậc 1 full + bậc 3 crop native + bậc 4 upscale — KHÔNG có bậc 2');
+    } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
+  });
+});
+
 test('camZxingDecode: BẬC 2 crop native ra mã → trả NGAY, không chờ bậc 3 (2026-08-17)', () => {
   withZxing(() => {
     // bậc 1 full frame fail; bậc 2 (crop native) decode thành công
