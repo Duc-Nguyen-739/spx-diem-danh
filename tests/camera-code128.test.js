@@ -738,6 +738,12 @@ test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmess
   vm.runInContext('var g1 = new Uint8ClampedArray([50, 100, 150, 200]); normalizeInPlace(g1); this.r1 = Array.prototype.slice.call(g1); var g2 = new Uint8ClampedArray([120, 130, 140]); normalizeInPlace(g2); this.r2 = Array.prototype.slice.call(g2);', wctx);
   assert.deepEqual(Array.from(wctx.r1), [0, 85, 170, 255], 'stretch min-max về 0-255');
   assert.deepEqual(Array.from(wctx.r2), [120, 130, 140], 'range < 40 → giữ nguyên (không tạo nhiễu)');
+  // frame 4 = Sharpen+Normalize+Hybrid — ảnh MỜ/blur (mờ cả dải vạch)
+  vm.runInContext('strat = 0; reader = null; var dc3 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc3++; if (dc3 === 4) return { getText: function () { return "Ops44444"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops44444', 'frame 4 (Sharpen+Normalize+Hybrid) bắt mã mờ/blur');
+  // sharpenInPlace: unsharp 3x3 — cạnh vạch sắc hơn (pixel vạch tối hơn, nền sáng hơn)
+  vm.runInContext('var g3 = new Uint8ClampedArray([200, 100, 200, 200, 100, 200, 200, 100, 200]); sharpenInPlace(g3, 3, 3); this.r3 = Array.prototype.slice.call(g3);', wctx);
+  assert.deepEqual(Array.from(wctx.r3), [255, 0, 255, 255, 0, 255, 255, 0, 255], 'sharpen: vạch (100) → 0, nền (200) → 255');
 });
 
 test('camWorkerOnMessage: nhận {ready:true} → KHÔNG decode, chỉ cập nhật trạng thái worker', () => {

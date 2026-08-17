@@ -328,7 +328,7 @@
       '    var scale = Math.min(1, maxSide / Math.max(w, h));',
       '    var cw = Math.max(1, Math.round(w * scale));',
       '    var ch = Math.max(1, Math.round(h * scale));',
-      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true }); }',
+      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true }); try { sharedCtx.filter = "contrast(1.35)"; } catch (e) {} } // tăng tương phản (2026-08-17, mực nhạt/mờ 1 đầu) — không hỗ trợ → no-op',
       '    if (sharedCanvas.width !== cw || sharedCanvas.height !== ch) { sharedCanvas.width = cw; sharedCanvas.height = ch; }',
       '    sharedCtx.drawImage(video, 0, 0, cw, ch);',
       '    var imageData;',
@@ -885,6 +885,11 @@
         // willReadFrequently (2026-08-17): đọc getImageData mỗi tick liên tục — trình duyệt
         // tối ưu canvas cho readback (tránh GPU readback chậm); không hỗ trợ → no-op an toàn.
         camSharedCtx = camSharedCanvas.getContext('2d', { willReadFrequently: true });
+        // TĂNG TƯƠNG PHẢN khi vẽ frame (2026-08-17, user: mực nhạt/mất 1 đầu — súng laser đọc
+        // được vì pattern vẫn còn chỉ quá nhạt): canvas filter áp cho MỌI frame decode trên main
+        // (ZXing + Quagga + OCR đều đọc từ canvas này) → vạch nhạt hiện rõ. Trình duyệt không
+        // hỗ trợ ctx.filter (iOS < 16.4) → property bị bỏ qua, vẽ ảnh gốc — no-op an toàn.
+        try { camSharedCtx.filter = 'contrast(1.35)'; } catch (e) {}
       }
       if (camSharedCanvas.width !== cw || camSharedCanvas.height !== ch) {
         camSharedCanvas.width = cw;
@@ -1889,10 +1894,14 @@
     "  var hints = new Map();",
     "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
     "  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);",
+    "  // LUÂN PHIÊN 4 chiến lược (2026-08-17, user: mực nhạt + ảnh mờ + mờ cả dải + mất 1 đầu):",
+    "  // 0=Hybrid · 1=GlobalHistogram (nhạt 1 vùng) · 2=Normalize+Hybrid (mực nhạt range hẹp)",
+    "  // · 3=Sharpen+Normalize+Hybrid (ảnh mờ/blur — unsharp 3x3 làm cạnh vạch sắc lại).",
     "  var s = strat;",
-    "  strat = (strat + 1) % 3;",
+    "  strat = (strat + 1) % 4;",
     "  if (s === 1) return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, true);",
-    "  if (s === 2) normalizeInPlace(gray); // kéo dãn tương phản TRƯỚC khi tạo source",
+    "  if (s === 2) { normalizeInPlace(gray); return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
+    "  if (s === 3) { sharpenInPlace(gray, d.w, d.h); normalizeInPlace(gray); return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
     "  return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false);",
     "}",
     "// Min-max stretch grayscale về 0-255 — mã mờ màu (mực phai, range hẹp ~100-180) thành",
@@ -1905,6 +1914,24 @@
     "  if (range < 40) return;",
     "  var scale = 255 / range;",
     "  for (var i = 0; i < n; i++) gray[i] = (gray[i] - min) * scale;",
+    "}",
+    "// Unsharp mask 3x3 nhẹ (kernel 5 - neighbors): làm CẠNH vạch sắc lại — ảnh MỜ/blur (mờ cả",
+    "// dải vạch — user 2026-08-17) vạch bị nhòe nên binarizer khó tách; sharpen kéo cạnh rõ.",
+    "function sharpenInPlace(gray, w, h) {",
+    "  var n = gray.length;",
+    "  var out = new Uint8ClampedArray(n);",
+    "  for (var y = 0; y < h; y++) {",
+    "    for (var x = 0; x < w; x++) {",
+    "      var i = y * w + x;",
+    "      var v = gray[i] * 5;",
+    "      if (x > 0) v -= gray[i - 1];",
+    "      if (x < w - 1) v -= gray[i + 1];",
+    "      if (y > 0) v -= gray[i - w];",
+    "      if (y < h - 1) v -= gray[i + w];",
+    "      out[i] = v < 0 ? 0 : (v > 255 ? 255 : v);",
+    "    }",
+    "  }",
+    "  gray.set(out);",
     "}",
     "function tryDecode(source, hints, useGlobal) {",
     "  var bitmap = new ZXing.BinaryBitmap(useGlobal ? new ZXing.GlobalHistogramBinarizer(source) : new ZXing.HybridBinarizer(source));",
