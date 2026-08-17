@@ -448,10 +448,6 @@
       <div class="camera-guide"></div>
       <div class="cam-flash" id="camFlash" aria-hidden="true"><span class="cf-mark">✓</span></div>
       <div class="camera-status" id="camStatusLive">Đang mở camera…</div>
-      <!-- Trạng thái worker decode — ĐỂ NGOÀI #camStatusLive: các nơi set
-           camStatusLive.textContent (mở camera/hint/nhận mã…) sẽ XÓA mọi element con,
-           span trong đó không bao giờ hiện (bug 2026-08-17 — user báo không thấy). -->
-      <span class="cam-worker-status" id="camWorkerStatus"></span>
     </div>
     <div class="camera-actions">
       <button type="button" class="btn btn-camera cam-start-btn" id="camStartBtn" style="display:none" onclick="startCameraLive(true)">▶ Bật camera</button>

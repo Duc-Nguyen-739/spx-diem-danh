@@ -184,10 +184,6 @@
       '@keyframes popFrameGlowErr{0%{border-color:#f87171;box-shadow:0 0 0 3px rgba(248,113,113,.4),0 0 26px rgba(248,113,113,.65),inset 0 0 20px rgba(248,113,113,.22);}100%{border-color:rgba(255,255,255,.85);box-shadow:none;}}',
       '.rrow.new{animation:rrowNew .9s ease-out;}',
       '@keyframes rrowNew{0%{background:rgba(74,222,128,.18);}100%{background:transparent;}}',
-      // Chỉ báo trạng thái worker (2026-08-17): "⚙️ Worker: bật/tắt" — kiểm tra worker chạy được trên máy thật không
-      '#popWorkerStatus{position:absolute;left:0;right:0;bottom:36px;text-align:center;z-index:4;pointer-events:none;font-size:11px;color:#64748b;text-shadow:0 1px 4px rgba(0,0,0,.8);}',
-      '#popWorkerStatus.on{color:#81c784;font-weight:700;}',
-      '#popWorkerStatus.off{color:#f87171;font-weight:700;}',
       '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
@@ -219,9 +215,6 @@
       '<div id="scanline"></div>',
       '<div id="flash"><b>✓</b></div>',
       '<div id="status">Đang mở camera…</div>',
-      '<!-- Trạng thái worker decode — ĐỂ NGOÀI #status: statusEl.textContent set nhiều chỗ',
-      '     (mở camera/nhận mã…) sẽ XÓA span con → không bao giờ hiện (bug 2026-08-17). -->',
-      '<span id="popWorkerStatus"></span>',
       '</div>',
       // QUÉT LIÊN TỤC (2026-08-17): chia đôi — trên là camera, dưới là kết quả quét
       '<div id="results">',
@@ -296,23 +289,16 @@
       '  // duyệt cũ/mất mạng) → vẫn dùng opener.camFastDecode như cũ, không mất gì.',
       '  var popWorkerSrc = ' + JSON.stringify(CAM_WORKER_SRC) + ';',
       '  var popWorker = null, popWorkerIdle = true, popWorkerFailed = false;',
-      '  function popWorkerStatus(text, ok) {',
-      '    var el = document.getElementById("popWorkerStatus");',
-      '    if (!el) return;',
-      '    el.textContent = text;',
-      '    el.className = ok === false ? "off" : (ok === true ? "on" : "");',
-      '  }',
       '  function ensurePopWorker() {',
       '    if (popWorker || popWorkerFailed) return;',
       '    try {',
-      '      if (typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) { popWorkerFailed = true; popWorkerStatus("⚙️ Worker: tắt (không hỗ trợ)", false); return; }',
+      '      if (typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) { popWorkerFailed = true; return; }',
       '      var blob = new Blob([popWorkerSrc], { type: "application/javascript" });',
       '      var url = URL.createObjectURL(blob);',
       '      popWorker = new Worker(url);',
       '      popWorker.onmessage = function (e) { popWorkerOnMessage(e.data); };',
-      '      popWorker.onerror = function () { popWorkerFailed = true; popWorker = null; popWorkerStatus("⚙️ Worker: tắt (lỗi chạy)", false); };',
-      '      popWorkerStatus("⚙️ Worker: đang tải…", null);',
-      '    } catch (e) { popWorkerFailed = true; popWorker = null; popWorkerStatus("⚙️ Worker: tắt (lỗi tạo)", false); }',
+      '      popWorker.onerror = function () { popWorkerFailed = true; popWorker = null; };',
+      '    } catch (e) { popWorkerFailed = true; popWorker = null; }',
       '  }',
       '  function popWorkerSend(f) {',
       '    if (!popWorker || popWorkerFailed || !popWorkerIdle) return;',
@@ -327,7 +313,7 @@
       '  function popWorkerOnMessage(data) {',
       '    popWorkerIdle = true;',
       '    if (!data) return;',
-      '    if (data.ready) { popWorkerStatus("⚙️ Worker: bật", true); return; }',
+      '    if (data.ready) return; // tín hiệu load xong worker — không phải mã',
       '    if (!data.text) return;',
       '    try {',
       '      var code = (window.opener && window.opener.camZxingPickCode) ? window.opener.camZxingPickCode(data.text) : null;',
@@ -1887,6 +1873,12 @@
   var CAM_WORKER_SRC = [
     "importScripts('https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js');",
     "var reader = null;",
+    "// LUÂN PHIÊN 3 chiến lược decode (2026-08-17, mã MẤT GÓC/MỜ MÀU — user: súng laser nhận",
+    "// được mà camera khó): mỗi frame chỉ decode 1 lần (nhanh → frame luôn MỚI) nhưng qua 3",
+    "// frame phủ đủ: 0=HybridBinarizer (mặc định), 1=GlobalHistogramBinarizer (mã nhạt/mờ 1 góc",
+    "// — local threshold nuốt vạch), 2=Normalized+Hybrid (mã MỜ MÀU/tương phản thấp — kéo dãn",
+    "// min-max về 0-255 rồi local threshold). Main thread vẫn chạy đủ bậc Hybrid+Global mỗi tick.",
+    "var strat = 0;",
     "function decodeOne(d) {",
     "  if (!reader) reader = new ZXing.MultiFormatReader();",
     "  var src = new Uint8ClampedArray(d.buf);",
@@ -1897,13 +1889,22 @@
     "  var hints = new Map();",
     "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
     "  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);",
-    "  var source = new ZXing.RGBLuminanceSource(gray, d.w, d.h);",
-    "  var text = tryDecode(source, hints, false);",
-    "  if (text) return text;",
-    "  // Binarizer thứ 2 (2026-08-17): GlobalHistogram — mã NHẠT/mờ 1 góc (tương phản thấp,",
-    "  // user: súng laser nhận được mà camera khó) đôi khi HybridBinarizer (local threshold",
-    "  // 5x5) nuốt vạch → GlobalHistogram (threshold toàn ảnh) tách vạch rõ hơn.",
-    "  return tryDecode(source, hints, true);",
+    "  var s = strat;",
+    "  strat = (strat + 1) % 3;",
+    "  if (s === 1) return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, true);",
+    "  if (s === 2) normalizeInPlace(gray); // kéo dãn tương phản TRƯỚC khi tạo source",
+    "  return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false);",
+    "}",
+    "// Min-max stretch grayscale về 0-255 — mã mờ màu (mực phai, range hẹp ~100-180) thành",
+    "// tương phản đầy đủ → binarizer tách vạch rõ. Ảnh gần 1 màu (range < 40) → bỏ qua (tránh nhiễu).",
+    "function normalizeInPlace(gray) {",
+    "  var n = gray.length;",
+    "  var min = 255, max = 0;",
+    "  for (var i = 0; i < n; i++) { var v = gray[i]; if (v < min) min = v; if (v > max) max = v; }",
+    "  var range = max - min;",
+    "  if (range < 40) return;",
+    "  var scale = 255 / range;",
+    "  for (var i = 0; i < n; i++) gray[i] = (gray[i] - min) * scale;",
     "}",
     "function tryDecode(source, hints, useGlobal) {",
     "  var bitmap = new ZXing.BinaryBitmap(useGlobal ? new ZXing.GlobalHistogramBinarizer(source) : new ZXing.HybridBinarizer(source));",
@@ -1923,21 +1924,11 @@
   var camWorkerFailed = false;
   var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
 
-  // Chỉ báo trạng thái worker trên UI (2026-08-17, yêu cầu user kiểm tra worker chạy chưa)
-  // — worker fail-open âm thầm nên không có cách nào biết; giờ hiện rõ trong ô camera.
-  function camWorkerStatus(text, ok) {
-    var el = document.getElementById('camWorkerStatus');
-    if (!el) return;
-    el.textContent = text;
-    el.className = 'cam-worker-status' + (ok === false ? ' off' : (ok === true ? ' on' : ''));
-  }
-
   function ensureZxingWorker() {
     if (camWorker || camWorkerFailed) return;
     try {
       if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) {
         camWorkerFailed = true;
-        camWorkerStatus('⚙️ Worker: tắt (trình duyệt không hỗ trợ)', false);
         return;
       }
       var blob = new Blob([CAM_WORKER_SRC], { type: 'application/javascript' });
@@ -1947,14 +1938,8 @@
       camWorker.onerror = function () {
         camWorkerFailed = true;
         camWorker = null;
-        camWorkerStatus('⚙️ Worker: tắt (lỗi chạy)', false);
       };
-      camWorkerStatus('⚙️ Worker: đang tải…', null);
-    } catch (e) {
-      camWorkerFailed = true;
-      camWorker = null;
-      camWorkerStatus('⚙️ Worker: tắt (lỗi tạo)', false);
-    }
+    } catch (e) { camWorkerFailed = true; camWorker = null; }
   }
 
   // Gửi frame cho worker decode sâu. COPY buffer (KHÔNG transfer — main còn decode tiếp bậc
@@ -1977,7 +1962,7 @@
   function camWorkerOnMessage(data) {
     camWorkerIdle = true;
     if (!data) return;
-    if (data.ready) { camWorkerStatus('⚙️ Worker: bật', true); return; }
+    if (data.ready) return; // tín hiệu load xong worker — không phải mã
     if (!data.text) return;
     var code = camZxingPickCode(data.text);
     if (!code) return;

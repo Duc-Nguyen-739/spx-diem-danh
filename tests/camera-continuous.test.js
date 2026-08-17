@@ -278,7 +278,6 @@ test('popup: có danh sách kết quả dưới camera + nhận rcScanInfo; khô
   assert.ok(html.indexOf('rcScanInfo') >= 0, 'popup nhận rcScanInfo từ trang cha');
   assert.ok(html.indexOf('quét mã tiếp theo') >= 0, 'sendResult báo quét mã tiếp theo (không đóng)');
   assert.ok(html.indexOf('lastCodeTs < 1500') >= 0, 'popup dedup cùng mã 1.5s');
-  assert.ok(html.indexOf('id="popWorkerStatus"') >= 0, 'popup có span trạng thái worker');
-  assert.ok(html.indexOf('id="status">Đang mở camera…</div>') >= 0, 'span worker ĐỂ NGOÀI #status (textContent set nhiều chỗ sẽ xóa span con — bug 2026-08-17)');
+  assert.ok(html.indexOf('popWorkerStatus') === -1, 'KHÔNG còn indicator worker (đã tắt — user yêu cầu 2026-08-17)');
   assert.ok(html.indexOf('window.close(); } catch (e) {} }, 1000') === -1, 'KHÔNG còn auto-close 1s sau khi nhận mã');
 });

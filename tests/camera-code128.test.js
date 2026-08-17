@@ -727,9 +727,17 @@ test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmess
   // decode throw (NotFound) → onmessage try/catch → trả null (worker không crash)
   vm.runInContext('reader = null; ZXing.MultiFormatReader = function () { this.decode = function () { throw new Error("nf"); }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, null, 'decode lỗi → null (không crash worker)');
-  // Hybrid fail (null) → GlobalHistogram fallback ra mã (mã nhạt/mờ 1 góc — 2026-08-17)
-  vm.runInContext('reader = null; var dc = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc++; if (dc === 1) return null; return { getText: function () { return "Ops55555"; } }; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
-  assert.equal(posted[posted.length - 1].text, 'Ops55555', 'Hybrid fail → GlobalHistogram fallback ra mã');
+  // LUÂN PHIÊN chiến lược (2026-08-17, mã mất góc/mờ màu): reset strat → frame 1 = Hybrid,
+  // frame 2 = GlobalHistogram → ra mã (mã nhạt/mờ 1 góc)
+  vm.runInContext('strat = 0; reader = null; var dc = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc++; if (dc === 2) return { getText: function () { return "Ops55555"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops55555', 'frame 2 (GlobalHistogram) bắt mã nhạt/mờ 1 góc');
+  // frame 3 = Normalized+Hybrid — mã MỜ MÀU/tương phản thấp (normalize min-max trước decode)
+  vm.runInContext('strat = 0; reader = null; var dc2 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc2++; if (dc2 === 3) return { getText: function () { return "Ops33333"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops33333', 'frame 3 (Normalized+Hybrid) bắt mã mờ màu');
+  // normalizeInPlace: stretch min-max về 0-255 (mã mờ màu); range hẹp → no-op (tránh nhiễu)
+  vm.runInContext('var g1 = new Uint8ClampedArray([50, 100, 150, 200]); normalizeInPlace(g1); this.r1 = Array.prototype.slice.call(g1); var g2 = new Uint8ClampedArray([120, 130, 140]); normalizeInPlace(g2); this.r2 = Array.prototype.slice.call(g2);', wctx);
+  assert.deepEqual(Array.from(wctx.r1), [0, 85, 170, 255], 'stretch min-max về 0-255');
+  assert.deepEqual(Array.from(wctx.r2), [120, 130, 140], 'range < 40 → giữ nguyên (không tạo nhiễu)');
 });
 
 test('camWorkerOnMessage: nhận {ready:true} → KHÔNG decode, chỉ cập nhật trạng thái worker', () => {
