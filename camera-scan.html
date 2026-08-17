@@ -53,6 +53,10 @@
   var camSharedCanvas = null; // 1 canvas dùng chung cho mọi frame tick (2026-08-16 tối ưu:
                              // hết tạo canvas+context mới mỗi ~600ms → giảm GC trên iOS)
   var camSharedCtx = null;
+  var camFastCanvas = null; // 1 canvas 800px dùng chung cho FAST PATH (2026-08-17 tối ưu
+                           // Safari — user dí sát mã to nét nên 800px vẫn đủ chi tiết,
+                           // decode nhanh ~3x so với 1280px; reuse như camSharedCanvas)
+  var camFastCtx = null;
   var camVideoEl = null; // cache element #camVideo — loop live đọc mỗi tick/frame (rAF
                          // ~60fps + interval 300ms + OCR 2s); element tĩnh trong modal →
                          // cache 1 lần, hết query DOM mỗi lần (2026-08-16 tối ưu)
@@ -76,7 +80,16 @@
   // rung (threshold 6/255 quá nhạy với noise camera iPhone thật → auto-snap không bao giờ
   // kích hoạt → user vẫn phải bấm Chụp, bug 2026-08-12). Đưa mã vào khung là tự nhận.
   var camFullChainTick = 0;       // đếm tick frame giữa 2 lần chạy full-chain decode
-  var CAM_FULL_CHAIN_INTERVAL = 2; // chạy full chain mỗi N tick frame (1 tick ≈ 600ms)
+  var CAM_FULL_CHAIN_INTERVAL = 2; // chạy full chain mỗi N tick frame (1 tick ≈ 320ms)
+  var CAM_FAST_DECODE_SIZE = 800; // FAST PATH decode 800px (2026-08-17 tối ưu Safari): mã NV
+                                  // 1D — user dí sát → mã to nét → 800px đủ chi tiết, Quagga
+                                  // decode ~3x nhanh hơn 1280px → nhận NGAY tick đầu. Full
+                                  // chain vẫn 1280px (mã nhỏ/xa — không giảm độ chính xác).
+                                  // KHÁC bản 800px cũ (bug 2026-08-16): vẫn full-res x-large +
+                                  // format filter + normalize STAFF_INFO — bản cũ SAI do
+                                  // halfSample gộp vạch, không phải do size 800px.
+  var CAM_TICK_MIN_MS = 320;      // tick decode tối thiểu (2026-08-17, giảm từ 450ms — fast
+                                  // path 800px xử lý nhanh hơn → thử lại nhanh hơn)
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
@@ -295,7 +308,7 @@
       '        canvas.width = f.w;',
       '        canvas.height = f.h;',
       '        canvas.getContext("2d").putImageData(f.imageData, 0, 0);',
-      '        var src = canvas.toDataURL("image/jpeg", 0.92);',
+      '        var src = canvas.toDataURL("image/jpeg", 0.85); // 0.85 thay 0.92 — encode nhanh hơn (2026-08-17)',
       '        runQuagga(src, LIBS.configs || [{ patchSize: "x-large", halfSample: false }], 0, [], onDone);',
       '        return;',
       '      } catch (e) { /* tiếp tục */ }',
@@ -399,8 +412,9 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
-      '        // Nhịp tick 450ms (2026-08-17, giảm từ 600ms — khớp cooldown 1.5s mới)',
-      '        timer = setInterval(loop, 450);',
+      '        // Nhịp tick 320ms (2026-08-17, giảm từ 450ms — fast path 800px xử lý nhanh hơn,',
+      '        // thử lại nhanh hơn — khớp cooldown 1.5s mới)',
+      '        timer = setInterval(loop, 320);',
       '        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — decode MỖI tick',
       '        // + ép focus liên tục), không cần bấm "🔍 Tìm Mã". Nút vẫn giữ để tắt/bật lại.',
       '        setFindMode(true);',
@@ -712,14 +726,18 @@
       var video = camVideo();
       if (!video || video.readyState < 2 || !video.videoWidth) return;
       var now = Date.now();
-      if (now - camLastFrame < 450) return;
+      if (now - camLastFrame < CAM_TICK_MIN_MS) return;
       camLastFrame = now;
       var frame = camFrameToImageData(video, 1280);
       if (!frame) return;
       camDecoding = true;
       // FAST PATH MỖI tick (2026-08-16 tối ưu): thẻ nét là done NGAY — thắng thì không
-      // cần jsQR/full chain. jsQR chỉ chạy khi fast fail (2026-08-17 đảo thứ tự).
-      camFastDecode(frame, function (code) {
+      // cần jsQR/full chain. jsQR chỉ chạy khi fast fail (2026-08-17 đảo thứ tự). TỐI ƯU
+      // 2026-08-17 (Safari — user dí sát mã nét mà nhận rất lâu): fast path decode frame
+      // 800px (downscale 1 lần từ canvas 1280 dùng chung — không vẽ video 2 lần) → Quagga
+      // nhanh ~3x; full chain vẫn decode frame 1280px đầy đủ (mã nhỏ/xa).
+      var fastFrame = camDownscaleFrame(frame, CAM_FAST_DECODE_SIZE);
+      camFastDecode(fastFrame, function (code) {
         if (code) { camDecoding = false; onCameraDecoded(code); return; }
         // jsQR sau (QR code) — mã NV 1D thường không phải QR nên chỉ thử khi fast fail
         if (window.jsQR) {
@@ -773,6 +791,31 @@
       var imageData = ctx.getImageData(0, 0, cw, ch);
       return { data: imageData, w: cw, h: ch, canvas: camSharedCanvas };
     } catch (e) { return null; }
+  }
+
+  // Downscale frame 1280 → CAM_FAST_DECODE_SIZE (800px) dùng chung 1 canvas (2026-08-17
+  // tối ưu Safari): fast path decode 800px nhanh ~3x, full chain vẫn dùng frame 1280 gốc.
+  // Canvas có sẵn (popup/ảnh chụp) → giữ nguyên; lỗi vẽ (sandbox/DOM không đủ) → trả
+  // frame gốc (fail-open, không crash).
+  function camDownscaleFrame(frame, maxSide) {
+    try {
+      var w = frame.w || 0;
+      var h = frame.h || 0;
+      if (!w || !h) return frame;
+      var scale = Math.min(1, maxSide / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      if (!camFastCanvas) {
+        camFastCanvas = document.createElement('canvas');
+        camFastCtx = camFastCanvas.getContext('2d');
+      }
+      if (camFastCanvas.width !== cw || camFastCanvas.height !== ch) {
+        camFastCanvas.width = cw;
+        camFastCanvas.height = ch;
+      }
+      camFastCtx.drawImage(frame.canvas, 0, 0, cw, ch);
+      return { data: camFastCtx.getImageData(0, 0, cw, ch), w: cw, h: ch, canvas: camFastCanvas };
+    } catch (e) { return frame; }
   }
 
   // "🔍 Tìm Mã" (2026-08-16, cạnh nút Đóng): bấm để camera lấy nét + tìm mã nhanh hơn.
@@ -872,6 +915,8 @@
   // để done NGAY tick đầu không chờ 3 config. NV đã biết → khớp STAFF_INFO (nguồn chuẩn,
   // cắt đúng checksum dư); NV lạ → ưu tiên cắt 1 ký tự cuối (quirk +1 chiếm đa số — full
   // chain majority trước giờ cũng nhận +1 cho NV lạ, deterministic, không khá hơn).
+  // TỐI ƯU 2026-08-17 (Safari — nhận mã rất lâu dù ảnh nét): decode 800px (CAM_FAST_DECODE_SIZE)
+  // — user dí sát mã to nét nên 800px vẫn đủ chi tiết; Quagga 800px nhanh ~3x so với 1280px.
   var CAM_FAST_QUAGGA_CONFIG = { patchSize: 'x-large', halfSample: false };
 
   // PURE — chọn mã từ 1 kết quả Quagga (fast path). Trả mã hợp lệ hoặc null:
@@ -895,11 +940,13 @@
   function camFastDecode(frame, onCode) {
     if (!window.Quagga) { onCode(null); return; }
     try {
-      var src = frame.canvas.toDataURL('image/jpeg', 0.92);
+      // 0.85 thay 0.92 (2026-08-17): encode JPEG nhanh hơn + ít byte hơn → Quagga decode
+      // nhanh hơn; Code128 1D ít nhạy với artifacts JPEG nên không ảnh hưởng độ chính xác.
+      var src = frame.canvas.toDataURL('image/jpeg', 0.85);
       window.Quagga.decodeSingle({
         src: src,
         numOfWorkers: 0,
-        inputStream: { size: 1280 },
+        inputStream: { size: CAM_FAST_DECODE_SIZE },
         locator: CAM_FAST_QUAGGA_CONFIG,
         decoder: { readers: CAM_QUAGGA_READERS }
       }, function (result) {
@@ -1081,7 +1128,7 @@
       canvas.width = w;
       canvas.height = h;
       canvas.getContext('2d').putImageData(imageData, 0, 0);
-      var src = canvas.toDataURL('image/jpeg', 0.92);
+      var src = canvas.toDataURL('image/jpeg', 0.85); // 0.85 thay 0.92 — encode nhanh hơn (2026-08-17)
       runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
         var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);
         if (agree) { onCode(agree); return; }
