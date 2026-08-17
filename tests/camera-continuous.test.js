@@ -3,8 +3,9 @@
  * Test QUÉT LIÊN TỤC (2026-08-17): camera KHÔNG đóng sau 1 mã — quét mã tiếp theo ngay;
  * kết quả hiện NGAY DƯỚI CAMERA (chia đôi màn hình: trên là camera, dưới là danh sách
  * thông tin vừa quét).
- *  - Dedup: cùng mã trong CAM_CODE_COOLDOWN_MS (10s) → onCameraDecoded bỏ qua, không
- *    submit trùng (thẻ vẫn nằm trong khung → không spam toast/danh sách).
+ *  - Dedup: cùng mã trong CAM_CODE_COOLDOWN_MS (1.5s — giảm từ 10s 2026-08-17) →
+ *    onCameraDecoded bỏ qua, không submit trùng (thẻ vẫn nằm trong khung → không spam
+ *    toast/danh sách; server DUPLICATE_WINDOW_MS 1.5s vẫn chặn duplicate ghi).
  *  - Merge: optimistic + server response của CÙNG lượt quét (cùng mã trong
  *    CAM_RESULT_MERGE_MS = 2.5s) → cập nhật 1 dòng, không thêm dòng mới (server trả
  *    tên thật cho NV lạ). camShouldMergeResult là quyết định thuần.
@@ -158,7 +159,25 @@ test('onCameraDecoded: cùng mã trong cooldown → submit 1 lần (không spam)
   sb.ctx.onCameraDecoded('OPS123');
   sb.ctx.onCameraDecoded('OPS123'); // cùng mã ngay sau đó (thẻ vẫn trong khung)
   sb.ctx.onCameraDecoded('OPS123');
-  assert.equal(sb.ctx.__submitScanCalls, 1, 'chỉ submit 1 lần cho cùng mã trong 10s');
+  assert.equal(sb.ctx.__submitScanCalls, 1, 'chỉ submit 1 lần cho cùng mã trong 1.5s');
+});
+
+test('onCameraDecoded: hết cooldown 1.5s → cùng mã submit lại (quét nhanh liên tục)', () => {
+  const sb = makeSandbox();
+  sb.els.scanInput = { value: '' };
+  // Giả lập thời gian: lần 1 lúc t=0, lần 2 lúc t=1600 (> 1.5s) → submit lại
+  const realNow = Date.now;
+  let fakeNow = 0;
+  Date.now = () => fakeNow;
+  try {
+    sb.ctx.onCameraDecoded('OPS123');
+    assert.equal(sb.ctx.__submitScanCalls, 1, 'lần đầu submit');
+    fakeNow = 1600;
+    sb.ctx.onCameraDecoded('OPS123');
+    assert.equal(sb.ctx.__submitScanCalls, 2, 'sau 1.6s cùng mã được submit lại');
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('onCameraDecoded: mã khác → submit tiếp (quét liên tục không dừng)', () => {
@@ -241,6 +260,6 @@ test('popup: có danh sách kết quả dưới camera + nhận rcScanInfo; khô
   assert.ok(html.indexOf('Kết quả quét') >= 0, 'popup có header kết quả');
   assert.ok(html.indexOf('rcScanInfo') >= 0, 'popup nhận rcScanInfo từ trang cha');
   assert.ok(html.indexOf('quét mã tiếp theo') >= 0, 'sendResult báo quét mã tiếp theo (không đóng)');
-  assert.ok(html.indexOf('lastCodeTs < 10000') >= 0, 'popup dedup cùng mã 10s');
+  assert.ok(html.indexOf('lastCodeTs < 1500') >= 0, 'popup dedup cùng mã 1.5s');
   assert.ok(html.indexOf('window.close(); } catch (e) {} }, 1000') === -1, 'KHÔNG còn auto-close 1s sau khi nhận mã');
 });

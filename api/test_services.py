@@ -106,7 +106,7 @@ class TestServices(unittest.TestCase):
         self.assertTrue(r["ok"], r.get("message"))
         task_id = r["taskId"]
         self.assertTrue(task_id.startswith("M"))
-        # rule 10s chống trùng: Ra → Vào phải cách > 10s → dùng now_override
+        # rule 1.5s chống trùng (2026-08-17 giảm từ 10s): Ra → Vào cách 15 phút là hợp lệ
         r1 = services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0)
         self.assertTrue(r1["ok"])
         self.assertEqual(r1["status"], "Ra ngoài")

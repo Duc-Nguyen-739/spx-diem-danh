@@ -107,9 +107,9 @@ def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, st
         has_ra = _epoch(row.get("timeRaEpoch")) > 0
         has_vao = _epoch(row.get("timeScanEpoch")) > 0
 
-        # Rule 10s: chống quét trùng — so với mốc cuối cùng (Ra hoặc Vào)
+        # Rule chống quét trùng (DUPLICATE_WINDOW_MS — 1.5s): so với mốc cuối cùng (Ra hoặc Vào)
         last_epoch = max(_epoch(row.get("timeRaEpoch")), _epoch(row.get("timeScanEpoch")))
-        if last_epoch > 0 and (now - last_epoch) < (cfg.get("DUPLICATE_WINDOW_MS") or 10000):
+        if last_epoch > 0 and (now - last_epoch) < (cfg.get("DUPLICATE_WINDOW_MS") or 1500):
             return {"action": "reject", "status": None, "reason": "duplicate", "row": row, "scanPhase": None}
 
         if has_ra and has_vao:

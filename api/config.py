@@ -99,7 +99,7 @@ TASK_TYPE = {
 CONTRACT_TYPES = ["FTE", "BPO", "OS"]
 
 # Meal-move: khoảng thời gian chống quét trùng (ms)
-DUPLICATE_WINDOW_MS = 10000
+DUPLICATE_WINDOW_MS = 1500  # 2026-08-17: giảm 10s → 1.5s để khớp cooldown quét camera client
 
 # ===== Cache TTL (giây) — backend Python dùng cache in-memory đơn giản =====
 CACHE_TTL = {
@@ -132,7 +132,7 @@ UI_LABELS = {
     "TASK_CLOSED": "Task đã kết thúc",
     "STAFF_NOT_FOUND": "Không tìm thấy nhân viên",
     "CREATE_FAILED_EMPTY": "Không có nhân viên nào trong tổ hợp đã chọn",
-    "DUPLICATE_SCAN": "Trùng mã — chờ 10 giây",
+    "DUPLICATE_SCAN": "Trùng mã — chờ 1.5 giây",
     "MEAL_NO_OPS": "Không có mã Ops nào trong danh sách",
     "PASTE_TOO_MANY": "Danh sách quá dài — tối đa 200 mã/lần",
 }

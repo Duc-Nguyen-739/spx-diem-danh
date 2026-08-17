@@ -184,10 +184,9 @@ class TestMealMove(unittest.TestCase):
         self.assertEqual(r["status"], "Dư")
 
     def test_duplicate_window(self):
-        r = scanlogic.classify_meal_move_scan(CFG, self.task(), [], "OPS999", "ra", now_ms=1783080000000 + 3000)
-        # vừa ghi Ra 3s trước (sim bằng log có timeRaEpoch gần)
+        # 1.5s rule (2026-08-17 giảm từ 10s): vừa ghi Ra 1s trước → quét lại = duplicate
         log = [{"taskId": "M1", "staffId": "OPS999", "timeRaEpoch": 1783080000000, "timeScanEpoch": 0, "status": "Ra ngoài"}]
-        r2 = scanlogic.classify_meal_move_scan(CFG, self.task(), log, "OPS999", "ra", now_ms=1783080000000 + 3000)
+        r2 = scanlogic.classify_meal_move_scan(CFG, self.task(), log, "OPS999", "ra", now_ms=1783080000000 + 1000)
         self.assertEqual(r2["reason"], "duplicate")
 
     def test_already_full(self):

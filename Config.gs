@@ -106,7 +106,7 @@ const TASK_TYPE = {
 const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
 
 // Meal-move: khoảng thời gian chống quét trùng (ms) — 2 lần quét cùng mã trong cửa này = 'Trùng mã'
-const DUPLICATE_WINDOW_MS = 10000;
+const DUPLICATE_WINDOW_MS = 1500;  // 2026-08-17: giảm 10s → 1.5s để khớp cooldown quét camera client
 
 // ===== Cache TTL (giây) =====
 const CACHE_TTL = {
@@ -141,7 +141,7 @@ const UI_LABELS = {
   STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
   CREATE_FAILED_EMPTY: 'Không có nhân viên nào trong tổ hợp đã chọn',
   // Meal-move (2026-08-04)
-  DUPLICATE_SCAN: 'Trùng mã — chờ 10 giây',
+  DUPLICATE_SCAN: 'Trùng mã — chờ 1.5 giây',
   MEAL_NO_OPS: 'Không có mã Ops nào trong danh sách',
   PASTE_TOO_MANY: 'Danh sách quá dài — tối đa 200 mã/lần',
 };

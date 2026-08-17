@@ -138,12 +138,12 @@ test('buildExtraRow: tạo dòng Dư với thông tin staff nếu có', () => {
 });
 
 // ===== Meal-move tests (2026-08-04) =====
-// classifyMealMoveScan: 2 mốc Ra→Vào, rule 10s chống trùng, NV lạ=Thừa
+// classifyMealMoveScan: 2 mốc Ra→Vào, rule 1.5s chống trùng (2026-08-17: giảm từ 10s), NV lạ=Thừa
 
 const MM_CFG = {
   STATUS: { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' },
   TASK_STATUS: { OPEN: 'open', DONE: 'done' },
-  DUPLICATE_WINDOW_MS: 10000,
+  DUPLICATE_WINDOW_MS: 1500,
 };
 
 function mmRow(overrides) {
@@ -171,20 +171,20 @@ test('meal-move: lần 1 mode Ra → ghi Ra, status OUT', () => {
   assert.equal(r.reason, null);
 });
 
-test('meal-move: trùng trong 10s → reject duplicate', () => {
+test('meal-move: trùng trong 1.5s → reject duplicate', () => {
   const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
-  // Đã có Ra lúc t=1000000, quét lại lúc t=1000000+5000 (5s < 10s)
+  // Đã có Ra lúc t=1000000, quét lại lúc t=1000000+1000 (1s < 1.5s)
   const rows = [mmRow({ timeRaEpoch: 1000000, status: MM_CFG.STATUS.OUT })];
-  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'ra', 1000000 + 5000);
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'ra', 1000000 + 1000);
   assert.equal(r.action, 'reject');
   assert.equal(r.reason, 'duplicate');
 });
 
-test('meal-move: sau 10s mode Vào → ghi Vào, status PRESENT', () => {
+test('meal-move: sau 1.5s mode Vào → ghi Vào, status PRESENT', () => {
   const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
-  // Ra lúc t=1000000, Vào lúc t=1000000+15000 (15s > 10s)
+  // Ra lúc t=1000000, Vào lúc t=1000000+2000 (2s > 1.5s)
   const rows = [mmRow({ timeRaEpoch: 1000000, status: MM_CFG.STATUS.OUT })];
-  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'vao', 1000000 + 15000);
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'vao', 1000000 + 2000);
   assert.equal(r.action, 'update');
   assert.equal(r.status, MM_CFG.STATUS.PRESENT);
   assert.equal(r.scanPhase, 'vao');
@@ -261,8 +261,8 @@ test('meal-move: task đóng → reject task-closed', () => {
 test('meal-move: đã có Ra, mode vẫn Ra → reject already-scanned', () => {
   const task = { taskId: 'M1', status: 'open', taskType: 'meal-move' };
   const rows = [mmRow({ timeRaEpoch: 1000000, status: MM_CFG.STATUS.OUT })];
-  // Sau 10s, mode vẫn Ra → không cho quét Ra lần 2
-  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'ra', 1000000 + 15000);
+  // Sau 1.5s, mode vẫn Ra → không cho quét Ra lần 2
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'ra', 1000000 + 2000);
   assert.equal(r.action, 'reject');
   assert.equal(r.reason, 'already-scanned');
 });

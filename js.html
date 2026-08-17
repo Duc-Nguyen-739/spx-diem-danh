@@ -2138,13 +2138,14 @@
     return true;
   }
 
-  // ===== Meal-move: submitScan branch (Ra/Vào mode + 10s rule + optimistic) =====
+  // ===== Meal-move: submitScan branch (Ra/Vào mode + 1.5s rule + optimistic) =====
+  // 1.5s rule client-side (2026-08-17: giảm từ 10s để khớp DUPLICATE_WINDOW_MS server
+  // + cooldown quét camera): quét cùng mã trong 1.5s → "Trùng mã"
   function submitScanMealMove(input, staffId, target) {
-    // 10s rule client-side: quét cùng mã trong 10s → "Trùng mã"
     if (target && target.timeRaEpoch && MEAL_MODE === 'ra') {
       var diffRa = Date.now() - Number(target.timeRaEpoch);
-      if (diffRa < 10000) {
-        showToast('Trùng mã — quét lại sau 10 giây', true);
+      if (diffRa < 1500) {
+        showToast('Trùng mã — quét lại sau 1.5 giây', true);
         playBeep('error');
         showScanCard('Trùng mã', target, true);
         input.value = '';
@@ -2154,8 +2155,8 @@
     }
     if (target && target.timeScanEpoch && MEAL_MODE === 'vao') {
       var diffVao = Date.now() - Number(target.timeScanEpoch);
-      if (diffVao < 10000) {
-        showToast('Trùng mã — quét lại sau 10 giây', true);
+      if (diffVao < 1500) {
+        showToast('Trùng mã — quét lại sau 1.5 giây', true);
         playBeep('error');
         showScanCard('Trùng mã', target, true);
         input.value = '';

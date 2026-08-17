@@ -138,7 +138,7 @@ if (typeof module !== 'undefined' && module.exports) {
  * Meal-move: 2 mốc Ra (đi ra ngoài) → Vào (quay lại).
  * - Lần 1 (chưa có Ra) → ghi Ra, status OUT
  * - Lần 2 (có Ra, chưa Vào) → ghi Vào, status PRESENT + durationMinutes
- * - Trùng trong 10s (DUPLICATE_WINDOW_MS) → reject 'duplicate'
+ * - Trùng trong 1.5s (DUPLICATE_WINDOW_MS — 2026-08-17 giảm từ 10s để khớp cooldown quét camera) → reject 'duplicate'
  * - Đã đủ Ra+Vào → reject 'already-scanned'
  * - Task đóng → reject 'task-closed'
  * - NV lạ (không trong roster) → append EXTRA (vẫn ghi giờ theo mode)
@@ -172,9 +172,9 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInf
     var hasRa = Number(row.timeRaEpoch) > 0;
     var hasVao = Number(row.timeScanEpoch) > 0;
 
-    // Rule 10s: chống quét trùng — so với mốc cuối cùng (Ra hoặc Vào)
+    // Rule chống quét trùng (DUPLICATE_WINDOW_MS — 1.5s): so với mốc cuối cùng (Ra hoặc Vào)
     var lastEpoch = Math.max(Number(row.timeRaEpoch) || 0, Number(row.timeScanEpoch) || 0);
-    if (lastEpoch > 0 && (now - lastEpoch) < (cfg.DUPLICATE_WINDOW_MS || 10000)) {
+    if (lastEpoch > 0 && (now - lastEpoch) < (cfg.DUPLICATE_WINDOW_MS || 1500)) {
       return { action: 'reject', status: null, reason: 'duplicate', row: row, scanPhase: null };
     }
 

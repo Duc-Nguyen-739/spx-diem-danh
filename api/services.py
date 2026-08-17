@@ -261,7 +261,7 @@ def resolve_meal_move_mode(task, mode):
 
 def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
     """now_override: hook test — datetime thay đồng hồ thật (classify + ghi).
-    GAS không có param này (dùng Date.now()); thêm để test rule 10s không chờ thật.
+    GAS không có param này (dùng Date.now()); thêm để test rule 1.5s không chờ thật.
     """
     import datetime as _dt
     now_dt = now_override or _dt.datetime.now(cache._TZ)

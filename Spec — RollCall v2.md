@@ -99,7 +99,7 @@ Created → CheckIn → CheckOut → Closed
 | Quét chéo Slot Code (A→B)            | **Reject**                                 |
 | Quét chéo Task (A→B)                 | **Ghi cả 2 task**                          |
 | 1 staff quét lần 2 trong task        | **Reject** (1 check-in + 1 check-out/task) |
-| Duplicate scan trong X giây          | **Cooldown reject (15s)**                  |
+| Duplicate scan trong X giây          | **Cooldown reject (1.5s — 2026-08-17 giảm từ 10s)** |
 | Validate Staff ID + Slot Code + Team | **Cả hai**                                 |
 | Check-out trước check-in             | **Ghi + flag ngoại lệ**                    |
 | Staff ID không tồn tại               | **Reject + toast**                         |
@@ -211,7 +211,7 @@ Batch flush (10 records hoặc 20s):
 
 ```plain
 1. Validate    → Kiểm tra Staff ID tồn tại + Slot Code khớp task + Team khớp task + Phase restriction
-2. Cooldown    → Chống quét trùng trong 15 giây
+2. Cooldown    → Chống quét trùng trong 1.5 giây (2026-08-17 giảm từ 10s)
 3. FindExisting → Tìm record đã quét trong batch + log
 4. ExecuteStep → Ghi vào pendingBatch (check-in hoặc check-out)
 5. Flush       → Batch flush lên AttendanceLog (10 records / 20s)

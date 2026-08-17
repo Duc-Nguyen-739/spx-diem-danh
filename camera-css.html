@@ -30,13 +30,14 @@
   background: #e85d04;
   box-shadow: 0 0 0 2px rgba(255,255,255,.45), 0 0 18px rgba(232,93,4,.55);
 }
-/* CHIA 50/50 (2026-08-17, yêu cầu user): ô camera và phần thông tin quét mỗi bên
-   chiếm nửa chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view +
-   camera-results chia đều (flex 1 1 50%). Video object-fit:cover lấp kín ô. */
+/* CHIA 60/40 (2026-08-17, yêu cầu user): ô camera 60% · phần thông tin quét 40%
+   chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view (flex 3) rộng
+   hơn camera-results (flex 2). Video object-fit:cover lấp kín ô. Danh sách thông
+   tin dài thì CUỘN (overflow-y:auto trên .camera-results). */
 .camera-view {
   position: relative; border-radius: 16px; overflow: hidden;
   background: #000;
-  flex: 1 1 50%; min-height: 0;
+  flex: 3 1 60%; min-height: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 24px 60px rgba(0,0,0,.55);
 }
 .camera-view video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -77,6 +78,35 @@
   right: 0; border-left: 0;
   border-radius: 0 6px 6px 0;
 }
+/* Flash phản hồi quét (2026-08-17, yêu cầu user): overlay chớp màu theo trạng thái
+   khi nhận mã — xanh ✓ Có mặt · cam ⚠ Dư · đỏ ✕ lỗi. Animation 1 lần rồi tự mờ
+   (class được set lại mỗi lượt quét mới — camFlashMark trong camera-scan.html). */
+.cam-flash {
+  position: absolute; inset: 0; z-index: 3;
+  border-radius: 16px; pointer-events: none;
+  opacity: 0; display: flex; align-items: center; justify-content: center;
+}
+.cam-flash.on { animation: camFlashOk .5s ease-out; }
+.cam-flash.extra { animation: camFlashExtra .5s ease-out; }
+.cam-flash.err { animation: camFlashErr .5s ease-out; }
+.cam-flash .cf-mark {
+  font-size: 56px; font-weight: 800; color: #4ade80;
+  text-shadow: 0 2px 12px rgba(0,0,0,.65);
+}
+.cam-flash.extra .cf-mark { color: #ffb74d; }
+.cam-flash.err .cf-mark { color: #f87171; }
+@keyframes camFlashOk {
+  0% { opacity: 1; background: rgba(74, 222, 128, .28); }
+  100% { opacity: 0; background: rgba(74, 222, 128, 0); }
+}
+@keyframes camFlashExtra {
+  0% { opacity: 1; background: rgba(255, 183, 77, .28); }
+  100% { opacity: 0; background: rgba(255, 183, 77, 0); }
+}
+@keyframes camFlashErr {
+  0% { opacity: 1; background: rgba(248, 113, 113, .28); }
+  100% { opacity: 0; background: rgba(248, 113, 113, 0); }
+}
 .camera-status {
   position: absolute; left: 0; right: 0; bottom: 0;
   padding: 8px 12px; text-align: center;
@@ -93,8 +123,8 @@
    dưới là danh sách thông tin vừa quét (mã + tên + giờ + badge trạng thái).
    Media ≤600px (mobile) co camera-view nhường chỗ cho danh sách cuộn được. */
 .camera-results {
-  flex: 1 1 50%; min-height: 0;
-  overflow-y: auto;
+  flex: 2 1 40%; min-height: 0;
+  overflow-y: auto;   /* danh sách dài → cuộn trong panel, không đẩy camera */
   background: rgba(2, 6, 23, .62);
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 14px;
