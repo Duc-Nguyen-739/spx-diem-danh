@@ -192,9 +192,9 @@ test('camFastDecode: đọc đúng mã NV đã biết → trả mã (done ngay t
     let got = 'pending';
     ctx.camFastDecode(fastFrame(), (code) => { got = code; });
     assert.equal(got, 'Ops129481');
-    assert.equal(cfg.length, 1, 'chỉ chạy 1 config');
-    assert.equal(cfg[0].locator.patchSize, 'x-large', 'config mạnh nhất (full-res)');
-    assert.equal(cfg[0].inputStream.size, ctx.CAM_FAST_DECODE_SIZE, 'fast path decode 800px — nhanh ~3x so với 1280 (2026-08-17)');
+    assert.equal(cfg.length, 1, 'chỉ chạy 1 config — config đầu ra mã là dừng sớm');
+    assert.equal(cfg[0].locator.patchSize, 'x-large', 'config đầu: x-large (mã to/dí sát)');
+    assert.equal(cfg[0].inputStream.size, ctx.CAM_FAST_DECODE_SIZE, 'fast path decode 1280px ĐẦY ĐỦ — 800px làm vạch mỏng alias → miss frame (2026-08-17)');
   });
 });
 
@@ -239,21 +239,38 @@ test('camFastDecode: không có Quagga → null (fail an toàn, không crash)', 
   });
 });
 
-test('camFastDecode: CAM_FAST_DECODE_SIZE mặc định 800px', () => {
-  assert.equal(ctx.CAM_FAST_DECODE_SIZE, 800);
+test('camFastDecode: CAM_FAST_DECODE_SIZE mặc định 1280px (decode đầy đủ — không downscale)', () => {
+  assert.equal(ctx.CAM_FAST_DECODE_SIZE, 1280);
 });
 
-// ---- camDownscaleFrame: downscale frame 1280 → 800 cho fast path (2026-08-17 tối ưu Safari) ----
-test('camDownscaleFrame: không tạo được canvas (sandbox/thiếu DOM) → trả frame gốc (fail-open)', () => {
-  const frame = { canvas: {}, w: 1280, h: 720, data: {} };
-  assert.equal(ctx.camDownscaleFrame(frame, 800), frame, 'không crash, giữ nguyên frame — decode vẫn chạy');
+test('camFastDecode: config 1 (x-large) fail → thử config 2 (medium) → nhận mã', () => {
+  // decodeSingle lần 1 trả rỗng (x-large miss), lần 2 trả mã hợp lệ (medium bắt)
+  const cfg = [];
+  fastEnv({
+    decodeSingle(c, cb) {
+      cfg.push(c);
+      cb(cfg.length === 1 ? { codeResult: null } : { codeResult: { code: 'Ops129481', format: 'code_128' } });
+    },
+  }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, 'Ops129481');
+    assert.equal(cfg.length, 2, 'chạy đúng 2 config: x-large → medium');
+    assert.equal(cfg[0].locator.patchSize, 'x-large');
+    assert.equal(cfg[1].locator.patchSize, 'medium');
+  });
 });
 
-test('camDownscaleFrame: frame rỗng / thiếu w,h → trả frame gốc (không crash)', () => {
-  const frame = { canvas: {}, w: 0, h: 0 };
-  assert.equal(ctx.camDownscaleFrame(frame, 800), frame);
-  const noDim = { canvas: {} };
-  assert.equal(ctx.camDownscaleFrame(noDim, 800), noDim, 'không có w/h → giữ nguyên, không throw');
+test('camFastDecode: cả 2 config fail → null (không crash)', () => {
+  let calls = 0;
+  fastEnv({
+    decodeSingle(c, cb) { calls++; cb({ codeResult: null }); },
+  }, { OPS129481: {} }, () => {
+    let got = 'pending';
+    ctx.camFastDecode(fastFrame(), (code) => { got = code; });
+    assert.equal(got, null);
+    assert.equal(calls, 2, 'đã thử đủ 2 config rồi mới trả null');
+  });
 });
 
 // ---- camFastPickCode: chọn mã nhanh từ 1 kết quả Quagga (nhận cả NV lạ → Dư) ----
