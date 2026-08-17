@@ -1769,13 +1769,15 @@
       .filter(function (v) { return v; });
   }
 
-  // Decode ImageData bằng ZXing (grayscale + HybridBinarizer) → text hoặc null.
+  // Decode ImageData bằng ZXing (grayscale + binarizer) → text hoặc null.
   // tryHarder=true (2026-08-17): set TRY_HARDER hint — quét thêm góc, CHẬM hơn nhưng bắt được
-  // mã xa/nghiêng/mờ; false → decode nhanh, chỉ bắt mã rõ/gần. PURE-ish (test được mock).
+  // mã xa/nghiêng/mờ; false → decode nhanh, chỉ bắt mã rõ/gần. useGlobal (2026-08-17): dùng
+  // GlobalHistogramBinarizer (threshold toàn ảnh) thay HybridBinarizer (local 5x5) — mã NHẠT/
+  // mờ 1 góc (tương phản thấp) Hybrid dễ nuốt vạch → fallback binarizer thứ 2. PURE-ish.
   var camZxingGray = null; // reuse buffer grayscale (2026-08-17): hết cấp phát ~2MB MỖI tick
                            // (full 1920 + crop) — giảm GC pause trên iPhone; decode đồng bộ
                            // trong tick nên ghi đè buffer an toàn.
-  function zxingDecodeImageData(img, w, h, tryHarder) {
+  function zxingDecodeImageData(img, w, h, tryHarder, useGlobal) {
     var d = img.data;
     if (!camZxingGray || camZxingGray.length !== w * h) camZxingGray = new Uint8ClampedArray(w * h);
     var gray = camZxingGray;
@@ -1788,7 +1790,8 @@
     hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, camZxingFormats());
     if (tryHarder) hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
     var source = new window.ZXing.RGBLuminanceSource(gray, w, h);
-    var bitmap = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(source));
+    var B = useGlobal ? window.ZXing.GlobalHistogramBinarizer : window.ZXing.HybridBinarizer;
+    var bitmap = new window.ZXing.BinaryBitmap(new B(source));
     var result = camZxingReader.decode(bitmap, hints);
     return result && result.getText ? result.getText() : null;
   }
@@ -1862,8 +1865,12 @@
       // cho mã để xa — user báo "để xa nhận hơi lâu", 2026-08-17).
       var cropped = camZxingCrop(frame, w, h, 1.4);
       if (cropped) {
-        var text2 = zxingDecodeImageData(cropped.img, cropped.w, cropped.h, true);
+        var text2 = zxingDecodeImageData(cropped.img, cropped.w, cropped.h, true, false);
         if (text2) { onCode(camZxingPickCode(text2)); return; }
+        // BẬC 4b (2026-08-17): mã NHẠT/mờ 1 góc — Hybrid nuốt vạch → thử GlobalHistogram
+        // (threshold toàn ảnh) trên CÙNG crop; worker cũng chạy fallback này ở nền (full frame).
+        var text3 = zxingDecodeImageData(cropped.img, cropped.w, cropped.h, true, true);
+        if (text3) { onCode(camZxingPickCode(text3)); return; }
       }
       onCode(null);
     } catch (e) { onCode(null); }
@@ -1891,7 +1898,15 @@
     "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
     "  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);",
     "  var source = new ZXing.RGBLuminanceSource(gray, d.w, d.h);",
-    "  var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));",
+    "  var text = tryDecode(source, hints, false);",
+    "  if (text) return text;",
+    "  // Binarizer thứ 2 (2026-08-17): GlobalHistogram — mã NHẠT/mờ 1 góc (tương phản thấp,",
+    "  // user: súng laser nhận được mà camera khó) đôi khi HybridBinarizer (local threshold",
+    "  // 5x5) nuốt vạch → GlobalHistogram (threshold toàn ảnh) tách vạch rõ hơn.",
+    "  return tryDecode(source, hints, true);",
+    "}",
+    "function tryDecode(source, hints, useGlobal) {",
+    "  var bitmap = new ZXing.BinaryBitmap(useGlobal ? new ZXing.GlobalHistogramBinarizer(source) : new ZXing.HybridBinarizer(source));",
     "  var result = reader.decode(bitmap, hints);",
     "  return result && result.getText ? result.getText() : null;",
     "}",

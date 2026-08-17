@@ -407,6 +407,7 @@ function withZxing(fn) {
     RGBLuminanceSource: function (b, w, h) { this.b = b; },
     BinaryBitmap: function (b) { this.b = b; },
     HybridBinarizer: function (s) { this.s = s; },
+    GlobalHistogramBinarizer: function (s) { this.s = s; }, // 2026-08-17: fallback binarizer (mã nhạt/mờ)
     DecodeHintType: { POSSIBLE_FORMATS: 'PF', TRY_HARDER: 'TH' },
     BarcodeFormat: { CODE_128: 'CODE_128', CODE_39: 'CODE_39', CODE_93: 'CODE_93', CODABAR: 'CODABAR', QR_CODE: 'QR_CODE' },
   };
@@ -487,7 +488,7 @@ test('camZxingDecode: full frame fail → BẬC 2 crop native (không TH) TRƯ�
       ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
       assert.equal(got, null, 'cả 3 bậc fail → null');
       assert.deepEqual(scalesSeen, [1, 1.4], 'crop NATIVE chạy trước (rẻ, bắt mã xa nét nhanh), rồi mới upscale 1.4');
-      assert.deepEqual(thSeen, [undefined, undefined, true], 'bậc 1+2 KHÔNG TRY_HARDER (nhanh), bậc 3 mới TRY_HARDER');
+      assert.deepEqual(thSeen, [undefined, undefined, true, true], 'bậc 1+2 KHÔNG TRY_HARDER (nhanh), bậc 4+4b (upscale Hybrid + GlobalHistogram) có TRY_HARDER');
     } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
   });
 });
@@ -533,10 +534,44 @@ test('camZxingDecode: frame ≤ 1280 → camDownscaleFrame trả frame gốc →
     try {
       let got = 'pending';
       ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
-      assert.equal(got, null, 'cả 4 bậc fail → null');
+      assert.equal(got, null, 'cả 5 bậc fail → null');
       // camDownscaleFrame thật với frame 4x4: scale = min(1, 1280/4) = 1 → trả frame gốc → skip
-      assert.equal(call, 3, 'decode: bậc 1 full + bậc 3 crop native + bậc 4 upscale — KHÔNG có bậc 2');
+      assert.equal(call, 4, 'decode: bậc 1 full + bậc 3 crop native + bậc 4 upscale(Hybrid) + bậc 4b (GlobalHistogram) — KHÔNG có bậc 2');
     } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
+  });
+});
+
+test('camZxingDecode: bậc 4 Hybrid fail → bậc 4b GlobalHistogram ra mã (mã nhạt/mờ 1 góc — 2026-08-17)', () => {
+  withZxing(() => {
+    // Frame 4x4 → bậc 2 (1280) skip. Thứ tự decode: bậc 1 (Hybrid) → bậc 3 (Hybrid) →
+    // bậc 4 (Hybrid) → bậc 4b (GlobalHistogram) = 4 lần; bậc 4b trả mã.
+    let call = 0;
+    const used = [];
+    const savedB = ctx.window.ZXing.BinaryBitmap;
+    ctx.window.ZXing.BinaryBitmap = function (b) { used.push(b.constructor ? b.constructor.name : '?'); return { b: b }; };
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = {
+      decode: function (b, hints) {
+        call++;
+        if (call === 4) return { getText: function () { return 'Ops777777'; } };
+        return null;
+      },
+    };
+    const savedCrop = ctx.camZxingCrop;
+    ctx.camZxingCrop = function (frame, w, h, scale) {
+      const s = scale || 1;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      return { img: { data: new Uint8ClampedArray(cw * ch * 4), width: cw, height: ch }, w: cw, h: ch };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, 'OPS777777', 'GlobalHistogram bắt mã mà Hybrid miss');
+      assert.equal(call, 4, 'chạy đủ bậc 1+3+4 Hybrid rồi mới tới bậc 4b GlobalHistogram');
+      assert.equal(used[3], 'GlobalHistogramBinarizer', 'bậc 4b dùng GlobalHistogramBinarizer');
+      assert.equal(used[0], 'HybridBinarizer', 'bậc 1 vẫn dùng HybridBinarizer (nhanh)');
+    } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; ctx.window.ZXing.BinaryBitmap = savedB; }
   });
 });
 
@@ -675,6 +710,7 @@ test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmess
       RGBLuminanceSource: function (b, w, h) { this.b = b; },
       BinaryBitmap: function (b) { this.b = b; },
       HybridBinarizer: function (s) { this.s = s; },
+      GlobalHistogramBinarizer: function (s) { this.s = s; }, // 2026-08-17: fallback binarizer
       DecodeHintType: { POSSIBLE_FORMATS: 'PF', TRY_HARDER: 'TH' },
       BarcodeFormat: { CODE_128: 1, CODE_39: 2, CODE_93: 3, CODABAR: 4, QR_CODE: 5 },
     },
@@ -691,6 +727,9 @@ test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmess
   // decode throw (NotFound) → onmessage try/catch → trả null (worker không crash)
   vm.runInContext('reader = null; ZXing.MultiFormatReader = function () { this.decode = function () { throw new Error("nf"); }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, null, 'decode lỗi → null (không crash worker)');
+  // Hybrid fail (null) → GlobalHistogram fallback ra mã (mã nhạt/mờ 1 góc — 2026-08-17)
+  vm.runInContext('reader = null; var dc = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc++; if (dc === 1) return null; return { getText: function () { return "Ops55555"; } }; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops55555', 'Hybrid fail → GlobalHistogram fallback ra mã');
 });
 
 test('camWorkerOnMessage: nhận {ready:true} → KHÔNG decode, chỉ cập nhật trạng thái worker', () => {
