@@ -467,6 +467,59 @@ test('zxingDecodeImageData: tryHarder=true set TRY_HARDER hint; false thì khôn
   });
 });
 
+test('camZxingDecode: full frame fail → BẬC 2 crop native (không TH) TRƯỚC BẬC 3 upscale+TH (2026-08-17)', () => {
+  withZxing(() => {
+    const thSeen = [];
+    const scalesSeen = [];
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = { decode: function (b, hints) { thSeen.push(hints.get('TH')); return null; } };
+    const savedCrop = ctx.camZxingCrop;
+    // Stub camZxingCrop: ghi nhận scale — trả img hợp lệ cho từng bậc (đều decode fail)
+    ctx.camZxingCrop = function (frame, w, h, scale) {
+      scalesSeen.push(scale);
+      const s = scale || 1;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      return { img: { data: new Uint8ClampedArray(cw * ch * 4), width: cw, height: ch }, w: cw, h: ch };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, null, 'cả 3 bậc fail → null');
+      assert.deepEqual(scalesSeen, [1, 1.4], 'crop NATIVE chạy trước (rẻ, bắt mã xa nét nhanh), rồi mới upscale 1.4');
+      assert.deepEqual(thSeen, [undefined, undefined, true], 'bậc 1+2 KHÔNG TRY_HARDER (nhanh), bậc 3 mới TRY_HARDER');
+    } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
+  });
+});
+
+test('camZxingDecode: BẬC 2 crop native ra mã → trả NGAY, không chờ bậc 3 (2026-08-17)', () => {
+  withZxing(() => {
+    // bậc 1 full frame fail; bậc 2 (crop native) decode thành công
+    let call = 0;
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = {
+      decode: function (b, hints) {
+        call++;
+        if (call === 1) return null;            // bậc 1: full frame fail
+        return { getText: function () { return 'Ops777777'; } }; // bậc 2: crop native ra mã
+      },
+    };
+    const savedCrop = ctx.camZxingCrop;
+    ctx.camZxingCrop = function (frame, w, h, scale) {
+      const s = scale || 1;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      return { img: { data: new Uint8ClampedArray(cw * ch * 4), width: cw, height: ch }, w: cw, h: ch };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, 'OPS777777', 'crop native bắt được mã — không chờ bậc upscale+TH chậm');
+      assert.equal(call, 2, 'dừng ngay ở bậc 2');
+    } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
+  });
+});
+
 test('camZxingDecode: NotFound (throw) → null (Quagga fallback)', () => {
   withZxing(() => {
     zxingDecodeImpl = function () { throw new Error('nf'); };

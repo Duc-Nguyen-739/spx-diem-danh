@@ -51,7 +51,6 @@
   var camTimer = null;       // interval decode khi không có BarcodeDetector
   var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
   var camDetector = null;    // BarcodeDetector instance
-  var camLastFrame = 0;      // chống decode trùng frame liên tiếp
   var camSharedCanvas = null; // 1 canvas dùng chung cho mọi frame tick (2026-08-16 tối ưu:
                              // hết tạo canvas+context mới mỗi ~600ms → giảm GC trên iOS)
   var camSharedCtx = null;
@@ -78,14 +77,12 @@
   // rung (threshold 6/255 quá nhạy với noise camera iPhone thật → auto-snap không bao giờ
   // kích hoạt → user vẫn phải bấm Chụp, bug 2026-08-12). Đưa mã vào khung là tự nhận.
   var camFullChainTick = 0;       // đếm tick frame giữa 2 lần chạy full-chain decode
-  var CAM_FULL_CHAIN_INTERVAL = 2; // chạy full chain mỗi N tick frame (1 tick ≈ 320ms)
+  var CAM_FULL_CHAIN_INTERVAL = 2; // chạy full chain mỗi N tick frame (1 tick ≈ 200ms — 2026-08-17
+                                   // bỏ gate 500ms bug; full chain ≈ mỗi 400ms)
   var CAM_FAST_DECODE_SIZE = 1280; // FAST PATH decode 1280px ĐẦY ĐỦ (2026-08-17, đảo từ 800px):
                                    // user test "lúc được lúc không" dù mã nét — 800px downscale
                                    // làm vạch Code128 mỏng bị alias/mất chi tiết → miss frame
                                    // (bản 2026-08-12 decode 1280px đã verify tự nhận nhanh).
-  var CAM_TICK_MIN_MS = 260;      // tick decode tối thiểu (2026-08-17, 450→320→260 — ZXing decode
-                                  // ImageData nhanh ~100ms nên thử lại được nhanh hơn; camDecoding
-                                  // guard vẫn chặn chồng lấn)
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
@@ -433,9 +430,9 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
-      '        // Nhịp tick 260ms (2026-08-17, 450→320→260 — ZXing decode ImageData nhanh nên',
-      '        // thử lại được nhanh hơn; khớp cooldown 1.5s mới)',
-      '        timer = setInterval(loop, 260);',
+      '        // Nhịp tick 200ms (2026-08-17, 260→200 — busy guard chặn chồng lấn nên thử lại',
+      '        // nhanh hơn; khớp cooldown 1.5s mới)',
+      '        timer = setInterval(loop, 200);',
       '        // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full',
       '        // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain',
       '        // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút',
@@ -751,9 +748,11 @@
       if (camDecoding || camSnapping || !camStream) return;
       var video = camVideo();
       if (!video || video.readyState < 2 || !video.videoWidth) return;
+      // BỎ gate camLastFrame (bug 2026-08-17): interval 250 < gate 260 → decode chỉ chạy MỖI
+      // 2 lần fire = 500ms/tick (từ khi giảm gate 450→320→260 mà không giảm interval, chu kỳ
+      // tăng 450→500ms — "tối ưu" làm CHẬM hơn). camDecoding guard đã chặn chồng lấn; interval
+      // 200ms + camera 30fps → mỗi fire có frame mới, không decode trùng frame.
       var now = Date.now();
-      if (now - camLastFrame < CAM_TICK_MIN_MS) return;
-      camLastFrame = now;
       // Gợi ý khoảng cách (2026-08-17): iPhone focus gần nhất ~10cm — dí sát quá làm vạch
       // ngoài vùng nét dù màn hình nhìn nét → decode fail lặp lại ("lúc được lúc không").
       // Hiện hint 1 lần/phiên khi 4s chưa nhận được mã nào.
@@ -784,7 +783,7 @@
         }
         camDecoding = false;
       });
-    }, 250);
+    }, 200);
   }
 
   function stopCameraDecodeLoop() {
@@ -1685,9 +1684,13 @@
   // Decode ImageData bằng ZXing (grayscale + HybridBinarizer) → text hoặc null.
   // tryHarder=true (2026-08-17): set TRY_HARDER hint — quét thêm góc, CHẬM hơn nhưng bắt được
   // mã xa/nghiêng/mờ; false → decode nhanh, chỉ bắt mã rõ/gần. PURE-ish (test được mock).
+  var camZxingGray = null; // reuse buffer grayscale (2026-08-17): hết cấp phát ~2MB MỖI tick
+                           // (full 1920 + crop) — giảm GC pause trên iPhone; decode đồng bộ
+                           // trong tick nên ghi đè buffer an toàn.
   function zxingDecodeImageData(img, w, h, tryHarder) {
     var d = img.data;
-    var gray = new Uint8ClampedArray(w * h);
+    if (!camZxingGray || camZxingGray.length !== w * h) camZxingGray = new Uint8ClampedArray(w * h);
+    var gray = camZxingGray;
     for (var i = 0, p = 0; p < w * h; i += 4, p++) {
       gray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
     }
@@ -1746,7 +1749,16 @@
       // đầu (~100-150ms) thay vì luôn chạy TRY_HARDER chậm trên toàn frame 1920.
       var text = zxingDecodeImageData(img, w, h, false);
       if (text) { onCode(camZxingPickCode(text)); return; }
-      // BẬC 2: crop vùng khung UPSCALE 1.4x + TRY_HARDER — mã XA (30cm) nhỏ được phóng to
+      // BẬC 2 (2026-08-17): crop vùng khung KHÔNG upscale + không TRY_HARDER — mã XA nằm trong
+      // khung (inset 8%/10%) nhưng NÉT → decode vùng nhỏ (0.9M px) nhanh (~60ms) bắt NGAY thay
+      // vì chờ bậc 3 upscale+TRY_HARDER (~200ms). Cùng vùng quét như bậc 3 nhưng rẻ hơn — bậc 3
+      // chỉ chạy khi mã chưa đủ nét cho đường nhanh này. (Node test: frame.canvas mock → null)
+      var croppedFast = camZxingCrop(frame, w, h, 1);
+      if (croppedFast) {
+        var text1 = zxingDecodeImageData(croppedFast.img, croppedFast.w, croppedFast.h, false);
+        if (text1) { onCode(camZxingPickCode(text1)); return; }
+      }
+      // BẬC 3: crop vùng khung UPSCALE 1.4x + TRY_HARDER — mã XA (30cm) nhỏ được phóng to
       // (vạch dày hơn) + quét thêm góc → bắt được mã mà full frame miss (đây là đường chính
       // cho mã để xa — user báo "để xa nhận hơi lâu", 2026-08-17).
       var cropped = camZxingCrop(frame, w, h, 1.4);
