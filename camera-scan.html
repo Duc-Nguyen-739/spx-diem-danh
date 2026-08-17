@@ -164,6 +164,26 @@
       '@keyframes popFlashOk{0%{opacity:1;background:rgba(74,222,128,.28);}100%{opacity:0;background:rgba(74,222,128,0);}}',
       '@keyframes popFlashExtra{0%{opacity:1;background:rgba(255,183,77,.28);}100%{opacity:0;background:rgba(255,183,77,0);}}',
       '@keyframes popFlashErr{0%{opacity:1;background:rgba(248,113,113,.28);}100%{opacity:0;background:rgba(248,113,113,0);}}',
+      // Hiệu ứng quét thành công (2026-08-17, yêu cầu user): ring lan ra + dấu phóng to
+      // + khung #frame glow màu theo trạng thái; dòng kết quả mới highlight rồi tự tắt.
+      '#flash::before{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border:3px solid #4ade80;border-radius:50%;opacity:0;pointer-events:none;}',
+      '#flash.on::before{border-color:rgba(74,222,128,.9);animation:popRing .6s ease-out;}',
+      '#flash.extra::before{border-color:rgba(255,183,77,.9);animation:popRing .6s ease-out;}',
+      '#flash.err::before{border-color:rgba(248,113,113,.9);animation:popRing .6s ease-out;}',
+      '@keyframes popRing{0%{transform:scale(.25);opacity:.95;}100%{transform:scale(2.6);opacity:0;}}',
+      '#flash b{display:inline-block;}',
+      '#flash.on b{animation:popMarkPop .5s ease-out;}',
+      '#flash.extra b{animation:popMarkPop .5s ease-out;}',
+      '#flash.err b{animation:popMarkPop .5s ease-out;}',
+      '@keyframes popMarkPop{0%{transform:scale(.25);opacity:0;}45%{transform:scale(1.3);opacity:1;}100%{transform:scale(1);opacity:1;}}',
+      '#frame.fl-ok{animation:popFrameGlowOk .65s ease-out;}',
+      '#frame.fl-extra{animation:popFrameGlowExtra .65s ease-out;}',
+      '#frame.fl-err{animation:popFrameGlowErr .65s ease-out;}',
+      '@keyframes popFrameGlowOk{0%{border-color:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.4),0 0 26px rgba(74,222,128,.65),inset 0 0 20px rgba(74,222,128,.22);}100%{border-color:rgba(255,255,255,.85);box-shadow:none;}}',
+      '@keyframes popFrameGlowExtra{0%{border-color:#ffb74d;box-shadow:0 0 0 3px rgba(255,183,77,.4),0 0 26px rgba(255,183,77,.65),inset 0 0 20px rgba(255,183,77,.22);}100%{border-color:rgba(255,255,255,.85);box-shadow:none;}}',
+      '@keyframes popFrameGlowErr{0%{border-color:#f87171;box-shadow:0 0 0 3px rgba(248,113,113,.4),0 0 26px rgba(248,113,113,.65),inset 0 0 20px rgba(248,113,113,.22);}100%{border-color:rgba(255,255,255,.85);box-shadow:none;}}',
+      '.rrow.new{animation:rrowNew .9s ease-out;}',
+      '@keyframes rrowNew{0%{background:rgba(74,222,128,.18);}100%{background:transparent;}}',
       '#status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;text-align:center;background:rgba(0,0,0,.62);font-size:14px;color:#e2e8f0;}',
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
@@ -511,6 +531,13 @@
       '    var b = el.querySelector && el.querySelector("b");',
       '    if (b) b.textContent = d.isError ? "✕" : (d.status === "Dư" ? "⚠" : "✓");',
       '    el.className = d.isError ? "err" : (d.status === "Dư" ? "extra" : "on");',
+      '    // Glow viền khung theo trạng thái (2026-08-17) — restart animation mỗi lượt',
+      '    var fr = document.getElementById("frame");',
+      '    if (fr) {',
+      '      fr.classList.remove("fl-ok", "fl-extra", "fl-err");',
+      '      void fr.offsetWidth;',
+      '      fr.classList.add(d.isError ? "fl-err" : (d.status === "Dư" ? "fl-extra" : "fl-ok"));',
+      '    }',
       '  }',
       '  // Âm thanh phản hồi quét (2026-08-17, yêu cầu user): Web Audio — beep thành công',
       '  // 2 tiếng cao (Có mặt), 2 tiếng giữa (Dư), tiếng trầm (lỗi). Gate bởi SOUND_ON',
@@ -563,7 +590,7 @@
       '    }',
       '    if (!row) {',
       '      row = document.createElement("div");',
-      '      row.className = "rrow";',
+      '      row.className = "rrow new"; // highlight dòng mới rồi tự tắt (2026-08-17)',
       '      row.setAttribute("data-code", String(d.code));',
       '      body.appendChild(row);',
       '    } else {',
@@ -576,7 +603,10 @@
       '    badge.className = "rbadge " + (d.isError ? "err" : (d.status === "Dư" ? "extra" : "ok"));',
       '    badge.textContent = d.status || "";',
       '    row.appendChild(badge);',
-      '    body.scrollTop = body.scrollHeight;',
+      '    // Scroll CONTAINER #results (overflow-y:auto) xuống dòng mới — trước set trên',
+      '    // #resultsBody (con, không scroll được) → danh sách đứng im (bug 2026-08-17).',
+      '    var sc = document.getElementById("results");',
+      '    if (sc) sc.scrollTop = sc.scrollHeight;',
       '    if (head) head.textContent = "Kết quả quét (" + body.children.length + ")";',
       '  }',
       '  window.addEventListener("message", function (ev) {',
@@ -1941,6 +1971,14 @@
     el.classList.remove('on', 'extra', 'err');
     void el.offsetWidth; // restart animation
     el.classList.add(isError ? 'err' : (status === 'Dư' ? 'extra' : 'on'));
+    // Glow viền khung dẫn hướng theo trạng thái (2026-08-17, yêu cầu user hiệu ứng
+    // đẹp khi quét thành công) — ring lan ra + mark phóng to + khung sáng màu.
+    var frameEl = document.getElementById('camFrame');
+    if (frameEl) {
+      frameEl.classList.remove('fl-ok', 'fl-extra', 'fl-err');
+      void frameEl.offsetWidth; // restart animation
+      frameEl.classList.add(isError ? 'fl-err' : (status === 'Dư' ? 'fl-extra' : 'fl-ok'));
+    }
   }
 
   // PURE: HTML 1 dòng kết quả (không chạm DOM — test được trong Node)
@@ -1992,11 +2030,16 @@
       }
     }
     var row = document.createElement('div');
-    row.className = 'cr-row';
+    // class 'new' (highlight nền rồi tự tắt — 2026-08-17) + trạng thái để màu highlight khớp
+    row.className = 'cr-row new ' + (isError ? 'err' : (status === 'Dư' ? 'extra' : 'ok'));
     row.setAttribute('data-code', code);
     row.innerHTML = camResultRowHTML(payload);
     body.appendChild(row);
-    body.scrollTop = body.scrollHeight;
+    // Scroll CONTAINER #camResults (.camera-results — overflow-y:auto) xuống dòng mới.
+    // Trước set trên #camResultsBody (con, không scroll được) → danh sách đứng im (bug
+    // 2026-08-17 — user báo "thông tin bên dưới không cuộn theo mã vừa quét").
+    var scrollEl = document.getElementById('camResults');
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
     var head = document.getElementById('camResultsHead');
     if (head) head.textContent = 'Kết quả quét (' + body.children.length + ')';
   }

@@ -214,6 +214,23 @@ test('camAppendResult: append dòng + đếm header; merge optimistic/server th�
   assert.equal(sb.els.camResultsHead.textContent, 'Kết quả quét (2)');
 });
 
+test('camAppendResult: scroll CONTAINER #camResults xuống dòng mới + row có class new (2026-08-17)', () => {
+  const sb = makeSandbox();
+  const body = makeResultsBody();
+  sb.els.camResultsBody = body;
+  sb.els.camResults = { scrollTop: 0, scrollHeight: 999 }; // scroll container thật (.camera-results)
+  sb.els.camResultsHead = { textContent: '' };
+  sb.els.cameraModal = { style: { display: 'flex' } };
+  sb.ctx.camOpen = true;
+  sb.ctx.camAppendResult('Có mặt', { staffId: 'OPS123', staffName: 'A' }, false);
+  assert.equal(sb.els.camResults.scrollTop, 999, 'scroll container cuộn xuống dòng mới (trước set trên body con — vô tác dụng)');
+  assert.ok(body.lastElementChild.className.indexOf('new') >= 0, 'dòng mới có class new (highlight)');
+  // Lượt quét mã khác → vẫn scroll xuống dòng mới
+  sb.els.camResults.scrollTop = 0;
+  sb.ctx.camAppendResult('Dư', { staffId: 'OPS456', staffName: 'B' }, false);
+  assert.equal(sb.els.camResults.scrollTop, 999, 'mã mới → scroll lại xuống dưới');
+});
+
 test('camAppendResult: camera KHÔNG mở → bỏ qua (quét tay không đụng danh sách)', () => {
   const sb = makeSandbox();
   sb.els.camResultsBody = makeResultsBody();
