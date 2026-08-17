@@ -263,6 +263,41 @@
       '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, "*"); } catch (e) {}',
       '    setTimeout(function () { try { window.close(); } catch (e) {} }, 500);',
       '  }',
+      '  // WORKER decode sâu (2026-08-17): ZXing TRY_HARDER full frame chạy ngoài main thread',
+      '  // — không nghẽn UI; worker xử lý frame mới liên tục trong lúc main đang decode frame',
+      '  // cũ → mã nghiêng/mờ nhẹ bắt SỚM hơn. Fail-open: worker không tạo được (CSP/trình',
+      '  // duyệt cũ/mất mạng) → vẫn dùng opener.camFastDecode như cũ, không mất gì.',
+      '  var popWorkerSrc = ' + JSON.stringify(CAM_WORKER_SRC) + ';',
+      '  var popWorker = null, popWorkerIdle = true, popWorkerFailed = false;',
+      '  function ensurePopWorker() {',
+      '    if (popWorker || popWorkerFailed) return;',
+      '    try {',
+      '      if (typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) { popWorkerFailed = true; return; }',
+      '      var blob = new Blob([popWorkerSrc], { type: "application/javascript" });',
+      '      var url = URL.createObjectURL(blob);',
+      '      popWorker = new Worker(url);',
+      '      popWorker.onmessage = function (e) { popWorkerOnMessage(e.data); };',
+      '      popWorker.onerror = function () { popWorkerFailed = true; popWorker = null; };',
+      '    } catch (e) { popWorkerFailed = true; popWorker = null; }',
+      '  }',
+      '  function popWorkerSend(f) {',
+      '    if (!popWorker || popWorkerFailed || !popWorkerIdle) return;',
+      '    try {',
+      '      var img = f && (f.data || f.imageData); // popup frameToImageData trả { imageData }',
+      '      var d = img && img.data;',
+      '      if (!d || !f.w || !f.h) return;',
+      '      popWorkerIdle = false;',
+      '      popWorker.postMessage({ buf: d.buffer.slice(0), w: f.w, h: f.h });',
+      '    } catch (e) { popWorkerIdle = true; }',
+      '  }',
+      '  function popWorkerOnMessage(data) {',
+      '    popWorkerIdle = true;',
+      '    if (!data || !data.text) return;',
+      '    try {',
+      '      var code = (window.opener && window.opener.camZxingPickCode) ? window.opener.camZxingPickCode(data.text) : null;',
+      '      if (code) sendResult(code);',
+      '    } catch (e) {}',
+      '  }',
       '  var sharedCanvas = null, sharedCtx = null; // 1 canvas dùng chung (2026-08-17: hết tạo mới mỗi tick → giảm GC iOS)',
       '  function frameToImageData(maxSide) {', 
       '    var w = video.videoWidth || 0;',
@@ -388,6 +423,7 @@
       '    if (busy) return;',
       '    var f = frameToImageData(1920);',
       '    if (!f) return;',
+      '    popWorkerSend(f); // worker decode sâu nền — không chặn loop (2026-08-17)',
       '    if (LIBS.fast) {',
       '      busy = true;',
       '      LIBS.fast(f, function (code) {',
@@ -433,6 +469,7 @@
       '        // Nhịp tick 200ms (2026-08-17, 260→200 — busy guard chặn chồng lấn nên thử lại',
       '        // nhanh hơn; khớp cooldown 1.5s mới)',
       '        timer = setInterval(loop, 200);',
+      '        ensurePopWorker(); // decode sâu TRY_HARDER nền (2026-08-17) — fail-open',
       '        // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full',
       '        // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain',
       '        // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút',
@@ -450,6 +487,7 @@
       '  }',
       '  function stop() {',
       '    if (timer) { clearInterval(timer); timer = null; }',
+      '    if (popWorker) { try { popWorker.terminate(); } catch (e) {} popWorker = null; }',
       '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
       '    video.srcObject = null;',
       '  }',
@@ -744,6 +782,8 @@
     //    Tìm Mã = mọi tick) — majority ≥2 config chống đọc SAI. Nhịp tick 450ms
     //    (2026-08-17, giảm từ 600ms — khớp cooldown 1.5s mới). Đưa mã vào khung là tự
     //    nhận (không dùng motion gate — bug 2026-08-12).
+    ensureZxingWorker(); // decode sâu TRY_HARDER chạy nền trong Web Worker (2026-08-17) —
+                         // fail-open: không tạo được (CSP/trình duyệt cũ) → tick main như cũ
     camTimer = setInterval(function () {
       if (camDecoding || camSnapping || !camStream) return;
       var video = camVideo();
@@ -764,6 +804,7 @@
       var frame = camFrameToImageData(video, 1920);
       if (!frame) return;
       camDecoding = true;
+      camWorkerSend(frame); // decode sâu TRY_HARDER nền — không chặn tick (2026-08-17)
       // FAST PATH MỖI tick (2026-08-16 tối ưu): thẻ nét là done NGAY — thắng thì không
       // cần jsQR/full chain. jsQR chỉ chạy khi fast fail (2026-08-17 đảo thứ tự).
       // 2026-08-17 (đảo từ 800px): decode frame 1280px ĐẦY ĐỦ — 800px downscale làm vạch
@@ -789,6 +830,7 @@
   function stopCameraDecodeLoop() {
     if (camRaf) { cancelAnimationFrame(camRaf); camRaf = null; }
     if (camTimer) { clearInterval(camTimer); camTimer = null; }
+    stopZxingWorker();        // terminate worker decode nền (2026-08-17) — đóng camera là dừng
     camDetector = null;
     camDecoding = false;
     camFullChainTick = 0;     // reset đếm tick khi dừng/khởi động lại loop
@@ -1779,6 +1821,89 @@
       }
       onCode(null);
     } catch (e) { onCode(null); }
+  }
+
+  // ===== WORKER SCAN (2026-08-17): ZXing TRY_HARDER decode trong Web Worker =====
+  // Mục tiêu: KHÔNG nghẽn main thread — worker decode full frame TRY_HARDER (bậc chậm nhất)
+  // ở nền, xử lý frame MỚI NHẤT liên tục trong lúc tick chính đang decode frame cũ + chờ
+  // gate → mã nghiêng/mờ nhẹ bắt SỚM hơn. Main chỉ gửi khi worker rảnh (1 frame/lượt qua
+  // camWorkerIdle) → không phí gửi thừa. COPY buffer khi gửi (KHÔNG transfer — main còn decode
+  // tiếp bậc 2-4 + Quagga trên frame khi worker fail). Fail-open: worker không tạo được (CSP
+  // GAS iframe / trình duyệt cũ / mất mạng importScripts) → im lặng dùng tick main như cũ.
+  // Worker SRC dùng CHUNG cho modal (new Worker ở đây) + popup (nhúng qua JSON.stringify).
+  var CAM_WORKER_SRC = [
+    "importScripts('https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js');",
+    "var reader = null;",
+    "function decodeOne(d) {",
+    "  if (!reader) reader = new ZXing.MultiFormatReader();",
+    "  var src = new Uint8ClampedArray(d.buf);",
+    "  var gray = new Uint8ClampedArray(d.w * d.h);",
+    "  for (var i = 0, p = 0; p < d.w * d.h; i += 4, p++) {",
+    "    gray[p] = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) | 0;",
+    "  }",
+    "  var hints = new Map();",
+    "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
+    "  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);",
+    "  var source = new ZXing.RGBLuminanceSource(gray, d.w, d.h);",
+    "  var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));",
+    "  var result = reader.decode(bitmap, hints);",
+    "  return result && result.getText ? result.getText() : null;",
+    "}",
+    "self.onmessage = function (e) {",
+    "  var text = null;",
+    "  try { text = decodeOne(e.data); } catch (err) { text = null; }",
+    "  self.postMessage({ text: text });",
+    "};"
+  ].join('\n');
+  var camWorker = null;
+  var camWorkerFailed = false;
+  var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
+
+  function ensureZxingWorker() {
+    if (camWorker || camWorkerFailed) return;
+    try {
+      if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) {
+        camWorkerFailed = true;
+        return;
+      }
+      var blob = new Blob([CAM_WORKER_SRC], { type: 'application/javascript' });
+      var url = URL.createObjectURL(blob);
+      camWorker = new Worker(url);
+      camWorker.onmessage = function (e) { camWorkerOnMessage(e.data); };
+      camWorker.onerror = function () { camWorkerFailed = true; camWorker = null; };
+    } catch (e) { camWorkerFailed = true; camWorker = null; }
+  }
+
+  // Gửi frame cho worker decode sâu. COPY buffer (KHÔNG transfer — main còn decode tiếp bậc
+  // 2-4 + Quagga trên frame này khi worker fail). Worker decode đồng bộ trong onmessage →
+  // không cần queue; main gate bằng camWorkerIdle.
+  function camWorkerSend(frame) {
+    if (!camWorker || camWorkerFailed || !camWorkerIdle) return;
+    try {
+      // frame modal: { data: ImageData } — popup frameToImageData: { imageData } → đọc cả 2
+      var img = frame && (frame.data || frame.imageData);
+      var d = img && img.data;
+      if (!d || !frame.w || !frame.h) return;
+      camWorkerIdle = false;
+      camWorker.postMessage({ buf: d.buffer.slice(0), w: frame.w, h: frame.h });
+    } catch (e) { camWorkerIdle = true; }
+  }
+
+  // Kết quả worker → chuẩn hóa như decode main (camZxingPickCode — PURE, test được).
+  // Guard camSnapping: đang full-chain/chụp → bỏ qua; dedup 1.5s trong onCameraDecoded lo trùng.
+  function camWorkerOnMessage(data) {
+    camWorkerIdle = true;
+    if (!data || !data.text) return;
+    var code = camZxingPickCode(data.text);
+    if (!code) return;
+    if (camSnapping) return;
+    onCameraDecoded(code);
+  }
+
+  function stopZxingWorker() {
+    if (camWorker) { try { camWorker.terminate(); } catch (e) {} camWorker = null; }
+    camWorkerFailed = false; // cho phép tạo lại lần mở sau (lỗi có thể tạm thời)
+    camWorkerIdle = true;
   }
   // ===== ZXING-SCAN-END =====
 

@@ -589,6 +589,79 @@ test('camZxingDecode: không có ZXing / chưa enabled → null (fail an toàn)'
   } finally { ctx.window.ZXing = savedZ; ctx.camZxingEnabled = savedE; }
 });
 
+// ===== WORKER SCAN (2026-08-17): ZXing TRY_HARDER decode trong Web Worker — fail-open =====
+test('camWorkerOnMessage: worker trả mã Ops → onCameraDecoded với mã chuẩn hóa; rác/null bỏ qua', () => {
+  fastEnv(null, { OPS129481: {} }, () => {
+    const calls = [];
+    const saved = ctx.onCameraDecoded;
+    ctx.onCameraDecoded = (code) => { calls.push(code); };
+    try {
+      ctx.camWorkerOnMessage({ text: 'Ops129481' });
+      assert.deepEqual(calls, ['Ops129481'], 'mã NV đã biết giữ nguyên');
+      ctx.camWorkerOnMessage({ text: '123456789012' });
+      assert.deepEqual(calls, ['Ops129481'], 'rác/EAN không được submit (pickCode null)');
+      ctx.camWorkerOnMessage({ text: null });
+      ctx.camWorkerOnMessage({});
+      assert.deepEqual(calls, ['Ops129481'], 'null/rỗng không được submit');
+    } finally { ctx.onCameraDecoded = saved; }
+  });
+});
+
+test('camWorkerOnMessage: đang camSnapping (full chain/chụp) → bỏ qua (không đè)', () => {
+  fastEnv(null, {}, () => {
+    const calls = [];
+    const saved = ctx.onCameraDecoded;
+    const savedSnap = ctx.camSnapping;
+    ctx.onCameraDecoded = (code) => { calls.push(code); };
+    ctx.camSnapping = true;
+    try {
+      ctx.camWorkerOnMessage({ text: 'Ops777777' });
+      assert.equal(calls.length, 0, 'worker ra mã khi đang chụp → bỏ qua');
+    } finally { ctx.onCameraDecoded = saved; ctx.camSnapping = savedSnap; }
+  });
+});
+
+test('camWorkerSend: gửi COPY buffer (frame gốc KHÔNG bị detach) + chỉ gửi khi worker rảnh (1-at-a-time)', () => {
+  const posts = [];
+  const savedW = ctx.camWorker;
+  const savedIdle = ctx.camWorkerIdle;
+  const savedFailed = ctx.camWorkerFailed;
+  ctx.camWorker = { postMessage: (m) => { posts.push(m); } };
+  ctx.camWorkerIdle = true;
+  ctx.camWorkerFailed = false;
+  try {
+    const buf = new Uint8ClampedArray(4 * 4 * 4);
+    const frame = { data: { data: buf }, w: 4, h: 4 };
+    ctx.camWorkerSend(frame);
+    assert.equal(posts.length, 1, 'worker rảnh → gửi 1 frame');
+    assert.ok(posts[0].buf instanceof ArrayBuffer, 'gửi ArrayBuffer');
+    assert.equal(posts[0].w, 4);
+    assert.equal(buf.length, 64, 'frame gốc KHÔNG bị detach (copy thay vì transfer)');
+    ctx.camWorkerSend(frame);
+    assert.equal(posts.length, 1, 'idle=false → không gửi tiếp cho tới khi worker trả kết quả');
+    // worker trả kết quả → idle lại → gửi được frame mới
+    ctx.camWorkerOnMessage({ text: null });
+    ctx.camWorkerSend(frame);
+    assert.equal(posts.length, 2, 'sau khi worker trả (dù null) → gửi frame mới');
+  } finally { ctx.camWorker = savedW; ctx.camWorkerIdle = savedIdle; ctx.camWorkerFailed = savedFailed; }
+});
+
+test('ensureZxingWorker: không có Worker/Blob API → failed, không crash (fail-open)', () => {
+  const savedW = ctx.Worker;
+  const savedB = ctx.Blob;
+  const savedF = ctx.camWorkerFailed;
+  const savedWk = ctx.camWorker;
+  ctx.Worker = undefined;
+  ctx.Blob = undefined;
+  ctx.camWorkerFailed = false;
+  ctx.camWorker = null;
+  try {
+    ctx.ensureZxingWorker();
+    assert.equal(ctx.camWorkerFailed, true, 'không có Worker API → failed (im lặng dùng main decode)');
+    assert.equal(ctx.camWorker, null);
+  } finally { ctx.Worker = savedW; ctx.Blob = savedB; ctx.camWorkerFailed = savedF; ctx.camWorker = savedWk; }
+});
+
 test('camFastDecode: ZXing enabled + ra mã → nhận mã ZXing, Quagga KHÔNG chạy', () => {
   withZxing(() => {
     zxingDecodeImpl = function () { return { getText: function () { return 'Ops777777'; } }; };
