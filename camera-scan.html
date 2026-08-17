@@ -284,6 +284,19 @@
       '  // FAST PATH (2026-08-17): decode frame 1280px ĐẦY ĐỦ qua LIBS.fast (window.opener',
       '  // camFastDecode) — không downscale (800px làm vạch mỏng alias → miss frame, bug',
       '  // 2026-08-17 "lúc được lúc không" dù mã nét).',
+      '  // 2026-08-17: frame 1920 cho ZXing (LIBS.fast) — Quagga (decodeFallback) decode 1280',
+      '  // để toDataURL + decode nhanh; reuse 1 canvas nhỏ.',
+      '  var smallCanvas = null, smallCtx = null;',
+      '  function toQuaggaFrame(f) {',
+      '    if (Math.max(f.w, f.h) <= 1280) return f;',
+      '    var scale = 1280 / Math.max(f.w, f.h);',
+      '    var cw = Math.max(1, Math.round(f.w * scale));',
+      '    var ch = Math.max(1, Math.round(f.h * scale));',
+      '    if (!smallCanvas) { smallCanvas = document.createElement("canvas"); smallCtx = smallCanvas.getContext("2d"); }',
+      '    if (smallCanvas.width !== cw || smallCanvas.height !== ch) { smallCanvas.width = cw; smallCanvas.height = ch; }',
+      '    smallCtx.drawImage(f.canvas, 0, 0, cw, ch);',
+      '    return { canvas: smallCanvas, w: cw, h: ch };',
+      '  }',
       '  function decodeChain(f, onDone) {',
       '    if (window.BarcodeDetector) {',
       '      try {',
@@ -310,7 +323,9 @@
       '        canvas.width = f.w;',
       '        canvas.height = f.h;',
       '        canvas.getContext("2d").putImageData(f.imageData, 0, 0);',
-      '        var src = canvas.toDataURL("image/jpeg", 0.85); // 0.85 thay 0.92 — encode nhanh hơn (2026-08-17)',
+      '        // 2026-08-17: frame giờ 1920 — Quagga decode 1280 (nhanh), toDataURL 1920 sẽ rất chậm',
+      '        var qf = toQuaggaFrame(f);',
+      '        var src = qf.canvas.toDataURL("image/jpeg", 0.85); // 0.85 thay 0.92 — encode nhanh hơn (2026-08-17)',
       '        runQuagga(src, LIBS.configs || [{ patchSize: "x-large", halfSample: false }], 0, [], onDone);',
       '        return;',
       '      } catch (e) { /* tiếp tục */ }',
@@ -374,7 +389,7 @@
       '    // làm decode barcode chậm hẳn; tick lẻ 1,5,9 lệch khỏi full chain tick chẵn 0,2,4)',
       '    if (tick % 4 === 1) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
       '    if (busy) return;',
-      '    var f = frameToImageData(1280);',
+      '    var f = frameToImageData(1920);',
       '    if (!f) return;',
       '    if (LIBS.fast) {',
       '      busy = true;',
@@ -400,7 +415,9 @@
       '      return;',
       '    }',
       '    statusEl.textContent = "Đang mở camera…";',
-      '    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })',
+      '    // ideal 1920x1080 (2026-08-17): mã ở 30cm → vạch mỏng cần chi tiết cao; iPhone trả',
+      '    // 1920 nếu hỗ trợ (hầu hết), thiết bị yếu → trả độ phân giải gần nhất (ideal, không bắt buộc)',
+      '    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })',
       '      .then(function (s) {',
       '        stream = s;',
       '        video.srcObject = s;',
@@ -651,7 +668,9 @@
       if (sb0) sb0.style.display = 'inline-flex';
       return;
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+    // ideal 1920x1080 (2026-08-17): mã ở 30cm → vạch mỏng cần chi tiết cao; iPhone trả 1920
+    // nếu hỗ trợ, thiết bị yếu → trả độ phân giải gần nhất (ideal, không bắt buộc)
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then(function (stream) {
         camStream = stream;
         video.srcObject = stream;
@@ -741,9 +760,9 @@
       if (!camLastCodeTs && !camHintShown && camStartedAt && now - camStartedAt > 4000) {
         camHintShown = true;
         var hintEl = document.getElementById('camStatusLive');
-        if (hintEl) hintEl.textContent = '💡 Chưa nhận được mã — đưa thẻ ra xa hơn (~15cm), thẳng góc, đủ sáng';
+        if (hintEl) hintEl.textContent = '💡 Chưa nhận được mã — đưa thẻ cách camera 10–30cm, thẳng góc, đủ sáng';
       }
-      var frame = camFrameToImageData(video, 1280);
+      var frame = camFrameToImageData(video, 1920);
       if (!frame) return;
       camDecoding = true;
       // FAST PATH MỖI tick (2026-08-16 tối ưu): thẻ nét là done NGAY — thắng thì không
@@ -807,6 +826,34 @@
       var imageData = ctx.getImageData(0, 0, cw, ch);
       return { data: imageData, w: cw, h: ch, canvas: camSharedCanvas };
     } catch (e) { return null; }
+  }
+
+  var camFastCanvas = null; // canvas reuse cho Quagga (downscale 1280 — frame chính giờ 1920)
+  var camFastCtx = null;
+
+  // Downscale frame lớn (1920) → maxSide cho QUAGGA (2026-08-17): ZXing decode 1920 đầy đủ
+  // (bắt mã xa 30cm — vạch mỏng giữ nguyên px); Quagga (fallback/full chain) decode 1280 như
+  // cũ — toDataURL 1920 sẽ rất chậm trên iPhone. scale >= 1 → trả frame gốc (không copy).
+  function camDownscaleFrame(frame, maxSide) {
+    try {
+      var w = frame.w || 0;
+      var h = frame.h || 0;
+      if (!w || !h) return frame;
+      var scale = Math.min(1, maxSide / Math.max(w, h));
+      if (scale >= 1) return frame;
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      if (!camFastCanvas) {
+        camFastCanvas = document.createElement('canvas');
+        camFastCtx = camFastCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      if (camFastCanvas.width !== cw || camFastCanvas.height !== ch) {
+        camFastCanvas.width = cw;
+        camFastCanvas.height = ch;
+      }
+      camFastCtx.drawImage(frame.canvas, 0, 0, cw, ch);
+      return { data: camFastCtx.getImageData(0, 0, cw, ch), w: cw, h: ch, canvas: camFastCanvas };
+    } catch (e) { return frame; }
   }
 
   // "🔍 Tìm Mã" (2026-08-16, cạnh nút Đóng): bấm để camera lấy nét + tìm mã nhanh hơn.
@@ -946,9 +993,10 @@
   function camFastQuagga(frame, onCode) {
     if (!window.Quagga) { onCode(null); return; }
     try {
-      // 0.85 thay 0.92 (2026-08-17): encode JPEG nhanh hơn + ít byte hơn → Quagga decode
-      // nhanh hơn; Code128 1D ít nhạy với artifacts JPEG nên không ảnh hưởng độ chính xác.
-      var src = frame.canvas.toDataURL('image/jpeg', 0.85);
+      // Downscale 1280 (2026-08-17): frame chính giờ 1920 — Quagga decode 1280 đủ cho mã gần,
+      // toDataURL 1920 sẽ rất chậm trên iPhone. ZXing (trước đó) đã lo mã xa ở 1920.
+      var qf = camDownscaleFrame(frame, 1280);
+      var src = qf.canvas.toDataURL('image/jpeg', 0.85);
       camFastDecodeConfig(src, 0, onCode);
     } catch (e) { onCode(null); }
   }
@@ -988,7 +1036,7 @@
     if (!frame) {
       var video = camVideo();
       if (!video || !video.videoWidth) { camSnapping = false; camDecoding = false; return; }
-      frame = camFrameToImageData(video, 1280);
+      frame = camFrameToImageData(video, 1920);
       if (!frame) { camSnapping = false; camDecoding = false; return; }
     }
     decodeCameraImageData(frame.data, frame.w, frame.h, frame.canvas, true, true, function () {
@@ -1142,6 +1190,12 @@
       canvas.width = w;
       canvas.height = h;
       canvas.getContext('2d').putImageData(imageData, 0, 0);
+      // Downscale 1280 nếu frame 1920 (2026-08-17) — Quagga decode 1280 như cũ (nhanh),
+      // toDataURL 1920 sẽ rất chậm trên iPhone.
+      if (Math.max(w, h) > 1280) {
+        var small = camDownscaleFrame({ canvas: canvas, w: w, h: h }, 1280);
+        canvas = small.canvas;
+      }
       var src = canvas.toDataURL('image/jpeg', 0.85); // 0.85 thay 0.92 — encode nhanh hơn (2026-08-17)
       runQuaggaConfigs(src, CAM_QUAGGA_CONFIGS, 0, [], function (results) {
         var agree = camPickQuaggaMajority(results, camKnownStaffCode, 2);

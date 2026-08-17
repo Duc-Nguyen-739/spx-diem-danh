@@ -273,6 +273,18 @@ test('camFastDecode: cả 2 config fail → null (không crash)', () => {
   });
 });
 
+// ---- camDownscaleFrame: frame 1920 → 1280 cho QUAGGA (2026-08-17; ZXing decode 1920 đầy đủ) ----
+test('camDownscaleFrame: frame ≤ maxSide → trả frame gốc (không copy, không vẽ)', () => {
+  const frame = { canvas: { toDataURL() { return 'x'; } }, w: 1280, h: 720, data: {} };
+  assert.equal(ctx.camDownscaleFrame(frame, 1280), frame);
+  assert.equal(ctx.camDownscaleFrame(frame, 1920), frame);
+});
+
+test('camDownscaleFrame: frame 1920 → cần downscale nhưng sandbox thiếu DOM canvas → trả frame gốc (fail-open)', () => {
+  const frame = { canvas: {}, w: 1920, h: 1080, data: {} };
+  assert.equal(ctx.camDownscaleFrame(frame, 1280), frame, 'không crash — decode vẫn chạy với frame gốc');
+});
+
 // ---- camFastPickCode: chọn mã nhanh từ 1 kết quả Quagga (nhận cả NV lạ → Dư) ----
 test('camFastPickCode: NV đã biết → trả mã chính xác (STAFF_INFO là nguồn chuẩn)', () => {
   fastEnv(null, { OPS129481: {} }, () => {
