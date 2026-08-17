@@ -83,8 +83,9 @@
                                    // user test "lúc được lúc không" dù mã nét — 800px downscale
                                    // làm vạch Code128 mỏng bị alias/mất chi tiết → miss frame
                                    // (bản 2026-08-12 decode 1280px đã verify tự nhận nhanh).
-  var CAM_TICK_MIN_MS = 320;      // tick decode tối thiểu (2026-08-17, giảm từ 450ms — fast
-                                  // path 800px xử lý nhanh hơn → thử lại nhanh hơn)
+  var CAM_TICK_MIN_MS = 260;      // tick decode tối thiểu (2026-08-17, 450→320→260 — ZXing decode
+                                  // ImageData nhanh ~100ms nên thử lại được nhanh hơn; camDecoding
+                                  // guard vẫn chặn chồng lấn)
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
@@ -273,7 +274,7 @@
       '    var scale = Math.min(1, maxSide / Math.max(w, h));',
       '    var cw = Math.max(1, Math.round(w * scale));',
       '    var ch = Math.max(1, Math.round(h * scale));',
-      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d"); }',
+      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true }); }',
       '    if (sharedCanvas.width !== cw || sharedCanvas.height !== ch) { sharedCanvas.width = cw; sharedCanvas.height = ch; }',
       '    sharedCtx.drawImage(video, 0, 0, cw, ch);',
       '    var imageData;',
@@ -415,9 +416,9 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
-      '        // Nhịp tick 320ms (2026-08-17, giảm từ 450ms — fast path 800px xử lý nhanh hơn,',
-      '        // thử lại nhanh hơn — khớp cooldown 1.5s mới)',
-      '        timer = setInterval(loop, 320);',
+      '        // Nhịp tick 260ms (2026-08-17, 450→320→260 — ZXing decode ImageData nhanh nên',
+      '        // thử lại được nhanh hơn; khớp cooldown 1.5s mới)',
+      '        timer = setInterval(loop, 260);',
       '        // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full',
       '        // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain',
       '        // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút',
@@ -793,7 +794,9 @@
       // canvas riêng của nó). camDecoding/camSnapping chặn redraw giữa chừng.
       if (!camSharedCanvas) {
         camSharedCanvas = document.createElement('canvas');
-        camSharedCtx = camSharedCanvas.getContext('2d');
+        // willReadFrequently (2026-08-17): đọc getImageData mỗi tick liên tục — trình duyệt
+        // tối ưu canvas cho readback (tránh GPU readback chậm); không hỗ trợ → no-op an toàn.
+        camSharedCtx = camSharedCanvas.getContext('2d', { willReadFrequently: true });
       }
       if (camSharedCanvas.width !== cw || camSharedCanvas.height !== ch) {
         camSharedCanvas.width = cw;
@@ -1632,6 +1635,53 @@
   // Decode 1 frame bằng ZXing: RGBA → grayscale (RGBLuminanceSource nhận Uint8ClampedArray
   // 1 byte/pixel — xác nhận từ source zxing-js) → HybridBinarizer → MultiFormatReader.decode
   // với TRY_HARDER. PURE-ish (không chạm DOM — test được với mock window.ZXing).
+  // Decode ImageData bằng ZXing (grayscale + HybridBinarizer + TRY_HARDER) → text hoặc null.
+  function zxingDecodeImageData(img, w, h) {
+    var d = img.data;
+    var gray = new Uint8ClampedArray(w * h);
+    for (var i = 0, p = 0; p < w * h; i += 4, p++) {
+      gray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+    }
+    if (!camZxingReader) initZxingReader();
+    if (!camZxingReader) return null;
+    var hints = new Map();
+    hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, camZxingFormats());
+    hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+    var source = new window.ZXing.RGBLuminanceSource(gray, w, h);
+    var bitmap = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(source));
+    var result = camZxingReader.decode(bitmap, hints);
+    return result && result.getText ? result.getText() : null;
+  }
+
+  var camZxingCropCanvas = null; // canvas reuse cho crop vùng khung
+  var camZxingCropCtx = null;
+
+  // Crop vùng khung dẫn hướng (inset 8%/10% — rộng hơn khung hiển thị 9%/12% một chút cho an
+  // toàn) → loại nền nhiễu (tay/bàn/chữ) — lý do ZXing/Quagga miss phổ biến khi mã nhỏ/lệch.
+  // Chỉ chạy khi decode FULL FRAME fail (2 lần thử) — mã to hơn khung bị cắt → fail → Quagga
+  // fallback vẫn chạy, không mất gì. Lỗi vẽ (sandbox/DOM) → null an toàn.
+  function camZxingCrop(frame, w, h) {
+    try {
+      var ix = Math.round(w * 0.08);
+      var iy = Math.round(h * 0.10);
+      var cw = w - ix * 2;
+      var ch = h - iy * 2;
+      if (cw < 40 || ch < 40) return null;
+      if (!camZxingCropCanvas) {
+        camZxingCropCanvas = document.createElement('canvas');
+        camZxingCropCtx = camZxingCropCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      if (camZxingCropCanvas.width !== cw || camZxingCropCanvas.height !== ch) {
+        camZxingCropCanvas.width = cw;
+        camZxingCropCanvas.height = ch;
+      }
+      camZxingCropCtx.drawImage(frame.canvas, ix, iy, cw, ch, 0, 0, cw, ch);
+      return { img: camZxingCropCtx.getImageData(0, 0, cw, ch), w: cw, h: ch };
+    } catch (e) { return null; }
+  }
+
+  // Decode 1 frame bằng ZXing, THỬ 2 VÙNG (2026-08-17): full frame → fail thì crop vùng khung
+  // (loại nền nhiễu) → fail thì Quagga fallback. PURE-ish (không chạm DOM — test được mock).
   function camZxingDecode(frame, onCode) {
     if (!window.ZXing || !camZxingEnabled || !window.ZXing.MultiFormatReader) { onCode(null); return; }
     try {
@@ -1639,21 +1689,14 @@
       var w = frame.w || (img && img.width) || 0;
       var h = frame.h || (img && img.height) || 0;
       if (!img || !img.data || !w || !h) { onCode(null); return; }
-      var d = img.data;
-      var gray = new Uint8ClampedArray(w * h);
-      for (var i = 0, p = 0; p < w * h; i += 4, p++) {
-        gray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+      var text = zxingDecodeImageData(img, w, h);
+      if (text) { onCode(camZxingPickCode(text)); return; }
+      var cropped = camZxingCrop(frame, w, h);
+      if (cropped) {
+        var text2 = zxingDecodeImageData(cropped.img, cropped.w, cropped.h);
+        if (text2) { onCode(camZxingPickCode(text2)); return; }
       }
-      if (!camZxingReader) initZxingReader();
-      if (!camZxingReader) { onCode(null); return; }
-      var hints = new Map();
-      hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, camZxingFormats());
-      hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
-      var source = new window.ZXing.RGBLuminanceSource(gray, w, h);
-      var bitmap = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(source));
-      var result = camZxingReader.decode(bitmap, hints);
-      var text = result && result.getText ? result.getText() : null;
-      onCode(camZxingPickCode(text));
+      onCode(null);
     } catch (e) { onCode(null); }
   }
   // ===== ZXING-SCAN-END =====
