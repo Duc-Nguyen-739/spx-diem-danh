@@ -448,6 +448,25 @@ test('camZxingDecode: decode thành công → trả mã (chạy TRƯỚC Quagga)
   });
 });
 
+test('zxingDecodeImageData: tryHarder=true set TRY_HARDER hint; false thì không (2026-08-17)', () => {
+  withZxing(() => {
+    const seen = [];
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = {
+      decode: function (bitmap, hints) {
+        seen.push(hints.get('TH'));
+        return null;
+      },
+    };
+    try {
+      const img = { data: new Uint8ClampedArray(4 * 4 * 4), width: 4, height: 4 };
+      ctx.zxingDecodeImageData(img, 4, 4, false); // bậc 1: nhanh, không TRY_HARDER
+      ctx.zxingDecodeImageData(img, 4, 4, true);  // bậc 2: TRY_HARDER (mã xa/nghiêng)
+      assert.deepEqual(seen, [undefined, true], 'bậc 1 không set TH (nhanh), bậc 2 set TH');
+    } finally { ctx.camZxingReader = savedR; }
+  });
+});
+
 test('camZxingDecode: NotFound (throw) → null (Quagga fallback)', () => {
   withZxing(() => {
     zxingDecodeImpl = function () { throw new Error('nf'); };
