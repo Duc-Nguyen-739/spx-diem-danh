@@ -97,6 +97,10 @@
     var btn = document.getElementById('btnCamScan');
     if (btn && btn.disabled) return;
     if (CURRENT_TASK && CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+    // Tải ZXing từ CDN ngay khi bấm Quét Camera (2026-08-17): ~1-2s load 328KB — fast path
+    // decode chính xác hơn (ImageData + TRY_HARDER) khi lib sẵn sàng; fail load → im lặng
+    // dùng Quagga. Chạy ở đây để CẢ modal (top-level) lẫn popup GAS đều có ZXing.
+    ensureZxingLib();
     // QUÉT LIÊN TỤC (2026-08-17): đánh dấu phiên quét đang hoạt động — js.html
     // showScanCard đẩy kết quả xuống danh sách dưới camera; bỏ input.focus() khi
     // camera mở (tránh bàn phím bật lên che camera trên mobile).
@@ -924,6 +928,19 @@
   }
 
   function camFastDecode(frame, onCode) {
+    // ZXING TRƯỚC (2026-08-17): decode từ ImageData (không JPEG) + TRY_HARDER — bắt mã
+    // nghiêng/mờ nhẹ mà Quagga 2016 miss ("lúc được lúc không"). ZXing fail → Quagga fallback.
+    if (camZxingEnabled && window.ZXing && window.ZXing.MultiFormatReader) {
+      camZxingDecode(frame, function (code) {
+        if (code) { onCode(code); return; }
+        camFastQuagga(frame, onCode);
+      });
+      return;
+    }
+    camFastQuagga(frame, onCode);
+  }
+
+  function camFastQuagga(frame, onCode) {
     if (!window.Quagga) { onCode(null); return; }
     try {
       // 0.85 thay 0.92 (2026-08-17): encode JPEG nhanh hơn + ít byte hơn → Quagga decode
@@ -1535,6 +1552,111 @@
     });
   }
   // ===== OCR-SCAN-END =====
+
+  // ===== ZXING-SCAN-START (2026-08-17): decode Code128 chính xác hơn Quagga =====
+  // User test iPhone "lúc được lúc không" dù mã nét — Quagga (2016) miss mã nghiêng/mờ nhẹ
+  // (STRICH benchmark + StackOverflow xác nhận: Quagga lẫn ZXing đều yếu ở điều kiện khó).
+  // ZXing-js decode TRỰC TIẾP từ ImageData (KHÔNG qua JPEG — không mất chi tiết, nhanh hơn)
+  // + TRY_HARDER (quét thêm góc — bắt mã nghiêng) → chạy TRƯỚC Quagga trong fast path.
+  // Tải CDN lúc runtime (umd/index.min.js ~328KB) — KHÔNG vendor (giống Tesseract OCR):
+  // fail load (mất mạng/CDN chặn) → im lặng dùng Quagga, barcode vẫn chạy bình thường.
+  var ZXING_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
+  var camZxingEnabled = false;    // đã load xong script ZXing
+  var camZxingLoading = false;    // đang load (chống load lặp)
+  var camZxingLoadFailed = false; // load fail → bỏ ZXing cả phiên (Quagga vẫn chạy)
+  var camZxingReader = null;      // MultiFormatReader reuse cả phiên
+
+  // Load script ZXing từ CDN (1 lần mỗi phiên; fail → im lặng tắt — không làm chậm quét)
+  function ensureZxingLib(cb) {
+    if (camZxingEnabled || camZxingLoadFailed || camZxingLoading) { if (cb) cb(); return; }
+    if (typeof window.ZXing !== 'undefined' && window.ZXing.MultiFormatReader) {
+      camZxingEnabled = true;
+      initZxingReader();
+      if (cb) cb();
+      return;
+    }
+    camZxingLoading = true;
+    var head = null;
+    try { head = document.head || document.getElementsByTagName('head')[0] || document.documentElement; } catch (e) { head = null; }
+    var s = document.createElement('script');
+    s.src = ZXING_SCRIPT_URL;
+    s.async = true;
+    s.onload = function () {
+      camZxingLoading = false;
+      if (typeof window.ZXing !== 'undefined' && window.ZXing.MultiFormatReader) {
+        camZxingEnabled = true;
+        initZxingReader();
+      } else camZxingLoadFailed = true;
+      if (cb) cb();
+    };
+    s.onerror = function () {
+      camZxingLoading = false;
+      camZxingLoadFailed = true;
+      if (cb) cb();
+    };
+    if (head) head.appendChild(s);
+    else { camZxingLoading = false; camZxingLoadFailed = true; if (cb) cb(); }
+  }
+
+  function initZxingReader() {
+    try {
+      if (!camZxingReader && window.ZXing && window.ZXing.MultiFormatReader) {
+        camZxingReader = new window.ZXing.MultiFormatReader();
+      }
+    } catch (e) { camZxingReader = null; }
+  }
+
+  // PURE — chuẩn hóa mã ZXing (test được trên Node). ZXing decode SẠCH (KHÔNG có quirk thừa
+  // checksum digit như Quagga) → KHÔNG cắt ký tự cuối (cắt sẽ làm SAI mã NV lạ). Chỉ: bỏ FNC1
+  // cuối + chuẩn hóa dạng Ops+3..9 số; NV đã biết → khớp STAFF_INFO (nguồn chuẩn).
+  function camZxingPickCode(text) {
+    var s = String(text || '').trim();
+    if (!s) return null;
+    while (s.length && s.charCodeAt(s.length - 1) === 29) s = s.slice(0, -1); // FNC1 (GS1) cuối
+    if (!s) return null;
+    var knownNorm = normalizeQuaggaCode128(s, camKnownStaffCode);
+    if (camKnownStaffCode(knownNorm)) return knownNorm; // NV đã biết — nguồn chuẩn
+    return normalizeOpsCode(knownNorm);                 // NV lạ: chỉ chuẩn hóa dạng — KHÔNG cắt
+  }
+
+  // Formats theo BarcodeFormat (mã NV: Code128/39/93/Codabar + QR phòng QR code) — lọc theo
+  // key tồn tại trong bản UMD (an toàn với mọi version).
+  function camZxingFormats() {
+    var F = window.ZXing && window.ZXing.BarcodeFormat;
+    if (!F) return null;
+    return ['CODE_128', 'CODE_39', 'CODE_93', 'CODABAR', 'QR_CODE']
+      .map(function (k) { return F[k]; })
+      .filter(function (v) { return v; });
+  }
+
+  // Decode 1 frame bằng ZXing: RGBA → grayscale (RGBLuminanceSource nhận Uint8ClampedArray
+  // 1 byte/pixel — xác nhận từ source zxing-js) → HybridBinarizer → MultiFormatReader.decode
+  // với TRY_HARDER. PURE-ish (không chạm DOM — test được với mock window.ZXing).
+  function camZxingDecode(frame, onCode) {
+    if (!window.ZXing || !camZxingEnabled || !window.ZXing.MultiFormatReader) { onCode(null); return; }
+    try {
+      var img = frame.data || frame.imageData;
+      var w = frame.w || (img && img.width) || 0;
+      var h = frame.h || (img && img.height) || 0;
+      if (!img || !img.data || !w || !h) { onCode(null); return; }
+      var d = img.data;
+      var gray = new Uint8ClampedArray(w * h);
+      for (var i = 0, p = 0; p < w * h; i += 4, p++) {
+        gray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+      }
+      if (!camZxingReader) initZxingReader();
+      if (!camZxingReader) { onCode(null); return; }
+      var hints = new Map();
+      hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, camZxingFormats());
+      hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+      var source = new window.ZXing.RGBLuminanceSource(gray, w, h);
+      var bitmap = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(source));
+      var result = camZxingReader.decode(bitmap, hints);
+      var text = result && result.getText ? result.getText() : null;
+      onCode(camZxingPickCode(text));
+    } catch (e) { onCode(null); }
+  }
+  // ===== ZXING-SCAN-END =====
 
   // ===== QUÉT LIÊN TỤC: danh sách kết quả quét ngay dưới camera (2026-08-17) =====
   // js.html showScanCard gọi camAppendResult sau mỗi lượt quét (optimistic + server

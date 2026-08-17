@@ -372,3 +372,124 @@ test('runQuaggaConfigs: kết quả EAN numeric bị lọc format → không tí
     assert.equal(done[0], 'Ops129481');
   });
 });
+
+// ===== ZXING-SCAN (2026-08-17): decode Code128 chính xác hơn Quagga — ImageData + TRY_HARDER =====
+// ZXing-js decode SẠCH (không quirk thừa checksum như Quagga) → camZxingPickCode KHÔNG cắt
+// ký tự cuối (cắt sẽ làm SAI mã NV lạ). Mock window.ZXing tối thiểu để test camZxingDecode.
+function zxingFrame(w, h) {
+  const data = new Uint8ClampedArray(w * h * 4);
+  return { data: { data: data, width: w, height: h }, w: w, h: h, canvas: { toDataURL() { return 'x'; } } };
+}
+
+// decodeImpl: hàm trả {text} hoặc throw — set trước mỗi test (reader được cache trong camZxingReader)
+let zxingDecodeImpl = function () { throw new Error('nf'); };
+
+function withZxing(fn) {
+  const savedZ = ctx.window.ZXing;
+  const savedE = ctx.camZxingEnabled;
+  const savedR = ctx.camZxingReader;
+  ctx.window.ZXing = {
+    MultiFormatReader: function () {
+      this.decode = function () { return zxingDecodeImpl(); };
+    },
+    RGBLuminanceSource: function (b, w, h) { this.b = b; },
+    BinaryBitmap: function (b) { this.b = b; },
+    HybridBinarizer: function (s) { this.s = s; },
+    DecodeHintType: { POSSIBLE_FORMATS: 'PF', TRY_HARDER: 'TH' },
+    BarcodeFormat: { CODE_128: 'CODE_128', CODE_39: 'CODE_39', CODE_93: 'CODE_93', CODABAR: 'CODABAR', QR_CODE: 'QR_CODE' },
+  };
+  ctx.camZxingEnabled = true;
+  ctx.camZxingReader = null; // tạo mới mỗi lần — tránh cache reader của test trước
+  try { fn(); } finally { ctx.window.ZXing = savedZ; ctx.camZxingEnabled = savedE; ctx.camZxingReader = savedR; }
+}
+
+test('camZxingPickCode: NV đã biết → giữ nguyên (nguồn chuẩn STAFF_INFO)', () => {
+  fastEnv(null, { OPS129481: {} }, () => {
+    assert.equal(ctx.camZxingPickCode('Ops129481'), 'Ops129481');
+    // trailing FNC1 bị bỏ trước khi check
+    assert.equal(ctx.camZxingPickCode('Ops129481' + String.fromCharCode(29)), 'Ops129481');
+  });
+});
+
+test('camZxingPickCode: NV lạ dạng Ops → chuẩn hóa, KHÔNG cắt ký tự (khác Quagga fast path)', () => {
+  fastEnv(null, {}, () => {
+    assert.equal(ctx.camZxingPickCode('Ops777777'), 'OPS777777', 'giữ nguyên 6 số — ZXing không thừa checksum');
+    assert.equal(ctx.camZxingPickCode('0ps 158392'), 'OPS158392');
+  });
+});
+
+test('camZxingPickCode: không phải dạng Ops → null (không nhận nhầm EAN/rác)', () => {
+  fastEnv(null, {}, () => {
+    assert.equal(ctx.camZxingPickCode('123456789012'), null);
+    assert.equal(ctx.camZxingPickCode('Ops12'), null);
+    assert.equal(ctx.camZxingPickCode(''), null);
+    assert.equal(ctx.camZxingPickCode(null), null);
+  });
+});
+
+test('camZxingDecode: decode thành công → trả mã (chạy TRƯỚC Quagga)', () => {
+  withZxing(() => {
+    zxingDecodeImpl = function () { return { getText: function () { return 'Ops129481'; } }; };
+    let got = 'pending';
+    ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+    assert.equal(got, 'OPS129481', 'chuẩn hóa uppercase — không có STAFF_INFO trong test này');
+  });
+});
+
+test('camZxingDecode: NotFound (throw) → null (Quagga fallback)', () => {
+  withZxing(() => {
+    zxingDecodeImpl = function () { throw new Error('nf'); };
+    let got = 'pending';
+    ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+    assert.equal(got, null);
+  });
+});
+
+test('camZxingDecode: không có ZXing / chưa enabled → null (fail an toàn)', () => {
+  const savedZ = ctx.window.ZXing;
+  const savedE = ctx.camZxingEnabled;
+  ctx.window.ZXing = undefined;
+  ctx.camZxingEnabled = false;
+  try {
+    let got = 'pending';
+    ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+    assert.equal(got, null);
+  } finally { ctx.window.ZXing = savedZ; ctx.camZxingEnabled = savedE; }
+});
+
+test('camFastDecode: ZXing enabled + ra mã → nhận mã ZXing, Quagga KHÔNG chạy', () => {
+  withZxing(() => {
+    zxingDecodeImpl = function () { return { getText: function () { return 'Ops777777'; } }; };
+    let quaggaCalls = 0;
+    const savedQ = ctx.window.Quagga;
+    ctx.window.Quagga = { decodeSingle(c, cb) { quaggaCalls++; cb({ codeResult: null }); } };
+    try {
+      let got = 'pending';
+      ctx.camFastDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, 'OPS777777', 'ZXing ra mã trước → không cần Quagga');
+      assert.equal(quaggaCalls, 0, 'Quagga không được gọi khi ZXing ra mã');
+    } finally { ctx.window.Quagga = savedQ; }
+  });
+});
+
+test('camFastDecode: ZXing fail → Quagga fallback chạy (không mất khả năng nhận)', () => {
+  withZxing(() => {
+    zxingDecodeImpl = function () { throw new Error('nf'); };
+    let quaggaCalls = 0;
+    const savedQ = ctx.window.Quagga;
+    const savedS = ctx.STAFF_INFO;
+    ctx.window.Quagga = {
+      decodeSingle(c, cb) {
+        quaggaCalls++;
+        cb(quaggaCalls === 1 ? { codeResult: null } : { codeResult: { code: 'Ops129481', format: 'code_128' } });
+      },
+    };
+    ctx.STAFF_INFO = { OPS129481: {} }; // normalize Quagga quirk (cắt checksum) về mã NV đúng
+    try {
+      let got = 'pending';
+      ctx.camFastDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, 'Ops129481', 'ZXing fail → Quagga 2 config bắt');
+      assert.ok(quaggaCalls >= 1, 'Quagga phải chạy khi ZXing fail');
+    } finally { ctx.window.Quagga = savedQ; ctx.STAFF_INFO = savedS; }
+  });
+});
