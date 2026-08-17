@@ -93,15 +93,15 @@
   font-size: 56px; font-weight: 800; color: #4ade80;
   text-shadow: 0 2px 12px rgba(0,0,0,.65);
 }
-.cam-flash.extra .cf-mark { color: #ffb74d; }
+.cam-flash.extra .cf-mark { color: #4ade80; } /* 2026-08-17: Dư cũng là quét thành công → xanh lá (dễ nhận biết); lỗi thật vẫn đỏ */
 .cam-flash.err .cf-mark { color: #f87171; }
 @keyframes camFlashOk {
   0% { opacity: 1; background: rgba(74, 222, 128, .28); }
   100% { opacity: 0; background: rgba(74, 222, 128, 0); }
 }
 @keyframes camFlashExtra {
-  0% { opacity: 1; background: rgba(255, 183, 77, .28); }
-  100% { opacity: 0; background: rgba(255, 183, 77, 0); }
+  0% { opacity: 1; background: rgba(74, 222, 128, .28); } /* 2026-08-17: Dư → xanh lá */
+  100% { opacity: 0; background: rgba(74, 222, 128, 0); }
 }
 @keyframes camFlashErr {
   0% { opacity: 1; background: rgba(248, 113, 113, .28); }
@@ -117,7 +117,7 @@
   opacity: 0; pointer-events: none;
 }
 .cam-flash.on::before { border-color: rgba(74, 222, 128, .9); animation: camRing .6s ease-out; }
-.cam-flash.extra::before { border-color: rgba(255, 183, 77, .9); animation: camRing .6s ease-out; }
+.cam-flash.extra::before { border-color: rgba(74, 222, 128, .9); animation: camRing .6s ease-out; } /* 2026-08-17: Dư → xanh lá */
 .cam-flash.err::before { border-color: rgba(248, 113, 113, .9); animation: camRing .6s ease-out; }
 @keyframes camRing {
   0% { transform: scale(.25); opacity: .95; }
@@ -140,7 +140,7 @@
   100% { border-color: rgba(255,255,255,.8); box-shadow: none; }
 }
 @keyframes camFrameGlowExtra {
-  0% { border-color: #ffb74d; box-shadow: 0 0 0 3px rgba(255,183,77,.4), 0 0 26px rgba(255,183,77,.65), inset 0 0 20px rgba(255,183,77,.22); }
+  0% { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,.4), 0 0 26px rgba(74,222,128,.65), inset 0 0 20px rgba(74,222,128,.22); } /* 2026-08-17: Dư → xanh lá */
   100% { border-color: rgba(255,255,255,.8); box-shadow: none; }
 }
 @keyframes camFrameGlowErr {
@@ -153,7 +153,7 @@
 .cr-row.new.extra { animation: crRowNewExtra 1.2s ease-out; }
 .cr-row.new.err { animation: crRowNewErr 1.2s ease-out; }
 @keyframes crRowNewOk { 0% { background: rgba(74, 222, 128, .2); } 100% { background: transparent; } }
-@keyframes crRowNewExtra { 0% { background: rgba(255, 183, 77, .18); } 100% { background: transparent; } }
+@keyframes crRowNewExtra { 0% { background: rgba(74, 222, 128, .2); } 100% { background: transparent; } } /* 2026-08-17: Dư → xanh lá */
 @keyframes crRowNewErr { 0% { background: rgba(248, 113, 113, .2); } 100% { background: transparent; } }
 .camera-status {
   position: absolute; left: 0; right: 0; bottom: 0;
