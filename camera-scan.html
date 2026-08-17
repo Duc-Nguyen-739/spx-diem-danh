@@ -266,21 +266,33 @@
       '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, "*"); } catch (e) {}',
       '    setTimeout(function () { try { window.close(); } catch (e) {} }, 500);',
       '  }',
-      '  function frameToImageData(maxSide) {',
+      '  var sharedCanvas = null, sharedCtx = null; // 1 canvas dùng chung (2026-08-17: hết tạo mới mỗi tick → giảm GC iOS)',
+      '  function frameToImageData(maxSide) {', 
       '    var w = video.videoWidth || 0;',
       '    var h = video.videoHeight || 0;',
       '    if (!w || !h) return null;',
       '    var scale = Math.min(1, maxSide / Math.max(w, h));',
       '    var cw = Math.max(1, Math.round(w * scale));',
       '    var ch = Math.max(1, Math.round(h * scale));',
-      '    var canvas = document.createElement("canvas");',
-      '    canvas.width = cw;',
-      '    canvas.height = ch;',
-      '    var ctx = canvas.getContext("2d");',
-      '    ctx.drawImage(video, 0, 0, cw, ch);',
+      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d"); }',
+      '    if (sharedCanvas.width !== cw || sharedCanvas.height !== ch) { sharedCanvas.width = cw; sharedCanvas.height = ch; }',
+      '    sharedCtx.drawImage(video, 0, 0, cw, ch);',
       '    var imageData;',
-      '    try { imageData = ctx.getImageData(0, 0, cw, ch); } catch (e) { return null; }',
-      '    return { canvas: canvas, imageData: imageData, w: cw, h: ch };',
+      '    try { imageData = sharedCtx.getImageData(0, 0, cw, ch); } catch (e) { return null; }',
+      '    return { canvas: sharedCanvas, imageData: imageData, w: cw, h: ch };',
+      '  }',
+      '  // FAST PATH 800px (2026-08-17 tối ưu Safari): downscale frame 1280 → 800 1 lần,',
+      '  // reuse 1 canvas — toDataURL + Quagga decode nhanh ~3x so với 1280px.',
+      '  var fastCanvas = null, fastCtx = null;',
+      '  function toFastFrame(f) {',
+      '    var maxSide = 800;',
+      '    var scale = Math.min(1, maxSide / Math.max(f.w, f.h));',
+      '    var cw = Math.max(1, Math.round(f.w * scale));',
+      '    var ch = Math.max(1, Math.round(f.h * scale));',
+      '    if (!fastCanvas) { fastCanvas = document.createElement("canvas"); fastCtx = fastCanvas.getContext("2d"); }',
+      '    if (fastCanvas.width !== cw || fastCanvas.height !== ch) { fastCanvas.width = cw; fastCanvas.height = ch; }',
+      '    fastCtx.drawImage(f.canvas, 0, 0, cw, ch);',
+      '    return { canvas: fastCanvas, w: cw, h: ch };',
       '  }',
       '  function decodeChain(f, onDone) {',
       '    if (window.BarcodeDetector) {',
@@ -368,13 +380,15 @@
       '    if (!stream) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
-      '    if (tick % 2 === 0) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
+      '    // OCR mỗi 4 tick (2026-08-17, giảm từ 2 tick — Tesseract ngốn CPU/GC trên iPhone',
+      '    // làm decode barcode chậm hẳn; tick lẻ 1,5,9 lệch khỏi full chain tick chẵn 0,2,4)',
+      '    if (tick % 4 === 1) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
       '    if (busy) return;',
       '    var f = frameToImageData(1280);',
       '    if (!f) return;',
       '    if (LIBS.fast) {',
       '      busy = true;',
-      '      LIBS.fast(f, function (code) {',
+      '      LIBS.fast(toFastFrame(f), function (code) {',
       '        busy = false;',
       '        if (code) { sendResult(code); return; }',
       '        runFullChain(f);',
@@ -415,9 +429,10 @@
       '        // Nhịp tick 320ms (2026-08-17, giảm từ 450ms — fast path 800px xử lý nhanh hơn,',
       '        // thử lại nhanh hơn — khớp cooldown 1.5s mới)',
       '        timer = setInterval(loop, 320);',
-      '        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — decode MỖI tick',
-      '        // + ép focus liên tục), không cần bấm "🔍 Tìm Mã". Nút vẫn giữ để tắt/bật lại.',
-      '        setFindMode(true);',
+      '        // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full',
+      '        // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain',
+      '        // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút',
+      '        // 🔍 Tìm Mã vẫn ép full chain mọi tick khi cần bắt mã khó.',
       '      })',
       '      .catch(function () {',
       '        if (force) {',
@@ -669,10 +684,10 @@
         if (sb) sb.style.display = 'none';
         startCameraDecodeLoop();
         startOcrLoop(); // song song: OCR đọc chữ Ops… khi mã vạch mờ (2026-08-16)
-        // Yêu cầu 2026-08-16: mở camera là TỰ TÌM MÃ NGAY (find mode — full-chain decode
-        // MỖI tick + ép focus liên tục), không cần bấm "🔍 Tìm Mã" nữa. Nút vẫn giữ để
-        // tắt/bật lại thủ công (tiết pin). resetCamFindUi khi đóng modal → mở lại tự bật.
-        if (!camFindMode) toggleCamFind();
+        // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full
+        // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain
+        // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút
+        // 🔍 Tìm Mã vẫn ép full chain mọi tick khi cần bắt mã khó.
       })
       .catch(function () {
         if (force) {
@@ -1305,7 +1320,9 @@
   var OCR_WORKER_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
   var OCR_CORE_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5';
   var OCR_LANG_PATH = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0';
-  var CAM_OCR_INTERVAL_MS = 2000;   // nhịp quét OCR song song (không chặn decode barcode)
+  var CAM_OCR_INTERVAL_MS = 4000;   // nhịp quét OCR song song (2026-08-17: 2000→4000 — Tesseract
+                                    // ngốn CPU/GC trên iPhone làm decode barcode chậm hẳn; OCR chỉ là
+                                    // fallback cho mã MỜ nên giãn nhịp không ảnh hưởng mã nét)
   var CAM_OCR_MIN_CONFIDENCE = 70;  // NV lạ cần confidence >= mức này; NV khớp STAFF_INFO nhận luôn
   var camOcrEnabled = false;   // đã load xong script Tesseract
   var camOcrLoading = false;   // đang load script (chống load lặp)
