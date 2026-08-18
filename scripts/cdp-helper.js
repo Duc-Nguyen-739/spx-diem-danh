@@ -77,14 +77,17 @@ async function getActiveTab() {
 
 async function main() {
   if (cmd === 'select') {
-    // select <tabIdPrefix> — chọn tab theo prefix id để các lệnh sau dùng
-    const prefix = args[0];
+    // select <tabIdPrefix> — chọn tab theo prefix id để các lệnh sau dùng.
+    // args[0] là tên lệnh "select" → prefix phải ở args[1] (bug 2026-08-18:
+    // đọc nhầm args[0] nên không bao giờ khớp tab).
+    const prefix = args[1];
     if (!prefix) { console.log('Cần tabId prefix (xem list)'); process.exit(1); }
     const tabs = await httpGet('/json');
     const tab = tabs.find((t) => t.type === 'page' && t.id.startsWith(prefix));
     if (!tab) { console.log('Không tìm thấy tab ' + prefix); process.exit(1); }
     selectedTabId = tab.id;
     console.log('Selected: ' + tab.id);
+    return;
   }
   if (cmd === 'list') {
     const tabs = await httpGet('/json');
