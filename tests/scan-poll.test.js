@@ -396,3 +396,99 @@ test('auto-focus loop: camera mở → KHÔNG input.focus() (không bật bàn p
   interval.fn();
   assert.equal(focusCalls, 0, 'camera mở → loop không được gọi input.focus()');
 });
+
+// ===== Bug 7 (2026-08-18): renderDash reset hết filter dashboard mỗi 5s poll =====
+function dashSandbox(initial) {
+  // Mock DOM bộ lọc dashboard: checkbox theo name + radio dashSt + ô dựng động (dyn*)
+  const els = initial.els || {};
+  const boxes = {};   // các checkbox/radio hiện hữu: { name + '|' + value: {checked} }
+  function ensureInput(name, value, checked) {
+    const key = name + '|' + value;
+    if (!boxes[key]) boxes[key] = { name: name, value: value, checked: checked };
+    boxes[key].checked = checked;
+  }
+  ['dashType', 'dashStn', 'dashCa', 'dashTeam'].forEach(function (n) {
+    (initial[n] || []).forEach(function (v) { ensureInput(n, v, true); });
+  });
+  ensureInput('dashSt', 'all', true);
+  const stubEl = {
+    style: {}, classList: { contains: function () { return false; }, add: function () {}, remove: function () {} },
+    addEventListener: function () {}, appendChild: function () {}, focus: function () {},
+    querySelectorAll: function () { return []; },
+  };
+  const doc = {
+    readyState: 'complete', visibilityState: 'visible',
+    getElementById: function (id) { return els[id] || stubEl; },
+    querySelector: function (sel) {
+      const m = sel.match(/input\[name="(dashSt)"\]\[value="([^"]+)"\]/);
+      if (m) return boxes[m[1] + '|' + m[2]] || null;
+      const all = sel.match(/input\[name="([^"]+)"\]:checked/);
+      if (all) {
+        const list = Object.keys(boxes).filter(function (k) { return boxes[k].name === all[1] && boxes[k].checked; });
+        if (list.length) return boxes[list[0]];
+      }
+      return null;
+    },
+    querySelectorAll: function (sel) {
+      const all = sel.match(/input\[name="([^"]+)"\]:checked/);
+      if (all) return Object.keys(boxes).filter(function (k) { return boxes[k].name === all[1] && boxes[k].checked; }).map(function (k) { return boxes[k]; });
+      const box = sel.match(/input\[name="([^"]+)"\]/);
+      if (box) return Object.keys(boxes).filter(function (k) { return boxes[k].name === box[1]; }).map(function (k) { return boxes[k]; });
+      return [];
+    },
+    createElement: function () { return { style: {}, setAttribute: function () {}, appendChild: function () {}, removeChild: function () {}, click: function () {} }; },
+    body: { classList: { add: function () {}, remove: function () {} } },
+    addEventListener: function () {},
+    activeElement: { id: '' },
+  };
+  const win = { self: {}, top: {} };
+  const ctx = {
+    console: console, Date: Date, Math: Math, JSON: JSON,
+    setTimeout: function (fn) { return 0; }, clearTimeout: function () {},
+    setInterval: function () { return 1; }, clearInterval: function () {},
+    location: { search: '', href: 'https://example.test/app' },
+    navigator: { userAgent: 'Mozilla/5.0' },
+    document: doc,
+    localStorage: { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} },
+    URL: { createObjectURL: function () { return 'blob:x'; }, revokeObjectURL: function () {} },
+    Image: function () {},
+    google: { script: { run: { withSuccessHandler: function (f) { return this; }, withFailureHandler: function (f) { return this; } } } },
+  };
+  ctx.window = win;
+  vm.createContext(ctx);
+  vm.runInContext(script, ctx);
+  ctx.__boxes = boxes;
+  return ctx;
+}
+
+test('renderDash: user đang lọc (ca khác all) → poll 5s KHÔNG reset radio lọc', () => {
+  const tasks = [
+    { taskId: 'A', status: 'open', taskType: 'reconcile', station: 'Kho A', slotCode: 'Ca1', team: 'T1' },
+    { taskId: 'B', status: 'done', taskType: 'meal-move', station: 'Kho B', slotCode: 'Ca2', team: 'T2' },
+  ];
+  const ctx = dashSandbox({ els: { dynType: { querySelectorAll: function () { return []; } }, dynStn: { querySelectorAll: function () { return []; } }, dynCa: { querySelectorAll: function () { return []; } }, dynTeam: { querySelectorAll: function () { return []; } }, dKpiTotal: {}, dKpiOpen: {}, dKpiDone: {}, dKpiScan: {}, dSt_open: {}, dSt_done: {}, dFilterBadge: {} }, dashStn: ['Kho A', 'Kho B'], dashType: ['reconcile', 'meal-move'], dashCa: ['Ca1', 'Ca2'], dashTeam: ['T1', 'T2'] });
+  // User chọn lọc: radio "done" + bỏ chọn loại reconcile → chỉ còn meal-move
+  const stDone = ctx.__boxes['dashSt|done'] = { name: 'dashSt', value: 'done', checked: true };
+  ctx.__boxes['dashSt|all'] = { name: 'dashSt', value: 'all', checked: false };
+  const rec = ctx.__boxes['dashType|reconcile'] = { name: 'dashType', value: 'reconcile', checked: false };
+  ctx.__boxes['dashType|meal-move'].checked = true;
+  ctx.renderDash(tasks);
+  assert.equal(ctx.__boxes['dashSt|done'].checked, true, 'radio "done" phải được giữ sau renderDash (trước ép về all)');
+  assert.equal(ctx.__boxes['dashSt|all'].checked, false, 'radio all không được tự bật');
+  assert.equal(ctx.__boxes['dashType|reconcile'].checked, false, 'loại reconcile đã bỏ chọn phải giữ nguyên');
+  assert.equal(ctx.__boxes['dashType|meal-move'].checked, true, 'loại meal-move đã chọn phải giữ nguyên');
+});
+
+test('renderDash: user bỏ chọn 1 station → renderDash KHÔNG check lại station đó', () => {
+  const tasks = [
+    { taskId: 'A', status: 'open', taskType: 'reconcile', station: 'Kho A', slotCode: 'Ca1', team: 'T1' },
+    { taskId: 'B', status: 'open', taskType: 'reconcile', station: 'Kho B', slotCode: 'Ca2', team: 'T2' },
+  ];
+  const ctx = dashSandbox({ els: { dynType: { querySelectorAll: function () { return []; } }, dynStn: { querySelectorAll: function () { return []; } }, dynCa: { querySelectorAll: function () { return []; } }, dynTeam: { querySelectorAll: function () { return []; } }, dKpiTotal: {}, dKpiOpen: {}, dKpiDone: {}, dKpiScan: {}, dSt_open: {}, dSt_done: {}, dFilterBadge: {} }, dashStn: ['Kho A', 'Kho B'], dashType: ['reconcile'], dashCa: ['Ca1', 'Ca2'], dashTeam: ['T1', 'T2'] });
+  ctx.__boxes['dashSt|all'] = { name: 'dashSt', value: 'all', checked: true };
+  ctx.__boxes['dashStn|Kho B'] = { name: 'dashStn', value: 'Kho B', checked: false }; // user lọc chỉ Kho A
+  ctx.__boxes['dashStn|Kho A'] = { name: 'dashStn', value: 'Kho A', checked: true };
+  ctx.renderDash(tasks);
+  assert.equal(ctx.__boxes['dashStn|Kho B'].checked, false, 'station đã bỏ chọn phải giữ nguyên (trước check lại hết → filter bị reset)');
+  assert.equal(ctx.__boxes['dashStn|Kho A'].checked, true, 'station đang chọn phải giữ');
+});

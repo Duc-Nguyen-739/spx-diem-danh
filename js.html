@@ -1022,6 +1022,12 @@
       '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
   }
   function renderDash(tasks) {
+    // Giữ lọc của user TRƯỚC khi rebuild checkbox (bug 2026-08-18: poll 5s →
+    // taskListPollTick gọi renderDash → checkbox dựng lại hardcode checked + radio về
+    // 'all' → filter user đang chọn bị reset). dashState chỉ có giá trị khi user
+    // thật sự chọn (radio ≠ 'all' hoặc có box nào unchecked) — lần render đầu giữ default.
+    var prev = dashState();
+    var hasFilter = prev.st !== 'all' || prev.type.length || prev.stn.length || prev.ca.length || prev.team.length;
     _dashTasks = tasks || [];
     var total = _dashTasks.length;
     var open = _dashTasks.filter(function (t) { return t.status !== TASK_STATUS_C.DONE; }).length;
@@ -1032,8 +1038,19 @@
     buildDashOpts('dynCa', 'dashCa', _dashTasks, 'slotCode');
     buildDashOpts('dynTeam', 'dashTeam', _dashTasks, 'team');
     setText('dSt_open', open); setText('dSt_done', total - open);
-    var sAll = document.querySelector('input[name="dashSt"][value="all"]');
-    if (sAll) sAll.checked = true;
+    if (hasFilter) {
+      var stEl = document.querySelector('input[name="dashSt"][value="' + prev.st + '"]');
+      if (stEl) stEl.checked = true;
+      var dashGroups = { dashType: 'type', dashStn: 'stn', dashCa: 'ca', dashTeam: 'team' };
+      Object.keys(dashGroups).forEach(function (name) {
+        var want = {};
+        (prev[dashGroups[name]] || []).forEach(function (v) { want[v] = true; });
+        document.querySelectorAll('input[name="' + name + '"]').forEach(function (i) { i.checked = !!want[i.value]; });
+      });
+    } else {
+      var sAll = document.querySelector('input[name="dashSt"][value="all"]');
+      if (sAll) sAll.checked = true;
+    }
     applyDashFilters();
   }
   function dashState() {
