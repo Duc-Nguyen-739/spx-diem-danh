@@ -39,6 +39,12 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(csvutil.normalize_staff_date(None), "")
         self.assertEqual(csvutil.normalize_staff_date(""), "")
 
+    def test_normalize_date_serial(self):
+        # Serial date (cell date thật, UNFORMATTED_VALUE) — 46239.0 = 2026-08-05
+        # (khớp cache.to_datetime base 1899-12-30). Trước đây trả nguyên "46239.0".
+        self.assertEqual(csvutil.normalize_staff_date(46239.0), "2026-08-05")
+        self.assertEqual(csvutil.normalize_staff_date(46239), "2026-08-05")
+
 
 class TestCsvParse(unittest.TestCase):
     def test_split_quoted(self):

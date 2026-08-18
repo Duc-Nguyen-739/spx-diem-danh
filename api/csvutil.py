@@ -54,6 +54,13 @@ def normalize_staff_date(date):
         return ""
     if isinstance(date, datetime):
         return date.strftime("%Y-%m-%d")
+    # Dạng serial number (cell date thật, UNFORMATTED_VALUE): 46239.0 = 2026-08-01
+    if isinstance(date, (int, float)) and not isinstance(date, bool):
+        try:
+            from datetime import timedelta
+            return (datetime(1899, 12, 30) + timedelta(days=float(date))).strftime("%Y-%m-%d")
+        except Exception:
+            return ""
     s = str(date).strip()
     # Dạng 2: "8/1/2026" / "26-07-2026" / "2026-01-08"
     import re
