@@ -250,6 +250,19 @@ test('camAppendResult: modal ĐANG ĐÓNG (popup mode) → không tích dòng �
   assert.equal(sb.els.camResultsBody.children.length, 0, 'không thêm dòng khi modal ẩn (popup đã đóng)');
 });
 
+// ===== rAF loop: quét liên tục KHÔNG chết sau mã đầu (bug 2026-08-17) =====
+test('rAF loop: decode thành công vẫn lên lịch frame kế tiếp (quét liên tục)', () => {
+  // Nhánh BarcodeDetector ra mã phải requestAnimationFrame(loop) TRƯỚC return —
+  // nếu không, thiết bị có BarcodeDetector chỉ quét được 1 mã rồi đứng.
+  const seg = script.split('camDetector.detect(video).then')[1] || '';
+  assert.ok(seg.indexOf('requestAnimationFrame(loop)') >= 0, 'nhánh decode thành công phải rAF tiếp');
+  const successBlock = seg.slice(0, seg.indexOf('})')).replace(/\/\/[^\n]*\n/g, '');
+  const rafIdx = successBlock.indexOf('requestAnimationFrame(loop)');
+  const retIdx = successBlock.indexOf('return;');
+  assert.ok(rafIdx !== -1 && retIdx !== -1 && rafIdx < retIdx,
+    'requestAnimationFrame(loop) phải đứng TRƯỚC return trong nhánh ra mã');
+});
+
 // ===== camAppendResult: popup GAS (gửi rcScanInfo về popup) =====
 test('camAppendResult: popup đang mở → postMessage rcScanInfo (update=false rồi true)', () => {
   const sb = makeSandbox();

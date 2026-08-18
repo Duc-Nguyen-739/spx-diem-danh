@@ -796,6 +796,9 @@
         camDetector.detect(video).then(function (results) {
           if (results && results.length && results[0].rawValue) {
             onCameraDecoded(results[0].rawValue);
+            // QUÉT LIÊN TỤC: sau 1 mã KHÔNG dừng loop — lên lịch frame kế tiếp
+            // (bug 2026-08-17: return sớm không rAF → quét liên tục chết sau mã đầu).
+            camRaf = requestAnimationFrame(loop);
             return;
           }
           camRaf = requestAnimationFrame(loop);
