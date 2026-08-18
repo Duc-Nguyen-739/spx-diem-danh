@@ -250,6 +250,44 @@ test('camAppendResult: modal ĐANG ĐÓNG (popup mode) → không tích dòng �
   assert.equal(sb.els.camResultsBody.children.length, 0, 'không thêm dòng khi modal ẩn (popup đã đóng)');
 });
 
+// ===== BUG 10 (2026-08-18): cập nhật tên dòng Dư theo mã khi response về sau lượt quét khác =====
+test('camUpdateName: modal — tìm dòng theo code (không phải dòng cuối) và điền tên thật', () => {
+  const sb = makeSandbox();
+  const body = makeResultsBody();
+  sb.els.camResultsBody = body;
+  sb.els.cameraModal = { style: { display: 'flex' } };
+  sb.ctx.camOpen = true;
+  // Dòng Dư (NV lạ) — tên "…" chưa biết
+  sb.ctx.camAppendResult('Dư', { staffId: 'OPS123', staffName: '…' }, false);
+  // Rồi quét tiếp NV khác → dòng Dư KHÔNG còn là dòng cuối
+  sb.ctx.camAppendResult('Có mặt', { staffId: 'OPS456', staffName: 'Trần B' }, false);
+  // Server response của OPS123 về sau → camUpdateName tìm theo code OPS123, không đụng dòng cuối
+  const nameEl = { textContent: '…' };
+  body.children[0].querySelector = function (sel) {
+    assert.equal(sel, '.cr-name');
+    return nameEl;
+  };
+  sb.ctx.camUpdateName('OPS123', 'Nguyễn Văn A');
+  assert.equal(nameEl.textContent, 'Nguyễn Văn A', 'dòng OPS123 (không phải dòng cuối) được điền tên thật');
+  // Lượt quét thường (không Dư) không được gọi camUpdateName ở js.html — nhưng nếu gọi,
+  // vẫn tìm đúng dòng theo code (không đổi dòng khác)
+  const nameEl2 = { textContent: 'Trần B' };
+  body.children[1].querySelector = function () { return nameEl2; };
+  sb.ctx.camUpdateName('OPS456', 'Trần B');
+  assert.equal(nameEl2.textContent, 'Trần B');
+});
+
+test('camUpdateName: không mở camera / không có mã / không tên → no-op (không crash)', () => {
+  const sb = makeSandbox();
+  sb.els.camResultsBody = makeResultsBody();
+  sb.ctx.camOpen = false;
+  sb.ctx.camUpdateName('OPS1', 'X');  // camera tắt
+  sb.ctx.camOpen = true;
+  sb.ctx.camUpdateName('', 'X');       // mã rỗng
+  sb.ctx.camUpdateName('OPS1', '');    // tên rỗng
+  assert.equal(sb.els.camResultsBody.children.length, 0, 'không thêm dòng, không crash');
+});
+
 // ===== rAF loop: quét liên tục KHÔNG chết sau mã đầu (bug 2026-08-17) =====
 test('rAF loop: decode thành công vẫn lên lịch frame kế tiếp (quét liên tục)', () => {
   // Nhánh BarcodeDetector ra mã phải requestAnimationFrame(loop) TRƯỚC return —

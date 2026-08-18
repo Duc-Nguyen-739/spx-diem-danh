@@ -2670,20 +2670,26 @@
           processScanQueue();
           return;
         }
-        if (res.ok) {
-          if (item.target) {
-            item.target.status = res.status;
-            item.target.staffName = res.staffName || item.target.staffName;
-            if (res.timeScanText) item.target.timeScanText = res.timeScanText;
-            // sort key chính xác từ server epoch (đồng bộ thời điểm thật)
-            if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
-            // Dư: điền đủ Ca/Team/Station/Vender từ server (phòng cache client miss / data mới)
-            if (res.agency) item.target.agency = res.agency;
-            if (res.slotCode != null) item.target.slotCode = res.slotCode;
-            if (res.station != null) item.target.station = res.station;
-            if (res.team != null) item.target.team = res.team;
-            if (res.workstation != null) item.target.workstation = res.workstation;
-          }
+if (res.ok) {
+            if (item.target) {
+              item.target.status = res.status;
+              item.target.staffName = res.staffName || item.target.staffName;
+              if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+              // sort key chính xác từ server epoch (đồng bộ thời điểm thật)
+              if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
+              // Dư: điền đủ Ca/Team/Station/Vender từ server (phòng cache client miss / data mới)
+              if (res.agency) item.target.agency = res.agency;
+              if (res.slotCode != null) item.target.slotCode = res.slotCode;
+              if (res.station != null) item.target.station = res.station;
+              if (res.team != null) item.target.team = res.team;
+              if (res.workstation != null) item.target.workstation = res.workstation;
+              // BUG 10 (2026-08-18): NV lạ — response về sau khi quét NV khác bị showScanCard
+              // bỏ qua (scanSeq không còn mới nhất) → dòng camera giữ '…'. Cập nhật dòng Dư
+              // theo mã (không theo scanSeq) khi server trả tên thật.
+              if (res.staffName && item.optimisticStatus === STATUS_C.EXTRA && typeof camUpdateName === 'function') {
+                camUpdateName(item.target.staffId, res.staffName);
+              }
+            }
           // Toast optimistic đã hiện đúng → KHÔNG toast lại (tránh lặp/nháy).
           // Chỉ cập nhật nếu server trả status khác dự đoán.
           if (res.status && res.status !== item.optimisticStatus) showToast(res.status, false);

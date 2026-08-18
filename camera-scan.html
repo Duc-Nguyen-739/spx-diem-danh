@@ -590,8 +590,12 @@
       '    }',
       '    var row = null;',
       '    if (d.update) {',
-      '      row = body.lastElementChild;',
-      '      if (!row || row.getAttribute("data-code") !== String(d.code)) row = null;',
+      '      // BUG 10 (2026-08-18): tìm dòng theo code (từ cuối lên) — không chỉ dòng cuối.',
+      '      // Khi quét liên tục nhanh, response cập nhật tên NV lạ về sau dòng cuối.',
+      '      for (var j = body.children.length - 1; j >= 0; j--) {',
+      '        var c = body.children[j];',
+      '        if (c.getAttribute && c.getAttribute("data-code") === String(d.code)) { row = c; break; }',
+      '      }',
       '    }',
       '    if (!row) {',
       '      row = document.createElement("div");',
@@ -2138,6 +2142,40 @@
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
     var head = document.getElementById('camResultsHead');
     if (head) head.textContent = 'Kết quả quét (' + body.children.length + ')';
+  }
+
+  // BUG 10 (2026-08-18): điền tên thật cho dòng NV lạ (Dư) khi server response về SAU
+  // khi user đã quét NV khác (item.scanSeq không còn mới nhất → showScanCard bỏ qua
+  // cập nhật → dòng giữ '…' cả phiên camera). Tìm dòng theo code, không theo dòng cuối.
+  function camUpdateName(code, staffName) {
+    if (!camOpen || !code || !staffName) return;
+    var clean = String(code).trim();
+    if (!clean) return;
+    // POPUP GAS: gửi update về popup — addResultRow tìm dòng theo code (đã mở rộng).
+    if (camPopupRef && !camPopupRef.closed) {
+      try {
+        camPopupRef.postMessage({
+          type: 'rcScanInfo',
+          code: clean,
+          status: '',
+          staffName: String(staffName),
+          time: '',
+          isError: false,
+          update: true,
+        }, '*');
+      } catch (e) {}
+      return;
+    }
+    // MODAL: cập nhật tên dòng theo data-code (từ cuối lên).
+    var body = document.getElementById('camResultsBody');
+    if (!body) return;
+    for (var i = body.children.length - 1; i >= 0; i--) {
+      var row = body.children[i];
+      if (!row.getAttribute || row.getAttribute('data-code') !== clean) continue;
+      var name = row.querySelector && row.querySelector('.cr-name');
+      if (name) name.textContent = String(staffName);
+      return;
+    }
   }
   // ===== QUÉT LIÊN TỤC-END =====
 
