@@ -127,6 +127,28 @@ class TestServices(unittest.TestCase):
         self.assertTrue(r2["ok"], r2.get("message"))
         self.assertEqual(r2["summary"]["vao"], 1)
 
+    def test_meal_move_append_unknown_staff(self):
+        # Regression: nhánh append meal-move từng crash NameError 'now' (chỉ có now_dt).
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        self.assertTrue(r["ok"], r.get("message"))
+        task_id = r["taskId"]
+        r1 = services.scan_staff(task_id, "OPS999", "ra", now_override=self.t0)
+        self.assertTrue(r1["ok"], r1.get("message"))
+        self.assertEqual(r1["status"], "Ra ngoài")
+        self.assertEqual(r1["scanPhase"], "ra")
+        self.assertGreater(r1["timeRaEpoch"], 0)
+        r2 = services.scan_staff(task_id, "OPS998", "vao", now_override=self.t0 + datetime.timedelta(minutes=5))
+        self.assertTrue(r2["ok"], r2.get("message"))
+        self.assertEqual(r2["status"], "Dư")
+        self.assertEqual(r2["scanPhase"], "vao")
+        self.assertGreater(r2["timeScanEpoch"], 0)
+        detail = services.get_task_detail(task_id)
+        statuses = {row["staffId"]: row["status"] for row in detail["log"]}
+        self.assertEqual(statuses["OPS999"], "Ra ngoài")
+        self.assertEqual(statuses["OPS998"], "Dư")
+
     def test_filter_options_contract_types(self):
         opts = services.get_filter_options()
         self.assertEqual(opts["contractTypes"], ["BPO", "FTE", "OS"])

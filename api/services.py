@@ -334,7 +334,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
             staff_info = database.read_staff_index().get(staff_id)
             if is_meal:
                 extra_row = scanlogic.build_meal_move_extra_row(
-                    CFG, task_id, staff_id, staff_info, result.get("scanPhase") or "ra", now, result["status"],
+                    CFG, task_id, staff_id, staff_info, result.get("scanPhase") or "ra", now_dt, result["status"],
                 )
             else:
                 extra_row = scanlogic.build_extra_row(CFG, task_id, staff_id, staff_info, now_dt)
