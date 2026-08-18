@@ -116,6 +116,7 @@ function scanStaff(taskId, rawStaffId, mode) {
         // Meal-move Vào: ghi timeScan (cột TIME_SCAN) + status PRESENT/EXTRA
         updateLogRowScan_(effectiveResult.row, now, effectiveResult.status);
         effectiveResult.row.timeScan = now;
+        effectiveResult.row.timeScanEpoch = now.getTime();
         effectiveResult.row.status = effectiveResult.status;
         timeScanText = formatTime_(now);
         timeScanEpoch = now.getTime();
