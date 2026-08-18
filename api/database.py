@@ -450,6 +450,12 @@ def batch_meal_move_log_updates(task_id, updates):
         return 0
     values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
     lc = config.LOG_COLS
+    # Sheets API xén cell rỗng cuối mỗi dòng → row có thể NGẮN hơn LOG_COL_COUNT
+    # (vd dòng NV lạ chỉ tới STATUS index 9). Pad để mutate TIME_RA/TIME_SCAN/STATUS
+    # không văng IndexError (write path bên dưới đã guard len — mutate phải tương đồng).
+    for i in range(1, len(values)):
+        if len(values[i]) < config.LOG_COL_COUNT:
+            values[i] = values[i] + [""] * (config.LOG_COL_COUNT - len(values[i]))
     by_row = {u["_rowIndex"]: u for u in updates}
     any_changed = False
     for i in range(1, len(values)):

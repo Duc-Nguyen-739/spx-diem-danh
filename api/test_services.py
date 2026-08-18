@@ -149,6 +149,21 @@ class TestServices(unittest.TestCase):
         self.assertEqual(statuses["OPS999"], "Ra ngoài")
         self.assertEqual(statuses["OPS998"], "Dư")
 
+    def test_meal_move_paste_short_row_ra(self):
+        # Regression: paste 'ra' cho NV lạ đã quét Vào (row log NGẮN — Sheets API xén
+        # cell rỗng cuối) từng văng IndexError ở batch_meal_move_log_updates.
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        self.assertTrue(r["ok"], r.get("message"))
+        task_id = r["taskId"]
+        services.scan_staff(task_id, "OPS999", "vao", now_override=self.t0)
+        rows = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        rows[-1] = rows[-1][:10]  # mô phỏng Sheets API trả row ngắn (chỉ tới STATUS idx 9)
+        r2 = services.paste_meal_move_scan(task_id, ["OPS999"], "ra", now_override=self.t0 + datetime.timedelta(minutes=10))
+        self.assertTrue(r2["ok"], r2.get("message"))
+        self.assertEqual(r2["summary"]["ra"], 1)
+
     def test_filter_options_contract_types(self):
         opts = services.get_filter_options()
         self.assertEqual(opts["contractTypes"], ["BPO", "FTE", "OS"])
