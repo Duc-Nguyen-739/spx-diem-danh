@@ -595,6 +595,13 @@
     if (btn && btn.focus) btn.focus();
   }
   function anyModalOpen() {
+    // Camera quét đang mở (modal live HOẶC popup GAS) → coi như "có modal":
+    // không giật focus / không poll đè lên khi user đang quét (bug 2026-08-18 —
+    // trước chỉ check .about-overlay.open nên auto-focus loop cứ input.focus()
+    // mỗi 3s làm bật bàn phím che camera trên kiosk).
+    if (window.__RC_CAM_OPEN__) return true;
+    var cm = byId('cameraModal');
+    if (cm && cm.style.display === 'flex') return true;
     return document.querySelector('.about-overlay.open') !== null;
   }
 

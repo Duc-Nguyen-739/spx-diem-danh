@@ -367,3 +367,32 @@ test('startTaskListPolling: ghi signature hiện tại + interval; demo mode →
   sbDemo.ctx.startTaskListPolling();
   assert.equal(sbDemo.timers.filter(function (t) { return t.kind === 'interval'; }).length, 0, 'demo mode không cần poll');
 });
+
+// ===== Bug 6 (2026-08-18): anyModalOpen không nhận camera → auto-focus loop giật focus =====
+test('anyModalOpen: camera đang mở (popup/__RC_CAM_OPEN__) → coi là có modal', () => {
+  const sb = run(makeSandbox());
+  assert.equal(sb.ctx.anyModalOpen(), false, 'không mở gì → không có modal');
+  sb.win.__RC_CAM_OPEN__ = true;
+  assert.equal(sb.ctx.anyModalOpen(), true, 'camera mở (popup) → phải trả true (trước trả false → loop focus phá camera)');
+});
+
+test('anyModalOpen: camera modal live (display flex) → coi là có modal', () => {
+  const sb = run(makeSandbox({ els: { cameraModal: { style: { display: 'flex' } } } }));
+  assert.equal(sb.ctx.anyModalOpen(), true, 'camera modal live đang hiện → phải trả true');
+});
+
+test('auto-focus loop: camera mở → KHÔNG input.focus() (không bật bàn phím che camera)', () => {
+  const sb = run(makeSandbox());
+  let focusCalls = 0;
+  const scanView = sb.ctx.byId('viewScan');
+  const input = sb.ctx.byId('scanInput');
+  input.disabled = false;
+  input.focus = function () { focusCalls++; };
+  scanView.classList.contains = function () { return false; }; // viewScan đang hiện
+  sb.ctx.startAutoFocusLoop();
+  sb.win.__RC_CAM_OPEN__ = true;
+  const interval = sb.timers.filter(function (t) { return t.kind === 'interval'; }).find(function (t) { return t.ms === 3000; });
+  assert.ok(interval, 'phải có auto-focus interval 3s');
+  interval.fn();
+  assert.equal(focusCalls, 0, 'camera mở → loop không được gọi input.focus()');
+});
