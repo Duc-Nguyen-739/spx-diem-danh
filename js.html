@@ -2160,7 +2160,7 @@
         playBeep('error');
         showScanCard('Trùng mã', target, true);
         input.value = '';
-        input.focus();
+        if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
         return;
       }
     }
