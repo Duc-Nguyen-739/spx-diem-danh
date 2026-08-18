@@ -2435,7 +2435,7 @@
         return;
       }
       input.value = '';
-      input.focus();
+      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
       submitPasteMealMoveBatch(plan.codes);
       return;
     }
@@ -2449,7 +2449,7 @@
         playBeep('error');
       }
       input.value = '';
-      input.focus();
+      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
       if (!plan.validCodes.length) return;
       for (var bi = 0; bi < plan.validCodes.length; bi++) {
         if (!submitScanSingle(input, plan.validCodes[bi])) break;  // queue đầy → dừng loạt
