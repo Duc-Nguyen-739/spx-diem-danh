@@ -85,7 +85,15 @@ function handleJsonpRequest_(e) {
   }
   var out = apiDispatchJsonp_(action, args, jsonpApiCall_);
   var cb = sanitizeCallback_(e.parameter.cb);
-  return ContentService.createTextOutput(cb + '(' + JSON.stringify(out) + ');')
+  // JSON.stringify result có thể throw (vòng tham chiếu/giá trị không serialize được)
+  // → trả cb({ok:false,error}) thay vì 500 (bug 2026-08-18).
+  var json;
+  try {
+    json = JSON.stringify(out);
+  } catch (err) {
+    json = JSON.stringify({ ok: false, error: 'Cannot serialize result: ' + String((err && err.message) || err) });
+  }
+  return ContentService.createTextOutput(cb + '(' + json + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 

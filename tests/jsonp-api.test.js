@@ -91,3 +91,13 @@ test('sanitizeCallback_: tên nguy hiểm/trống → fallback "callback" (chố
     assert.equal(Api.sanitizeCallback_(cb), 'callback', 'phải fallback với: ' + String(cb));
   });
 });
+
+// ===== handleJsonpRequest_ (GAS entry — không chạy trực tiếp được trên Node) =====
+test('handleJsonpRequest_: JSON.stringify bọc try — result không serialize được vẫn trả lỗi JSONP thay vì 500 (bug 2026-08-18)', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'JsonpApi.gs'), 'utf8');
+  const block = src.slice(src.indexOf('function handleJsonpRequest_('), src.indexOf('// ===== Node test support'));
+  // Phải có try quanh JSON.stringify + fallback {ok:false,error} — nếu không, vòng tham
+  // chiếu/giá trị không serialize được ném ra khỏi doGet → HTTP 500, client mất response.
+  assert.match(block, /try\s*\{[\s\S]*JSON\.stringify\(out\)/, 'JSON.stringify phải nằm trong try');
+  assert.match(block, /Cannot serialize result/, 'phải có message fallback khi serialize fail');
+});
