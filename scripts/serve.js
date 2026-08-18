@@ -32,6 +32,16 @@ const MIME = {
 };
 
 // Giải URL thành đường dẫn tuyệt đối an toàn trong ROOT; null nếu thoát ra ngoài.
+// DENY: file/thư mục hệ thống — trước chỉ chặn traversal nên .git/appsscript.json
+// (chứa scriptId)/Code.gs bị serve công khai khi bind 0.0.0.0 (bug 2026-08-18).
+const DENY_SEGMENTS = [
+  '.git', '.clasp.json', 'appsscript.json', '.claspignore', 'node_modules',
+  '.npm', '.config', 'package-lock.json',
+];
+function isDenied(rel) {
+  if (/\.gs$/i.test(rel)) return true;  // source GAS (scriptId/URL deployment) — preview không cần serve
+  return rel.split(/[\\/]/).some((seg) => DENY_SEGMENTS.indexOf(seg) >= 0);
+}
 function safeResolve(urlPath) {
   let clean;
   try {
@@ -40,6 +50,7 @@ function safeResolve(urlPath) {
     return null; // URL encode lỗi
   }
   const rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
+  if (isDenied(rel)) return null;
   const abs = path.resolve(ROOT, rel);
   if (abs !== ROOT && !abs.startsWith(ROOT + path.sep)) return null;
   return abs;
