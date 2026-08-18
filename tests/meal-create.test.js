@@ -22,6 +22,11 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/MEAL-CREATE-START([\s\S]*?)MEAL-CREATE-END/);
 assert.ok(m, 'js.html phải chứa khối MEAL-CREATE (đánh dấu MEAL-CREATE-START/END)');
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ MEAL-CREATE-END.*$/, '');
+// transferPresentListToMealMove gọi buildTransferMealInput (PURE-LOGIC) — nạp kèm
+// khối PURE-LOGIC vào cùng context để test đúng code deploy (không stub).
+const pm = html.match(/PURE-LOGIC-START([\s\S]*?)PURE-LOGIC-END/);
+assert.ok(pm, 'js.html phải chứa khối PURE-LOGIC (đánh dấu PURE-LOGIC-START/END)');
+const pureBlock = pm[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== PURE-LOGIC-END.*$/, '');
 
 // ---- Stub state chung ----
 let lastCall = null;        // lần gọi google.script.run cuối (fn + args)
@@ -77,6 +82,7 @@ function makeChipButton(value) {
 }
 
 let els = {};
+let scanBusyResult = false;
 function resetEls() {
   els = {
     createMealModal: makeEl(),
@@ -98,6 +104,10 @@ function resetEls() {
   openedModal = null;
   toastMsg = null;
   openedScanId = null;
+  global.CURRENT_TASK = null;
+  global.CURRENT_LOG = [];
+  scanBusyResult = false;
+  if (typeof apiResults !== 'undefined') delete apiResults.completeTaskApi;
 }
 resetEls();
 
@@ -114,6 +124,16 @@ global.loadStaffIndex = () => {};  // refresh staff cache sau khi tạo task (kh
 global.openScan = (taskId) => { openedScanId = taskId; };
 global.markServerFail = () => {};
 global.markServerOk = () => {};
+// ---- Stub cho transferPresentListToMealMove (Chuyển Danh Sách) ----
+global.STATUS_C = { PENDING: '-', PRESENT: 'Có mặt', ABSENT: 'Vắng', EXTRA: 'Dư', OUT: 'Ra ngoài' };
+global.TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
+global.CURRENT_TASK = null;
+global.CURRENT_LOG = [];
+global.scanBusy = () => scanBusyResult;
+global.byId = () => null;
+
+// Handler kết quả cho từng API — có thể override trong test (apiResults)
+var apiResults = {};
 
 // ---- google.script.run stub: chain đồng bộ + ghi lại lần gọi cuối ----
 // LƯU Ý: withSuccessHandler/withFailureHandler phải trả về CHÍNH proxy (không phải
@@ -138,8 +158,6 @@ function makeRunStub() {
 global.google = {
   script: { run: makeRunStub() },
 };
-// Handler kết quả cho từng API — có thể override trong test (apiResults)
-let apiResults = {};
 function fnHandler(fn, ...args) {
   if (apiResults[fn] !== undefined) return typeof apiResults[fn] === 'function' ? apiResults[fn](...args) : apiResults[fn];
   if (fn === 'getFilterOptions') return filterOptions;
@@ -154,7 +172,8 @@ function fnHandler(fn, ...args) {
 
 // ---- Chạy khối trong CÙNG realm (runInThisContext) ----
 const api = vm.runInThisContext(
-  '(function () {\n' + block + '\nreturn { openCreateMealModal, closeCreateMealModal, canSubmitMealCreate, buildMealCreateInput, updateMealSubmitState, updateMealPreview, createMealMoveTask, fillMealOptions, fillMealTeamChips, resetMealCreate };\n})()'
+  '(function () {\n' + pureBlock + '\n' + block +
+  '\nreturn { openCreateMealModal, closeCreateMealModal, canSubmitMealCreate, buildMealCreateInput, updateMealSubmitState, updateMealPreview, createMealMoveTask, fillMealOptions, fillMealTeamChips, resetMealCreate, transferPresentListToMealMove, buildTransferMealInput };\n})()'
 );
 
 // ================= TESTS =================
@@ -285,4 +304,78 @@ test('closeCreateMealModal: đóng modal + trả focus về nút +Task', () => {
   assert.ok(!els.createMealModal.classList.contains('open'));
   assert.equal(els.createMealModal.attrs['aria-hidden'], 'true');
   assert.equal(els.btnCreateTask.focusCount, before + 1);
+});
+
+// ===== transferPresentListToMealMove (Chuyển Danh Sách) — 2026-08-18 =====
+function setupTransferTask() {
+  resetEls();
+  global.CURRENT_TASK = { taskId: 'RC-1', taskType: 'reconcile', station: 'HN2 SOC', team: 'Outbound, Inbound', status: 'open' };
+  global.CURRENT_LOG = [
+    { staffId: 'OPS1', status: 'Có mặt' },
+    { staffId: 'OPS2', status: 'Vắng' },
+    { staffId: 'OPS3', status: 'Có mặt' },
+  ];
+}
+
+test('transferPresentListToMealMove: tạo task Ra/Vào thành công → tự HOÀN THÀNH task cũ + chuyển sang task mới', () => {
+  setupTransferTask();
+  apiResults.createMealMoveTaskApi = { ok: true, taskId: 'M-NEW-1', message: 'ok' };
+  apiResults.completeTaskApi = { ok: true, message: 'done' };
+  api.transferPresentListToMealMove();
+  // Chain 2 RPC: tạo task mới → completeTask task cũ (không confirm)
+  assert.equal(lastCall.fn, 'completeTaskApi', 'bước cuối chain là completeTaskApi task cũ');
+  assert.equal(lastCall.args[0], 'RC-1', 'completeTask chạy trên task Điểm Danh Ca hiện tại');
+  assert.equal(openedScanId, 'M-NEW-1', 'tự chuyển sang tab task Ra/Vào vừa tạo');
+  assert.ok(!global.BUSY, 'BUSY reset sau khi xong');
+});
+
+test('transferPresentListToMealMove: create fail → KHÔNG completeTask, không chuyển tab', () => {
+  setupTransferTask();
+  apiResults.createMealMoveTaskApi = { ok: false, message: 'Lỗi tạo task' };
+  api.transferPresentListToMealMove();
+  assert.equal(lastCall.fn, 'createMealMoveTaskApi', 'chỉ gọi create (fail)');
+  assert.equal(openedScanId, null, 'không chuyển tab khi tạo thất bại');
+  assert.equal(toastMsg, 'Lỗi tạo task');
+});
+
+test('transferPresentListToMealMove: complete fail → vẫn chuyển sang task mới + toast lỗi', () => {
+  setupTransferTask();
+  apiResults.createMealMoveTaskApi = { ok: true, taskId: 'M-NEW-1', message: 'ok' };
+  apiResults.completeTaskApi = { ok: false, message: 'Đã kết thúc' };
+  api.transferPresentListToMealMove();
+  assert.equal(lastCall.fn, 'completeTaskApi');
+  assert.equal(openedScanId, 'M-NEW-1', 'task mới đã tạo — vẫn chuyển sang nó dù complete lỗi');
+  assert.ok(toastMsg.includes('M-NEW-1'), 'toast nhắc đã tạo task mới');
+});
+
+test('transferPresentListToMealMove: không phải task reconcile → bỏ qua im lặng', () => {
+  resetEls();
+  global.CURRENT_TASK = { taskId: 'M-1', taskType: 'meal-move', station: 'HN2 SOC', team: 'Outbound', status: 'open' };
+  api.transferPresentListToMealMove();
+  assert.equal(lastCall, null, 'không gọi API');
+});
+
+test('transferPresentListToMealMove: task đã kết thúc → toast + không gọi API', () => {
+  setupTransferTask();
+  global.CURRENT_TASK.status = 'done';
+  api.transferPresentListToMealMove();
+  assert.equal(toastMsg, 'Task đã kết thúc — không chuyển được');
+  assert.equal(lastCall, null);
+});
+
+test('transferPresentListToMealMove: không có NV Có mặt → toast + không gọi API', () => {
+  resetEls();
+  global.CURRENT_TASK = { taskId: 'RC-1', taskType: 'reconcile', station: 'HN2 SOC', team: 'Outbound', status: 'open' };
+  global.CURRENT_LOG = [{ staffId: 'OPS2', status: 'Vắng' }];
+  api.transferPresentListToMealMove();
+  assert.equal(toastMsg, 'Chưa có nhân viên nào Có mặt để chuyển');
+  assert.equal(lastCall, null);
+});
+
+test('transferPresentListToMealMove: scan đang bận → chặn, không gọi API', () => {
+  setupTransferTask();
+  scanBusyResult = true;
+  api.transferPresentListToMealMove();
+  assert.equal(toastMsg, 'Đang xử lý lượt quét — chờ xong rồi chuyển');
+  assert.equal(lastCall, null);
 });

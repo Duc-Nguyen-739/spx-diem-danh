@@ -2123,7 +2123,6 @@
       })
       .createMealMoveTaskApi(input);
   }
-  // MEAL-CREATE-END
 
   // CHUYỂN DANH SÁCH (2026-08-18, yêu cầu user): từ task Điểm Danh Ca — lấy toàn bộ NV
   // "Có mặt" (CURRENT_LOG) → tự động tạo task Điểm danh Ra/Vào với danh sách đó
@@ -2153,16 +2152,39 @@
     if (btn) btn.disabled = true;
     google.script.run
       .withSuccessHandler(function (res) {
-        BUSY = false;
-        if (btn) btn.disabled = false;
-        if (res.ok) {
-          showToast(res.message, false);
-          loadTaskList();
-          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
-          openScan(res.taskId);  // tự chuyển sang task Ra/Vào vừa tạo
-        } else {
+        if (!res.ok) {
+          BUSY = false;
+          if (btn) btn.disabled = false;
           showToast(res.message, true);
+          return;
         }
+        // Tạo task Ra/Vào thành công → TỰ HOÀN THÀNH task Điểm Danh Ca (2026-08-18):
+        // completeTask chạy ngay không confirm (đã confirm ở nút Chuyển Danh Sách),
+        // rồi chuyển sang tab task Ra/Vào vừa tạo.
+        var newTaskId = res.taskId;
+        var oldTaskId = CURRENT_TASK.taskId;
+        google.script.run
+          .withSuccessHandler(function (fin) {
+            BUSY = false;
+            if (btn) btn.disabled = false;
+            if (fin.ok) {
+              showToast('Đã tạo ' + newTaskId + ' và hoàn thành ' + oldTaskId, false);
+            } else {
+              showToast('Đã tạo ' + newTaskId + ' — lỗi hoàn thành ' + oldTaskId + ': ' + fin.message, true);
+            }
+            loadTaskList();
+            loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+            openScan(newTaskId);  // tự chuyển sang task Ra/Vào vừa tạo
+          })
+          .withFailureHandler(function (err) {
+            BUSY = false;
+            if (btn) btn.disabled = false;
+            showToast('Đã tạo ' + newTaskId + ' — lỗi hoàn thành: ' + err.message, true);
+            loadTaskList();
+            loadStaffIndex();
+            openScan(newTaskId);
+          })
+          .completeTaskApi(oldTaskId);
       })
       .withFailureHandler(function (err) {
         BUSY = false;
@@ -2171,6 +2193,7 @@
       })
       .createMealMoveTaskApi(input);
   }
+  // MEAL-CREATE-END
 
   // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
   // Dùng chung cho luồng batch từ submitScan; PASTE_BUSY chống submit chồng.
