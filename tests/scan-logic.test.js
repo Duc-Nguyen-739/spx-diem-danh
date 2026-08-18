@@ -24,8 +24,8 @@ const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== PURE-LOGIC-
 // Chạy trong CÙNG realm (runInThisContext) để array/prototype khớp với assert/strict
 // (vm.createContext tạo realm riêng → deepStrictEqual fail dù nội dung bằng nhau).
 // Wrapper function → không ô nhiễm global.
-const { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName } = vm.runInThisContext(
-  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName };\n})()'
+const { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName, buildTransferMealInput } = vm.runInThisContext(
+  '(function () {\n' + block + '\nreturn { splitScanCodes, isValidBarcodeId, planScanSubmit, nextMealMode, creatorName, buildTransferMealInput };\n})()'
 );
 
 test('khối PURE-LOGIC không phụ thuộc DOM/server (giữ thuần để test được)', () => {
@@ -161,4 +161,28 @@ test('REGRESSION: paste loạt có lẫn mã rác vào task đối chiếu → c
   assert.equal(p.mode, 'reconcile-batch');
   assert.deepEqual(p.validCodes, ['OPS3001', 'OPS3002']);
   assert.equal(p.invalidCount, 1); // EMP900 bị bỏ qua, báo 1 lần
+});
+
+// ===== buildTransferMealInput (2026-08-18): Chuyển Danh Sách — NV "Có mặt" → task Ra/Vào =====
+test('buildTransferMealInput: chỉ lấy NV có status Có mặt + kế thừa station/team từ task reconcile', () => {
+  const task = { station: 'HN2 SOC', team: 'Outbound, Inbound', taskType: 'reconcile' };
+  const log = [
+    { staffId: 'OPS1', status: 'Có mặt' },
+    { staffId: 'OPS2', status: 'Vắng' },
+    { staffId: 'OPS3', status: 'Có mặt' },
+    { staffId: '', status: 'Có mặt' },   // thiếu staffId → bỏ qua
+    { staffId: 'OPS4', status: 'Dư' },
+    { staffId: 'OPS5', status: 'Có mặt' },
+  ];
+  const input = buildTransferMealInput(task, log, 'Có mặt');
+  assert.equal(input.station, 'HN2 SOC', 'station kế thừa từ task hiện tại');
+  assert.deepEqual(input.team, ['Outbound', 'Inbound'], 'team tách theo ", " thành mảng');
+  assert.deepEqual(input.staffIds, ['OPS1', 'OPS3', 'OPS5'], 'chỉ NV Có mặt (bỏ Vắng/Dư/thiếu staffId)');
+});
+
+test('buildTransferMealInput: team rỗng/không có → mảng rỗng (server sẽ reject nếu thiếu)', () => {
+  const input = buildTransferMealInput({ station: '', team: '' }, [], 'Có mặt');
+  assert.equal(input.station, '');
+  assert.deepEqual(input.team, []);
+  assert.deepEqual(input.staffIds, []);
 });

@@ -2125,6 +2125,53 @@
   }
   // MEAL-CREATE-END
 
+  // CHUYỂN DANH SÁCH (2026-08-18, yêu cầu user): từ task Điểm Danh Ca — lấy toàn bộ NV
+  // "Có mặt" (CURRENT_LOG) → tự động tạo task Điểm danh Ra/Vào với danh sách đó
+  // (kế thừa station + team task hiện tại). Bấm nút "Chuyển Danh Sách" cạnh Hoàn Thành.
+  function transferPresentListToMealMove() {
+    if (BUSY) return;
+    if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'reconcile') return;
+    if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
+      showToast('Task đã kết thúc — không chuyển được', true);
+      return;
+    }
+    if (scanBusy()) {
+      showToast('Đang xử lý lượt quét — chờ xong rồi chuyển', true);
+      return;
+    }
+    var input = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT);
+    if (!input.staffIds.length) {
+      showToast('Chưa có nhân viên nào Có mặt để chuyển', true);
+      return;
+    }
+    if (!canSubmitMealCreate(input.station, input.team)) {
+      showToast('Task thiếu Station/Team — không tạo được task Ra/Vào', true);
+      return;
+    }
+    BUSY = true;
+    var btn = byId('btnTransferList');
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          showToast(res.message, false);
+          loadTaskList();
+          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+          openScan(res.taskId);  // tự chuyển sang task Ra/Vào vừa tạo
+        } else {
+          showToast(res.message, true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        showToast('Lỗi tạo task: ' + err.message, true);
+      })
+      .createMealMoveTaskApi(input);
+  }
+
   // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
   // Dùng chung cho luồng batch từ submitScan; PASTE_BUSY chống submit chồng.
   var PASTE_BUSY = false;
@@ -2412,6 +2459,29 @@
     if (!s) return '';
     return s.split('@')[0].trim();
   }
+
+  // CHUYỂN DANH SÁCH (2026-08-18): từ task Điểm Danh Ca (reconcile) — lấy toàn bộ NV
+  // có status "Có mặt" trong log → xây input tạo task Ra/Vào (meal-move): kế thừa
+  // station + team của task hiện tại, staffIds = danh sách Có Mặt. Thuần — test được.
+  // @param {Object} task — task reconcile hiện tại (CURRENT_TASK)
+  // @param {Array} logRows — danh sách NV đã scan (CURRENT_LOG)
+  // @param {string} presentStatus — label "Có mặt" (STATUS_C.PRESENT)
+  // @returns {{station: string, team: string[], staffIds: string[], createdBy: string, note: string}}
+  function buildTransferMealInput(task, logRows, presentStatus) {
+    var station = task && task.station ? String(task.station).trim() : '';
+    var team = [];
+    if (task && task.team) {
+      String(task.team).split(',').forEach(function (s) {
+        var t = s.trim();
+        if (t && team.indexOf(t) === -1) team.push(t);
+      });
+    }
+    var staffIds = [];
+    (logRows || []).forEach(function (r) {
+      if (r && r.status === presentStatus && r.staffId) staffIds.push(String(r.staffId).trim());
+    });
+    return { station: station, team: team, staffIds: staffIds, createdBy: '', note: '' };
+  }
   // ===== PURE-LOGIC-END =====
 
   function submitScan() {
@@ -2584,6 +2654,14 @@
     } else {
       btn.disabled = !isOpen;
       btn.title = '';
+    }
+    // Nút "Chuyển Danh Sách" (2026-08-18): chỉ task reconcile còn mở — disable khi
+    // đang xử lý quét để không đọc log đang dở.
+    var transferBtn = byId('btnTransferList');
+    if (transferBtn) {
+      transferBtn.hidden = !isOpen || !CURRENT_TASK || CURRENT_TASK.taskType === 'meal-move';
+      transferBtn.disabled = scanBusy() || !isOpen;
+      transferBtn.title = scanBusy() ? 'Đang xử lý quét — chờ xong rồi chuyển' : '';
     }
     // Nhãn nút Kết Thúc: OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ)
     if (btn && CURRENT_TASK && isOpen) {
