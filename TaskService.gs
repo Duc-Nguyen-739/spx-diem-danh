@@ -54,7 +54,11 @@ function createReconcileTask(input) {
   }
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, taskId: null, count: 0, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
   try {
     const staffList = filterStaffByGroup(readStaffList_(), { station: station, slotCode: filterSlots, team: filterTeams, date: date, contractType: filterContractTypes });
     // P1: Att.csv thật có NV 2 dòng trong CÙNG tổ hợp → dedupe theo staffId (giữ dòng đầu).
@@ -107,7 +111,11 @@ function completeTask(taskId) {
   if (!taskId) return { ok: false, message: 'Thiếu taskId' };
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
   try {
     const task = readTask_(taskId);
     if (!task) return { ok: false, message: 'Không tìm thấy task' };
@@ -142,7 +150,11 @@ function reopenTask(taskId) {
   if (!taskId) return { ok: false, message: 'Thiếu taskId' };
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
   try {
     const task = readTask_(taskId);
     if (!task) return { ok: false, message: 'Không tìm thấy task' };
@@ -206,7 +218,11 @@ function createMealMoveTask(input) {
   const note = String((input && input.note) || '').trim();
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, taskId: null, count: 0, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
   try {
     // Lookup thông tin NV từ staffIndex (cache 5m) — lấy tên, agency, station...
     const index = readStaffIndex_();
@@ -270,7 +286,11 @@ function updateTaskNote(taskId, note) {
   const clean = String(note || '').trim();
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
   try {
     const task = readTask_(taskId);
     if (!task) return { ok: false, message: 'Không tìm thấy task' };

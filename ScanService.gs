@@ -28,7 +28,17 @@ function scanStaff(taskId, rawStaffId, mode) {
     };
   }
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    console.log({ bench: 'scanStaff', taskId: taskId, staffId: staffId, phase: 'lock-timeout' });
+    return {
+      ok: false,
+      message: 'Hệ thống đang bận — thử lại sau giây lát',
+      status: null,
+      counters: { scanned: 0, absent: 0, extra: 0, total: 0 },
+    };
+  }
   try {
     const t1 = Date.now();
     // F8: task read CACHE (15s) — trước đây full AttendanceTask sheet read mỗi scan.
@@ -223,7 +233,12 @@ function pasteMealMoveScan(taskId, codes, mode) {
   if (!normCodes.length) return { ok: false, message: UI_LABELS.MEAL_NO_OPS, summary: null, counters: null };
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    console.log({ bench: 'pasteMealMoveScan', taskId: taskId, phase: 'lock-timeout' });
+    return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát', summary: null, counters: null };
+  }
   try {
     const task = readTaskCached_(taskId);
     if (!task) return { ok: false, message: 'Không tìm thấy task', summary: null, counters: null };
