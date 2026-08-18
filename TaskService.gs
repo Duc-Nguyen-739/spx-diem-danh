@@ -194,6 +194,9 @@ function createMealMoveTask(input) {
     return { ok: false, taskId: null, count: 0, message: 'Vui lòng chọn Station và Team để tạo task' };
   }
   const raw = Array.isArray(input && input.staffIds) ? input.staffIds : [];
+  // 2026-08-18: map staffId → epoch ms "Giờ điểm danh" của task reconcile — ghi vào
+  // cột "Giờ Ra" (TIME_RA) khi pre-fill log, để NV có sẵn giờ Ra (không phải quét lại).
+  const timeRaByStaff = (input && input.timeRaByStaff) || {};
 
   // Chuẩn hóa + dedupe + bỏ mã không hợp lệ (chỉ nhận mã Ops)
   // Cho phép danh sách rỗng — tạo task trống, paste/quét mã bên trong task
@@ -228,6 +231,10 @@ function createMealMoveTask(input) {
     const index = readStaffIndex_();
     const staffList = ids.map(function (id) {
       const info = index[id] || {};
+      // timeRaByStaff[id] = epoch "Giờ điểm danh" từ task reconcile — NV Có mặt
+      // đã được điểm danh → coi như đã Ra (giờ Ra = giờ điểm danh), status OUT.
+      const raEpoch = Number(timeRaByStaff[id]) || 0;
+      const timeRa = raEpoch > 0 ? new Date(raEpoch) : null;
       return {
         staffId: id,
         staffName: info.staffName || '',
@@ -237,6 +244,9 @@ function createMealMoveTask(input) {
         workstation: info.workstation || '',
         agency: info.agency || '',
         date: info.date || '',
+        timeRa: timeRa,              // meal-move: giờ Ra pre-fill từ "Giờ điểm danh"
+        timeRaEpoch: raEpoch,        // epoch cho counters/warm cache
+        status: timeRa ? STATUS.OUT : STATUS.PENDING,  // đã Ra → OUT, chưa → PENDING
       };
     });
 

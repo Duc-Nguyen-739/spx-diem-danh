@@ -416,10 +416,14 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
   const startRow = sheet.getLastRow() + 1;
   const rows = staffList.map(function (s) {
+    // 2026-08-18: meal-move có thể pre-fill timeRa ("Giờ Ra" = "Giờ điểm danh") +
+    // status OUT (đã Ra). Reconcile: không có → giờ Ra trống, status PENDING (như cũ).
+    const timeRa = s.timeRa || null;
+    const status = s.status || STATUS.PENDING;
     return [
       taskId, s.staffId, s.staffName, s.slotCode, s.station, s.team, s.workstation,
-      createdAt, '', STATUS.PENDING, s.date || '',
-      '', s.agency || '',  // timeRa (trống), agency (Nhà Thầu — meal-move)
+      createdAt, '', status, s.date || '',
+      timeRa, s.agency || '',  // timeRa (giờ Ra — chỉ meal-move có), agency (Nhà Thầu — meal-move)
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);
@@ -445,6 +449,10 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
 function warmLogRowsCache_(taskId, staffList, startRow) {
   try {
     const rows = staffList.map(function (s, i) {
+      // 2026-08-18: meal-move pre-fill timeRa (giờ Ra = giờ điểm danh) + status OUT —
+      // cache phải KHỚP sheet, không thì lần quét đầu đọc PENDING/thiếu giờ Ra.
+      const raEpoch = Number(s.timeRaEpoch) || (s.timeRa ? s.timeRa.getTime() : 0) || 0;
+      const hasRa = raEpoch > 0;
       return {
         taskId: taskId,
         staffId: s.staffId,
@@ -453,12 +461,12 @@ function warmLogRowsCache_(taskId, staffList, startRow) {
         station: s.station || '',
         team: s.team || '',
         agency: s.agency || '',
-        timeRaText: '',
-        timeRaEpoch: 0,
+        timeRaText: hasRa ? formatTime_(new Date(raEpoch)) : '',
+        timeRaEpoch: hasRa ? raEpoch : 0,
         timeScanText: '',
         timeScanEpoch: 0,
         durationMinutes: 0,
-        status: STATUS.PENDING,
+        status: s.status || (hasRa ? STATUS.OUT : STATUS.PENDING),
         dateText: formatDateShort_(s.date),
         _rowIndex: startRow + i,
       };

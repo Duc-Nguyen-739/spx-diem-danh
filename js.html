@@ -2486,10 +2486,12 @@
   // CHUYỂN DANH SÁCH (2026-08-18): từ task Điểm Danh Ca (reconcile) — lấy toàn bộ NV
   // có status "Có mặt" trong log → xây input tạo task Ra/Vào (meal-move): kế thừa
   // station + team của task hiện tại, staffIds = danh sách Có Mặt. Thuần — test được.
+  // 2026-08-18: thêm timeRaByStaff — map staffId → timeScanEpoch ("Giờ điểm danh")
+  // của NV Có mặt, server ghi vào cột "Giờ Ra" (TIME_RA) của task Ra/Vào mới.
   // @param {Object} task — task reconcile hiện tại (CURRENT_TASK)
   // @param {Array} logRows — danh sách NV đã scan (CURRENT_LOG)
   // @param {string} presentStatus — label "Có mặt" (STATUS_C.PRESENT)
-  // @returns {{station: string, team: string[], staffIds: string[], createdBy: string, note: string}}
+  // @returns {{station: string, team: string[], staffIds: string[], timeRaByStaff: Object, createdBy: string, note: string}}
   function buildTransferMealInput(task, logRows, presentStatus) {
     var station = task && task.station ? String(task.station).trim() : '';
     var team = [];
@@ -2500,10 +2502,15 @@
       });
     }
     var staffIds = [];
+    var timeRaByStaff = {};
     (logRows || []).forEach(function (r) {
-      if (r && r.status === presentStatus && r.staffId) staffIds.push(String(r.staffId).trim());
+      if (r && r.status === presentStatus && r.staffId) {
+        var id = String(r.staffId).trim();
+        staffIds.push(id);
+        if (Number(r.timeScanEpoch) > 0) timeRaByStaff[id] = Number(r.timeScanEpoch);
+      }
     });
-    return { station: station, team: team, staffIds: staffIds, createdBy: '', note: '' };
+    return { station: station, team: team, staffIds: staffIds, timeRaByStaff: timeRaByStaff, createdBy: '', note: '' };
   }
   // ===== PURE-LOGIC-END =====
 

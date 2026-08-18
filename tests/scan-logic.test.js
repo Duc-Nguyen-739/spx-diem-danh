@@ -178,6 +178,24 @@ test('buildTransferMealInput: chỉ lấy NV có status Có mặt + kế thừa 
   assert.equal(input.station, 'HN2 SOC', 'station kế thừa từ task hiện tại');
   assert.deepEqual(input.team, ['Outbound', 'Inbound'], 'team tách theo ", " thành mảng');
   assert.deepEqual(input.staffIds, ['OPS1', 'OPS3', 'OPS5'], 'chỉ NV Có mặt (bỏ Vắng/Dư/thiếu staffId)');
+  assert.deepEqual(input.timeRaByStaff, {}, 'không có timeScanEpoch → map giờ Ra rỗng');
+});
+
+test('buildTransferMealInput: lấy "Giờ điểm danh" (timeScanEpoch) của NV Có mặt → timeRaByStaff', () => {
+  const task = { station: 'HN2 SOC', team: 'Outbound', taskType: 'reconcile' };
+  const log = [
+    { staffId: 'OPS1', status: 'Có mặt', timeScanEpoch: 1700000000000 },
+    { staffId: 'OPS2', status: 'Có mặt', timeScanEpoch: 1700000001000 },
+    { staffId: 'OPS3', status: 'Vắng', timeScanEpoch: 1700000002000 },
+    { staffId: 'OPS4', status: 'Có mặt', timeScanEpoch: 0 },   // chưa có giờ → không ghi
+    { staffId: 'OPS5', status: 'Dư', timeScanEpoch: 1700000003000 },
+  ];
+  const input = buildTransferMealInput(task, log, 'Có mặt');
+  assert.deepEqual(input.staffIds, ['OPS1', 'OPS2', 'OPS4']);
+  assert.deepEqual(input.timeRaByStaff, {
+    OPS1: 1700000000000,
+    OPS2: 1700000001000,
+  }, 'chỉ NV Có mặt có timeScanEpoch > 0 được đưa vào map giờ Ra');
 });
 
 test('buildTransferMealInput: team rỗng/không có → mảng rỗng (server sẽ reject nếu thiếu)', () => {
@@ -185,4 +203,5 @@ test('buildTransferMealInput: team rỗng/không có → mảng rỗng (server s
   assert.equal(input.station, '');
   assert.deepEqual(input.team, []);
   assert.deepEqual(input.staffIds, []);
+  assert.deepEqual(input.timeRaByStaff, {});
 });

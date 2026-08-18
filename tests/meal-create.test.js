@@ -311,9 +311,9 @@ function setupTransferTask() {
   resetEls();
   global.CURRENT_TASK = { taskId: 'RC-1', taskType: 'reconcile', station: 'HN2 SOC', team: 'Outbound, Inbound', status: 'open' };
   global.CURRENT_LOG = [
-    { staffId: 'OPS1', status: 'Có mặt' },
-    { staffId: 'OPS2', status: 'Vắng' },
-    { staffId: 'OPS3', status: 'Có mặt' },
+    { staffId: 'OPS1', status: 'Có mặt', timeScanEpoch: 1700000000000 },
+    { staffId: 'OPS2', status: 'Vắng', timeScanEpoch: 0 },
+    { staffId: 'OPS3', status: 'Có mặt', timeScanEpoch: 1700000001000 },
   ];
 }
 
@@ -327,6 +327,20 @@ test('transferPresentListToMealMove: tạo task Ra/Vào thành công → tự HO
   assert.equal(lastCall.args[0], 'RC-1', 'completeTask chạy trên task Điểm Danh Ca hiện tại');
   assert.equal(openedScanId, 'M-NEW-1', 'tự chuyển sang tab task Ra/Vào vừa tạo');
   assert.ok(!global.BUSY, 'BUSY reset sau khi xong');
+});
+
+test('transferPresentListToMealMove: gửi kèm timeRaByStaff — "Giờ điểm danh" → "Giờ Ra"', () => {
+  setupTransferTask();
+  let capturedInput = null;
+  apiResults.createMealMoveTaskApi = (input) => { capturedInput = input; return { ok: true, taskId: 'M-NEW-1', message: 'ok' }; };
+  apiResults.completeTaskApi = { ok: true, message: 'done' };
+  api.transferPresentListToMealMove();
+  assert.ok(capturedInput, 'createMealMoveTaskApi được gọi với input');
+  assert.deepEqual(capturedInput.staffIds, ['OPS1', 'OPS3'], 'staffIds = NV Có mặt');
+  assert.deepEqual(capturedInput.timeRaByStaff, {
+    OPS1: 1700000000000,
+    OPS3: 1700000001000,
+  }, 'timeRaByStaff = map staffId → "Giờ điểm danh" (epoch) của NV Có mặt');
 });
 
 test('transferPresentListToMealMove: create fail → KHÔNG completeTask, không chuyển tab', () => {
