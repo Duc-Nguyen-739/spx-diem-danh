@@ -164,6 +164,31 @@ class TestServices(unittest.TestCase):
         self.assertTrue(r2["ok"], r2.get("message"))
         self.assertEqual(r2["summary"]["ra"], 1)
 
+    def test_meal_move_ra_after_vao_present(self):
+        # Regression: quét Ra cho NV đã có Vào (quên Ra lúc đi) → Có mặt, không phải
+        # Ra ngoài; counters detail == list (trước đây OUT → detail out:1, list scanned:1).
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        self.assertTrue(r["ok"], r.get("message"))
+        task_id = r["taskId"]
+        vao = services.scan_staff(task_id, "Ops001", "vao", now_override=self.t0)
+        self.assertEqual(vao["status"], "Dư")
+        ra = services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0 + datetime.timedelta(minutes=10))
+        self.assertTrue(ra["ok"], ra.get("message"))
+        self.assertEqual(ra["status"], "Có mặt")
+        self.assertEqual(ra["scanPhase"], "ra")
+        self.assertGreater(ra["timeRaEpoch"], 0)
+        detail = services.get_task_detail(task_id)
+        row = detail["log"][0]
+        self.assertEqual(row["status"], "Có mặt")
+        self.assertTrue(row.get("timeScanText"))
+        self.assertTrue(row.get("timeRaText"))
+        self.assertEqual(detail["counters"]["scanned"], 1)
+        self.assertEqual(detail["counters"]["out"], 0)
+        lst = services.list_tasks()[0]
+        self.assertEqual(lst["scanned"], 1)
+
     def test_filter_options_contract_types(self):
         opts = services.get_filter_options()
         self.assertEqual(opts["contractTypes"], ["BPO", "FTE", "OS"])

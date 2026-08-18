@@ -117,6 +117,11 @@ def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, st
 
         if mode == "ra":
             if not has_ra:
+                # Quét Ra mà đã có Vào (quên quét Ra lúc đi, giờ quét bù) → chu kỳ
+                # Ra+Vào đủ → Có mặt, không phải Ra ngoài (tránh counters lệch list/detail).
+                if has_vao:
+                    return {"action": "update", "status": cfg["STATUS"]["PRESENT"], "reason": None,
+                            "row": row, "scanPhase": "ra"}
                 return {"action": "update", "status": cfg["STATUS"]["OUT"], "reason": None, "row": row, "scanPhase": "ra"}
             return {"action": "reject", "status": None, "reason": "already-scanned", "row": row, "scanPhase": None}
 

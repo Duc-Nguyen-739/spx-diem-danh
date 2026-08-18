@@ -185,10 +185,12 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInf
 
     if (mode === 'ra') {
       if (!hasRa) {
-        // Ghi Ra lần đầu
-        return { action: 'update', status: cfg.STATUS.OUT, reason: null, row: row, scanPhase: 'ra' };
+        // Quét Ra mà đã có Vào (quên quét Ra lúc đi, giờ quét bù) → chu kỳ Ra+Vào đủ
+        // → Có mặt, không phải Ra ngoài (tránh counters lệch list/detail).
+        const status = hasVao ? cfg.STATUS.PRESENT : cfg.STATUS.OUT;
+        return { action: 'update', status: status, reason: null, row: row, scanPhase: 'ra' };
       }
-      // Đã có Ra, mode vẫn Ra → reject (phải toutesing sang Vào)
+      // Đã có Ra, mode vẫn Ra → reject (phải chuyển sang Vào)
       return { action: 'reject', status: null, reason: 'already-scanned', row: row, scanPhase: null };
     }
 
