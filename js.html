@@ -296,7 +296,7 @@
           input.focus();
         }
       }
-    }, 3000);
+    }, 30000);
   }
   function stopAutoFocusLoop() {
     if (AUTO_FOCUS_TIMER) { clearInterval(AUTO_FOCUS_TIMER); AUTO_FOCUS_TIMER = null; }
@@ -1355,11 +1355,11 @@
   // ===== ĐỒNG BỘ REAL-TIME 2 THIẾT BỊ (2026-08-12) =====
   // Mobile + PC cùng mở 1 task: thiết bị này quét → thiết bị kia phải cập nhật NGAY
   // (không cần F5). GAS không có push (WebSocket/Channel) → poll getTaskDetailApi định
-  // kỳ khi đang ở màn quét. Server cache detail 15s bị invalidate MỌI khi ghi log/đổi
+  // kỳ khi đang ở màn quét. Server cache detail 5s bị invalidate MỌI khi ghi log/đổi
   // status (scanStaff / append Dư / meal-move / completeTask đều invalidateTaskDetailCache_)
   // → poll trúng cache (không đọc sheet) hầu hết thời gian, chỉ đọc lại ngay sau khi có
-  // ghi từ thiết bị khác → bên kia hiển thị mới trong vòng 1 chu kỳ poll (~4s).
-  var SCAN_POLL_MS = 4000;
+  // ghi từ thiết bị khác → bên kia hiển thị mới trong vòng 1 chu kỳ poll (~3s).
+  var SCAN_POLL_MS = 3000;
   var scanPollTimer = null;
   var scanPollInFlight = false;
   var lastScanPollSig = null;
@@ -1455,10 +1455,10 @@
   // ===== ĐỒNG BỘ REAL-TIME DANH SÁCH TASK — NHIỀU NGƯỜI CÙNG TRUY CẬP (2026-08-16) =====
   // Người này tạo/kết thúc/mở lại/đổi ghi chú task → người khác đang mở app phải thấy
   // NGAY mà không cần bấm "⟳ Làm mới". GAS không có push → poll getTaskListApi định kỳ:
-  // server cache 30s bị invalidate MỌI khi ghi task (insertTask_/updateTaskStatus_/
+  // server cache 10s bị invalidate MỌI khi ghi task (insertTask_/updateTaskStatus_/
   // updateTaskNote_) → poll trúng cache hầu hết thời gian (không đọc sheet), chỉ đọc
-  // lại ngay sau khi có ghi từ thiết bị khác → bên kia hiển thị mới trong 1 chu kỳ (~5s).
-  var TASK_LIST_POLL_MS = 5000;
+  // lại ngay sau khi có ghi từ thiết bị khác → bên kia hiển thị mới trong 1 chu kỳ (~3s).
+  var TASK_LIST_POLL_MS = 3000;
   var taskListPollTimer = null;
   var taskListPollInFlight = false;
   var lastTaskListSig = null;
