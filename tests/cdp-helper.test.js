@@ -18,3 +18,16 @@ test('cdp-helper select: đọc prefix từ args[1] + có return', () => {
   assert.ok(block.indexOf('return;') >= 0,
     'sau khi chọn tab phải return — nếu không rơi xuống "Lệnh không biết: select"');
 });
+
+test('cdp-helper: connect/send không treo vĩnh viễn (timeout + onclose) — bug 2026-08-18', () => {
+  assert.match(src, /WS_CONNECT_TIMEOUT_MS/, 'phải có hằng số timeout connect');
+  assert.match(src, /WS_SEND_TIMEOUT_MS/, 'phải có hằng số timeout send');
+  // connect(): onclose phải reject mọi promise đang chờ (tab đóng giữa chừng).
+  const connectBlock = src.slice(src.indexOf('function connect('), src.indexOf('function send('));
+  assert.ok(connectBlock.indexOf('ws.onclose') >= 0,
+    'connect() phải set onclose — nếu WS đóng, promise connect/pending không bao giờ resolve → treo');
+  // send(): timeout reject + clear khỏi pending.
+  const sendBlock = src.slice(src.indexOf('function send('), src.indexOf('function setupListener('));
+  assert.ok(sendBlock.indexOf('setTimeout') >= 0 && sendBlock.indexOf('pending.delete(id)') >= 0,
+    'send() phải có timeout reject và xóa khỏi pending');
+});

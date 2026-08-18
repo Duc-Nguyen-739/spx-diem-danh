@@ -13,8 +13,15 @@ const http = require('node:http');
 const fs = require('node:fs');
 
 const CDP_HTTP = 'http://127.0.0.1:9222';
+const WS_CONNECT_TIMEOUT_MS = 10000;  // connect WS không treo vĩnh viễn (bug 2026-08-18)
+const WS_SEND_TIMEOUT_MS = 15000;     // CDP không phản hồi → reject thay vì treo main()
 const args = process.argv.slice(2);
 const cmd = args[0] || 'list';
+
+function rejectAllPending(err) {
+  pending.forEach((p) => p.reject(err));
+  pending.clear();
+}
 
 function httpGet(path, method) {
   return new Promise((resolve, reject) => {
@@ -36,16 +43,27 @@ let selectedTabId = null;
 
 function connect(wsUrl) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => resolve(ws);
-    ws.onerror = (e) => reject(new Error('WS error: ' + (e && e.message)));
+    let ws;
+    const to = setTimeout(() => {
+      try { ws && ws.close(); } catch (e) {}
+      reject(new Error('WS connect timeout'));
+    }, WS_CONNECT_TIMEOUT_MS);
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => { clearTimeout(to); resolve(ws); };
+    ws.onerror = (e) => { clearTimeout(to); reject(new Error('WS error: ' + (e && e.message))); };
+    // WS đóng giữa chừng (CDP đóng/tab đóng) → reject mọi promise đang chờ — không treo.
+    ws.onclose = () => { clearTimeout(to); rejectAllPending(new Error('WS closed')); };
   });
 }
 
 function send(ws, method, params) {
   return new Promise((resolve, reject) => {
     const id = ++msgId;
-    pending.set(id, { resolve, reject });
+    const to = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('CDP timeout: ' + method));
+    }, WS_SEND_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timeout: to });
     ws.send(JSON.stringify({ id, method, params: params || {} }));
   });
 }
@@ -56,6 +74,7 @@ function setupListener(ws) {
     if (msg.id && pending.has(msg.id)) {
       const p = pending.get(msg.id);
       pending.delete(msg.id);
+      if (p.timeout) clearTimeout(p.timeout);
       if (msg.error) p.reject(new Error(msg.error.message));
       else p.resolve(msg.result);
     }
