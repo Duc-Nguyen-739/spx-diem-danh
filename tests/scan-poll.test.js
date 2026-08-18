@@ -381,6 +381,18 @@ test('anyModalOpen: camera modal live (display flex) → coi là có modal', () 
   assert.equal(sb.ctx.anyModalOpen(), true, 'camera modal live đang hiện → phải trả true');
 });
 
+// ===== Bug 1 (2026-08-18): anyModalOpen bỏ sót create/confirm/createMealModal =====
+test('anyModalOpen: create/confirm/createMealModal mở (class open) → coi là có modal', () => {
+  const sb = run(makeSandbox());
+  ['createModal', 'confirmModal', 'createMealModal'].forEach(function (id) {
+    // anyModalOpen dùng document.querySelector — mock trả về modal khi selector có id này.
+    sb.ctx.document.querySelector = function (sel) {
+      return sel.indexOf('#' + id + '.open') >= 0 ? { id: id } : null;
+    };
+    assert.equal(sb.ctx.anyModalOpen(), true, id + ' đang mở → phải trả true (auto-focus loop không giật focus)');
+  });
+});
+
 test('auto-focus loop: camera mở → KHÔNG input.focus() (không bật bàn phím che camera)', () => {
   const sb = run(makeSandbox());
   let focusCalls = 0;

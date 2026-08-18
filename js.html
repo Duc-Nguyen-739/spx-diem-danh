@@ -602,7 +602,11 @@
     if (window.__RC_CAM_OPEN__) return true;
     var cm = byId('cameraModal');
     if (cm && cm.style.display === 'flex') return true;
-    return document.querySelector('.about-overlay.open') !== null;
+    // Tạo task / confirm / tạo task meal-move mở bằng classList.add('open') — nếu không
+    // check, auto-focus loop + poll vẫn chạy khi modal đang mở (bug 2026-08-18).
+    return document.querySelector(
+      '.about-overlay.open, #createModal.open, #confirmModal.open, #createMealModal.open'
+    ) !== null;
   }
 
   // Modal confirm dùng chung — thay alert/confirm trình duyệt.
