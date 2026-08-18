@@ -129,6 +129,9 @@
   var camPopupBusy = false;
   var camPopupRef = null;  // reference popup đang mở — check .closed để biết popup đã đóng
                              // (đóng bằng ✕ Đóng / đóng tab đều không gửi message về parent)
+  var camPopupWatch = null;  // interval poll popup đóng (browser ✕ / đóng tab) — popup không
+                             // gửi message 'closed' khi đóng qua browser, cờ camOpen/
+                             // __RC_CAM_OPEN__ kẹt vĩnh viễn nếu không poll (bug 2026-08-18)
 
   function buildScanPopupHtml() {
     return [
@@ -624,6 +627,25 @@
     ].join('\n');
   }
 
+  // Poll popup đã đóng chưa (mỗi 500ms) — browser ✕ / đóng tab không gửi message về
+  // parent → camPopupBusy/camOpen/__RC_CAM_OPEN__ kẹt vĩnh viễn, modal không mở lại
+  // được (bug 2026-08-18). Chỉ chạy khi popup đang mở.
+  function startCamPopupWatch() {
+    stopCamPopupWatch();
+    camPopupWatch = setInterval(function () {
+      if (camPopupRef && camPopupRef.closed) {
+        stopCamPopupWatch();
+        camPopupBusy = false;
+        camPopupRef = null;
+        camOpen = false;
+        try { window.__RC_CAM_OPEN__ = false; } catch (e) {}
+      }
+    }, 500);
+  }
+  function stopCamPopupWatch() {
+    if (camPopupWatch) { clearInterval(camPopupWatch); camPopupWatch = null; }
+  }
+
   function openScanPopup() {
     var popup = null;
     try { popup = window.open('', CAM_POPUP_NAME); } catch (e) { popup = null; }
@@ -643,6 +665,7 @@
     // cũ cùng tên đã đóng — nếu bỏ qua không viết nội dung → TAB TRẮNG (bug 2026-08-13).
     camPopupBusy = true;
     camPopupRef = popup;
+    startCamPopupWatch();
     var html = buildScanPopupHtml();
     try {
       popup.document.open();
@@ -650,6 +673,7 @@
       popup.document.close();
       camStatus('📷 Quét mã trong cửa sổ vừa mở — đưa mã vào khung là tự nhận', false);
     } catch (e) {
+      stopCamPopupWatch();
       camPopupBusy = false;
       camPopupRef = null;
       camOpen = false;
@@ -698,6 +722,7 @@
       }
       if (ev.data.type === 'rcScanPopup' && ev.data.state === 'failed') {
         // Popup không mở được camera (bị chặn/không hỗ trợ) → fallback camera native
+        stopCamPopupWatch();
         camPopupBusy = false;
         camPopupRef = null;
         camOpen = false;
@@ -708,6 +733,7 @@
       }
       if (ev.data.type === 'rcScanPopup' && ev.data.state === 'closed') {
         // User bấm "✕ Đóng" trong popup → popup tự đóng → cho mở popup mới ở lần sau
+        stopCamPopupWatch();
         camPopupBusy = false;
         camPopupRef = null;
         camOpen = false;
