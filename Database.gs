@@ -579,6 +579,7 @@ function updateLogRowScan_(row, timeScan, status) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_SCAN + 1, 1, 2).setValues([[timeScan, status]]);
   invalidateTaskDetailCache_(row.taskId);
+  invalidateTaskListCache_();  // U3: scan đổi counter → danh sách task (thiết bị khác) phải thấy ngay
   // U2: cập nhật row trong LOG_ROWS cache (incremental) — scan kế không chạm sheet.
   // KHÔNG nhét Date timeScan vào cache: JSON→string; schema slim chỉ có text+epoch.
   updateLogRowCache_(row.taskId, row._rowIndex, function (r) {
@@ -622,6 +623,7 @@ function appendLogRow_(row) {
     row.timeRa || '', row.agency || '',  // timeRa, agency (meal-move)
   ]);
   invalidateTaskDetailCache_(row.taskId);
+  invalidateTaskListCache_();  // U3: dòng Dư mới → counter list đổi
   invalidateLogRows_(row.taskId); // U2: dòng mới append cuối — cache cũ thiếu dòng → xoá (tần suất thấp)
 }
 
@@ -657,6 +659,7 @@ function updateLogRowRa_(row, timeRa, status) {
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setValue(timeRa);
   sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1).setValue(status);
   invalidateTaskDetailCache_(row.taskId);
+  invalidateTaskListCache_();  // U3: Ra đổi status/counter → danh sách task thiết bị khác thấy ngay
   updateLogRowCache_(row.taskId, row._rowIndex, function (r) {
     r.status = status;
     r.timeRaText = formatTime_(timeRa);
@@ -701,6 +704,7 @@ function batchMealMoveLogUpdates_(taskId, updates) {
       }
     });
     invalidateTaskDetailCache_(taskId);
+    invalidateTaskListCache_();  // U3: batch meal-move đổi counter → list thiết bị khác thấy ngay
     invalidateLogRows_(taskId);
   }
   return anyChanged ? updates.length : 0;
@@ -734,5 +738,6 @@ function batchAppendLogRows_(rows) {
   rows.forEach(function (r) {
     if (!seen[r.taskId]) { seen[r.taskId] = true; invalidateTaskDetailCache_(r.taskId); invalidateLogRows_(r.taskId); }
   });
+  invalidateTaskListCache_();  // U3: batch append đổi counter → list thiết bị khác thấy ngay
   return rows.length;
 }
