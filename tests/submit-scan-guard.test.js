@@ -29,3 +29,11 @@ test('submitScan: nhánh reconcile-batch focus có guard camera', () => {
   assert.ok(before.indexOf('if (!window.__RC_CAM_OPEN__) input.focus()') >= 0,
     'input.focus() trong nhánh reconcile-batch phải có guard !__RC_CAM_OPEN__');
 });
+
+test('submitScan: nhánh task đã kết thúc focus có guard camera (bug 2026-08-18)', () => {
+  const i = src.indexOf("showToast('Task đã kết thúc', true);\n      playBeep('error');");
+  assert.ok(i >= 0, 'phải có nhánh task đã kết thúc trong submitScan');
+  const block = src.slice(i, i + 320);
+  assert.ok(block.indexOf("if (!window.__RC_CAM_OPEN__) byId('scanInput').focus();") >= 0,
+    'input.focus() ở nhánh task đã kết thúc phải có guard !__RC_CAM_OPEN__ (trước không có → bật bàn phím che camera)');
+});

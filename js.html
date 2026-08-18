@@ -2422,7 +2422,9 @@
       showToast('Task đã kết thúc', true);
       playBeep('error');
       byId('scanInput').value = '';
-      byId('scanInput').focus();
+      // F2: không focus khi camera đang mở — bàn phím bật lên che camera (khớp các
+      // chỗ khác đã guard `!window.__RC_CAM_OPEN__`; bug 2026-08-18).
+      if (!window.__RC_CAM_OPEN__) byId('scanInput').focus();
       return;
     }
     var input = byId('scanInput');
