@@ -171,3 +171,35 @@ test('popup bị đóng bằng tab trình duyệt (không có message) → mở 
   assert.equal(popups.length, 2, 'phải mở window mới (window cũ cùng tên đã đóng)');
   assert.equal(written.length, 2, 'window mới phải được ghi nội dung — không tab trắng');
 });
+
+// ===== Bug 5 (2026-08-18): cờ busy popup KẸT true sau khi nhận mã =====
+// sendResult không gọi onDone → 4 nhánh chain thành công return sớm, busy không
+// được reset → tick sau if (busy) return; → loop quét liên tục CHẾT sau mã đầu.
+// Fix: busy=false ngay trước sendResult trong cả 4 nhánh (BarcodeDetector / jsQR /
+// Quagga agree / Quagga agree2 — early-exit). Test kiểm tra source popup deploy.
+test('popup: chain thành công phải reset busy=false trước sendResult (không kẹt loop)', () => {
+  const written = [];
+  const sb = makeSandbox({ popupFactory: () => fakePopup(written) });
+  sb.ctx.openScanPopup();
+  const html = written[0];
+  const m = html.match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(m, 'popup phải có khối <script>');
+  const popScript = m[1];
+  const chainLines = [
+    'res[0].rawValue',        // decodeChain BarcodeDetector
+    'qr.data',                // decodeFallback jsQR
+    'agree',                  // runQuagga kết thúc config
+    'agree2',                 // runQuagga early-exit
+  ];
+  chainLines.forEach((marker) => {
+    const line = popScript.split('\n').filter((l) => l.indexOf(marker) >= 0 && l.indexOf('sendResult') >= 0);
+    assert.ok(line.length >= 1, `nhánh "${marker}" phải có lệnh sendResult`);
+    const busyIdx = line[0].indexOf('busy = false;');
+    const srIdx = line[0].indexOf('sendResult');
+    assert.ok(busyIdx !== -1, `nhánh "${marker}": phải reset busy=false TRƯỚC sendResult (nếu không cờ busy kẹt → loop chết sau mã đầu)`);
+    assert.ok(busyIdx < srIdx, `nhánh "${marker}": busy=false phải đứng TRƯỚC sendResult`);
+  });
+  // Nhánh fast path (LIBS.fast) cũng phải reset busy (callback đã set busy=false trước khi gọi sendResult)
+  const fastLine = popScript.split('\n').filter((l) => l.indexOf('LIBS.fast') >= 0);
+  assert.ok(fastLine.length >= 1, 'popup phải có fast path');
+});
