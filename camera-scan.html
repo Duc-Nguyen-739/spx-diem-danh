@@ -586,7 +586,7 @@
       '      osc.type = type || "sine";',
       '      osc.frequency.value = freq;',
       '      var t0 = ctx.currentTime + (delay || 0);',
-      '      var v = (vol === undefined) ? 0.12 : vol;',
+      '      var v = (vol === undefined) ? 0.9 : vol;',
       '      gain.gain.setValueAtTime(v, t0);',
       '      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);',
       '      osc.start(t0); osc.stop(t0 + dur + 0.03);',

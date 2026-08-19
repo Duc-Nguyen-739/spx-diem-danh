@@ -439,11 +439,13 @@
       if (type === 'error') {
         osc.type = 'square';
         osc.frequency.value = 200;
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        // 2026-08-19: âm lượng tối đa (gain max 1.0) — square nghe TO hơn sine cùng
+        // amplitude nên để 0.7 tránh rè; trước đây 0.08 quá nhỏ (user không nghe thấy).
+        gain.gain.setValueAtTime(0.7, ctx.currentTime);
       } else {
         osc.type = 'sine';
         osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.setValueAtTime(0.9, ctx.currentTime);
       }
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
       osc.start();
