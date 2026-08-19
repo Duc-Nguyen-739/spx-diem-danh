@@ -224,7 +224,7 @@ def log_from_row(task_id, row):
         "timeScanEpoch": scan_epoch,
         "timeRaText": cache.format_time(time_ra),
         "timeRaEpoch": ra_epoch,
-        "durationMinutes": round((scan_epoch - ra_epoch) / 60000) if (time_ra and time_scan) else 0,
+        "durationMinutes": max(0, round((scan_epoch - ra_epoch) / 60000)) if (time_ra and time_scan) else 0,
         "status": str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else ""),
         "dateText": cache.to_display_date(row[lc["DATE"]] if len(row) > lc["DATE"] else None),
     }
@@ -406,7 +406,8 @@ def _mutate_scan_cache(r, time_scan, status):
     r["timeScanText"] = cache.format_time(time_scan)
     r["timeScanEpoch"] = cache.epoch_ms(time_scan)
     if r.get("timeRaEpoch", 0) > 0 and r.get("timeScanEpoch", 0) > 0:
-        r["durationMinutes"] = round((r["timeScanEpoch"] - r["timeRaEpoch"]) / 60000)
+        # B1 (2026-08-19): Vào trước Ra (quét bù) → clamp 0, không số âm
+        r["durationMinutes"] = max(0, round((r["timeScanEpoch"] - r["timeRaEpoch"]) / 60000))
 
 
 def update_log_row_cache(task_id, row_index, mutate):

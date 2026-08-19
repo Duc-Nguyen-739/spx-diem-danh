@@ -504,3 +504,23 @@ test('renderDash: user bỏ chọn 1 station → renderDash KHÔNG check lại s
   assert.equal(ctx.__boxes['dashStn|Kho B'].checked, false, 'station đã bỏ chọn phải giữ nguyên (trước check lại hết → filter bị reset)');
   assert.equal(ctx.__boxes['dashStn|Kho A'].checked, true, 'station đang chọn phải giữ');
 });
+
+// ===== B2 (2026-08-19): poll KHÔNG reset phân trang khi filter không đổi =====
+test('applyDashFilters: poll cùng filter GIỮ trang; đổi filter reset về 1 (B2)', () => {
+  const many = [];
+  for (let i = 1; i <= 31; i++) { // 31 task → 2 trang (TASK_PAGE_SIZE=30)
+    many.push({ taskId: 'T' + i, status: 'open', taskType: 'reconcile', station: 'Kho A', slotCode: 'Ca1', team: 'T1' });
+  }
+  const ctx = dashSandbox({ els: { dynType: { querySelectorAll: function () { return []; } }, dynStn: { querySelectorAll: function () { return []; } }, dynCa: { querySelectorAll: function () { return []; } }, dynTeam: { querySelectorAll: function () { return []; } }, dKpiTotal: {}, dKpiOpen: {}, dKpiDone: {}, dKpiScan: {}, dSt_open: {}, dSt_done: {}, dFilterBadge: {} }, dashStn: ['Kho A'], dashType: ['reconcile'], dashCa: ['Ca1'], dashTeam: ['T1'] });
+  ctx.renderDash(many);
+  ctx.goTaskPage(2);
+  assert.equal(ctx._taskPage, 2, 'user phải sang được trang 2');
+  // Poll lặp lại với CÙNG filter (dữ liệu giống — nhưng renderDash chạy lại)
+  ctx.renderDash(many);
+  assert.equal(ctx._taskPage, 2, 'poll cùng filter phải GIỮ trang (trước reset về 1)');
+  // User đổi filter → phải reset về trang 1
+  ctx.__boxes['dashSt|all'].checked = false;
+  ctx.__boxes['dashSt|done'] = { name: 'dashSt', value: 'done', checked: true };
+  ctx.applyDashFilters();
+  assert.equal(ctx._taskPage, 1, 'đổi filter phải reset về trang 1');
+});

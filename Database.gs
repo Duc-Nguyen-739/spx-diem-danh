@@ -342,8 +342,9 @@ function logFromRow_(taskId, row) {
     // meal-move: giờ Ra + epoch (sort/counter cho Ra)
     timeRaText: formatTime_(timeRa),
     timeRaEpoch: timeRa ? timeRa.getTime() : 0,
-    // meal-move: số phút giữa Ra→Vào (chỉ khi có cả 2)
-    durationMinutes: (timeRa && timeScan) ? Math.round((timeScan.getTime() - timeRa.getTime()) / 60000) : 0,
+    // meal-move: số phút giữa Ra→Vào (chỉ khi có cả 2). B1 (2026-08-19): quét Vào
+    // trước Ra (bù) → timeScan < timeRa → clamp 0 (trước hiển thị số ÂM sau reload).
+    durationMinutes: (timeRa && timeScan) ? Math.max(0, Math.round((timeScan.getTime() - timeRa.getTime()) / 60000)) : 0,
     status: String(row[LOG_COLS.STATUS] || ''),
     // Date = ngay vao lam (copy tu StaffData) — format yyyy-MM-dd (ISO) cho hien thi
     dateText: formatDateShort_(row[LOG_COLS.DATE]),
@@ -599,9 +600,9 @@ function updateLogRowScan_(row, timeScan, status) {
     r.status = status;
     r.timeScanText = formatTime_(timeScan);
     r.timeScanEpoch = timeScan.getTime();
-    // meal-move: nếu có timeRa → cập nhật durationMinutes
+    // meal-move: nếu có timeRa → cập nhật durationMinutes (B1: clamp 0 — Vào trước Ra)
     if (r.timeRaEpoch > 0 && r.timeScanEpoch > 0) {
-      r.durationMinutes = Math.round((r.timeScanEpoch - r.timeRaEpoch) / 60000);
+      r.durationMinutes = Math.max(0, Math.round((r.timeScanEpoch - r.timeRaEpoch) / 60000));
     }
   });
   return true;

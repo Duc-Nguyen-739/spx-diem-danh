@@ -157,6 +157,21 @@ class TestServices(unittest.TestCase):
         detail = services.get_task_detail(task_id)
         self.assertEqual(detail["task"]["status"], "open", "task cũ không bị đóng khi tạo task mới fail")
 
+    def test_meal_move_vao_before_ra_duration_not_negative(self):
+        # B1 (2026-08-19): quét Vào trước Ra (bù) — durationMinutes sau reload phải
+        # clamp 0, KHÔNG âm (timeScan < timeRa → round ra số âm).
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        task_id = r["taskId"]
+        services.scan_staff(task_id, "Ops001", "vao", now_override=self.t0)
+        services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0 + datetime.timedelta(minutes=5))
+        detail = services.get_task_detail(task_id)
+        row = detail["log"][0]
+        self.assertEqual(row["status"], "Có mặt")
+        self.assertGreaterEqual(row["durationMinutes"], 0, "duration không được âm")
+        self.assertEqual(row["durationMinutes"], 0)
+
     def test_meal_move_ra_then_vao(self):
         r = services.create_meal_move_task({
             "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001", "Ops002"], "createdBy": "creator@x",
