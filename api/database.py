@@ -297,6 +297,19 @@ def invalidate_task_detail_cache(task_id):
     cache.cache_remove(config.CACHE_KEYS["TASK_DETAIL"] + task_id)
 
 
+_TIME_FMT = "HH:mm:ss"
+
+
+def _format_time_columns(num_rows):
+    """Set number format HH:mm:ss cho cột TIME_RA + TIME_SCAN (hiển thị sheet như GAS
+    setNumberFormat — nếu không, cell datetime hiện dạng đầy đủ '19/8/2026 09:02:15')."""
+    if num_rows <= 1:
+        return
+    lc = config.LOG_COLS
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], 2, lc["TIME_RA"] + 1, num_rows - 1, 1, _TIME_FMT)
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], 2, lc["TIME_SCAN"] + 1, num_rows - 1, 1, _TIME_FMT)
+
+
 def batch_insert_log_rows(task_id, staff_list, created_at):
     """Pre-fill log batch 1 lần (createReconcileTask) — KHÔNG append loop."""
     if not staff_list:
@@ -321,6 +334,7 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         rows.append(row)
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
     invalidate_log_rows(task_id)  # scan đầu sẽ đọc tươi (cold 1 lần, an toàn)
+    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
     return len(rows)
 
 
@@ -378,6 +392,7 @@ def update_log_row_scan(row, time_scan, status):
     """Ghi timeScan + status cho 1 dòng (theo _rowIndex) — 1 batch."""
     lc = config.LOG_COLS
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, [[cache.to_iso_cell(time_scan), status]])
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_scan_cache(r, time_scan, status))
@@ -425,6 +440,7 @@ def append_log_row(row):
     out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
     out[lc["AGENCY"]] = row.get("agency", "")
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], [out])
+    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row.get("taskId", ""))
     invalidate_log_rows(row.get("taskId", ""))
@@ -435,6 +451,7 @@ def update_log_row_ra(row, time_ra, status):
     lc = config.LOG_COLS
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, [[cache.to_iso_cell(time_ra)]])
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["STATUS"] + 1, [[status]])
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_ra_cache(r, time_ra, status))
@@ -483,6 +500,7 @@ def batch_meal_move_log_updates(task_id, updates):
         invalidate_task_list_cache()
         invalidate_task_detail_cache(task_id)
         invalidate_log_rows(task_id)
+        _format_time_columns(len(values))
     return len(updates) if any_changed else 0
 
 
@@ -509,6 +527,7 @@ def batch_append_log_rows(rows):
         out[lc["AGENCY"]] = row.get("agency", "")
         payload.append(out)
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
+    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
     invalidate_task_list_cache()
     seen = set()
     for r in rows:

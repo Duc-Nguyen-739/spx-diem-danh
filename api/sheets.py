@@ -100,3 +100,45 @@ def _col_letter(idx):
         idx, rem = divmod(idx - 1, 26)
         s = chr(65 + rem) + s
     return s
+
+
+_sheet_ids = {}
+
+
+def sheet_id(sheet_name):
+    """Grid sheetId theo tên — repeatCell/batchUpdate cần sheetId, không phải tên."""
+    if sheet_name not in _sheet_ids:
+        resp = get_service().spreadsheets().get(
+            spreadsheetId=spreadsheet_id(),
+            fields="sheets(properties(sheetId,title))",
+        ).execute()
+        for s in resp.get("sheets", []):
+            _sheet_ids[s["properties"]["title"]] = s["properties"]["sheetId"]
+    return _sheet_ids.get(sheet_name)
+
+
+def set_number_format(sheet_name, start_row, start_col, num_rows, num_cols, fmt):
+    """Set number format cho dải ô — tương đương GAS Range.setNumberFormat (giờ HH:mm:ss)."""
+    if not num_rows or not num_cols:
+        return
+    sid = sheet_id(sheet_name)
+    if sid is None:
+        return
+    body = {
+        "requests": [{
+            "repeatCell": {
+                "range": {
+                    "sheetId": sid,
+                    "startRowIndex": start_row - 1,
+                    "endRowIndex": start_row - 1 + num_rows,
+                    "startColumnIndex": start_col - 1,
+                    "endColumnIndex": start_col - 1 + num_cols,
+                },
+                "cell": {"userEnteredFormat": {"numberFormat": {"type": "DATE_TIME", "pattern": fmt}}},
+                "fields": "userEnteredFormat.numberFormat",
+            }
+        }]
+    }
+    get_service().spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id(), body=body,
+    ).execute()

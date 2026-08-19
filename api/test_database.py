@@ -44,6 +44,10 @@ class FakeSheets:
         data.extend([list(r) for r in rows])
         return len(rows)
 
+    def set_number_format(self, sheet_name, start_row, start_col, num_rows, num_cols, fmt):
+        # number format là hiển thị (cosmetic) — fake chỉ cần tồn tại method
+        return None
+
 
 STAFF_HEADER = ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency', 'Contract Type',
                 'Event ID', 'Matching Type', 'Gender', 'Department', 'Clock In Time', 'Clock Out Time',
