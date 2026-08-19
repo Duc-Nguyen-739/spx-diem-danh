@@ -32,6 +32,8 @@ function makeSandbox(opts) {
       return { style: {}, setAttribute() {}, appendChild() {}, removeChild() {}, click() {} };
     },
     body: { classList: { add() {}, remove() {} } },
+    head: { appendChild() {} },
+    getElementsByTagName() { return []; },
     addEventListener(type, fn) { handlers[type] = fn; },
   };
   const win = {
@@ -101,6 +103,14 @@ test('openCameraScan trong iframe → mở popup quét live (window.open + docum
   assert.ok(html.indexOf('runFullChain') >= 0, 'popup chạy full chain chỉ khi fast fail — fast path chạy MỖI tick');
   assert.ok(html.indexOf('focusMode: "continuous"') >= 0, 'popup bật focus liên tục MẶC ĐỊNH lúc mở camera');
   assert.equal(sb.ctx.camPopupBusy, true, 'cờ busy được bật khi popup mở');
+});
+
+test('openCameraScan trong iframe → bật OCR (ensureOcrLib) cho popup', () => {
+  const sb = makeSandbox({ popupFactory: () => fakePopup([]) });
+  sb.ctx.openCameraScan();
+  assert.equal(sb.opened.length, 1, 'phải gọi window.open 1 lần');
+  assert.equal(sb.ctx.camOcrLoading, true, 'phải bắt đầu tải Tesseract (OCR popup — bug 2026-08-19)');
+  assert.equal(sb.ctx.camOcrLoadFailed, false, 'chưa fail ở thời điểm mở popup');
 });
 
 test('window.open trả null (popup bị chặn) → fallback camera native (camFile.click)', () => {

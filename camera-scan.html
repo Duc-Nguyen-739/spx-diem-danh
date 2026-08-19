@@ -111,6 +111,11 @@
       // được ở trang top-level trên iOS, đã verify với demo standalone 2026-08-12).
       // Popup bị chặn (window.open null) hoặc camera trong popup bị chặn → fallback
       // camera native (<input capture>) — không bao giờ kẹt.
+      // OCR chữ Ops… cho popup (bug 2026-08-19): popup gọi LIBS.ocr = opener.camOcrFrame
+      // nhưng camOcrEnabled chỉ được bật qua startOcrLoop (đường MODAL) — đường popup
+      // không bao giờ load Tesseract → OCR im lặng chết trên GAS. Bật ngay ở parent
+      // trước khi mở popup (fail load → camOcrLoadFailed → popup OCR no-op an toàn).
+      ensureOcrLib(function () {});
       openScanPopup();
       return;
     }
