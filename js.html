@@ -442,14 +442,19 @@
         // 2026-08-19: âm lượng tối đa (gain max 1.0) — square nghe TO hơn sine cùng
         // amplitude nên để 0.7 tránh rè; trước đây 0.08 quá nhỏ (user không nghe thấy).
         gain.gain.setValueAtTime(0.7, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
       } else {
-        osc.type = 'sine';
-        osc.frequency.value = 880;
+        // 2026-08-19: "Ting" 1 phát — triangle 2093Hz (C7) chuông nhẹ + suy giảm,
+        // volume to (0.9). Trước: sine 880Hz 0.15s.
+        osc.type = 'triangle';
+        osc.frequency.value = 2093;
         gain.gain.setValueAtTime(0.9, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
       }
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.15);
     } catch (e) { /* kiosk không hỗ trợ audio — bỏ qua */ }
   }
 
