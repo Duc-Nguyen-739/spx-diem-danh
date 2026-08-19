@@ -48,3 +48,18 @@ test('Database.gs: mọi hàm ghi log scan phải invalidate task list cache (th
       fn + ' phải gọi invalidateTaskListCache_() sau khi ghi (bug: counter list lệch ~30s)');
   });
 });
+
+// ===== BUG (2026-08-19): batchInsertLogRows_ thiếu setNumberFormat TIME_RA =====
+// Meal-move pre-fill timeRa ("Giờ Ra" = "Giờ điểm danh") — nếu không ép format,
+// cell timeRa hiển thị datetime đầy đủ thay vì HH:mm:ss (append/update đã có format).
+test('Database.gs: batchInsertLogRows_ phải setNumberFormat HH:mm:ss cho TIME_RA + TIME_SCAN', () => {
+  const db = fs.readFileSync(path.join(__dirname, '..', 'Database.gs'), 'utf8');
+  const start = db.indexOf('function batchInsertLogRows_(');
+  assert.ok(start >= 0, 'phải có hàm batchInsertLogRows_');
+  const end = db.indexOf('\nfunction ', start + 1);
+  const block = db.slice(start, end === -1 ? start + 2000 : end);
+  assert.ok(block.indexOf('LOG_COLS.TIME_SCAN + 1') >= 0, 'phải format cột TIME_SCAN');
+  assert.ok(block.indexOf('LOG_COLS.TIME_RA + 1') >= 0, 'phải format cột TIME_RA');
+  assert.ok(block.indexOf("setNumberFormat('HH:mm:ss')") >= 0,
+    'phải setNumberFormat HH:mm:ss — pre-fill timeRa hiển thị datetime đầy đủ (bug 2026-08-19)');
+});

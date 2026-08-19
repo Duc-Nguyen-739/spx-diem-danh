@@ -427,6 +427,11 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);
+  // Meal-move pre-fill timeRa ("Giờ Ra" = "Giờ điểm danh"): ép format HH:mm:ss cho
+  // TIME_RA + TIME_SCAN (khớp batchAppendLogRows_/batchMealMoveLogUpdates_) — nếu không,
+  // cell timeRa hiển thị datetime đầy đủ (bug 2026-08-19, trước chỉ append được format).
+  sheet.getRange(startRow, LOG_COLS.TIME_SCAN + 1, rows.length, 1).setNumberFormat('HH:mm:ss');
+  sheet.getRange(startRow, LOG_COLS.TIME_RA + 1, rows.length, 1).setNumberFormat('HH:mm:ss');
   // Yêu cầu 2026-08-10: tạo task xong → PRE-WARM cache log (LOG_ROWS) NGAY để lần scan
   // đầu tiên có sẵn thông tin NV (tên/ca/team/station/vender) — không phải đọc lại cả
   // sheet AttendanceLog (lần đầu cold = chậm). Dùng ĐÚNG slim schema readLogRowsCached_
