@@ -2413,6 +2413,12 @@
             if (res.workstation != null) item.target.workstation = res.workstation;
             if (res.durationMinutes != null) item.target.durationMinutes = res.durationMinutes;
           }
+          // NV lạ: response về sau khi quét NV khác → showScanCard bỏ qua (scanSeq không
+          // còn mới nhất) → dòng camera giữ '…'. Điền tên thật theo mã (khớp đường
+          // reconcile BUG 10 — meal-move trước đây thiếu nhánh này, 2026-08-19).
+          if (res.staffName && item.optimisticNew && typeof camUpdateName === 'function') {
+            camUpdateName(item.target.staffId, res.staffName);
+          }
           if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.status || item.optimisticStatus, item.target, false); }
           syncCounters(res.counters);
           renderScanTable(CURRENT_LOG);
@@ -2809,8 +2815,10 @@ if (res.ok) {
               if (res.workstation != null) item.target.workstation = res.workstation;
               // BUG 10 (2026-08-18): NV lạ — response về sau khi quét NV khác bị showScanCard
               // bỏ qua (scanSeq không còn mới nhất) → dòng camera giữ '…'. Cập nhật dòng Dư
-              // theo mã (không theo scanSeq) khi server trả tên thật.
-              if (res.staffName && item.optimisticStatus === STATUS_C.EXTRA && typeof camUpdateName === 'function') {
+              // theo mã (không theo scanSeq) khi server trả tên thật. (2026-08-19) điều kiện
+              // mở rộng: NV lạ quét Ra ở meal-move (optimisticStatus = OUT) trước đây bị bỏ
+              // qua vì chỉ khớp EXTRA → dùng optimisticNew cho đúng mọi đường quét.
+              if (res.staffName && item.optimisticNew && typeof camUpdateName === 'function') {
                 camUpdateName(item.target.staffId, res.staffName);
               }
             }
