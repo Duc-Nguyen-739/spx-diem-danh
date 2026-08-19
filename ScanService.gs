@@ -122,7 +122,9 @@ function scanStaff(taskId, rawStaffId, mode) {
         timeScanText = formatTime_(now);
         timeScanEpoch = now.getTime();
         if (effectiveResult.row.timeRaEpoch > 0) {
-          durationMinutes = Math.round((now.getTime() - effectiveResult.row.timeRaEpoch) / 60000);
+          // P2 (2026-08-19): clamp 0 — khớp read path (Database.gs B1). Đồng hồ lệch
+          // giữa 2 lần quét → response có thể âm trong khi sheet/reload hiện 0.
+          durationMinutes = Math.max(0, Math.round((now.getTime() - effectiveResult.row.timeRaEpoch) / 60000));
           effectiveResult.row.durationMinutes = durationMinutes;
         }
       }
@@ -192,9 +194,8 @@ function scanStaff(taskId, rawStaffId, mode) {
 
 /**
  * Quyết định mode hiệu lực cho scan meal-move.
- * MỌI người quét 'ra' được (2026-08-19, yêu cầu user — khớp Python
- * resolve_meal_move_mode anonymous: không session check; trước đây chỉ createdBy
- * mới được 'ra', người khác bị ép 'vao' fail-closed).
+ * KHÔNG check session người quét (kiosk anonymous — khớp Python resolve_meal_move_mode):
+ * ai quét cũng được 'ra', nhưng vẫn yêu cầu task CÓ createdBy (rỗng → ép 'vao' fail-closed).
  * @param {Object} task — task đã đọc (có createdBy)
  * @param {string} mode — client gửi ('ra' | 'vao' | undefined)
  * @returns {string}

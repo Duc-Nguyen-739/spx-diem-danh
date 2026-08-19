@@ -371,7 +371,9 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
                 time_scan_text = cache.format_time(now_dt)
                 time_scan_epoch = cache.epoch_ms(now_dt)
                 if (result["row"].get("timeRaEpoch") or 0) > 0:
-                    duration_minutes = round((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000)
+                    # P2 (2026-08-19): clamp 0 — khớp read path (database.py B1). Đồng hồ
+                    # lệch giữa 2 lần quét → response có thể âm trong khi sheet/reload hiện 0.
+                    duration_minutes = max(0, round((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000))
             scanned_name = result["row"].get("staffName") or None
             scanned_info = {
                 "agency": result["row"].get("agency") or None,

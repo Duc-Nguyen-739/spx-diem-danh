@@ -5,6 +5,7 @@ Chạy: python3 -m unittest discover -s api -p 'test_*.py'
 """
 
 import datetime
+import os
 import unittest
 
 from api import cache
@@ -171,6 +172,36 @@ class TestServices(unittest.TestCase):
         self.assertEqual(row["status"], "Có mặt")
         self.assertGreaterEqual(row["durationMinutes"], 0, "duration không được âm")
         self.assertEqual(row["durationMinutes"], 0)
+
+    def test_meal_move_response_duration_consistent_with_read_path(self):
+        # P2 (2026-08-19): response scan_staff phải KHỚP read path (get_task_detail).
+        # Bù flow: Vào t0 → Ra t0+5ph — response scan Ra (scanPhase 'ra') trả
+        # durationMinutes=0; read path clamp 0. Nếu sau này response tính khác →
+        # client hiện khác reload → test này bắt.
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        task_id = r["taskId"]
+        services.scan_staff(task_id, "Ops001", "vao", now_override=self.t0)
+        r2 = services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0 + datetime.timedelta(minutes=5))
+        self.assertTrue(r2["ok"], r2.get("message"))
+        self.assertEqual(r2["durationMinutes"], 0, "response bù flow phải 0 (Ra sau Vào)")
+        row = services.get_task_detail(task_id)["log"][0]
+        self.assertEqual(r2["durationMinutes"], row["durationMinutes"],
+                         "response và read path phải khớp — nếu lệch client hiện sai tới khi reload")
+
+    def test_scan_response_duration_clamped_source(self):
+        # P2 (2026-08-19): clamp max(0) trong response scan_staff — khớp read path
+        # (database.py B1). Rule duplicate 1.5s đảm bảo now >= ra_epoch + 1.5s nên
+        # không reachable âm qua API → source check (convention static GAS tests).
+        with open(os.path.join(os.path.dirname(__file__), "services.py"), encoding="utf-8") as f:
+            src = f.read()
+        i = src.find('round((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000)')
+        self.assertGreaterEqual(i, 0, "phải có công thức duration_minutes ở response")
+        line_start = src.rfind("\n", 0, i)
+        line = src[line_start:src.find("\n", i)]
+        self.assertIn("max(0, round(", line,
+                      "response phải clamp max(0, ...) — read path đã clamp (database.py B1)")
 
     def test_meal_move_ra_then_vao(self):
         r = services.create_meal_move_task({

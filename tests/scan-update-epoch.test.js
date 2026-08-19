@@ -63,3 +63,27 @@ test('Database.gs: batchInsertLogRows_ phải setNumberFormat HH:mm:ss cho TIME_
   assert.ok(block.indexOf("setNumberFormat('HH:mm:ss')") >= 0,
     'phải setNumberFormat HH:mm:ss — pre-fill timeRa hiển thị datetime đầy đủ (bug 2026-08-19)');
 });
+
+// ===== P2 (2026-08-19): durationMinutes response/client phải clamp max(0) — khớp read path (B1) =====
+// Read path đã clamp (Database.gs:347/605, Database.gs B1). Rule duplicate 1.5s đảm bảo
+// now >= lastEpoch + 1.5s nên response hiện không thể âm — clamp = defense-in-depth cho
+// mọi thay đổi tương lai + giữ nhất quán response/read path. Source check (không reachable
+// qua API để test behavior — convention file này).
+test('ScanService.gs: durationMinutes response phải clamp Math.max(0) — khớp read path B1', () => {
+  const i = src.indexOf('Math.round((now.getTime() - effectiveResult.row.timeRaEpoch) / 60000)');
+  assert.ok(i >= 0, 'phải có công thức durationMinutes ở nhánh update Vào');
+  const lineStart = src.lastIndexOf('\n', i - 1) + 1;
+  const line = src.slice(lineStart, src.indexOf('\n', i));
+  assert.ok(line.indexOf('Math.max(0, Math.round(') >= 0,
+    'response phải clamp Math.max(0, ...) — read path đã clamp (Database.gs B1)');
+});
+
+test('js.html: optimistic durationMinutes phải clamp Math.max(0) — khớp server (P2 2026-08-19)', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
+  const i = js.indexOf('Math.round((target.timeScanEpoch - target.timeRaEpoch) / 60000)');
+  assert.ok(i >= 0, 'phải có công thức optimistic durationMinutes');
+  const lineStart = js.lastIndexOf('\n', i - 1) + 1;
+  const line = js.slice(lineStart, js.indexOf('\n', i));
+  assert.ok(line.indexOf('Math.max(0, Math.round(') >= 0,
+    'optimistic phải clamp Math.max(0, ...) — response server đã clamp, client phải khớp');
+});
