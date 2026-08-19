@@ -404,7 +404,7 @@ def _mutate_scan_cache(r, time_scan, status):
     r["timeScanText"] = cache.format_time(time_scan)
     r["timeScanEpoch"] = cache.epoch_ms(time_scan)
     if r.get("timeRaEpoch", 0) > 0 and r.get("timeScanEpoch", 0) > 0:
-        r["durationMinutes"] = (r["timeScanEpoch"] - r["timeRaEpoch"]) // 60000
+        r["durationMinutes"] = round((r["timeScanEpoch"] - r["timeRaEpoch"]) / 60000)
 
 
 def update_log_row_cache(task_id, row_index, mutate):

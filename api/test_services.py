@@ -115,6 +115,18 @@ class TestServices(unittest.TestCase):
         self.assertEqual(r2["status"], "Có mặt")
         self.assertEqual(r2["durationMinutes"], 15)
 
+    def test_meal_move_duration_rounds_not_floors(self):
+        # 2026-08-19: khớp GAS Math.round — 15m30s = 16 phút, KHÔNG floor xuống 15
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        task_id = r["taskId"]
+        services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0)
+        r2 = services.scan_staff(task_id, "Ops001", "vao",
+                                 now_override=self.t0 + datetime.timedelta(minutes=15, seconds=30))
+        self.assertTrue(r2["ok"], r2.get("message"))
+        self.assertEqual(r2["durationMinutes"], 16)
+
     def test_paste_meal_move_scan(self):
         services.create_meal_move_task({
             "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
