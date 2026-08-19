@@ -1100,11 +1100,20 @@
     if (s.type.length && s.type.indexOf(t.taskType === 'meal-move' ? 'meal-move' : 'reconcile') === -1) return false;
     return true;
   }
+  // B2 (2026-08-19): applyDashFilters reset _taskPage=1 VÔ ĐIỀU KIỆN → poll danh sách
+  // (renderDash → applyDashFilters) làm user đang xem trang 3 nhảy về trang 1 mỗi lần
+  // có task mới. Chỉ reset khi BỘ LỌC đổi (user thao tác); dữ liệu đổi → giữ trang
+  // (renderTaskList tự clamp khi trang vượt quá số trang mới).
+  var _lastDashFilterSig = '';
+  function dashFilterSig(s) {
+    return s.st + '|' + s.type.join(',') + '|' + s.stn.join(',') + '|' + s.ca.join(',') + '|' + s.team.join(',');
+  }
   function applyDashFilters() {
     var s = dashState();
     var list = _dashTasks.filter(function (t) { return dashMatch(t, s); });
     setText('dFilterBadge', (list.length === _dashTasks.length || !_dashTasks.length) ? '' : '(' + list.length + ')');
-    _taskPage = 1;
+    var sig = dashFilterSig(s);
+    if (sig !== _lastDashFilterSig) { _lastDashFilterSig = sig; _taskPage = 1; }
     renderTaskList(list);
     refreshTypeCounts(s);
   }
@@ -2405,6 +2414,9 @@
             item.target.status = res.status;
             item.target.staffName = res.staffName || item.target.staffName;
             if (res.timeRaText) item.target.timeRaText = res.timeRaText;
+            // B11 (2026-08-19): đồng bộ timeRaEpoch từ server — trước chỉ set text,
+            // sort cột Giờ Ra (js.html sort col 5) dùng epoch client lệch vài giây.
+            if (res.timeRaEpoch) item.target.timeRaEpoch = res.timeRaEpoch;
             if (res.timeScanText) item.target.timeScanText = res.timeScanText;
             if (res.agency) item.target.agency = res.agency;
             // Dư: điền NGAY thông tin NV (Tên/Ca/Team/Station/Vender) từ staffIndex —
@@ -2808,7 +2820,10 @@ if (res.ok) {
             if (item.target) {
               item.target.status = res.status;
               item.target.staffName = res.staffName || item.target.staffName;
-              if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+if (res.timeScanText) item.target.timeScanText = res.timeScanText;
+            // B11 (2026-08-19): meal-move thiếu sync timeScanEpoch (reconcile có :2813) —
+            // sort cột Giờ Vào (col 6) dùng epoch client lệch vài giây tới khi reload.
+            if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
               // sort key chính xác từ server epoch (đồng bộ thời điểm thật)
               if (res.timeScanEpoch) item.target.timeScanEpoch = res.timeScanEpoch;
               // Dư: điền đủ Ca/Team/Station/Vender từ server (phòng cache client miss / data mới)
