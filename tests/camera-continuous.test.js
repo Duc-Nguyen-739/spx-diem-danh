@@ -111,25 +111,42 @@ function makeSandbox(opts) {
   return { ctx, els, handlers, scheduled, opened };
 }
 
-// ===== camShouldMergeResult (thuần) =====
-test('camShouldMergeResult: cùng mã trong mergeMs → merge (optimistic + server response)', () => {
+// ===== camShouldMergeAny (thuần, hàng chờ optimistic — 2026-08-19) =====
+test('camShouldMergeAny: cùng mã trong mergeMs → merge (optimistic + server response)', () => {
   const sb = makeSandbox();
-  assert.equal(sb.ctx.camShouldMergeResult('OPS1', 1000, 'OPS1', 1500, 2500), true);
+  assert.equal(sb.ctx.camShouldMergeAny([{ code: 'OPS1', ts: 1000 }], 'OPS1', 1500, 2500), true);
 });
 
-test('camShouldMergeResult: khác mã → không merge (lượt quét mới)', () => {
+test('camShouldMergeAny: khác mã → không merge (lượt quét mới)', () => {
   const sb = makeSandbox();
-  assert.equal(sb.ctx.camShouldMergeResult('OPS1', 1000, 'OPS2', 1500, 2500), false);
+  assert.equal(sb.ctx.camShouldMergeAny([{ code: 'OPS1', ts: 1000 }], 'OPS2', 1500, 2500), false);
 });
 
-test('camShouldMergeResult: quá mergeMs → không merge (cùng mã quét lại lần sau)', () => {
+test('camShouldMergeAny: quá mergeMs → không merge (cùng mã quét lại lần sau)', () => {
   const sb = makeSandbox();
-  assert.equal(sb.ctx.camShouldMergeResult('OPS1', 1000, 'OPS1', 5000, 2500), false);
+  assert.equal(sb.ctx.camShouldMergeAny([{ code: 'OPS1', ts: 1000 }], 'OPS1', 5000, 2500), false);
 });
 
-test('camShouldMergeResult: chưa có lượt trước (prevTs=0) → không merge', () => {
+test('camShouldMergeAny: chưa có lượt trước (rỗng) → không merge', () => {
   const sb = makeSandbox();
-  assert.equal(sb.ctx.camShouldMergeResult('', 0, 'OPS1', 1500, 2500), false);
+  assert.equal(sb.ctx.camShouldMergeAny([], 'OPS1', 1500, 2500), false);
+});
+
+test('camShouldMergeAny: response trễ >2.5s của lượt TRƯỚC trong hàng chờ vẫn merge (bug 2026-08-19 backlog)', () => {
+  const sb = makeSandbox();
+  const pending = [
+    { code: 'OPS2', ts: 1000 },   // lượt mới hơn, hết hạn
+    { code: 'OPS1', ts: 900 },    // lượt cũ — response của lượt này về trễ
+  ];
+  assert.equal(sb.ctx.camShouldMergeAny(pending, 'OPS1', 2000, 2500), true);
+});
+
+test('camRecordOptimistic: push + giới hạn 8 phần tử', () => {
+  const sb = makeSandbox();
+  const ctx = sb.ctx;
+  for (let i = 0; i < 10; i++) ctx.camRecordOptimistic('OPS' + i, 1000 + i);
+  assert.equal(ctx.camResultPending.length, 8, 'giới hạn queue');
+  assert.equal(ctx.camResultPending[0].code, 'OPS2', 'shift phần tử cũ nhất');
 });
 
 // ===== camEsc / camResultRowHTML (thuần) =====

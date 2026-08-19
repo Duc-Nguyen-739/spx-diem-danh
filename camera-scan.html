@@ -66,8 +66,9 @@
   var camOpen = false;        // phiên quét camera đang hoạt động (modal live HOẶC popup)
   var camLastCode = '';       // mã vừa nhận — dedup: thẻ vẫn nằm trong khung
   var camLastCodeTs = 0;
-  var camResultCode = '';     // mã lượt quét gần nhất (merge optimistic + server response)
-  var camResultTs = 0;
+  var camResultPending = []; // các lượt optimistic đang chờ server response (merge 2.5s) — 2026-08-19:
+                             // thay single slot (camResultCode/Ts) — response trễ >2.5s do queue
+                             // backlog từng tạo dòng TRÙNG (chỉ so được với lượt cuối)
   var CAM_CODE_COOLDOWN_MS = 1500;   // cùng mã trong 1.5s → bỏ qua (2026-08-17: giảm từ 10s —
                                      // quét liên tục nhanh hơn; server cũng giảm DUPLICATE_WINDOW_MS
                                      // xuống 1.5s để khớp — không lo ghi trùng)
@@ -1041,8 +1042,7 @@
     try { window.__RC_CAM_OPEN__ = false; } catch (e) {}
     camLastCode = '';
     camLastCodeTs = 0;
-    camResultCode = '';
-    camResultTs = 0;
+    camResultPending = [];
     var resBody = document.getElementById('camResultsBody');
     if (resBody) { resBody.innerHTML = ''; }
     var resHead = document.getElementById('camResultsHead');
@@ -2068,9 +2068,22 @@
   // CAM_RESULT_MERGE_MS: optimistic và server response của CÙNG lượt quét (cùng mã
   // trong 2.5s) → cập nhật 1 dòng thay vì thêm dòng mới (server trả tên thật NV lạ).
 
-  // PURE (test được trong Node): có nên merge vào dòng kết quả cuối cùng không?
-  function camShouldMergeResult(prevCode, prevTs, code, now, mergeMs) {
-    return !!(code && code === prevCode && prevTs > 0 && now - prevTs < mergeMs);
+  // PURE (test được trong Node): có nên merge vào dòng kết quả của lượt cũ không?
+  // So với HÀNG CHỜ optimistic (không chỉ lượt cuối — bug 2026-08-19: queue backlog làm
+  // response của lượt mới nhất trễ >2.5s → single slot hết hạn → thêm dòng TRÙNG).
+  function camShouldMergeAny(pending, code, now, mergeMs) {
+    if (!code || !pending) return false;
+    for (var i = 0; i < pending.length; i++) {
+      var e = pending[i];
+      if (e.code === code && e.ts > 0 && now - e.ts < mergeMs) return true;
+    }
+    return false;
+  }
+
+  function camRecordOptimistic(code, now) {
+    if (!code) return;
+    camResultPending.push({ code: code, ts: now });
+    if (camResultPending.length > 8) camResultPending.shift();  // chặn tăng vô hạn (scan liên tục)
   }
 
   function camEsc(s) {
@@ -2120,8 +2133,8 @@
     var code = String(target.staffId || '').trim();
     if (!code) return;
     var now = Date.now();
-    var isUpdate = camShouldMergeResult(camResultCode, camResultTs, code, now, CAM_RESULT_MERGE_MS);
-    if (!isUpdate) { camResultCode = code; camResultTs = now; }
+    var isUpdate = camShouldMergeAny(camResultPending, code, now, CAM_RESULT_MERGE_MS);
+    if (!isUpdate) camRecordOptimistic(code, now);
     var payload = {
       type: 'rcScanInfo',
       code: code,
