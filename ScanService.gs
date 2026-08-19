@@ -190,8 +190,10 @@ function scanStaff(taskId, rawStaffId, mode) {
 }
 
 /**
- * Quyết định mode hiệu lực cho scan meal-move — permission server-side.
- * Chỉ email tạo task (createdBy) được dùng mode 'ra'; mọi người khác bị ép 'vao'.
+ * Quyết định mode hiệu lực cho scan meal-move.
+ * MỌI người quét 'ra' được (2026-08-19, yêu cầu user — khớp Python
+ * resolve_meal_move_mode anonymous: không session check; trước đây chỉ createdBy
+ * mới được 'ra', người khác bị ép 'vao' fail-closed).
  * @param {Object} task — task đã đọc (có createdBy)
  * @param {string} mode — client gửi ('ra' | 'vao' | undefined)
  * @returns {string}
@@ -201,11 +203,7 @@ function resolveMealMoveMode_(task, mode) {
   if (!task) return 'vao';
   var createdBy = String(task.createdBy || '').trim().toLowerCase();
   if (!createdBy) return 'vao';
-  try {
-    var active = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
-    if (active && active === createdBy) return 'ra';
-  } catch (e) { /* fail-closed → vao */ }
-  return 'vao';
+  return 'ra';
 }
 
 /**

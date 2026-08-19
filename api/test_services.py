@@ -189,6 +189,15 @@ class TestServices(unittest.TestCase):
         lst = services.list_tasks()[0]
         self.assertEqual(lst["scanned"], 1)
 
+    def test_resolve_meal_move_mode_anyone_can_ra(self):
+        # Yêu cầu 2026-08-19: bỏ giới hạn createdBy — mọi người quét 'ra' được
+        # (khớp GAS resolveMealMoveMode_ — không session check).
+        task = {"createdBy": "admin@spxexpress.com"}
+        self.assertEqual(services.resolve_meal_move_mode(task, "ra"), "ra")
+        self.assertEqual(services.resolve_meal_move_mode(task, "vao"), "vao")
+        self.assertEqual(services.resolve_meal_move_mode(None, "ra"), "vao")
+        self.assertEqual(services.resolve_meal_move_mode({}, "ra"), "vao")
+
     def test_filter_options_contract_types(self):
         opts = services.get_filter_options()
         self.assertEqual(opts["contractTypes"], ["BPO", "FTE", "OS"])
