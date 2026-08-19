@@ -446,14 +446,21 @@
         osc.start();
         osc.stop(ctx.currentTime + 0.15);
       } else {
-        // 2026-08-19: "Ting" 1 phát — triangle 2093Hz (C7) chuông nhẹ + suy giảm,
-        // volume to (0.9). Trước: sine 880Hz 0.15s.
-        osc.type = 'triangle';
-        osc.frequency.value = 2093;
-        gain.gain.setValueAtTime(0.9, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
+        // 2026-08-19: "Ting Ting" 2 phát (giống Shopee) — triangle 2093Hz (C7),
+        // phát 2 lần cách 0.15s, volume to (0.9).
+        for (var i = 0; i < 2; i++) {
+          var t = ctx.currentTime + i * 0.15;
+          var oscT = ctx.createOscillator();
+          var gainT = ctx.createGain();
+          oscT.connect(gainT);
+          gainT.connect(ctx.destination);
+          oscT.type = 'triangle';
+          oscT.frequency.value = 2093;
+          gainT.gain.setValueAtTime(0.9, t);
+          gainT.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+          oscT.start(t);
+          oscT.stop(t + 0.18);
+        }
       }
     } catch (e) { /* kiosk không hỗ trợ audio — bỏ qua */ }
   }
