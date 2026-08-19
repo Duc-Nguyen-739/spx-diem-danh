@@ -608,6 +608,12 @@
       '      row.setAttribute("data-code", String(d.code));',
       '      body.appendChild(row);',
       '    } else {',
+      // BUG 2026-08-19: update CHỈ mang tên (camUpdateName gửi status/time rỗng) →
+      // giữ badge trạng thái + giờ cũ của dòng, không xóa trắng.
+      '      var ob = row.querySelector && row.querySelector(".rbadge");',
+      '      var ot = row.querySelector && row.querySelector(".rtime");',
+      '      if (ob && ob.textContent) d.status = ob.textContent;',
+      '      if (ot && ot.textContent) d.time = ot.textContent;',
       '      row.innerHTML = "";',
       '    }',
       '    var b = document.createElement("b"); b.textContent = d.code; row.appendChild(b);',

@@ -42,6 +42,10 @@ function makeNode() {
     appendChild(c) { node.children.push(c); },
     removeChild() {},
     click() {},
+    querySelector(sel) {
+      const cls = String(sel || '').replace(/^\./, '');
+      return node.children.find((c) => String(c.className).split(' ').indexOf(cls) >= 0) || null;
+    },
   };
   return node;
 }
@@ -332,4 +336,56 @@ test('popup: có danh sách kết quả dưới camera + nhận rcScanInfo; khô
   assert.ok(html.indexOf('lastCodeTs < 1500') >= 0, 'popup dedup cùng mã 1.5s');
   assert.ok(html.indexOf('popWorkerStatus') === -1, 'KHÔNG còn indicator worker (đã tắt — user yêu cầu 2026-08-17)');
   assert.ok(html.indexOf('window.close(); } catch (e) {} }, 1000') === -1, 'KHÔNG còn auto-close 1s sau khi nhận mã');
+});
+
+// ===== Popup addResultRow: update chỉ mang tên → giữ badge/giờ cũ =====
+function extractPopupFn(popupHtml, fnName) {
+  const m = popupHtml.match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(m, 'popup phải có khối <script>');
+  const src = m[1];
+  const start = src.indexOf('function ' + fnName + '(');
+  assert.ok(start >= 0, 'popup phải có ' + fnName);
+  let depth = 0;
+  let end = start;
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+  }
+  return src.slice(start, end);
+}
+
+test('popup addResultRow: update chỉ mang tên → giữ badge trạng thái + giờ cũ (bug 2026-08-19)', () => {
+  const written = [];
+  const sb = makeSandbox({ popupFactory: () => ({ closed: false, focus() {}, document: { open() {}, write(s) { written.push(s); }, close() {} } }) });
+  sb.ctx.openCameraScan();
+  const html = written[0];
+  const fnSrc = extractPopupFn(html, 'addResultRow');
+  assert.ok(fnSrc.indexOf('querySelector(".rbadge")') >= 0, 'update phải bảo tồn badge cũ');
+  const body = makeResultsBody();
+  const head = makeNode();
+  const els = {
+    resultsBody: body,
+    resultsHead: head,
+    results: { scrollTop: 0, scrollHeight: 50 },
+  };
+  const ctx = {
+    document: {
+      getElementById(id) { return els[id] || null; },
+      createElement() { return makeNode(); },
+    },
+    flashResult() {},
+    popSound: false,
+  };
+  vm.createContext(ctx);
+  vm.runInContext(fnSrc, ctx);
+  // Lượt 1: thêm dòng Dư 09:02 (optimistic — update=false)
+  vm.runInContext('addResultRow({ code: "OPS123", status: "Dư", time: "09:02", staffName: "…", update: false });', ctx);
+  // Lượt 2: camUpdateName — server trả tên thật, KHÔNG kèm status/time (update=true)
+  vm.runInContext('addResultRow({ code: "OPS123", staffName: "Nguyễn Văn A", update: true });', ctx);
+  assert.equal(body.children.length, 1, 'update không thêm dòng mới');
+  const badge = body.children[0].children.find((c) => c.className.indexOf('rbadge') === 0);
+  const time = body.children[0].children.find((c) => c.className === 'rtime');
+  assert.equal(badge.textContent, 'Dư', 'badge trạng thái phải giữ nguyên (trước đây bị xóa trắng)');
+  assert.equal(time.textContent, '09:02', 'giờ phải giữ nguyên');
+  assert.ok(body.children[0].children.some((c) => c.textContent === 'Nguyễn Văn A'), 'tên thật phải được cập nhật');
 });
