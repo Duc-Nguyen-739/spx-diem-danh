@@ -31,31 +31,47 @@
       var url = base + sep + 'action=' + encodeURIComponent(fnName)
         + '&args=' + encodeURIComponent(JSON.stringify(args || []))
         + '&cb=' + encodeURIComponent(cbName);
+      // Timeout 30s (bug 2026-08-19): jsonpCall không có cơ chế hết hạn → RPC treo
+      // (mạng chết giữa chừng / GAS deploy fail) kẹt SCAN_PROCESSING vĩnh viễn.
+      // Response trễ sau timeout bị bỏ qua (timedOut guard), failure handler chạy 1 lần.
+      var timedOut = false;
+      var timer = setTimeout(function () {
+        timedOut = true;
+        cleanup();
+        if (handlers.failure) handlers.failure({ message: 'Không kết nối được server' });
+      }, 30000);
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        var el = document.getElementById(scriptId);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }
+      function onResult(res) {
+        if (timedOut) return;
+        cleanup();
+        resolveRpc(res, handlers);
+      }
       // PRODUCTION (2026-08-12): backend Python api cùng origin (Freebuff hosting) →
       // fetch JSON thay JSONP (không cần CORS). API trả JSON khi không có cb.
       var sameOrigin = url.indexOf('//') < 0 || url.indexOf(window.location.origin) === 0;
       if (sameOrigin && typeof window.fetch === 'function') {
         fetch(url)
           .then(function (r) { return r.json(); })
-          .then(function (res) { resolveRpc(res, handlers); })
+          .then(function (res) { onResult(res); })
           .catch(function () {
+            if (timedOut) return;
+            cleanup();
             if (handlers.failure) handlers.failure({ message: 'Không kết nối được server' });
           });
         return;
       }
-      window[cbName] = function (res) {
-        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-        var el = document.getElementById(scriptId);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-        resolveRpc(res, handlers);
-      };
+      window[cbName] = onResult;
       var s = document.createElement('script');
       s.id = scriptId;
       s.src = url;
       s.onerror = function () {
-        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-        var el = document.getElementById(scriptId);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
+        if (timedOut) return;
+        cleanup();
         if (handlers.failure) handlers.failure({ message: 'Không kết nối được server' });
       };
       (document.head || document.documentElement).appendChild(s);
