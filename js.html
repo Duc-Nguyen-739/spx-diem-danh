@@ -172,10 +172,17 @@
   // Cache element lookup — id lặp nhiều lần (scanInput 14×, bảng, modal…) chỉ query DOM 1 lần
   // (2026-08-16 tối ưu — tránh getElementById trùng trong vòng render/quét/poll). Chỉ cache
   // khi tìm thấy (null → query lại) — an toàn với element tạo muộn / bị thay nội dung.
+  // 2026-08-19 (A2): node bị thay qua innerHTML (vd textarea #taskNoteEdit) → cache còn giữ
+  // node DETACH → đọc .value trên node cũ mất nội dung. document.contains kiểm tra rẻ (không
+  // query DOM) — node không còn trong document → query lại. Guard typeof cho mock test không có
+  // contains (scan-poll.test.js) → fallback hành vi cũ.
   var _byIdCache = {};
   function byId(id) {
-    if (!_byIdCache[id]) _byIdCache[id] = document.getElementById(id);
-    return _byIdCache[id];
+    var n = _byIdCache[id];
+    if (!n || (typeof document.contains === 'function' && !document.contains(n))) {
+      n = _byIdCache[id] = document.getElementById(id);
+    }
+    return n;
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -1539,9 +1546,14 @@
   // (reconcile = 7 cột: Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh;
   //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Nhà Thầu/Số phút).
   // ===== Ghi chú task: hiển thị dưới task-meta + nút "Sửa ghi chú" nhỏ màu =====
-  function renderTaskNote(task) {
+  function renderTaskNote(task, force) {
     var wrap = byId('taskNoteWrap');
     if (!wrap) return;
+    // 2026-08-19 (A2): đang sửa ghi chú (textarea #taskNoteEdit còn trong DOM) → KHÔNG phá
+    // editor. Poll đồng bộ (applyPolledScanDetail → renderScanView → renderTaskNote) giữa
+    // lúc user gõ sẽ xóa textarea → mất nội dung đang sửa. Lưu/Huỷ truyền force=true để
+    // render lại chắc chắn (không mắc kẹt editor).
+    if (!force && document.getElementById('taskNoteEdit')) return;
     var note = String((task && task.note) || '').trim();
     var canEdit = true; // mọi trạng thái task đều sửa được ghi chú
     if (note) {
@@ -1575,7 +1587,7 @@
     if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   }
   function cancelTaskNote() {
-    renderTaskNote(CURRENT_TASK);
+    renderTaskNote(CURRENT_TASK, true);
   }
   function saveTaskNote() {
     if (!CURRENT_TASK) return;
@@ -1589,7 +1601,7 @@
         if (b2) b2.disabled = false;
         if (res && res.ok) {
           CURRENT_TASK.note = String(note || '').trim();
-          renderTaskNote(CURRENT_TASK);
+          renderTaskNote(CURRENT_TASK, true);
           showToast(res.message, false);
         } else {
           showToast((res && res.message) || 'Lỗi lưu ghi chú', true);
