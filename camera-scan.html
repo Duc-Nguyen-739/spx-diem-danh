@@ -2216,6 +2216,15 @@
   }
   // ===== QUÉT LIÊN TỤC-END =====
 
+  // P3 (2026-08-19): submit fail (task đóng / mất mạng / reject) → cooldown 1.5s
+  // đang chặn quét lại CÙNG mã dù server chưa nhận lượt nào (trước đây cooldown
+  // bị "đốt" ngay lúc decode, trước khi biết submit thành công hay không) → js.html
+  // gọi hàm này khi rollback để quét lại được NGAY.
+  function camCooldownFailed(code) {
+    var clean = String(code || '').trim();
+    if (clean && clean === camLastCode) { camLastCode = ''; camLastCodeTs = 0; }
+  }
+
   function onCameraDecoded(code) {
     var clean = String(code || '').trim();
     if (!clean) return;

@@ -213,6 +213,27 @@ test('onCameraDecoded: mã khác → submit tiếp (quét liên tục không d�
   assert.equal(sb.ctx.camSnapping, false, 'reset cờ snap sau khi nhận');
 });
 
+test('camCooldownFailed: submit fail → xoá cooldown, quét lại cùng mã NGAY (bug 2026-08-19)', () => {
+  const sb = makeSandbox();
+  sb.els.scanInput = { value: '' };
+  sb.ctx.onCameraDecoded('OPS123');        // decode → cooldown 1.5s được đặt
+  assert.equal(sb.ctx.camLastCode, 'OPS123');
+  assert.equal(sb.ctx.__submitScanCalls, 1);
+  sb.ctx.camCooldownFailed('OPS123');      // js.html gọi khi rollback (server reject/mạng)
+  sb.ctx.onCameraDecoded('OPS123');        // không cần chờ hết 1.5s
+  assert.equal(sb.ctx.__submitScanCalls, 2, 'submit lại ngay sau khi fail');
+  assert.equal(sb.ctx.camLastCode, 'OPS123', 'cooldown mới được đặt lại cho lượt thử');
+});
+
+test('camCooldownFailed: mã khác → không ảnh hưởng cooldown đang chờ', () => {
+  const sb = makeSandbox();
+  sb.els.scanInput = { value: '' };
+  sb.ctx.onCameraDecoded('OPS123');
+  sb.ctx.camCooldownFailed('OPS999');
+  sb.ctx.onCameraDecoded('OPS123');        // vẫn trong 1.5s, cooldown chưa bị xoá
+  assert.equal(sb.ctx.__submitScanCalls, 1);
+});
+
 // ===== camAppendResult: render modal (#camResultsBody) =====
 test('camAppendResult: append dòng + đếm header; merge optimistic/server thành 1 dòng', () => {
   const sb = makeSandbox();

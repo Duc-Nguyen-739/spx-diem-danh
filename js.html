@@ -2425,6 +2425,7 @@
         } else {
           // Reject: rollback + toast
           rollback();
+          if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
           if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.message || 'Lỗi', item.target, true); }
           showToast(res.message || 'Lỗi quét', true);
           playBeep('error');
@@ -2440,6 +2441,7 @@
         SCAN_PROCESSING = false;
         if (CURRENT_TASK && CURRENT_TASK.taskId === item.taskId) {
           rollback();
+          if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
           if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard('Lỗi mạng', item.target, true); }
           showToast('Lỗi quét: ' + err.message, true);
           playBeep('error');
@@ -2831,6 +2833,9 @@ if (res.ok) {
           if (res.status && item.scanSeq === SCAN_CARD_SEQ) showScanCard(res.status, item.target, false);
         } else {
           rollback();
+          // P3 (2026-08-19): submit fail → xoá cooldown camera (quét lại cùng mã ngay,
+          // không đợi hết 1.5s dù server chưa nhận lượt nào).
+          if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
           playBeep('error');
           showToast(res.message, true);
         }
@@ -2847,6 +2852,7 @@ if (res.ok) {
           return;
         }
         rollback();
+        if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
         playBeep('error');
         showToast('Lỗi quét: ' + err.message, true);
         syncCounters(null);
