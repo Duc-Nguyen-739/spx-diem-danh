@@ -331,8 +331,8 @@
       '    var scale = Math.min(1, maxSide / Math.max(w, h));',
       '    var cw = Math.max(1, Math.round(w * scale));',
       '    var ch = Math.max(1, Math.round(h * scale));',
-      '    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true }); try { sharedCtx.filter = "contrast(1.35)"; } catch (e) {} } // tăng tương phản (2026-08-17, mực nhạt/mờ 1 đầu) — không hỗ trợ → no-op',
-      '    if (sharedCanvas.width !== cw || sharedCanvas.height !== ch) { sharedCanvas.width = cw; sharedCanvas.height = ch; }',
+'    if (!sharedCanvas) { sharedCanvas = document.createElement("canvas"); sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true }); } // tăng tương phản (2026-08-17, mực nhạt/mờ 1 đầu) — set filter ở resize block bên dưới (context reset khi resize)',
+'    if (sharedCanvas.width !== cw || sharedCanvas.height !== ch) { sharedCanvas.width = cw; sharedCanvas.height = ch; try { sharedCtx.filter = "contrast(1.35)"; } catch (e) {} } // resize → context reset → set LẠI filter (bug 2026-08-19: set lúc tạo bị xóa bởi resize đầu) — không hỗ trợ → no-op',
       '    sharedCtx.drawImage(video, 0, 0, cw, ch);',
       '    var imageData;',
       '    try { imageData = sharedCtx.getImageData(0, 0, cw, ch); } catch (e) { return null; }',
@@ -927,6 +927,10 @@
       if (camSharedCanvas.width !== cw || camSharedCanvas.height !== ch) {
         camSharedCanvas.width = cw;
         camSharedCanvas.height = ch;
+        // Resize canvas → context state RESET (mất filter) — set LẠI contrast ở đây.
+        // Bug 2026-08-19: trước đây filter chỉ set lúc tạo canvas (0x0) → lần resize
+        // đầu tiên (luôn xảy ra ở frame thật đầu) xóa sạch → contrast CHƯA BAO GIỜ áp dụng.
+        try { camSharedCtx.filter = 'contrast(1.35)'; } catch (e) {}
       }
       var ctx = camSharedCtx;
       ctx.drawImage(video, 0, 0, cw, ch);
