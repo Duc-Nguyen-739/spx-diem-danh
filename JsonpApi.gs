@@ -26,6 +26,7 @@ var API_ACTIONS_ = {
   previewStaffApi: 'previewStaffApi',
   createReconcileTaskApi: 'createReconcileTaskApi',
   createMealMoveTaskApi: 'createMealMoveTaskApi',
+  transferPresentListToMealMoveApi: 'transferPresentListToMealMoveApi',
   pasteMealMoveScanApi: 'pasteMealMoveScanApi',
   getTaskListApi: 'getTaskListApi',
   getTaskDetailApi: 'getTaskDetailApi',

@@ -2180,48 +2180,30 @@
     BUSY = true;
     var btn = byId('btnTransferList');
     if (btn) btn.disabled = true;
+    // A4 (2026-08-19): gộp 2 RPC (tạo task Ra/Vào + hoàn thành task cũ) thành 1 RPC —
+    // server giữ 1 lock cho CẢ 2 bước → không còn cửa sổ giữa 2 RPC mà task mới đã tạo
+    // nhưng task cũ chưa đóng (mất mạng/complete fail → NV trùng ở 2 task).
+    // res.partial=true: task mới ĐÃ tạo nhưng đóng task cũ fail → vẫn mở task mới + toast lỗi.
     google.script.run
       .withSuccessHandler(function (res) {
-        if (!res.ok) {
-          BUSY = false;
-          if (btn) btn.disabled = false;
+        BUSY = false;
+        if (btn) btn.disabled = false;
+        loadTaskList();
+        loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+        if (res.ok) {
+          showToast(res.message, false);
+          openScan(res.taskId);
+        } else {
           showToast(res.message, true);
-          return;
+          if (res.taskId) openScan(res.taskId);  // partial: task mới đã tạo — vẫn chuyển sang nó
         }
-        // Tạo task Ra/Vào thành công → TỰ HOÀN THÀNH task Điểm Danh Ca (2026-08-18):
-        // completeTask chạy ngay không confirm (đã confirm ở nút Chuyển Danh Sách),
-        // rồi chuyển sang tab task Ra/Vào vừa tạo.
-        var newTaskId = res.taskId;
-        var oldTaskId = CURRENT_TASK.taskId;
-        google.script.run
-          .withSuccessHandler(function (fin) {
-            BUSY = false;
-            if (btn) btn.disabled = false;
-            if (fin.ok) {
-              showToast('Đã tạo ' + newTaskId + ' và hoàn thành ' + oldTaskId, false);
-            } else {
-              showToast('Đã tạo ' + newTaskId + ' — lỗi hoàn thành ' + oldTaskId + ': ' + fin.message, true);
-            }
-            loadTaskList();
-            loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
-            openScan(newTaskId);  // tự chuyển sang task Ra/Vào vừa tạo
-          })
-          .withFailureHandler(function (err) {
-            BUSY = false;
-            if (btn) btn.disabled = false;
-            showToast('Đã tạo ' + newTaskId + ' — lỗi hoàn thành: ' + err.message, true);
-            loadTaskList();
-            loadStaffIndex();
-            openScan(newTaskId);
-          })
-          .completeTaskApi(oldTaskId);
       })
       .withFailureHandler(function (err) {
         BUSY = false;
         if (btn) btn.disabled = false;
-        showToast('Lỗi tạo task: ' + err.message, true);
+        showToast('Lỗi chuyển danh sách: ' + err.message, true);
       })
-      .createMealMoveTaskApi(input);
+      .transferPresentListToMealMoveApi(input, CURRENT_TASK.taskId);
   }
   // MEAL-CREATE-END
 

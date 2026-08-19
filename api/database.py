@@ -327,9 +327,11 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         row[lc["WORKSTATION"]] = s.get("workstation", "")
         row[lc["TIME_REF"]] = cache.to_iso_cell(created_at)
         row[lc["TIME_SCAN"]] = ""
-        row[lc["STATUS"]] = config.STATUS["PENDING"]
+        # 2026-08-19: meal-move pre-fill timeRa ("Giờ Ra" = "Giờ điểm danh") + status OUT
+        # (đã Ra) — khớp GAS batchInsertLogRows_ (trước Python luôn PENDING + giờ Ra trống).
+        row[lc["STATUS"]] = s.get("status") or config.STATUS["PENDING"]
         row[lc["DATE"]] = s.get("date", "")
-        row[lc["TIME_RA"]] = ""
+        row[lc["TIME_RA"]] = cache.to_iso_cell(s.get("timeRa")) if s.get("timeRa") else ""
         row[lc["AGENCY"]] = s.get("agency", "")
         rows.append(row)
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)

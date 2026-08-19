@@ -108,8 +108,6 @@ function createReconcileTask(input) {
  * @returns {{ok: boolean, message: string}}
  */
 function completeTask(taskId) {
-  if (!taskId) return { ok: false, message: 'Thiếu taskId' };
-
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
@@ -117,22 +115,75 @@ function completeTask(taskId) {
     return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát' };
   }
   try {
-    const task = readTask_(taskId);
-    if (!task) return { ok: false, message: 'Không tìm thấy task' };
-    if (task.status !== TASK_STATUS.OPEN) {
-      return { ok: false, message: 'Task đã kết thúc' };
+    return completeTaskCore_(taskId);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Thân completeTask KHÔNG lock — dùng chung bên trong lock ngoài
+ * (transferPresentListToMealMoveApi) để tránh deadlock (lock không reentrant).
+ */
+function completeTaskCore_(taskId) {
+  if (!taskId) return { ok: false, message: 'Thiếu taskId' };
+  const task = readTask_(taskId);
+  if (!task) return { ok: false, message: 'Không tìm thấy task' };
+  if (task.status !== TASK_STATUS.OPEN) {
+    return { ok: false, message: 'Task đã kết thúc' };
+  }
+  // P1 (audit): markUnscannedAbsent_ TRƯỚC, updateTaskStatus_(DONE) SAU — fail-safe.
+  // Nếu mark fail (quota/timeout): task vẫn OPEN → user retry được.
+  // Nếu updateTaskStatus_ fail: task vẫn OPEN → retry, mark idempotent (dòng đã
+  // ABSENT/PRESENT không chạm lại). Thứ tự cũ (DONE trước) → mark fail = task đã
+  // đóng nhưng log chưa chuyển Vắng, retry bị chặn "Task đã kết thúc".
+  // meal-move: taskType truyền vào để markUnscannedAbsent_ biết NV OUT (đã Ra, chưa Vào) cũng thành Vắng
+  const absentCount = markUnscannedAbsent_(taskId, task.taskType);
+  updateTaskStatus_(taskId, TASK_STATUS.DONE, new Date(), task._rowIndex);
+  return {
+    ok: true,
+    message: 'Đã kết thúc task ' + taskId + (absentCount > 0 ? ' — ' + absentCount + ' NV chưa quét đánh dấu Vắng' : ''),
+  };
+}
+
+/**
+ * Chuyển danh sách NV Có mặt từ task Điểm Danh Ca → task Ra/Vào mới (A4 2026-08-19).
+ * 1 RPC + 1 lock duy nhất cho CẢ 2 bước (tạo task mới + đóng task cũ) — trước đây
+ * client gọi 2 RPC riêng createMealMoveTaskApi → completeTaskApi: cửa sổ giữa 2 RPC
+ * fail (mất mạng/server lỗi) → task mới tồn tại mà task cũ vẫn MỞ → danh sách NV
+ * trùng ở 2 task. Giờ cả 2 bước nằm trong 1 lock — không có cửa sổ giữa chừng.
+ * partial=true: task mới ĐÃ tạo nhưng đóng task cũ fail (không rollback được — không
+ * có xoá task) → client vẫn mở task mới, user tự xử lý task cũ (hiếm: chỉ ghi sheet fail).
+ * @param {Object} input — input tạo task Ra/Vào (giống createMealMoveTask: station/team/staffIds/timeRaByStaff/note)
+ * @param {string} oldTaskId — task Điểm Danh Ca cần đóng
+ * @returns {{ok: boolean, taskId: string|null, count: number, message: string, partial?: boolean}}
+ */
+function transferPresentListToMealMoveApi(input, oldTaskId) {
+  if (!oldTaskId) return { ok: false, taskId: null, count: 0, message: 'Thiếu taskId task cũ' };
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, taskId: null, count: 0, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
+  try {
+    const oldTask = readTask_(oldTaskId);
+    if (!oldTask) return { ok: false, taskId: null, count: 0, message: 'Không tìm thấy task ' + oldTaskId };
+    if (oldTask.status !== TASK_STATUS.OPEN) {
+      return { ok: false, taskId: null, count: 0, message: 'Task đã kết thúc — không chuyển được' };
     }
-    // P1 (audit): markUnscannedAbsent_ TRƯỚC, updateTaskStatus_(DONE) SAU — fail-safe.
-    // Nếu mark fail (quota/timeout): task vẫn OPEN → user retry được.
-    // Nếu updateTaskStatus_ fail: task vẫn OPEN → retry, mark idempotent (dòng đã
-    // ABSENT/PRESENT không chạm lại). Thứ tự cũ (DONE trước) → mark fail = task đã
-    // đóng nhưng log chưa chuyển Vắng, retry bị chặn "Task đã kết thúc".
-    // meal-move: taskType truyền vào để markUnscannedAbsent_ biết NV OUT (đã Ra, chưa Vào) cũng thành Vắng
-    const absentCount = markUnscannedAbsent_(taskId, task.taskType);
-    updateTaskStatus_(taskId, TASK_STATUS.DONE, new Date(), task._rowIndex);
+    const created = createMealMoveTaskCore_(input);
+    if (!created.ok) return { ok: false, taskId: null, count: 0, message: created.message };
+    const fin = completeTaskCore_(oldTaskId);
+    if (!fin.ok) {
+      return {
+        ok: false, taskId: created.taskId, count: created.count, partial: true,
+        message: 'Đã tạo ' + created.taskId + ' nhưng không hoàn thành được ' + oldTaskId + ': ' + fin.message,
+      };
+    }
     return {
-      ok: true,
-      message: 'Đã kết thúc task ' + taskId + (absentCount > 0 ? ' — ' + absentCount + ' NV chưa quét đánh dấu Vắng' : ''),
+      ok: true, taskId: created.taskId, count: created.count,
+      message: 'Đã tạo ' + created.taskId + ' và hoàn thành ' + oldTaskId,
     };
   } finally {
     lock.releaseLock();
@@ -183,6 +234,24 @@ function reopenTask(taskId) {
  * @returns {{ok: boolean, taskId: string|null, count: number, message: string}}
  */
 function createMealMoveTask(input) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, taskId: null, count: 0, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
+  try {
+    return createMealMoveTaskCore_(input);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Thân createMealMoveTask KHÔNG lock — dùng chung bên trong lock ngoài
+ * (transferPresentListToMealMoveApi) để tránh deadlock (lock không reentrant).
+ */
+function createMealMoveTaskCore_(input) {
   // 2026-08-08: task Điểm danh Ra/Vào GIỜ BẮT BUỘC chọn Station + Team (kiosk biết
   // task thuộc khu nào / nhóm nào). Giống createReconcileTask: team nhận mảng → nối ', '
   // cho cột task sheet; filter dùng mảng gốc.
@@ -220,15 +289,8 @@ function createMealMoveTask(input) {
   // Ghi chú (optional) — người tạo thêm khi tạo task; sửa được sau qua updateTaskNote.
   const note = String((input && input.note) || '').trim();
 
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(10000);
-  } catch (e) {
-    return { ok: false, taskId: null, count: 0, message: 'Hệ thống đang bận — thử lại sau giây lát' };
-  }
-  try {
-    // Lookup thông tin NV từ staffIndex (cache 5m) — lấy tên, agency, station...
-    const index = readStaffIndex_();
+  // Lookup thông tin NV từ staffIndex (cache 5m) — lấy tên, agency, station...
+  const index = readStaffIndex_();
     const staffList = ids.map(function (id) {
       const info = index[id] || {};
       // timeRaByStaff[id] = epoch "Giờ điểm danh" từ task reconcile — NV Có mặt
@@ -275,9 +337,6 @@ function createMealMoveTask(input) {
     const count = batchInsertLogRows_(taskId, staffList, now);
 
     return { ok: true, taskId: taskId, count: count, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
-  } finally {
-    lock.releaseLock();
-  }
 }
 
 /** Lấy danh sách task (cho getTaskList API). */

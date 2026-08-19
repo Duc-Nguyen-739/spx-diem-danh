@@ -317,14 +317,13 @@ function setupTransferTask() {
   ];
 }
 
-test('transferPresentListToMealMove: tạo task Ra/Vào thành công → tự HOÀN THÀNH task cũ + chuyển sang task mới', () => {
+test('transferPresentListToMealMove: 1 RPC duy nhất — tạo task Ra/Vào + hoàn thành task cũ (A4 2026-08-19)', () => {
   setupTransferTask();
-  apiResults.createMealMoveTaskApi = { ok: true, taskId: 'M-NEW-1', message: 'ok' };
-  apiResults.completeTaskApi = { ok: true, message: 'done' };
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', message: 'Đã tạo M-NEW-1 và hoàn thành RC-1' };
   api.transferPresentListToMealMove();
-  // Chain 2 RPC: tạo task mới → completeTask task cũ (không confirm)
-  assert.equal(lastCall.fn, 'completeTaskApi', 'bước cuối chain là completeTaskApi task cũ');
-  assert.equal(lastCall.args[0], 'RC-1', 'completeTask chạy trên task Điểm Danh Ca hiện tại');
+  // 1 RPC server-side (không còn chain createMealMoveTaskApi → completeTaskApi)
+  assert.equal(lastCall.fn, 'transferPresentListToMealMoveApi', 'chỉ gọi 1 RPC transfer');
+  assert.equal(lastCall.args[1], 'RC-1', 'tham số 2 = task Điểm Danh Ca cần đóng');
   assert.equal(openedScanId, 'M-NEW-1', 'tự chuyển sang tab task Ra/Vào vừa tạo');
   assert.ok(!global.BUSY, 'BUSY reset sau khi xong');
 });
@@ -332,10 +331,11 @@ test('transferPresentListToMealMove: tạo task Ra/Vào thành công → tự HO
 test('transferPresentListToMealMove: gửi kèm timeRaByStaff — "Giờ điểm danh" → "Giờ Ra"', () => {
   setupTransferTask();
   let capturedInput = null;
-  apiResults.createMealMoveTaskApi = (input) => { capturedInput = input; return { ok: true, taskId: 'M-NEW-1', message: 'ok' }; };
-  apiResults.completeTaskApi = { ok: true, message: 'done' };
+  let capturedOldId = null;
+  apiResults.transferPresentListToMealMoveApi = (input, oldTaskId) => { capturedInput = input; capturedOldId = oldTaskId; return { ok: true, taskId: 'M-NEW-1', message: 'ok' }; };
   api.transferPresentListToMealMove();
-  assert.ok(capturedInput, 'createMealMoveTaskApi được gọi với input');
+  assert.ok(capturedInput, 'transferPresentListToMealMoveApi được gọi với input');
+  assert.equal(capturedOldId, 'RC-1');
   assert.deepEqual(capturedInput.staffIds, ['OPS1', 'OPS3'], 'staffIds = NV Có mặt');
   assert.deepEqual(capturedInput.timeRaByStaff, {
     OPS1: 1700000000000,
@@ -343,22 +343,20 @@ test('transferPresentListToMealMove: gửi kèm timeRaByStaff — "Giờ điểm
   }, 'timeRaByStaff = map staffId → "Giờ điểm danh" (epoch) của NV Có mặt');
 });
 
-test('transferPresentListToMealMove: create fail → KHÔNG completeTask, không chuyển tab', () => {
+test('transferPresentListToMealMove: server fail (không taskId) → toast lỗi, không chuyển tab', () => {
   setupTransferTask();
-  apiResults.createMealMoveTaskApi = { ok: false, message: 'Lỗi tạo task' };
+  apiResults.transferPresentListToMealMoveApi = { ok: false, taskId: null, message: 'Lỗi tạo task' };
   api.transferPresentListToMealMove();
-  assert.equal(lastCall.fn, 'createMealMoveTaskApi', 'chỉ gọi create (fail)');
+  assert.equal(lastCall.fn, 'transferPresentListToMealMoveApi');
   assert.equal(openedScanId, null, 'không chuyển tab khi tạo thất bại');
   assert.equal(toastMsg, 'Lỗi tạo task');
 });
 
-test('transferPresentListToMealMove: complete fail → vẫn chuyển sang task mới + toast lỗi', () => {
+test('transferPresentListToMealMove: partial (task mới đã tạo, đóng task cũ fail) → vẫn chuyển tab + toast lỗi', () => {
   setupTransferTask();
-  apiResults.createMealMoveTaskApi = { ok: true, taskId: 'M-NEW-1', message: 'ok' };
-  apiResults.completeTaskApi = { ok: false, message: 'Đã kết thúc' };
+  apiResults.transferPresentListToMealMoveApi = { ok: false, taskId: 'M-NEW-1', partial: true, message: 'Đã tạo M-NEW-1 nhưng không hoàn thành được RC-1: Đã kết thúc' };
   api.transferPresentListToMealMove();
-  assert.equal(lastCall.fn, 'completeTaskApi');
-  assert.equal(openedScanId, 'M-NEW-1', 'task mới đã tạo — vẫn chuyển sang nó dù complete lỗi');
+  assert.equal(openedScanId, 'M-NEW-1', 'task mới đã tạo — vẫn chuyển sang nó dù đóng task cũ lỗi');
   assert.ok(toastMsg.includes('M-NEW-1'), 'toast nhắc đã tạo task mới');
 });
 

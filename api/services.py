@@ -127,6 +127,13 @@ def create_reconcile_task(input_):
 # ===== Meal-move task =====
 
 def create_meal_move_task(input_):
+    with _lock:
+        return create_meal_move_task_core(input_)
+
+
+def create_meal_move_task_core(input_):
+    """Thân create_meal_move_task KHÔNG lock — dùng chung trong lock ngoài
+    (transfer_present_list_to_meal_move) — tránh deadlock (threading.Lock không reentrant)."""
     inp = input_ or {}
     station = str(inp.get("station") or "").strip()
     team = ", ".join(str(x) for x in inp["team"]) if isinstance(inp.get("team"), (list, tuple)) else str(inp.get("team") or "").strip()
@@ -145,57 +152,99 @@ def create_meal_move_task(input_):
 
     created_by = str(inp.get("createdBy") or "").strip() or "web"
     note = str(inp.get("note") or "").strip()
+    # 2026-08-19: map staffId → epoch ms "Giờ điểm danh" của task reconcile — pre-fill
+    # "Giờ Ra" (khớp GAS createMealMoveTaskCore_) — NV Có mặt coi như đã Ra, status OUT.
+    time_ra_by_staff = inp.get("timeRaByStaff") or {}
 
-    with _lock:
-        index = database.read_staff_index()
-        staff_list = []
-        for id_ in ids:
-            info = index.get(id_) or {}
-            staff_list.append({
-                "staffId": id_, "staffName": info.get("staffName") or "",
-                "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",
-                "team": info.get("team") or "", "workstation": info.get("workstation") or "",
-                "agency": info.get("agency") or "", "date": info.get("date") or "",
-            })
+    import datetime
+    index = database.read_staff_index()
+    staff_list = []
+    for id_ in ids:
+        info = index.get(id_) or {}
+        ra_epoch = int(time_ra_by_staff.get(id_) or 0) or 0
+        time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
+        staff_list.append({
+            "staffId": id_, "staffName": info.get("staffName") or "",
+            "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",
+            "team": info.get("team") or "", "workstation": info.get("workstation") or "",
+            "agency": info.get("agency") or "", "date": info.get("date") or "",
+            "timeRa": time_ra, "timeRaEpoch": ra_epoch,
+            "status": config.STATUS["OUT"] if time_ra else config.STATUS["PENDING"],
+        })
 
-        import datetime
-        now = datetime.datetime.now(cache._TZ)
-        task_id = "M" + make_task_id(now)[1:]
-        suffix = 2
-        while database.read_task(task_id):
-            task_id = f"M{make_task_id(now)[1:]}-{suffix}"
-            suffix += 1
+    now = datetime.datetime.now(cache._TZ)
+    task_id = "M" + make_task_id(now)[1:]
+    suffix = 2
+    while database.read_task(task_id):
+        task_id = f"M{make_task_id(now)[1:]}-{suffix}"
+        suffix += 1
 
-        task = {
-            "taskId": task_id, "taskType": config.TASK_TYPE["MEAL_MOVE"],
-            "station": station, "slotCode": "", "team": team,
-            "status": config.TASK_STATUS["OPEN"], "createdAt": now,
-            "createdBy": created_by, "completedAt": None, "note": note,
-        }
-        database.insert_task(task)
-        count = database.batch_insert_log_rows(task_id, staff_list, now)
-        return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task Điểm danh Ra/Vào: {task_id}"}
+    task = {
+        "taskId": task_id, "taskType": config.TASK_TYPE["MEAL_MOVE"],
+        "station": station, "slotCode": "", "team": team,
+        "status": config.TASK_STATUS["OPEN"], "createdAt": now,
+        "createdBy": created_by, "completedAt": None, "note": note,
+    }
+    database.insert_task(task)
+    count = database.batch_insert_log_rows(task_id, staff_list, now)
+    return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task Điểm danh Ra/Vào: {task_id}"}
 
 
 # ===== Task lifecycle =====
 
 def complete_task(task_id):
+    with _lock:
+        return complete_task_core(task_id)
+
+
+def complete_task_core(task_id):
+    """Thân complete_task KHÔNG lock — dùng chung trong lock ngoài
+    (transfer_present_list_to_meal_move) — tránh deadlock (threading.Lock không reentrant)."""
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId"}
+    task = database.read_task(task_id)
+    if not task:
+        return {"ok": False, "message": "Không tìm thấy task"}
+    if task["status"] != config.TASK_STATUS["OPEN"]:
+        return {"ok": False, "message": "Task đã kết thúc"}
+    # fail-safe: mark Vắng TRƯỚC, update status SAU (retry được)
+    absent_count = database.mark_unscanned_absent(task_id, task["taskType"])
+    import datetime
+    database.update_task_status(task_id, config.TASK_STATUS["DONE"], datetime.datetime.now(cache._TZ), task.get("_rowIndex"))
+    msg = f"Đã kết thúc task {task_id}"
+    if absent_count > 0:
+        msg += f" — {absent_count} NV chưa quét đánh dấu Vắng"
+    return {"ok": True, "message": msg}
+
+
+def transfer_present_list_to_meal_move(input_, old_task_id):
+    """Chuyển danh sách NV Có mặt từ task Điểm Danh Ca → task Ra/Vào mới (A4 2026-08-19).
+    1 RPC + 1 lock cho CẢ 2 bước (tạo task mới + đóng task cũ) — trước đây client gọi
+    createMealMoveTaskApi → completeTaskApi 2 RPC riêng: cửa sổ giữa 2 RPC fail → task mới
+    tồn tại mà task cũ vẫn MỞ → NV trùng ở 2 task. partial=True: task mới ĐÃ tạo nhưng đóng
+    task cũ fail (không rollback — không có xoá task) → client vẫn mở task mới, user tự xử lý.
+    """
+    if not old_task_id:
+        return {"ok": False, "taskId": None, "count": 0, "message": "Thiếu taskId task cũ"}
     with _lock:
-        task = database.read_task(task_id)
-        if not task:
-            return {"ok": False, "message": "Không tìm thấy task"}
-        if task["status"] != config.TASK_STATUS["OPEN"]:
-            return {"ok": False, "message": "Task đã kết thúc"}
-        # fail-safe: mark Vắng TRƯỚC, update status SAU (retry được)
-        absent_count = database.mark_unscanned_absent(task_id, task["taskType"])
-        import datetime
-        database.update_task_status(task_id, config.TASK_STATUS["DONE"], datetime.datetime.now(cache._TZ), task.get("_rowIndex"))
-        msg = f"Đã kết thúc task {task_id}"
-        if absent_count > 0:
-            msg += f" — {absent_count} NV chưa quét đánh dấu Vắng"
-        return {"ok": True, "message": msg}
+        old_task = database.read_task(old_task_id)
+        if not old_task:
+            return {"ok": False, "taskId": None, "count": 0, "message": f"Không tìm thấy task {old_task_id}"}
+        if old_task["status"] != config.TASK_STATUS["OPEN"]:
+            return {"ok": False, "taskId": None, "count": 0, "message": "Task đã kết thúc — không chuyển được"}
+        created = create_meal_move_task_core(input_)
+        if not created["ok"]:
+            return {"ok": False, "taskId": None, "count": 0, "message": created["message"]}
+        fin = complete_task_core(old_task_id)
+        if not fin["ok"]:
+            return {
+                "ok": False, "taskId": created["taskId"], "count": created["count"], "partial": True,
+                "message": f"Đã tạo {created['taskId']} nhưng không hoàn thành được {old_task_id}: {fin['message']}",
+            }
+        return {
+            "ok": True, "taskId": created["taskId"], "count": created["count"],
+            "message": f"Đã tạo {created['taskId']} và hoàn thành {old_task_id}",
+        }
 
 
 def reopen_task(task_id):

@@ -99,6 +99,64 @@ class TestServices(unittest.TestCase):
         statuses = {row["staffId"]: row["status"] for row in detail["log"]}
         self.assertEqual(statuses["OPS002"], "-")
 
+    def test_transfer_present_list_to_meal_move(self):
+        # A4 (2026-08-19): 1 RPC gộp tạo task Ra/Vào + đóng task cũ (trước 2 RPC riêng
+        # → cửa sổ giữa 2 RPC fail → NV trùng 2 task). Server giữ 1 lock cho cả 2 bước.
+        task_id = self._create_task()
+        r0 = services.scan_staff(task_id, "OPS001", now_override=self.t0)  # OPS001 Có mặt
+        self.assertTrue(r0["ok"], r0.get("message"))
+        present = [r for r in services.get_task_detail(task_id)["log"] if r["status"] == "Có mặt"]
+        self.assertEqual([p["staffId"] for p in present], ["OPS001"])
+        time_ra_by_staff = {p["staffId"]: p["timeScanEpoch"] for p in present}
+        r = services.transfer_present_list_to_meal_move(
+            {
+                "station": "HN2 SOC", "team": ["Outbound"],
+                "staffIds": [p["staffId"] for p in present],
+                "timeRaByStaff": time_ra_by_staff, "createdBy": "web",
+            },
+            task_id,
+        )
+        self.assertTrue(r["ok"], r.get("message"))
+        new_id = r["taskId"]
+        self.assertTrue(new_id.startswith("M"))
+        # Task cũ ĐÃ ĐÓNG + NV chưa quét thành Vắng
+        old_detail = services.get_task_detail(task_id)
+        self.assertEqual(old_detail["task"]["status"], "done")
+        old_statuses = {row["staffId"]: row["status"] for row in old_detail["log"]}
+        self.assertEqual(old_statuses["OPS001"], "Có mặt")
+        self.assertEqual(old_statuses["OPS002"], "Vắng")
+        # Task mới: NV Có mặt → pre-fill "Giờ Ra" = "Giờ điểm danh" + status OUT
+        # (khớp GAS createMealMoveTaskCore_ — trước Python tạo PENDING + giờ Ra trống)
+        new_detail = services.get_task_detail(new_id)
+        self.assertEqual(len(new_detail["log"]), 1)
+        row = new_detail["log"][0]
+        self.assertEqual(row["staffId"], "OPS001")
+        self.assertEqual(row["status"], "Ra ngoài")
+        self.assertEqual(row["timeRaEpoch"], time_ra_by_staff["OPS001"])
+
+    def test_transfer_old_task_closed_rejected(self):
+        task_id = self._create_task()
+        services.complete_task(task_id)
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"]}, task_id)
+        self.assertFalse(r["ok"])
+        self.assertIn("không chuyển", r["message"])
+
+    def test_transfer_unknown_old_task(self):
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"]}, "R-NOPE")
+        self.assertFalse(r["ok"])
+
+    def test_transfer_create_fail_no_side_effect(self):
+        # Thiếu Station/Team → task cũ KHÔNG bị đóng
+        task_id = self._create_task()
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "", "team": [], "staffIds": ["OPS001"]}, task_id)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["taskId"])
+        detail = services.get_task_detail(task_id)
+        self.assertEqual(detail["task"]["status"], "open", "task cũ không bị đóng khi tạo task mới fail")
+
     def test_meal_move_ra_then_vao(self):
         r = services.create_meal_move_task({
             "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001", "Ops002"], "createdBy": "creator@x",
