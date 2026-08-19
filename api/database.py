@@ -378,6 +378,7 @@ def update_log_row_scan(row, time_scan, status):
     """Ghi timeScan + status cho 1 dòng (theo _rowIndex) — 1 batch."""
     lc = config.LOG_COLS
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, [[cache.to_iso_cell(time_scan), status]])
+    invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_scan_cache(r, time_scan, status))
     return True
@@ -424,6 +425,7 @@ def append_log_row(row):
     out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
     out[lc["AGENCY"]] = row.get("agency", "")
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], [out])
+    invalidate_task_list_cache()
     invalidate_task_detail_cache(row.get("taskId", ""))
     invalidate_log_rows(row.get("taskId", ""))
 
@@ -433,6 +435,7 @@ def update_log_row_ra(row, time_ra, status):
     lc = config.LOG_COLS
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, [[cache.to_iso_cell(time_ra)]])
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["STATUS"] + 1, [[status]])
+    invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_ra_cache(r, time_ra, status))
     return True
@@ -477,6 +480,7 @@ def batch_meal_move_log_updates(task_id, updates):
             for r in range(1, len(values)):
                 col.append([values[r][col_idx] if len(values[r]) > col_idx else ""])
             sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], 2, col_idx + 1, col)
+        invalidate_task_list_cache()
         invalidate_task_detail_cache(task_id)
         invalidate_log_rows(task_id)
     return len(updates) if any_changed else 0
@@ -505,6 +509,7 @@ def batch_append_log_rows(rows):
         out[lc["AGENCY"]] = row.get("agency", "")
         payload.append(out)
     sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
+    invalidate_task_list_cache()
     seen = set()
     for r in rows:
         if r.get("taskId") not in seen:
