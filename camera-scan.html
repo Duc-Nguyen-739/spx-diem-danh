@@ -2160,10 +2160,15 @@
     var body = document.getElementById('camResultsBody');
     if (!body) return;
     if (isUpdate) {
-      var last = body.lastElementChild;
-      if (last && last.getAttribute && last.getAttribute('data-code') === code) {
-        last.innerHTML = camResultRowHTML(payload);
-        return;
+      // Tìm dòng theo data-code TỪ CUỐI LÊN (2026-08-19): quét đan xen A→B→A trong
+      // cửa sổ merge → dòng A không còn là dòng cuối → lastElementChild miss → tạo
+      // dòng TRÙNG (popup addResultRow đã tìm theo data-code nên không lỗi này).
+      for (var i = body.children.length - 1; i >= 0; i--) {
+        var child = body.children[i];
+        if (child.getAttribute && child.getAttribute('data-code') === code) {
+          child.innerHTML = camResultRowHTML(payload);
+          return;
+        }
       }
     }
     var row = document.createElement('div');

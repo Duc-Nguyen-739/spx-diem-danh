@@ -257,6 +257,24 @@ test('camAppendResult: append dòng + đếm header; merge optimistic/server th�
   assert.equal(sb.els.camResultsHead.textContent, 'Kết quả quét (2)');
 });
 
+test('camAppendResult: quét đan xen A→B→A trong cửa sổ merge → CẬP NHẬT dòng A (không tạo dòng trùng) (2026-08-19)', () => {
+  const sb = makeSandbox();
+  const body = makeResultsBody();
+  sb.els.camResultsBody = body;
+  sb.els.camResultsHead = { textContent: '' };
+  sb.els.cameraModal = { style: { display: 'flex' } };
+  sb.ctx.camOpen = true;
+  // Optimistic A → optimistic B (A không còn là dòng cuối)
+  sb.ctx.camAppendResult('Dư', { staffId: 'OPS123', staffName: '…' }, false);
+  sb.ctx.camAppendResult('Có mặt', { staffId: 'OPS456', staffName: 'Trần B' }, false);
+  assert.equal(body.children.length, 2, '2 dòng sau 2 lượt quét');
+  // Server response của A về sau (trong 2.5s) → phải CẬP NHẬT dòng A, không thêm dòng 3
+  sb.ctx.camAppendResult('Dư', { staffId: 'OPS123', staffName: 'Nguyễn Văn A' }, false);
+  assert.equal(body.children.length, 2, 'vẫn 2 dòng — không tạo dòng trùng cho A');
+  assert.ok(body.children[0].innerHTML.indexOf('Nguyễn Văn A') >= 0, 'dòng A (không phải dòng cuối) được cập nhật tên thật');
+  assert.ok(body.children[1].innerHTML.indexOf('Trần B') >= 0, 'dòng B không bị đụng');
+});
+
 test('camAppendResult: scroll CONTAINER #camResults xuống dòng mới + row có class new (2026-08-17)', () => {
   const sb = makeSandbox();
   const body = makeResultsBody();
