@@ -102,14 +102,17 @@ CONTRACT_TYPES = ["FTE", "BPO", "OS"]
 DUPLICATE_WINDOW_MS = 1500  # 2026-08-17: giảm 10s → 1.5s để khớp cooldown quét camera client
 
 # ===== Cache TTL (giây) — backend Python dùng cache in-memory đơn giản =====
+# 2026-08-19: đồng bộ TTL với GAS Config.gs (bản giảm 2026-08-18) — các key hiển thị
+# realtime hết hạn sát chu kỳ poll client (3-5s) để thay đổi trực tiếp trên gsheet
+# (sửa tay, không qua app) thấy nhanh trên mọi thiết bị.
 CACHE_TTL = {
-    "STAFF_INDEX": 5 * 60,
+    "STAFF_INDEX": 60,
     "FILTER_OPTIONS": 5 * 60,
-    "TASK_LIST": 30,
-    "TASK_DETAIL": 15,
-    "TASK": 15,
-    "LOG_ROWS": 30,
-    "TASK_COUNTS": 30,
+    "TASK_LIST": 10,
+    "TASK_DETAIL": 5,
+    "TASK": 5,
+    "LOG_ROWS": 10,
+    "TASK_COUNTS": 10,
     "TZ": 24 * 60 * 60,
 }
 
