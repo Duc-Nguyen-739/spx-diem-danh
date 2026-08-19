@@ -268,7 +268,7 @@ test('applyPolledScanDetail: poll cũ hơn local (behind) → bỏ qua, không r
 
 // ===== TASK LIST POLL — đồng bộ danh sách task nhiều người truy cập (2026-08-16) =====
 // Người này tạo/kết thúc/mở lại task → người khác đang ở màn danh sách phải thấy NGAY
-// (không cần bấm "⟳ Làm mới"). Poll getTaskListApi mỗi 5s khi viewList hiện; chỉ
+// (không cần bấm "⟳ Làm mới"). Poll getTaskListApi mỗi 3s khi viewList hiện; chỉ
 // re-render khi signature đổi (tránh reset sort/filter/phân trang vô ích).
 
 function listStub(tasks) {
@@ -409,7 +409,7 @@ test('auto-focus loop: camera mở → KHÔNG input.focus() (không bật bàn p
   assert.equal(focusCalls, 0, 'camera mở → loop không được gọi input.focus()');
 });
 
-// ===== Bug 7 (2026-08-18): renderDash reset hết filter dashboard mỗi 5s poll =====
+// ===== Bug 7 (2026-08-18): renderDash reset hết filter dashboard mỗi chu kỳ poll =====
 function dashSandbox(initial) {
   // Mock DOM bộ lọc dashboard: checkbox theo name + radio dashSt + ô dựng động (dyn*)
   const els = initial.els || {};
@@ -473,7 +473,7 @@ function dashSandbox(initial) {
   return ctx;
 }
 
-test('renderDash: user đang lọc (ca khác all) → poll 5s KHÔNG reset radio lọc', () => {
+test('renderDash: user đang lọc (ca khác all) → poll KHÔNG reset radio lọc', () => {
   const tasks = [
     { taskId: 'A', status: 'open', taskType: 'reconcile', station: 'Kho A', slotCode: 'Ca1', team: 'T1' },
     { taskId: 'B', status: 'done', taskType: 'meal-move', station: 'Kho B', slotCode: 'Ca2', team: 'T2' },

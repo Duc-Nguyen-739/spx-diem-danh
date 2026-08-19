@@ -304,7 +304,7 @@
       var scanView = byId('viewScan');
       var input = byId('scanInput');
       // P2 (audit): viewScan hidden → không cần giữ focus (đang ở danh sách task);
-      // dừng luôn interval để không chạy vô ích mỗi 3s trên kiosk bật lâu.
+      // dừng luôn interval để không chạy vô ích mỗi 30s trên kiosk bật lâu.
       if (!scanView || scanView.classList.contains('hidden')) { stopAutoFocusLoop(); return; }
       if (input && !input.disabled) {
         var active = document.activeElement;
@@ -614,7 +614,7 @@
     // Camera quét đang mở (modal live HOẶC popup GAS) → coi như "có modal":
     // không giật focus / không poll đè lên khi user đang quét (bug 2026-08-18 —
     // trước chỉ check .about-overlay.open nên auto-focus loop cứ input.focus()
-    // mỗi 3s làm bật bàn phím che camera trên kiosk).
+    // mỗi 30s làm bật bàn phím che camera trên kiosk).
     if (window.__RC_CAM_OPEN__) return true;
     var cm = byId('cameraModal');
     if (cm && cm.style.display === 'flex') return true;
@@ -1042,7 +1042,7 @@
       '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
   }
   function renderDash(tasks) {
-    // Giữ lọc của user TRƯỚC khi rebuild checkbox (bug 2026-08-18: poll 5s →
+    // Giữ lọc của user TRƯỚC khi rebuild checkbox (bug 2026-08-18: poll →
     // taskListPollTick gọi renderDash → checkbox dựng lại hardcode checked + radio về
     // 'all' → filter user đang chọn bị reset). dashState chỉ có giá trị khi user
     // thật sự chọn (radio ≠ 'all' hoặc có box nào unchecked) — lần render đầu giữ default.
@@ -1480,7 +1480,7 @@
   var lastTaskListSig = null;
 
   // PURE (test được): signature danh sách task — bằng nhau = không có gì đổi → bỏ qua
-  // re-render (tránh reset sort/filter/phân trang vô ích mỗi 5s).
+  // re-render (tránh reset sort/filter/phân trang vô ích mỗi chu kỳ poll).
   function taskListSignature(tasks) {
     return (tasks || []).map(function (t) {
       return [t.taskId, t.status, t.total || 0, t.scanned || 0, t.extra || 0,
@@ -1670,9 +1670,11 @@
     setMealMode(nextMealMode(MEAL_MODE));
   }
 
-  // C3: state lọc + sort bảng scan — mặc định "Giờ quét" MỚI NHẤT lên đầu (col 5, desc).
+  // C3: state lọc + sort bảng scan. Mặc định sort col 6: reconcile = Trạng Thái desc
+  // (Dư→Vắng→Có mặt→Chưa điểm danh — nhóm chưa quét xuống cuối; giữ CỐ Ý theo user
+  // 2026-08-19, không phải bug), meal-move = Giờ Vào desc (mới nhất lên đầu).
   var SCAN_FILTER = { q: '', status: '' };
-  var SCAN_SORT = { col: 6, asc: false };  // Trạng thái (mới nhất lên đầu) — col 6 cho reconcile, col 9 cho meal-move
+  var SCAN_SORT = { col: 6, asc: false };  // reconcile col 6 = Trạng Thái; meal-move col 6 = Giờ Vào
   var STATUS_ORDER = {};  // P3: dựng từ STATUS_C — tránh hardcode label
   STATUS_ORDER[STATUS_C.PENDING] = 0;
   STATUS_ORDER[''] = 0;

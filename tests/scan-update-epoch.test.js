@@ -37,7 +37,7 @@ test('Database.gs: mọi hàm ghi log scan phải invalidate task list cache (th
   const db = fs.readFileSync(path.join(__dirname, '..', 'Database.gs'), 'utf8');
   // 5 hàm ghi log đều chỉ được gọi từ luồng scan (ScanService) → sau khi ghi phải
   // invalidateTaskListCache_() — nếu không TASK_COUNTS (TTL ~30s) giữ counter cũ trên
-  // danh sách task của thiết bị khác dù poll 5s.
+  // danh sách task của thiết bị khác dù poll 3s.
   const fns = ['updateLogRowScan_', 'updateLogRowRa_', 'appendLogRow_', 'batchMealMoveLogUpdates_', 'batchAppendLogRows_'];
   fns.forEach(function (fn) {
     const start = db.indexOf('function ' + fn + '(');
