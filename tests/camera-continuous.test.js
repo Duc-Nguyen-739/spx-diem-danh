@@ -74,6 +74,7 @@ function makeSandbox(opts) {
   const win = {
     self: {},   // ≠ top → openCameraScan xem như đang trong iframe GAS
     top: {},
+    location: { origin: 'https://example.test' },  // postMessage targetOrigin (2026-08-19)
     addEventListener(type, fn) { handlers[type] = fn; },
     open(url, name) {
       opened.push({ url, name });

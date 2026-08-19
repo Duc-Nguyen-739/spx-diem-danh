@@ -39,6 +39,7 @@ function makeSandbox(opts) {
   const win = {
     self: {},   // ≠ top → openCameraScan xem như đang trong iframe GAS
     top: {},
+    location: { origin: 'https://example.test' },  // postMessage targetOrigin (2026-08-19)
     addEventListener(type, fn) { handlers[type] = fn; },
     open(url, name) {
       opened.push({ url, name });
@@ -126,7 +127,7 @@ test('popup báo camera fail → fallback camera native (qua setTimeout)', () =>
   let clicked = 0;
   sb.els.camFile = { value: 'x', click() { clicked++; } };
   assert.ok(sb.handlers.message, 'phải đăng ký message listener');
-  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'failed' } });
+  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'failed' }, origin: 'https://example.test' });
   assert.ok(sb.scheduled.length >= 1, 'phải lên lịch fallback (setTimeout)');
   sb.scheduled.forEach(function (fn) { fn(); });
   assert.equal(clicked, 1, 'fallback phải mở camera native');
@@ -135,7 +136,7 @@ test('popup báo camera fail → fallback camera native (qua setTimeout)', () =>
 test('sau khi popup fail → mở popup mới được (không kẹt cờ busy)', () => {
   const written = [];
   const sb = makeSandbox({ popupFactory: () => fakePopup(written) });
-  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'failed' } });
+  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'failed' }, origin: 'https://example.test' });
   assert.equal(sb.ctx.camPopupBusy, false, 'cờ busy phải được reset khi popup fail');
   sb.ctx.openScanPopup();
   assert.equal(written.length, 1, 'popup mới phải ghi nội dung (không bị kẹt ở focus)');
@@ -144,8 +145,15 @@ test('sau khi popup fail → mở popup mới được (không kẹt cờ busy)'
 test('popup gửi rcScanResult → onCameraDecoded (điền mã vào scanInput)', () => {
   const sb = makeSandbox({ popupFactory: () => null });
   sb.els.scanInput = { value: '' };
-  sb.handlers.message({ data: { type: 'rcScanResult', code: 'Ops123' } });
+  sb.handlers.message({ data: { type: 'rcScanResult', code: 'Ops123' }, origin: 'https://example.test' });
   assert.equal(sb.els.scanInput.value, 'Ops123', 'mã phải được điền vào ô quét');
+});
+
+test('message từ origin KHÁC → bị chặn (không gửi mã giả vào submitScan — bug 2026-08-19)', () => {
+  const sb = makeSandbox({ popupFactory: () => null });
+  sb.els.scanInput = { value: '' };
+  sb.handlers.message({ data: { type: 'rcScanResult', code: 'EVIL123' }, origin: 'https://evil.example' });
+  assert.equal(sb.els.scanInput.value, '', 'mã từ origin lạ KHÔNG được điền vào ô quét');
 });
 
 test('bấm ✕ Đóng trong popup (message closed) → mở lại ghi nội dung, không tab trắng', () => {
@@ -155,7 +163,7 @@ test('bấm ✕ Đóng trong popup (message closed) → mở lại ghi nội dun
   sb.ctx.openScanPopup();
   assert.equal(written.length, 1, 'popup lần 1 phải có nội dung');
   // User bấm "✕ Đóng" trong popup → popup gửi {type:'rcScanPopup', state:'closed'} rồi tự đóng
-  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'closed' } });
+  sb.handlers.message({ data: { type: 'rcScanPopup', state: 'closed' }, origin: 'https://example.test' });
   assert.equal(sb.ctx.camPopupBusy, false, 'cờ busy phải được reset khi popup đóng');
   // Lần 2: mở lại → phải ghi nội dung popup mới (nếu chỉ focus → TAB TRẮNG, bug 2026-08-13)
   sb.ctx.openScanPopup();

@@ -284,11 +284,11 @@
       '    if (clean === lastCode && now - lastCodeTs < 1500) return;',
       '    lastCode = clean;',
       '    lastCodeTs = now;',
-      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanResult", code: clean }, "*"); } catch (e) {}',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanResult", code: clean }, window.location.origin); } catch (e) {}',
       '    statusEl.textContent = "✅ Đã nhận mã: " + clean + " — quét mã tiếp theo";',
       '  }',
       '  function sendFailed() {',
-      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, "*"); } catch (e) {}',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "failed" }, window.location.origin); } catch (e) {}',
       '    setTimeout(function () { try { window.close(); } catch (e) {} }, 500);',
       '  }',
       '  // WORKER decode sâu (2026-08-17): ZXing TRY_HARDER full frame chạy ngoài main thread',
@@ -526,7 +526,7 @@
       '  cancelBtn.addEventListener("click", function () {',
       '    // Báo về trang cha để reset cờ busy — nếu không, lần bấm "Quét Camera" sau mở',
       '    // window mới mà bị kẹt ở nhánh focus → TAB TRẮNG (bug 2026-08-13).',
-      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "closed" }, "*"); } catch (e) {}',
+      '    try { if (window.opener) window.opener.postMessage({ type: "rcScanPopup", state: "closed" }, window.location.origin); } catch (e) {}',
       '    stop(); try { window.close(); } catch (e) {}',
       '  });',
       '  // Danh sách kết quả quét dưới camera: trang cha xử lý xong 1 mã (submitScan) gửi',
@@ -625,6 +625,10 @@
       '  }',
       '  window.addEventListener("message", function (ev) {',
       '    if (!ev.data || typeof ev.data !== "object") return;',
+      // Chỉ nhận từ trang cha mở popup (bug 2026-08-19): trước nhận mọi nguồn — trang
+      // ngoài có thể gửi rcScanInfo giả để chèn dòng vào danh sách kết quả.
+      '    if (ev.source !== window.opener) return;',
+      '    if (ev.origin && ev.origin !== window.location.origin) return;',
       '    if (ev.data.type === "rcScanInfo") addResultRow(ev.data);',
       '  });',
       '  window.addEventListener("unload", stop);',
@@ -725,6 +729,11 @@
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('message', function (ev) {
       if (!ev.data || typeof ev.data !== 'object') return;
+      // Chỉ nhận từ popup quét mình mở HOẶC nguồn cùng origin (bug 2026-08-19): trước đây
+      // chấp nhận mọi nguồn + gửi '*' → trang ngoài có thể gửi mã giả vào submitScan.
+      // Popup live = about:blank (cùng origin) → source khớp camPopupRef; tab quét cũ
+      // (đã bỏ là đường chính, vẫn nhận kết quả qua localStorage) là cùng origin GAS.
+      if (ev.source !== camPopupRef && ev.origin !== window.location.origin) return;
       if (ev.data.type === 'rcScanResult' && ev.data.code) {
         onCameraDecoded(String(ev.data.code));
         return;
@@ -2118,7 +2127,7 @@
     };
     // POPUP đang mở (GAS iframe): gửi thông tin về popup — popup tự render danh sách
     if (camPopupRef && !camPopupRef.closed) {
-      try { camPopupRef.postMessage(payload, '*'); } catch (e) {}
+      try { camPopupRef.postMessage(payload, window.location.origin); } catch (e) {}
       return;
     }
     // MODAL đang mở (preview/hosting top-level): render trong #camResultsBody.
@@ -2205,7 +2214,7 @@
         localStorage.setItem('rcScanResult', JSON.stringify({ token: camScanToken, code: clean, ts: Date.now() }));
       } catch (e) {}
       try {
-        if (window.opener) window.opener.postMessage({ type: 'rcScanResult', code: clean }, '*');
+        if (window.opener) window.opener.postMessage({ type: 'rcScanResult', code: clean }, window.location.origin);
       } catch (e) {}
       var statusEl = document.getElementById('camStatusLive');
       if (statusEl) statusEl.textContent = '✅ Đã nhận mã: ' + clean + ' — tự đóng tab này';
