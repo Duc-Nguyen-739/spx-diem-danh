@@ -77,6 +77,7 @@ function scanStaff(taskId, rawStaffId, mode) {
     if (effectiveResult.action === 'reject') {
       // F: lookup thay ternary 3 tầng — lý do reject → message
       const REJECT_MSG = {
+        'task-not-found': UI_LABELS.TASK_NOT_FOUND,  // 2026-08-19: task mất ≠ đóng
         'task-closed': UI_LABELS.TASK_CLOSED,
         'already-scanned': UI_LABELS.ALREADY_SCANNED,
         'duplicate': UI_LABELS.DUPLICATE_SCAN,

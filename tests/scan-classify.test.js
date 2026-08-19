@@ -37,6 +37,12 @@ test('classifyScan: task closed → reject task-closed', () => {
   assert.equal(res.reason, 'task-closed');
 });
 
+test('classifyScan: task null (không tìm thấy) → reject task-not-found (2026-08-19)', () => {
+  const res = ScanLogic.classifyScan(CFG, null, [makeRow()], 'OPS000001');
+  assert.equal(res.action, 'reject');
+  assert.equal(res.reason, 'task-not-found', 'task mất ≠ đóng — message phải khác');
+});
+
 test('classifyScan: empty staffId → reject', () => {
   const task = { taskId: 'R1', status: CFG.TASK_STATUS.OPEN };
   const res = ScanLogic.classifyScan(CFG, task, [makeRow()], '');
@@ -256,6 +262,13 @@ test('meal-move: task đóng → reject task-closed', () => {
   const r = ScanLogic.classifyMealMoveScan(MM_CFG, task, rows, 'OPS000001', 'ra', 1000000);
   assert.equal(r.action, 'reject');
   assert.equal(r.reason, 'task-closed');
+});
+
+test('meal-move: task null → reject task-not-found (2026-08-19)', () => {
+  const rows = [mmRow()];
+  const r = ScanLogic.classifyMealMoveScan(MM_CFG, null, rows, 'OPS000001', 'ra', 1000000);
+  assert.equal(r.action, 'reject');
+  assert.equal(r.reason, 'task-not-found', 'task mất ≠ đóng — message phải khác');
 });
 
 test('meal-move: đã có Ra, mode vẫn Ra → reject already-scanned', () => {

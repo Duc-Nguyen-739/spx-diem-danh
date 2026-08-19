@@ -142,6 +142,7 @@ const CACHE_KEYS = {
 const UI_LABELS = {
   APP_TITLE: 'Điểm Danh HN2 SOC',
   ALREADY_SCANNED: 'Đã điểm danh',
+  TASK_NOT_FOUND: 'Task không tồn tại',  // 2026-08-19: task mất ≠ đóng
   TASK_CLOSED: 'Task đã kết thúc',
   STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
   CREATE_FAILED_EMPTY: 'Không có nhân viên nào trong tổ hợp đã chọn',

@@ -26,7 +26,9 @@ def classify_scan(cfg, task, log_rows, staff_id):
       append — NV không trong log → thêm dòng mới, status EXTRA
       reject 'task-closed' / 'already-scanned' / 'empty-staff-id'
     """
-    if not task or task.get("status") != cfg["TASK_STATUS"]["OPEN"]:
+    if not task:
+        return {"action": "reject", "status": None, "reason": "task-not-found", "row": None}
+    if task.get("status") != cfg["TASK_STATUS"]["OPEN"]:
         return {"action": "reject", "status": None, "reason": "task-closed", "row": None}
     if not staff_id:
         return {"action": "reject", "status": None, "reason": "empty-staff-id", "row": None}
@@ -95,7 +97,9 @@ def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, st
     - NV lạ: mode ra → append OUT; mode vao (chưa có Ra) → append EXTRA
     - mode vao + có trong roster + chưa Ra → EXTRA (Vào không khớp = Thừa)
     """
-    if not task or task.get("status") != cfg["TASK_STATUS"]["OPEN"]:
+    if not task:
+        return {"action": "reject", "status": None, "reason": "task-not-found", "row": None, "scanPhase": None}
+    if task.get("status") != cfg["TASK_STATUS"]["OPEN"]:
         return {"action": "reject", "status": None, "reason": "task-closed", "row": None, "scanPhase": None}
     if not staff_id:
         return {"action": "reject", "status": None, "reason": "empty-staff-id", "row": None, "scanPhase": None}

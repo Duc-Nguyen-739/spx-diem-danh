@@ -23,7 +23,11 @@
  *   - reject reason 'already-scanned': NV đã điểm danh rồi
  */
 function classifyScan(cfg, task, logRows, staffId) {
-  if (!task || task.status !== cfg.TASK_STATUS.OPEN) {
+  if (!task) {
+    // 2026-08-19: task biến mất (xóa/không tìm thấy) ≠ task đóng — message phải khác
+    return { action: 'reject', status: null, reason: 'task-not-found', row: null };
+  }
+  if (task.status !== cfg.TASK_STATUS.OPEN) {
     return { action: 'reject', status: null, reason: 'task-closed', row: null };
   }
   if (!staffId) {
@@ -157,7 +161,11 @@ if (typeof module !== 'undefined' && module.exports) {
  *   scanPhase: 'ra' | 'vao' — mốc vừa ghi (cho server biết cột nào để update)
  */
 function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInfo) {
-  if (!task || task.status !== cfg.TASK_STATUS.OPEN) {
+  if (!task) {
+    // 2026-08-19: task biến mất (xóa/không tìm thấy) ≠ task đóng — message phải khác
+    return { action: 'reject', status: null, reason: 'task-not-found', row: null, scanPhase: null };
+  }
+  if (task.status !== cfg.TASK_STATUS.OPEN) {
     return { action: 'reject', status: null, reason: 'task-closed', row: null, scanPhase: null };
   }
   if (!staffId) {

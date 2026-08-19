@@ -289,6 +289,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
 
         if result["action"] == "reject":
             reject_msg = {
+                "task-not-found": config.UI_LABELS["TASK_NOT_FOUND"],
                 "task-closed": config.UI_LABELS["TASK_CLOSED"],
                 "already-scanned": config.UI_LABELS["ALREADY_SCANNED"],
                 "duplicate": config.UI_LABELS["DUPLICATE_SCAN"],

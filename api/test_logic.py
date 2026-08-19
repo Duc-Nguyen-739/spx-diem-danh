@@ -127,6 +127,10 @@ class TestScanClassify(unittest.TestCase):
         r = scanlogic.classify_scan(CFG, self.task("done"), self.log(), "OPS003")
         self.assertEqual(r["reason"], "task-closed")
 
+    def test_missing_task_reject(self):
+        r = scanlogic.classify_scan(CFG, None, self.log(), "OPS003")
+        self.assertEqual(r["reason"], "task-not-found")
+
     def test_update_pending(self):
         r = scanlogic.classify_scan(CFG, self.task(), self.log(), "OPS001")
         self.assertEqual(r["action"], "update")

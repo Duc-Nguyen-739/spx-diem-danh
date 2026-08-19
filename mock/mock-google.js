@@ -33,6 +33,7 @@
         EMPTY_NO_TASK: 'Chưa có task nào — chọn Station/Ca/Team rồi nhấn "+ Tạo task"',
         EMPTY_NO_SCAN: 'Không có nhân viên nào trong danh sách',
         ALREADY_SCANNED: 'Đã điểm danh',
+        TASK_NOT_FOUND: 'Task không tồn tại',
         TASK_CLOSED: 'Task đã kết thúc',
         STAFF_NOT_FOUND: 'Không tìm thấy nhân viên',
         CREATE_FAILED_EMPTY: 'Không có nhân viên nào trong tổ hợp đã chọn',
