@@ -19,7 +19,7 @@ function scanStaff(taskId, rawStaffId, mode) {
   const staffId = normalizeStaffId(rawStaffId);
   // Chỉ chấp nhận mã barcode NV bắt đầu "Ops" (case-insensitive).
   if (!isValidBarcodeId(staffId)) {
-    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, phase: 'reject-format', ms: Date.now() - t0 });
+    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, phase: 'reject-format', ms: Date.now() - t0 }));
     return {
       ok: false,
       message: 'Mã phải bắt đầu bằng "Ops"',
@@ -31,7 +31,7 @@ function scanStaff(taskId, rawStaffId, mode) {
   try {
     lock.waitLock(10000);
   } catch (e) {
-    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, phase: 'lock-timeout' });
+    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, phase: 'lock-timeout' }));
     return {
       ok: false,
       message: 'Hệ thống đang bận — thử lại sau giây lát',
@@ -166,7 +166,7 @@ function scanStaff(taskId, rawStaffId, mode) {
     // bottleneck (read sheet vs write). Phân tích: t1→t2 = đọc task+log (full sheet),
     // t2→t3 = classify + write. Nếu read > 1.5s → cần index log (xem Database.gs).
     const t3 = Date.now();
-    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, action: effectiveResult.action, scanPhase: effectiveResult.scanPhase || null, totalMs: t3 - t0, readMs: t2 - t1, writeMs: t3 - t2 });
+    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, action: effectiveResult.action, scanPhase: effectiveResult.scanPhase || null, totalMs: t3 - t0, readMs: t2 - t1, writeMs: t3 - t2 }));
     return {
       ok: true,
       message: effectiveResult.status,
@@ -236,7 +236,7 @@ function pasteMealMoveScan(taskId, codes, mode) {
   try {
     lock.waitLock(10000);
   } catch (e) {
-    Logger.log(JSON.stringify({ bench: 'pasteMealMoveScan', taskId: taskId, phase: 'lock-timeout' });
+    Logger.log(JSON.stringify({ bench: 'pasteMealMoveScan', taskId: taskId, phase: 'lock-timeout' }));
     return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát', summary: null, counters: null };
   }
   try {
