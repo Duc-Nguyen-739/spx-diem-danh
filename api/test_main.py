@@ -6,6 +6,7 @@ Chạy: python3 -m unittest discover -s api -p 'test_*.py'
 """
 
 import json
+import os
 import unittest
 
 from api import cache
@@ -101,6 +102,45 @@ class TestMain(unittest.TestCase):
         data = self._json(resp)
         self.assertTrue(data["ok"])
         self.assertEqual(data["result"]["staffRows"], 1)
+
+    # NEW-1 (2026-08-19): auth token tùy chọn — env ROLLCALL_API_TOKEN bắt buộc
+    # mọi action kèm token (query `token=` hoặc body JSON), sai → 401 trước dispatch.
+    def _with_token_env(self, token):
+        self._saved_token_env = os.environ.get("ROLLCALL_API_TOKEN")
+        os.environ.pop("ROLLCALL_API_TOKEN", None)
+        if token:
+            os.environ["ROLLCALL_API_TOKEN"] = token
+        self.addCleanup(self._restore_token_env)
+
+    def _restore_token_env(self):
+        if self._saved_token_env is None:
+            os.environ.pop("ROLLCALL_API_TOKEN", None)
+        else:
+            os.environ["ROLLCALL_API_TOKEN"] = self._saved_token_env
+
+    def test_no_token_env_open(self):
+        resp = main.handler(self._event("getMeta"))
+        self.assertEqual(resp["statusCode"], 200)
+
+    def test_token_env_requires_correct_token(self):
+        self._with_token_env("sekret")
+        for params in ({"action": "getMeta"}, {"action": "getMeta", "token": "wrong"}):
+            resp = main.handler({"queryStringParameters": params})
+            self.assertEqual(resp["statusCode"], 401)
+            self.assertIn("Unauthorized", resp["body"])
+
+    def test_token_env_accepts_query_and_body_token(self):
+        self._with_token_env("sekret")
+        resp = main.handler(self._event("getMeta", cb="__rcJsonp1_123"))
+        self.assertEqual(resp["statusCode"], 401)
+        qs = {"action": "getMeta", "token": "sekret"}
+        resp2 = main.handler({"queryStringParameters": qs})
+        self.assertEqual(resp2["statusCode"], 200)
+        self.assertTrue(self._json(resp2)["ok"])
+        body = json.dumps({"action": "getMeta", "args": [], "token": "sekret"})
+        resp3 = main.handler({"body": body})
+        self.assertEqual(resp3["statusCode"], 200)
+        self.assertTrue(self._json(resp3)["ok"])
 
 
 if __name__ == "__main__":

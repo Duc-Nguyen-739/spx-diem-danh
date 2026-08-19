@@ -79,6 +79,18 @@ test('injectStandaloneFlags: idempotent — không chèn 2 lần', () => {
   assert.strictEqual((once.match(/window\.__RC_STANDALONE__=true/g) || []).length, 1);
 });
 
+test('injectStandaloneFlags: env RC_API_TOKEN → chèn __RC_API_TOKEN__ cho shim (NEW-1 2026-08-19)', () => {
+  process.env.RC_API_TOKEN = 'tok123';
+  try {
+    const out = injectStandaloneFlags('<html><head></head><body></body></html>', 'https://x.test/exec');
+    assert.ok(out.includes('window.__RC_API_TOKEN__="tok123"'), 'thiếu token injected');
+    const empty = injectStandaloneFlags('<html><head></head><body></body></html>', 'https://x.test/exec', '');
+    assert.ok(empty.includes('window.__RC_API_TOKEN__=""'), 'token rỗng vẫn chèn cờ rỗng (không gửi kèm)');
+  } finally {
+    delete process.env.RC_API_TOKEN;
+  }
+});
+
 test('injectStandaloneFlags: bản inline thật (index + css + js) nhận cờ — app standalone chạy được', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const out = injectStandaloneFlags(inlineHtml(html, CSS, JS, MOBILE, LIB_JSQR, LIB_QUAGGA, CAMERA, CAMERA_CSS));

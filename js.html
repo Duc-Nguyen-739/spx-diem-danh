@@ -16,6 +16,10 @@
     if (window.google && window.google.script && window.google.script.run) return;
     var base = window.__RC_API_BASE__ || '';
     if (!base) return;
+    // 2026-08-19 (NEW-1): token API tùy chọn — backend Python bắt buộc khi chạy với
+    // env ROLLCALL_API_TOKEN (host thật không có lá chắn deployment access như GAS).
+    // Rỗng = không gửi (backward compat — preview/demo không cần token).
+    var apiToken = window.__RC_API_TOKEN__ || '';
     var seq = 0;
     function resolveRpc(res, handlers) {
       if (res && res.ok === false) {
@@ -31,6 +35,8 @@
       var url = base + sep + 'action=' + encodeURIComponent(fnName)
         + '&args=' + encodeURIComponent(JSON.stringify(args || []))
         + '&cb=' + encodeURIComponent(cbName);
+      // 2026-08-19 (NEW-1): token tùy chọn — backend Python bắt buộc khi env ROLLCALL_API_TOKEN
+      if (apiToken) url += '&token=' + encodeURIComponent(apiToken);
       // Timeout 30s (bug 2026-08-19): jsonpCall không có cơ chế hết hạn → RPC treo
       // (mạng chết giữa chừng / GAS deploy fail) kẹt SCAN_PROCESSING vĩnh viễn.
       // Response trễ sau timeout bị bỏ qua (timedOut guard), failure handler chạy 1 lần.

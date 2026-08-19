@@ -14,6 +14,7 @@ bằng freebuff-deploy check khi CLI hồi phục. `probe` action test kết n�
 """
 
 import json
+import os
 import re
 
 from api import config
@@ -67,6 +68,17 @@ def sanitize_callback(cb):
     return s if re.match(r"^[A-Za-z0-9_$.]+$", s) else "callback"
 
 
+def api_token():
+    """Token API tùy chọn (env ROLLCALL_API_TOKEN) — 2026-08-19 (NEW-1).
+
+    Rỗng = KHÔNG bắt buộc (backward compat — preview/demo/test local).
+    Khi set: mọi action phải kèm token (query `token=` hoặc body JSON), sai → 401.
+    GAS không áp dụng cơ chế này (lá chắn = deployment access DOMAIN).
+    Đọc env mỗi request (rẻ) để test đổi được mà không reload module.
+    """
+    return (os.environ.get("ROLLCALL_API_TOKEN") or "").strip()
+
+
 def handler(event, context=None):
     """Điểm vào HTTP — event: {queryStringParameters?, query?, body?}."""
     params = event.get("queryStringParameters") or event.get("query") or {}
@@ -90,6 +102,24 @@ def handler(event, context=None):
                     args = parsed["args"]
         except Exception:
             pass
+
+    # NEW-1 (2026-08-19): auth tùy chọn — kiểm tra TRƯỚC dispatch (kể cả probe).
+    token = str(params.get("token") or "").strip()
+    if not token and body:
+        try:
+            parsed = json.loads(body)
+            if isinstance(parsed, dict) and parsed.get("token"):
+                token = str(parsed["token"]).strip()
+        except Exception:
+            pass
+    required = api_token()
+    if required and token != required:
+        out = {"ok": False, "error": "Unauthorized"}
+        return {
+            "statusCode": 401,
+            "headers": {"Content-Type": "application/json; charset=utf-8"},
+            "body": json.dumps(out, ensure_ascii=False),
+        }
 
     out = dispatch(action, args)
     cb = str(params.get("cb") or "").strip()

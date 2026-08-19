@@ -79,11 +79,16 @@ const RC_API_BASE_DEFAULT =
  * @param {string} [apiBase] — URL JSONP endpoint; mặc định RC_API_BASE_DEFAULT
  * @returns {string}
  */
-function injectStandaloneFlags(html, apiBase) {
+function injectStandaloneFlags(html, apiBase, apiToken) {
   if (html.indexOf('window.__RC_STANDALONE__=true') >= 0) return html;
   const base = String(apiBase || process.env.RC_API_BASE || RC_API_BASE_DEFAULT);
+  // 2026-08-19 (NEW-1): token API tùy chọn — env RC_API_TOKEN → chèn __RC_API_TOKEN__
+  // cho shim gửi kèm mỗi JSONP/fetch request (backend Python bắt buộc khi chạy với
+  // ROLLCALL_API_TOKEN). Rỗng = không dùng (preview/demo không đổi hành vi).
+  const token = apiToken === undefined ? (process.env.RC_API_TOKEN || '') : apiToken;
   const tag = '<script>window.__RC_STANDALONE__=true;window.__RC_API_BASE__='
-    + JSON.stringify(base) + ';</script>';
+    + JSON.stringify(base) + ';window.__RC_API_TOKEN__='
+    + JSON.stringify(String(token || '')) + ';</script>';
   if (html.indexOf('</head>') >= 0) return html.replace('</head>', tag + '</head>');
   return tag + html;
 }
