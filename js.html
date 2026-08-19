@@ -387,6 +387,8 @@
   function toggleSound() {
     SOUND_ON = !SOUND_ON;
     try { localStorage.setItem('rc2_sound', SOUND_ON ? '1' : '0'); } catch (e) {}
+    // Click nút 🔊 là user gesture — unlock AudioContext NGAY (autoplay policy desktop)
+    if (SOUND_ON) ensureAudioUnlocked();
     var b = byId('btnSound');
     if (b) {
       b.textContent = SOUND_ON ? '🔊' : '🔇';
@@ -397,18 +399,39 @@
   }
 
   /* ===== Âm thanh phản hồi quét (C1) — Web Audio API, không cần file =====
-     error: buzz thấp 200Hz · scan: beep cao 880Hz — gate bởi SOUND_ON */
+     error: buzz thấp 200Hz · scan: beep cao 880Hz — gate bởi SOUND_ON.
+     BUG 2026-08-19 (PC không có âm): desktop autoplay policy CHỈ cho AudioContext
+     tạo/resume TRONG user gesture — nhưng mọi playBeep chạy từ async callback
+     (RPC google.script.run / camera auto-decode) → context tạo ra ở trạng thái
+     suspended và resume() ngoài gesture bị trình duyệt chặn → câm vĩnh viễn trên
+     Chrome/Edge/Firefox. Fix: tạo + resume context NGAY tại gesture đầu tiên của
+     user (keydown/mousedown/touch/pointer, capture phase). */
   var _audioCtx = null;
-  function playBeep(type) {
-    if (!SOUND_ON) return;
+  function ensureAudioUnlocked() {
     try {
       if (!_audioCtx) {
         var AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
+        if (!AC) return false;
         _audioCtx = new AC();
       }
+      if (_audioCtx.state === 'suspended') _audioCtx.resume();
+      return true;
+    } catch (e) { return false; }
+  }
+  function unlockAudioOnGesture() {
+    if (_audioCtx && _audioCtx.state === 'running') return;
+    ensureAudioUnlocked();
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    ['keydown', 'mousedown', 'touchstart', 'pointerdown'].forEach(function (evt) {
+      document.addEventListener(evt, unlockAudioOnGesture, true);
+    });
+  }
+  function playBeep(type) {
+    if (!SOUND_ON) return;
+    try {
+      if (!ensureAudioUnlocked()) return;
       var ctx = _audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
       var osc = ctx.createOscillator();
       var gain = ctx.createGain();
       osc.connect(gain);

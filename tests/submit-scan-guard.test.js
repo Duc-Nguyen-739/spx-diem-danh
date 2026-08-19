@@ -37,3 +37,34 @@ test('submitScan: nhánh task đã kết thúc focus có guard camera (bug 2026-
   assert.ok(block.indexOf("if (!window.__RC_CAM_OPEN__) byId('scanInput').focus();") >= 0,
     'input.focus() ở nhánh task đã kết thúc phải có guard !__RC_CAM_OPEN__ (trước không có → bật bàn phím che camera)');
 });
+
+// ===== BUG 2026-08-19 (PC không có âm): AudioContext phải unlock tại user gesture =====
+// Desktop autoplay policy chặn AudioContext tạo/resume NGOÀI user gesture — nhưng mọi
+// playBeep chạy từ async callback (RPC google.script.run / camera auto-decode) → context
+// tạo ra ở trạng thái suspended và resume() ngoài gesture bị chặn → câm vĩnh viễn trên
+// Chrome/Edge/Firefox. Fix: tạo + resume context NGAY tại gesture đầu tiên của user.
+test('js.html: phải unlock AudioContext tại user gesture (ensureAudioUnlocked + listeners)', () => {
+  const i = src.indexOf('function ensureAudioUnlocked()');
+  assert.ok(i >= 0, 'phải có hàm ensureAudioUnlocked');
+  const block = src.slice(i, i + 700);
+  assert.ok(block.indexOf("['keydown', 'mousedown', 'touchstart', 'pointerdown']") >= 0,
+    'phải listen đủ keydown/mousedown/touchstart/pointerdown (capture phase)');
+  assert.ok(block.indexOf('document.addEventListener(evt, unlockAudioOnGesture, true)') >= 0,
+    'phải đăng ký gesture listener capture — unlock AudioContext ngay tại gesture đầu tiên');
+});
+
+test('js.html: playBeep phải dùng ensureAudioUnlocked (không tự new AudioContext trong async)', () => {
+  const i = src.indexOf('function playBeep(type)');
+  assert.ok(i >= 0, 'phải có playBeep');
+  const block = src.slice(i, i + 160);
+  assert.ok(block.indexOf('if (!ensureAudioUnlocked()) return;') >= 0,
+    'playBeep phải gọi ensureAudioUnlocked — nếu tự new AudioContext trong async callback → suspended, không bao giờ phát trên PC');
+});
+
+test('js.html: toggleSound bật âm phải unlock audio ngay trong click gesture', () => {
+  const i = src.indexOf('function toggleSound()');
+  assert.ok(i >= 0, 'phải có toggleSound');
+  const block = src.slice(i, i + 320);
+  assert.ok(block.indexOf('if (SOUND_ON) ensureAudioUnlocked();') >= 0,
+    'bật âm qua nút 🔊 (click = user gesture) phải unlock AudioContext ngay — không chờ lượt quét đầu');
+});

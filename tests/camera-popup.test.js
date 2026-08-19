@@ -221,3 +221,24 @@ test('popup: chain thành công phải reset busy=false trước sendResult (kh�
   const fastLine = popScript.split('\n').filter((l) => l.indexOf('LIBS.fast') >= 0);
   assert.ok(fastLine.length >= 1, 'popup phải có fast path');
 });
+
+// ===== BUG 2026-08-19 (PC không có âm): popup AudioContext phải unlock tại user gesture =====
+// popTone chạy từ postMessage (async) — desktop autoplay policy chặn AudioContext
+// tạo/resume ngoài gesture → context suspended mãi → câm trên PC. Fix: unlock tại
+// gesture đầu tiên trong chính popup (mirror js.html ensureAudioUnlocked).
+test('popup: phải unlock AudioContext tại user gesture (popUnlockAudio + listeners)', () => {
+  const written = [];
+  const sb = makeSandbox({ popupFactory: () => fakePopup(written) });
+  sb.ctx.openScanPopup();
+  const m = written[0].match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(m, 'popup phải có khối <script>');
+  const popScript = m[1];
+  assert.ok(popScript.indexOf('function popUnlockAudio()') >= 0,
+    'popup phải có hàm popUnlockAudio');
+  assert.ok(popScript.indexOf('["keydown", "mousedown", "touchstart", "pointerdown"]') >= 0 &&
+    popScript.indexOf('document.addEventListener(evt, popUnlockAudio, true)') >= 0,
+    'popup phải đăng ký gesture listener capture — unlock AudioContext tại gesture đầu tiên (autoplay policy desktop)');
+  assert.ok(popScript.indexOf('popUnlockAudio();') >= 0 &&
+    popScript.indexOf('if (!popAudioCtx) return;') >= 0,
+    'popTone phải gọi popUnlockAudio trước khi phát — nếu tự new AudioContext trong postMessage → suspended, câm trên PC');
+});
