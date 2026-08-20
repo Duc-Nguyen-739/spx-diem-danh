@@ -109,19 +109,19 @@ const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
 const DUPLICATE_WINDOW_MS = 1500;  // 2026-08-17: giảm 10s → 1.5s để khớp cooldown quét camera client
 
 // ===== Cache TTL (giây) =====
-// 2026-08-18: giảm TTL các key hiển thị realtime (TASK_DETAIL/TASK_LIST/TASK_COUNTS/
-// LOG_ROWS) xuống sát chu kỳ poll client (3-5s) — thay đổi TRỰC TIẾP trên gsheet
-// (sửa tay, không đi qua app) không invalidate cache được, nên cache phải hết hạn
-// nhanh để thiết bị khác thấy trong ~1 chu kỳ poll. Trade-off: đọc sheet thường
-// hơn (hiệu năng thấp hơn) — chấp nhận cho quy mô kiosk ít người dùng.
+// 2026-08-20: tăng lại TTL (2026-08-18 từng giảm sát chu kỳ poll 3-5s cho "sửa tay trên
+// gsheet phải thấy nhanh") — app là NGƯỜI GHI DUY NHẤT (chủ sheet tự sửa tay, không cần
+// realtime): mọi write path invalidate/incremental ĐÚNG key (scan → bump rev + incremental
+// LOG_ROWS; ghi task → invalidate) → TTL dài chỉ giảm read RÁC lúc idle (không ai thao
+// tác), KHÔNG làm chậm sync đa thiết bị.
 const CACHE_TTL = {
-  STAFF_INDEX: 60,           // 60s — index StaffData (sửa tay trên gsheet cũng phải thấy nhanh)
+  STAFF_INDEX: 300,          // 5m — index StaffData (đường quét NV lạ + load app); syncFromCsv invalidate
   FILTER_OPTIONS: 5 * 60,    // 5m — distinct station/slotCode/team
-  TASK_LIST: 10,             // 10s — danh sách task (poll list 3s → thấy trong ≤1 chu kỳ)
-  TASK_DETAIL: 5,            // 5s — chi tiết task + log (poll scan 3s → thấy nhanh)
-  TASK: 5,                   // 5s — task read (đường quét scanStaff) — invalidate khi ghi task
-  LOG_ROWS: 10,              // 10s — log rows theo taskId (đường quét — cập nhật incremental, không invalidate mỗi scan)
-  TASK_COUNTS: 10,           // 10s — counters theo taskId cho danh sách task (đếm 1 lần + cache)
+  TASK_LIST: 30,             // 30s — danh sách task (version-gated — rebuild chỉ khi thật đổi)
+  TASK_DETAIL: 15,           // 15s — chi tiết task + log (rebuild từ cache — không chạm sheet)
+  TASK: 15,                  // 15s — task read (đường quét scanStaff) — invalidate khi ghi task
+  LOG_ROWS: 30,              // 30s — log rows theo taskId (incremental mỗi scan — không invalidate)
+  TASK_COUNTS: 30,           // 30s — counters list (version-gated — rebuild chỉ khi thật đổi)
   TZ: 24 * 60 * 60,          // 24h — timezone (cache 1 lần, KHÔNG gọi trong loop)
 };
 

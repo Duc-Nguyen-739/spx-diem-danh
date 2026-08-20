@@ -95,7 +95,27 @@ function readStaffIndex_() {
   return cachedJson_(CACHE_KEYS.STAFF_INDEX, function () {
     const sheet = getSheet_(SHEETS.STAFF_DATA);
     const values = sheet.getDataRange().getValues();
-    return buildStaffIndex(values);
+    const index = buildStaffIndex(values);
+    // 2026-08-20 (review): cache SLIM — chỉ giữ field đường quét cần (staffName/
+    // slotCode/station/team/workstation/agency — buildExtraRow + getStaffIndexApi).
+    // buildStaffIndex đầy đủ (cardIn/cardOut/date) ~200B/NV → ~600+ NV VƯỢT 100KB/key
+    // → put fail âm thầm → MỌI scan NV lạ + MỌI getStaffIndexApi đọc lại CẢ StaffData
+    // (cache không bao giờ có hiệu lực). Slim ~130B/NV → cache sống tới ~750 NV.
+    // cardIn/cardOut/date KHÔNG ai đọc từ index (pre-fill dùng readStaffList_ đầy đủ).
+    const out = {};
+    for (const id in index) {
+      const s = index[id];
+      out[id] = {
+        staffId: id,
+        staffName: s.staffName,
+        station: s.station,
+        slotCode: s.slotCode,
+        team: s.team,
+        workstation: s.workstation,
+        agency: s.agency,
+      };
+    }
+    return out;
   }, CACHE_TTL.STAFF_INDEX);
 }
 

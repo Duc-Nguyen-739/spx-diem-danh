@@ -107,3 +107,21 @@ test('Database.gs: readTaskDetailCached_ build từ readTaskCached_ + readLogRow
   assert.ok(block.indexOf('readTask_(taskId)') === -1,
     'KHÔNG được đọc fresh AttendanceTask khi miss (O5 2026-08-20)');
 });
+
+// ===== O6 (2026-08-20): STAFF_INDEX cache SLIM — tránh vượt 100KB/key → miss âm thầm =====
+// buildStaffIndex đầy đủ (cardIn/cardOut/date) ~200B/NV → ~600+ NV vượt 100KB/key →
+// CacheService.put THROW (F3) → cache không bao giờ có hiệu lực → MỌI scan NV lạ +
+// getStaffIndexApi đọc lại CẢ StaffData. Cache chỉ cần field đường quét (verify:
+// ScanLogic buildExtraRow/buildMealMoveExtraRow + Code.gs getStaffIndexApi).
+test('Database.gs: readStaffIndex_ cache SLIM — không chứa cardIn/cardOut/date', () => {
+  const db = fs.readFileSync(path.join(__dirname, '..', 'Database.gs'), 'utf8');
+  const start = db.indexOf('function readStaffIndex_(');
+  assert.ok(start >= 0, 'phải có hàm readStaffIndex_');
+  const end = db.indexOf('\nfunction ', start + 1);
+  const block = db.slice(start, end === -1 ? start + 1200 : end);
+  assert.ok(block.indexOf('staffName: s.staffName') >= 0, 'cache phải giữ staffName');
+  assert.ok(block.indexOf('cardIn: s.cardIn') === -1, 'cache KHÔNG chứa cardIn (thổi quá 100KB)');
+  assert.ok(block.indexOf('cardOut: s.cardOut') === -1, 'cache KHÔNG chứa cardOut');
+  assert.ok(block.indexOf('date: s.date') === -1,
+    'cache KHÔNG chứa date (pre-fill dùng readStaffList_ đầy đủ — không ai đọc date từ index)');
+});
