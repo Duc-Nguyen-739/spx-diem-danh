@@ -273,9 +273,13 @@
         statusEl.appendChild(o);
       });
     }
+    // 2026-08-20: debounce 150ms — tránh renderScanTable (sort + paint ~600 dòng)
+    // chạy mỗi ký tự gõ; đồng nhất headerSearch (350ms) / previewStaff (400ms).
+    var _scanSearchTimer = null;
     if (searchEl) searchEl.addEventListener('input', function () {
       SCAN_FILTER.q = searchEl.value;
-      renderScanTable(CURRENT_LOG);
+      clearTimeout(_scanSearchTimer);
+      _scanSearchTimer = setTimeout(function () { renderScanTable(CURRENT_LOG); }, 150);
     });
     if (statusEl) statusEl.addEventListener('change', function () {
       SCAN_FILTER.status = statusEl.value;
