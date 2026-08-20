@@ -9,6 +9,7 @@ cho email service account (vai trò Editor).
 
 import json
 import os
+import re
 
 from api import config
 
@@ -81,16 +82,28 @@ def update_values(sheet_name, start_row, start_col, rows):
 
 
 def append_values(sheet_name, rows):
-    """Append batch cuối sheet (khớp GAS appendRow nhưng batch 1 lần)."""
+    """Append batch cuối sheet (khớp GAS appendRow nhưng batch 1 lần).
+
+    2026-08-20 (O2): trả START ROW (1-based) của khối vừa ghi (từ updatedRange) —
+    caller format đúng vùng vừa ghi mà không phải đọc lại cả sheet đếm dòng.
+    Parse fail → trả 0 (caller skip việc cosmetic format — không ảnh hưởng dữ liệu).
+    """
     if not rows:
         return 0
     rng = f"'{sheet_name}'"
     body = {"values": rows}
-    get_service().spreadsheets().values().append(
+    resp = get_service().spreadsheets().values().append(
         spreadsheetId=spreadsheet_id(), range=rng,
         valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body=body,
     ).execute()
-    return len(rows)
+    start = 0
+    try:
+        m = re.search(r"!([A-Z]+)(\d+):[A-Z]+(\d+)$", (resp.get("updates") or {}).get("updatedRange") or "")
+        if m:
+            start = int(m.group(3)) - len(rows) + 1
+    except Exception:
+        start = 0
+    return start
 
 
 def _col_letter(idx):

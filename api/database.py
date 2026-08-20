@@ -151,8 +151,10 @@ def _find_task_row(task_id):
 
 
 def read_task_list():
-    """Danh sách task (cache 30s) — mới nhất lên đầu, kèm counters total/scanned/extra."""
-    return cache.cached(config.CACHE_KEYS["TASK_LIST"], lambda: _read_task_list_uncached(), config.CACHE_TTL["TASK_LIST"])
+    """Danh sách task (cache — O4: version-check) — mới nhất lên đầu, kèm counters."""
+    return cache.cache_get_or_put_rev(
+        config.CACHE_KEYS["TASK_LIST"], config.CACHE_KEYS["TASK_LIST_REV"],
+        _read_task_list_uncached, config.CACHE_TTL["TASK_LIST"])
 
 
 def _read_task_list_uncached():
@@ -174,7 +176,9 @@ def _read_task_list_uncached():
 
 def task_counters_for_list():
     """Đếm total/scanned/extra theo taskId — đọc AttendanceLog 1 lần + group (không N+1)."""
-    return cache.cached(config.CACHE_KEYS["TASK_COUNTS"] + "all", lambda: _task_counters_uncached(), config.CACHE_TTL["TASK_COUNTS"])
+    return cache.cache_get_or_put_rev(
+        config.CACHE_KEYS["TASK_COUNTS"] + "all", config.CACHE_KEYS["TASK_LIST_REV"],
+        _task_counters_uncached, config.CACHE_TTL["TASK_COUNTS"])
 
 
 def _task_counters_uncached():
@@ -198,8 +202,11 @@ def _task_counters_uncached():
 
 
 def invalidate_task_list_cache():
-    cache.cache_remove(config.CACHE_KEYS["TASK_LIST"])
-    cache.cache_remove(config.CACHE_KEYS["TASK_COUNTS"] + "all")
+    # O4 (2026-08-20): bump version thay vì remove — cache value sống tiếp, poll thiết
+    # bị khác vẫn HIT; trước đây mỗi scan remove → mọi poll (3s × N thiết bị) miss →
+    # rebuild full-sheet (AttendanceTask + AttendanceLog) liên tục.
+    # TASK_COUNTS 'all' dùng CHUNG rev (luôn invalidate cùng nhau) → counters đúng.
+    cache.bump_rev(config.CACHE_KEYS["TASK_LIST_REV"])
 
 
 # ===== AttendanceLog =====
@@ -303,14 +310,16 @@ def invalidate_task_detail_cache(task_id):
 _TIME_FMT = "HH:mm:ss"
 
 
-def _format_time_columns(num_rows):
+def _format_time_columns(start_row, num_rows):
     """Set number format HH:mm:ss cho cột TIME_RA + TIME_SCAN (hiển thị sheet như GAS
-    setNumberFormat — nếu không, cell datetime hiện dạng đầy đủ '19/8/2026 09:02:15')."""
-    if num_rows <= 1:
+    setNumberFormat — nếu không, cell datetime hiện dạng đầy đủ '19/8/2026 09:02:15').
+    2026-08-20 (O2): format CHỈ vùng vừa ghi (start_row, num_rows) — trước format CẢ
+    cột + đọc lại cả sheet đếm dòng mỗi lần append (log lớn → chậm dần)."""
+    if num_rows <= 0 or start_row <= 0:
         return
     lc = config.LOG_COLS
-    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], 2, lc["TIME_RA"] + 1, num_rows - 1, 1, _TIME_FMT)
-    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], 2, lc["TIME_SCAN"] + 1, num_rows - 1, 1, _TIME_FMT)
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], start_row, lc["TIME_RA"] + 1, num_rows, 1, _TIME_FMT)
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], start_row, lc["TIME_SCAN"] + 1, num_rows, 1, _TIME_FMT)
 
 
 def batch_insert_log_rows(task_id, staff_list, created_at):
@@ -337,9 +346,9 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         row[lc["TIME_RA"]] = cache.to_iso_cell(s.get("timeRa")) if s.get("timeRa") else ""
         row[lc["AGENCY"]] = s.get("agency", "")
         rows.append(row)
-    sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
+    start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
     invalidate_log_rows(task_id)  # scan đầu sẽ đọc tươi (cold 1 lần, an toàn)
-    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
+    _format_time_columns(start, len(rows))
     return len(rows)
 
 
@@ -445,8 +454,8 @@ def append_log_row(row):
     out[lc["DATE"]] = row.get("date", "")
     out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
     out[lc["AGENCY"]] = row.get("agency", "")
-    sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], [out])
-    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
+    start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], [out])
+    _format_time_columns(start, 1)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row.get("taskId", ""))
     invalidate_log_rows(row.get("taskId", ""))
@@ -506,7 +515,9 @@ def batch_meal_move_log_updates(task_id, updates):
         invalidate_task_list_cache()
         invalidate_task_detail_cache(task_id)
         invalidate_log_rows(task_id)
-        _format_time_columns(len(values))
+        rows_idx = sorted(u["_rowIndex"] for u in updates if u.get("timeRa") or u.get("timeScan"))
+        if rows_idx:
+            _format_time_columns(rows_idx[0], rows_idx[-1] - rows_idx[0] + 1)
     return len(updates) if any_changed else 0
 
 
@@ -532,8 +543,8 @@ def batch_append_log_rows(rows):
         out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
         out[lc["AGENCY"]] = row.get("agency", "")
         payload.append(out)
-    sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
-    _format_time_columns(len(sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)))
+    start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
+    _format_time_columns(start, len(payload))
     invalidate_task_list_cache()
     seen = set()
     for r in rows:

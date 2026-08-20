@@ -81,6 +81,38 @@ def cached(key, load, ttl_seconds):
     return val
 
 
+def cache_get_or_put_rev(key, rev_key, load, ttl_seconds):
+    """cached() có version-check (O4 2026-08-20): scan chỉ bump rev thay vì remove —
+    poll thiết bị khác vẫn HIT (bỏ rebuild full-sheet mỗi lượt khi ≥3 thiết bị poll 3s).
+    Value lưu {v: rev, d: data}; rev lệch/mất → rebuild. Self-heal: chưa có rev → '1'."""
+    hit = cache_get(key)
+    if hit is not None:
+        try:
+            if hit.get("v") == cache_get(rev_key):
+                return hit["d"]
+        except Exception:
+            pass
+    value = load()
+    try:
+        rev = cache_get(rev_key)
+        if rev is None:
+            rev = "1"
+            cache_put(rev_key, rev, ttl_seconds)
+        cache_put(key, {"v": rev, "d": value}, ttl_seconds)
+    except Exception:
+        pass  # cache put fail → lần sau rebuild (không fail-open)
+    return value
+
+
+def bump_rev(rev_key):
+    """Bump version key — invalidate nhẹ (1 put), KHÔNG remove value (xem cache_get_or_put_rev)."""
+    try:
+        cur = cache_get(rev_key)
+        cache_put(rev_key, str((0 if cur is None else int(cur) or 0) + 1), config.CACHE_TTL["TASK_LIST"])
+    except Exception:
+        pass
+
+
 # ===== Format Date/time (port CacheLayer.gs formatTime_/formatDateTime_/formatDateShort_) =====
 
 def format_time(dt):

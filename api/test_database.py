@@ -41,8 +41,9 @@ class FakeSheets:
 
     def append_values(self, sheet_name, rows):
         data = self.sheets.setdefault(sheet_name, [])
+        start = len(data) + 1  # 1-based start row (khớp sheets.append_values thật)
         data.extend([list(r) for r in rows])
-        return len(rows)
+        return start
 
     def set_number_format(self, sheet_name, start_row, start_col, num_rows, num_cols, fmt):
         # number format là hiển thị (cosmetic) — fake chỉ cần tồn tại method

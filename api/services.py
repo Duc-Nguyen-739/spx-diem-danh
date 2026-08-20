@@ -569,10 +569,15 @@ def search_staff(code):
 
 
 def sheets_log_values():
-    """AttendanceLog values đã bỏ header — cho search (đọc tươi, không cache)."""
+    """AttendanceLog values đã bỏ header — cho search.
+    2026-08-20 (O3): cache 10s (version-key) — trước đọc CẢ sheet mỗi lần tìm
+    (log lớn → chậm dần). TTL ngắn đủ tươi cho luồng quét→tìm."""
     from api import sheets
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
-    return values[1:] if values else []
+    return cache.cached(
+        config.CACHE_KEYS["SEARCH_LOG"],
+        lambda: (sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True) or [])[1:],
+        config.CACHE_TTL["SEARCH_LOG"],
+    )
 
 
 def get_staff_index():
