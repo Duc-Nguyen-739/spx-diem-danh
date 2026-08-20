@@ -214,6 +214,43 @@ test('scanPollTick: RPC trước chưa về (in-flight) → không chồng RPC',
   assert.equal(sb.calls.length, 0, 'đang có RPC poll → không gửi thêm');
 });
 
+// ---- O-A (2026-08-20): delta poll — server so signature, trả unchanged thay full ----
+test('scanPollTick: gọi RPC kèm lastScanPollSig để server so signature (O-A)', () => {
+  const args = [];
+  const sb = run(makeSandbox({
+    runStub: function () {
+      return {
+        withSuccessHandler: function (fn) { this._ok = fn; return this; },
+        withFailureHandler: function (fn) { this._err = fn; return this; },
+        getTaskDetailApi: function (id, sig) { args.push({ id: id, sig: sig }); if (this._ok) this._ok({ ok: true, unchanged: true }); },
+      };
+    },
+  }));
+  sb.ctx.scanPollInFlight = false;
+  sb.ctx.lastScanPollSig = 'sig-hien-tai';
+  sb.ctx.scanPollTick('T1');
+  assert.equal(args.length, 1, 'phải gọi RPC poll');
+  assert.equal(args[0].id, 'T1', 'đúng taskId');
+  assert.equal(args[0].sig, 'sig-hien-tai', 'phải gửi signature hiện tại cho server so');
+});
+
+test('scanPollTick: server trả unchanged → bỏ qua, không gọi applyPolledScanDetail (O-A)', () => {
+  const sb = run(makeSandbox({
+    runStub: function () {
+      return {
+        withSuccessHandler: function (fn) { this._ok = fn; return this; },
+        withFailureHandler: function (fn) { this._err = fn; return this; },
+        getTaskDetailApi: function () { if (this._ok) this._ok({ ok: true, unchanged: true }); },
+      };
+    },
+  }));
+  let applied = 0;
+  sb.ctx.applyPolledScanDetail = function () { applied++; };
+  sb.ctx.scanPollInFlight = false;
+  sb.ctx.scanPollTick('T1');
+  assert.equal(applied, 0, 'unchanged → KHÔNG parse/render dữ liệu poll');
+});
+
 // ---- startScanPolling / applyPolledScanDetail ----
 test('startScanPolling: tạo interval poll + ghi signature hiện tại; demo mode → không poll', () => {
   const sb = run(makeSandbox());
@@ -353,6 +390,41 @@ test('taskListPollTick: người khác kết thúc task (signature đổi) → r
   sb.ctx.renderDash = function () { dashCalls++; };
   sb.ctx.taskListPollTick();
   assert.equal(dashCalls, 1, 'có thay đổi từ thiết bị khác → phải render lại');
+});
+
+test('taskListPollTick: gọi RPC kèm lastTaskListSig để server so signature (O-A)', () => {
+  const args = [];
+  const sb = run(makeSandbox({
+    runStub: function () {
+      return {
+        withSuccessHandler: function (fn) { this._ok = fn; return this; },
+        withFailureHandler: function (fn) { this._err = fn; return this; },
+        getTaskListApi: function (sig) { args.push(sig); if (this._ok) this._ok({ ok: true, unchanged: true }); },
+      };
+    },
+  }));
+  sb.ctx._taskFilterStaff = null;
+  sb.ctx.lastTaskListSig = 'sig-list';
+  sb.ctx.taskListPollTick();
+  assert.equal(args.length, 1, 'phải gọi RPC poll');
+  assert.equal(args[0], 'sig-list', 'phải gửi signature hiện tại cho server so');
+});
+
+test('taskListPollTick: server trả unchanged → không renderDash (O-A)', () => {
+  const sb = run(makeSandbox({
+    runStub: function () {
+      return {
+        withSuccessHandler: function (fn) { this._ok = fn; return this; },
+        withFailureHandler: function (fn) { this._err = fn; return this; },
+        getTaskListApi: function () { if (this._ok) this._ok({ ok: true, unchanged: true }); },
+      };
+    },
+  }));
+  sb.ctx._taskFilterStaff = null;
+  let dashCalls = 0;
+  sb.ctx.renderDash = function () { dashCalls++; };
+  sb.ctx.taskListPollTick();
+  assert.equal(dashCalls, 0, 'unchanged → KHÔNG được re-render (giữ sort/filter/phân trang)');
 });
 
 test('startTaskListPolling: ghi signature hiện tại + interval; demo mode → không poll', () => {

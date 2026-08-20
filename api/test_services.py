@@ -360,6 +360,62 @@ class TestServices(unittest.TestCase):
         self.assertTrue(r["ok"], r.get("message"))
         self.assertEqual(r["status"], "Có mặt")
 
+    def test_task_detail_delta_poll_unchanged(self):
+        # O-A (2026-08-20): get_task_detail nhận client_sig — khớp → trả unchanged (~40B)
+        # thay vì full log mỗi chu kỳ poll 3s (task lớn = 40-90KB/chu kỳ lãng phí).
+        task_id = self._create_task()
+        detail = services.get_task_detail(task_id)
+        self.assertTrue(detail["ok"])
+        sig = services.compute_detail_sig(detail)
+        self.assertIsInstance(sig, str)
+        self.assertTrue(sig, "detail có log → signature không rỗng")
+        # gửi đúng sig → unchanged
+        out = services.get_task_detail(task_id, sig)
+        self.assertTrue(out.get("unchanged"), "sig khớp → phải trả unchanged")
+        self.assertNotIn("task", out, "unchanged → không gửi full detail")
+        # đổi sig (giả lập có ghi từ thiết bị khác) → trả full
+        out2 = services.get_task_detail(task_id, "sig-khac")
+        self.assertFalse(out2.get("unchanged"))
+        self.assertIn("task", out2, "sig khác → phải gửi full detail")
+        # không gửi sig → luôn full (backward compat loadTaskDetail)
+        out3 = services.get_task_detail(task_id)
+        self.assertIn("task", out3)
+
+    def test_task_list_delta_poll_unchanged(self):
+        # O-A (2026-08-20): list_tasks nhận client_sig — khớp → unchanged thay full list.
+        # (list rỗng → sig "" falsy → server trả full — behavior đúng, cần task để sig khác rỗng)
+        self._create_task()
+        tasks = services.list_tasks()
+        self.assertIsInstance(tasks, list)
+        sig = services.compute_task_list_sig(tasks)
+        self.assertTrue(sig, "có task → signature không rỗng")
+        out = services.list_tasks(sig)
+        self.assertTrue(out.get("unchanged"), "sig khớp → phải trả unchanged")
+        out2 = services.list_tasks("sig-khac")
+        self.assertIsInstance(out2, list, "sig khác → trả full list (không phải dict unchanged)")
+        self.assertEqual(out2[0]["taskId"], tasks[0]["taskId"])
+
+    def test_detail_sig_field_scope(self):
+        # O-A: sig phải BAO PHỦ mọi field render — status/counters/log row đổi đều đổi sig
+        # (thiếu field → client không nhận ra đổi → stale).
+        base = {"task": {"status": "open"}, "counters": {"scanned": 1, "absent": 0, "extra": 0, "out": 0},
+                "log": [{"staffId": "OPS001", "status": "Có mặt", "timeScanEpoch": 1000, "timeRaEpoch": 0}]}
+        mutate = [
+            ("status", {"task": {"status": "done"}}),
+            ("scanned", {"counters": {"scanned": 2, "absent": 0, "extra": 0, "out": 0}}),
+            ("absent", {"counters": {"scanned": 1, "absent": 1, "extra": 0, "out": 0}}),
+            ("out", {"counters": {"scanned": 1, "absent": 0, "extra": 0, "out": 1}}),
+            ("extra", {"counters": {"scanned": 1, "absent": 0, "extra": 1, "out": 0}}),
+            ("staffId", {"log": [{"staffId": "OPS002", "status": "Có mặt", "timeScanEpoch": 1000, "timeRaEpoch": 0}]}),
+            ("timeScanEpoch", {"log": [{"staffId": "OPS001", "status": "Có mặt", "timeScanEpoch": 5000, "timeRaEpoch": 0}]}),
+            ("status row", {"log": [{"staffId": "OPS001", "status": "Vắng", "timeScanEpoch": 1000, "timeRaEpoch": 0}]}),
+        ]
+        base_sig = services.compute_detail_sig(base)
+        for name, patch in mutate:
+            d = {"task": dict(base["task"]), "counters": dict(base["counters"]), "log": [dict(r) for r in base["log"]]}
+            d.update(patch)
+            self.assertNotEqual(services.compute_detail_sig(d), base_sig, f"đổi {name} → sig phải đổi")
+
 
 if __name__ == "__main__":
     unittest.main()

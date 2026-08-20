@@ -1257,7 +1257,8 @@
           closeCreateModal();
           showToast(res.message + ' — ' + res.count + ' NV', false);
           loadTaskList();
-          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+          // O-B (2026-08-20): bỏ loadStaffIndex() — server index đã fresh từ app load;
+          // scan response tự mang info NV lạ (Dư) về → không cần tải lại full ~90KB
           openScan(res.taskId);
         } else {
           showToast(res.message, true);
@@ -1507,10 +1508,13 @@
       .withSuccessHandler(function (res) {
         scanPollInFlight = false;
         if (!res || !res.ok) return;
+        // O-A (2026-08-20): server đã so signature — khớp → {ok, unchanged} ~40B,
+        // KHÔNG gửi full log (task lớn = 40-90KB/chu kỳ lãng phí). Bỏ qua là xong.
+        if (res.unchanged) return;
         applyPolledScanDetail(res);
       })
       .withFailureHandler(function () { scanPollInFlight = false; })
-      .getTaskDetailApi(taskId);
+      .getTaskDetailApi(taskId, lastScanPollSig);
   }
 
   // Áp dữ liệu poll vào màn quét — chỉ re-render khi THỰC SỰ có thay đổi (signature guard).
@@ -1583,8 +1587,12 @@
     if (_taskFilterStaff) return;                         // lọc theo mã Ops — không đè lọc
     taskListPollInFlight = true;
     google.script.run
-      .withSuccessHandler(function (tasks) {
+      .withSuccessHandler(function (res) {
         taskListPollInFlight = false;
+        // O-A (2026-08-20): server so signature — khớp → {ok, unchanged} ~40B thay
+        // full list; giữ lastTaskListSig để lần kế server so tiếp.
+        if (res && res.unchanged) { markServerOk(); return; }
+        var tasks = res || [];
         var sig = taskListSignature(tasks);
         if (sig === lastTaskListSig) return; // không đổi → giữ nguyên (không reset sort/filter)
         lastTaskListSig = sig;
@@ -1592,7 +1600,7 @@
         markServerOk();
       })
       .withFailureHandler(function () { taskListPollInFlight = false; })
-      .getTaskListApi();
+      .getTaskListApi(lastTaskListSig);
   }
 
   // meal-move: hiện/ẩn cột Giờ Ra / Nhà Thầu / Số phút trong bảng scan
@@ -2204,7 +2212,7 @@
           closeCreateMealModal();
           showToast(res.message, false);
           loadTaskList();
-          loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+          // O-B (2026-08-20): bỏ loadStaffIndex() thừa — server index fresh + scan response mang info NV lạ
           openScan(res.taskId);
         } else {
           showToast(res.message, true);
@@ -2253,7 +2261,7 @@
         BUSY = false;
         if (btn) btn.disabled = false;
         loadTaskList();
-        loadStaffIndex();  // refresh staff cache — quét ngay có thông tin
+        // O-B (2026-08-20): bỏ loadStaffIndex() thừa — server index fresh + scan response mang info NV lạ
         if (res.ok) {
           showToast(res.message, false);
           openScan(res.taskId);

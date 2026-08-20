@@ -275,14 +275,48 @@ function pasteMealMoveScanApi(taskId, codes, mode) {
   return pasteMealMoveScan(taskId, codes, mode);
 }
 
-/** Danh sách task. */
-function getTaskListApi() {
-  return listTasks();
+/**
+ * O-A (2026-08-20): DELTA POLL — server so signature, trả "unchanged" thay vì full.
+ * Mirror CHÍNH XÁC taskListSignature/scanDetailSignature bên client (js.html) — field
+ * nào đổi mà thiếu trong sig → client không nhận ra → stale. Static test đảm bảo khớp.
+ */
+function computeTaskListSig(tasks) {
+  return (tasks || []).map(function (t) {
+    return [t.taskId, t.status, t.total || 0, t.scanned || 0, t.extra || 0,
+      t.createdAtText || '', t.completedAtText || '', t.note || ''].join('|');
+  }).join(';');
 }
 
-/** Chi tiết task + log + counters. */
-function getTaskDetailApi(taskId) {
-  return getTaskDetail(taskId);
+function computeDetailSig(detail) {
+  const task = (detail && detail.task) || {};
+  const c = (detail && detail.counters) || {};
+  const log = (detail && detail.log) || [];
+  const parts = [task.status, c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
+  for (let i = 0; i < log.length; i++) {
+    const r = log[i] || {};
+    parts.push(String(r.staffId || '') + '|' + String(r.status || '') + '|'
+      + (Number(r.timeScanEpoch) || 0) + '|' + (Number(r.timeRaEpoch) || 0));
+  }
+  return parts.join(';');
+}
+
+/** Danh sách task. clientSig (O-A): khớp → {ok:true, unchanged:true} (~40B) thay full list. */
+function getTaskListApi(clientSig) {
+  const tasks = listTasks();
+  if (clientSig && computeTaskListSig(tasks) === clientSig) {
+    return { ok: true, unchanged: true };
+  }
+  return tasks;
+}
+
+/** Chi tiết task + log + counters. clientSig (O-A): khớp → {ok:true, unchanged:true}. */
+function getTaskDetailApi(taskId, clientSig) {
+  const detail = getTaskDetail(taskId);
+  if (!detail || !detail.ok) return detail;
+  if (clientSig && computeDetailSig(detail) === clientSig) {
+    return { ok: true, unchanged: true };
+  }
+  return detail;
 }
 
 /** Quét NV — meal-move: truyền mode 'ra'|'vao' (server tự validate permission, không tin client). */

@@ -276,16 +276,61 @@ def update_task_note(task_id, note):
         return {"ok": True, "message": "Đã lưu ghi chú" if clean else "Đã xoá ghi chú"}
 
 
-def list_tasks():
-    return database.read_task_list()
+def compute_task_list_sig(tasks):
+    """O-A (2026-08-20): mirror taskListSignature client (js.html) — field nào đổi mà
+    thiếu trong sig → client không nhận ra → stale. Test đảm bảo khớp client."""
+    return ";".join(
+        "|".join([
+            str(t.get("taskId") or ""),
+            str(t.get("status") or ""),
+            str(t.get("total") or 0),
+            str(t.get("scanned") or 0),
+            str(t.get("extra") or 0),
+            str(t.get("createdAtText") or ""),
+            str(t.get("completedAtText") or ""),
+            str(t.get("note") or ""),
+        ])
+        for t in (tasks or [])
+    )
 
 
-def get_task_detail(task_id):
+def compute_detail_sig(detail):
+    """O-A: mirror scanDetailSignature client (js.html)."""
+    task = (detail or {}).get("task") or {}
+    c = (detail or {}).get("counters") or {}
+    parts = [
+        str(task.get("status") or ""),
+        str(c.get("scanned") or 0),
+        str(c.get("absent") or 0),
+        str(c.get("extra") or 0),
+        str(c.get("out") or 0),
+    ]
+    for r in (detail or {}).get("log") or []:
+        parts.append("|".join([
+            str(r.get("staffId") or ""),
+            str(r.get("status") or ""),
+            str(int(r.get("timeScanEpoch") or 0)),
+            str(int(r.get("timeRaEpoch") or 0)),
+        ]))
+    return ";".join(parts)
+
+
+def list_tasks(client_sig=None):
+    """O-A: client_sig khớp → {ok:True, unchanged:True} (~40B) thay vì full list mỗi poll."""
+    tasks = database.read_task_list()
+    if client_sig and compute_task_list_sig(tasks) == client_sig:
+        return {"ok": True, "unchanged": True}
+    return tasks
+
+
+def get_task_detail(task_id, client_sig=None):
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId", "task": None, "log": []}
     detail = database.read_task_detail_cached(task_id)
     if not detail or not detail.get("task"):
         return {"ok": False, "message": "Không tìm thấy task", "task": None, "log": []}
+    if client_sig and compute_detail_sig(detail) == client_sig:
+        return {"ok": True, "unchanged": True}
     return {"ok": True, "task": detail["task"], "log": detail["log"], "counters": detail["counters"]}
 
 

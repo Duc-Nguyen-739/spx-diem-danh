@@ -140,3 +140,59 @@ test('Code.gs: searchStaffApi đọc log qua cachedJson_(CACHE_KEYS.SEARCH_LOG)'
   assert.ok(block.indexOf('getDataRange().getValues().slice(1)') >= 0,
     'cache builder phải đọc đúng AttendanceLog (bỏ header)');
 });
+
+// ===== O-A (2026-08-20): DELTA POLL — server so signature, trả unchanged thay full =====
+// client js.html taskListSignature: [taskId,status,total,scanned,extra,createdAtText,completedAtText,note]
+// client js.html scanDetailSignature: [task.status, counters.scanned/absent/extra/out, mỗi dòng staffId|status|timeScanEpoch|timeRaEpoch]
+// Server sig phải mirror CHÍNH XÁC — thiếu field → client không nhận ra đổi → stale.
+test('Code.gs: computeTaskListSig/computeDetailSig mirror đúng field client (O-A)', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
+  const listStart = code.indexOf('function computeTaskListSig(');
+  assert.ok(listStart >= 0, 'phải có computeTaskListSig');
+  const listEnd = code.indexOf('\nfunction ', listStart + 1);
+  const listBlock = code.slice(listStart, listEnd === -1 ? listStart + 700 : listEnd);
+  ['t.taskId', 't.status', 't.total || 0', 't.scanned || 0', 't.extra || 0',
+    't.createdAtText || \'\'', 't.completedAtText || \'\'', 't.note || \'\''].forEach(function (f) {
+    assert.ok(listBlock.indexOf(f) >= 0, 'computeTaskListSig phải gồm ' + f);
+  });
+  const detStart = code.indexOf('function computeDetailSig(');
+  assert.ok(detStart >= 0, 'phải có computeDetailSig');
+  const detEnd = code.indexOf('\nfunction ', detStart + 1);
+  const detBlock = code.slice(detStart, detEnd === -1 ? detStart + 900 : detEnd);
+  ['task.status', 'c.scanned || 0', 'c.absent || 0', 'c.extra || 0', 'c.out || 0',
+    'r.staffId', 'r.status', 'r.timeScanEpoch', 'r.timeRaEpoch'].forEach(function (f) {
+    assert.ok(detBlock.indexOf(f) >= 0, 'computeDetailSig phải gồm ' + f);
+  });
+});
+
+test('Code.gs: getTaskListApi/getTaskDetailApi nhận clientSig và trả unchanged khi khớp (O-A)', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
+  const listStart = code.indexOf('function getTaskListApi(');
+  assert.ok(listStart >= 0, 'phải có getTaskListApi');
+  const listEnd = code.indexOf('\nfunction ', listStart + 1);
+  const listBlock = code.slice(listStart, listEnd === -1 ? listStart + 800 : listEnd);
+  assert.ok(listBlock.indexOf('clientSig') >= 0, 'getTaskListApi phải nhận clientSig');
+  assert.ok(listBlock.indexOf('unchanged: true') >= 0, 'khớp → trả { ok: true, unchanged: true }');
+  const detStart = code.indexOf('function getTaskDetailApi(');
+  assert.ok(detStart >= 0, 'phải có getTaskDetailApi');
+  const detEnd = code.indexOf('\nfunction ', detStart + 1);
+  const detBlock = code.slice(detStart, detEnd === -1 ? detStart + 800 : detEnd);
+  assert.ok(detBlock.indexOf('clientSig') >= 0, 'getTaskDetailApi phải nhận clientSig');
+  assert.ok(detBlock.indexOf('unchanged: true') >= 0, 'khớp → trả { ok: true, unchanged: true }');
+});
+
+test('js.html: poll truyền sig + xử lý unchanged (O-A)', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
+  const scanTick = js.indexOf('function scanPollTick(');
+  assert.ok(scanTick >= 0);
+  const scanBlock = js.slice(scanTick, js.indexOf('\n  function ', scanTick + 1));
+  assert.ok(scanBlock.indexOf('res.unchanged') >= 0, 'scanPollTick phải bỏ qua khi server trả unchanged');
+  assert.ok(scanBlock.indexOf('.getTaskDetailApi(taskId, lastScanPollSig)') >= 0,
+    'scanPollTick phải gửi lastScanPollSig cho server so');
+  const listTick = js.indexOf('function taskListPollTick(');
+  assert.ok(listTick >= 0);
+  const listBlock = js.slice(listTick, js.indexOf('\n  function ', listTick + 1));
+  assert.ok(listBlock.indexOf('res.unchanged') >= 0, 'taskListPollTick phải bỏ qua khi server trả unchanged');
+  assert.ok(listBlock.indexOf('.getTaskListApi(lastTaskListSig)') >= 0,
+    'taskListPollTick phải gửi lastTaskListSig cho server so');
+});

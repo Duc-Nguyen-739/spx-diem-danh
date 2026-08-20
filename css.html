@@ -284,6 +284,10 @@
     /* C4: dòng NV Dư — nền cam nhạt nổi bật giữa bảng */
     #scanTable tr.extra-row td { background: #fef7e0; }
     #scanTable tr.extra-row:hover td { background: #fdf0cd; }
+    /* O-F (2026-08-20): task lớn (hàng trăm NV) — content-visibility chỉ dựng row trong
+       viewport → mở/re-render bảng nhanh hơn hẳn khi scroll (browser không hỗ trợ →
+       bỏ qua, không đổi behavior). contain-intrinsic-size giữ scrollbar ổn định. */
+    #scanTable tbody tr { content-visibility: auto; contain-intrinsic-size: auto 36px; }
 
     .badge {
       display: inline-block;
