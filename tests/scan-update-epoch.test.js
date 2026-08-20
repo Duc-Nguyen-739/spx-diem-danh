@@ -87,3 +87,23 @@ test('js.html: optimistic durationMinutes phải clamp Math.max(0) — khớp se
   assert.ok(line.indexOf('Math.max(0, Math.round(') >= 0,
     'optimistic phải clamp Math.max(0, ...) — response server đã clamp, client phải khớp');
 });
+
+// ===== O5 (2026-08-20): TASK_DETAIL rebuild từ cache — không đọc full sheet mỗi miss =====
+// Màn quét poll 3s + TTL detail 5s + invalidate sau mỗi scan → miss liên tục; trước
+// đây mỗi miss getDataRange CẢ AttendanceLog + AttendanceTask (log phình → càng chậm).
+// LOG_ROWS/TASK cache được mọi write path giữ đúng (scan → incremental, append/batch/
+// transform → invalidate) → build từ cache là nguồn tươi tương đương sheet.
+test('Database.gs: readTaskDetailCached_ build từ readTaskCached_ + readLogRowsCached_ (không đọc fresh sheet)', () => {
+  const db = fs.readFileSync(path.join(__dirname, '..', 'Database.gs'), 'utf8');
+  const start = db.indexOf('function readTaskDetailCached_(');
+  assert.ok(start >= 0, 'phải có hàm readTaskDetailCached_');
+  const end = db.indexOf('\nfunction ', start + 1);
+  const block = db.slice(start, end === -1 ? start + 1600 : end);
+  assert.ok(block.indexOf('readTaskCached_(taskId)') >= 0, 'detail phải dùng task cache');
+  assert.ok(block.indexOf('readLogRowsCached_(taskId)') >= 0,
+    'detail phải dùng log rows cache (incremental — scan kế không chạm sheet)');
+  assert.ok(block.indexOf('readLogRows_(taskId)') === -1,
+    'KHÔNG được đọc fresh full AttendanceLog khi miss (O5 2026-08-20)');
+  assert.ok(block.indexOf('readTask_(taskId)') === -1,
+    'KHÔNG được đọc fresh AttendanceTask khi miss (O5 2026-08-20)');
+});

@@ -335,6 +335,31 @@ class TestServices(unittest.TestCase):
         self.assertIn("OPS001", idx["staff"])
         self.assertEqual(idx["staff"]["OPS001"]["staffName"], "NV A")
 
+    def test_task_detail_after_scan_no_sheet_log_read(self):
+        # O5 (2026-08-20): detail rebuild từ TASK/LOG_ROWS cache (incremental) — sau
+        # scan KHÔNG đọc lại full sheet (trước mỗi miss detail đọc lại cả AttendanceLog
+        # + AttendanceTask → log phình → càng chậm).
+        task_id = self._create_task()
+        services.scan_staff(task_id, "OPS001")
+        calls = []
+        orig = self.fake.get_values
+        def counting(sheet_name, *a, **k):
+            calls.append(sheet_name)
+            return orig(sheet_name, *a, **k)
+        self.fake.get_values = counting
+        detail = services.get_task_detail(task_id)
+        self.assertTrue(detail["ok"])
+        self.assertEqual(detail["log"][0]["status"], "Có mặt")
+        self.assertNotIn(config.SHEETS["ATTENDANCE_LOG"], calls,
+                         "detail phải build từ LOG_ROWS cache — không đọc lại sheet log")
+        self.assertNotIn(config.SHEETS["ATTENDANCE_TASK"], calls,
+                         "detail phải build từ TASK cache — không đọc lại sheet task")
+        self.assertFalse(any("_rowIndex" in r for r in detail["log"]), "detail không chứa _rowIndex")
+        # scan kế vẫn phải còn _rowIndex trong LOG_ROWS cache (detail copy không đụng cache)
+        r = services.scan_staff(task_id, "OPS002")
+        self.assertTrue(r["ok"], r.get("message"))
+        self.assertEqual(r["status"], "Có mặt")
+
 
 if __name__ == "__main__":
     unittest.main()

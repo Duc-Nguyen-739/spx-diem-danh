@@ -496,14 +496,20 @@ function warmLogRowsCache_(taskId, staffList, startRow) {
  */
 function readTaskDetailCached_(taskId) {
   return cachedJson_(CACHE_KEYS.TASK_DETAIL + taskId, function () {
-    const task = readTask_(taskId);
+    // 2026-08-20 (review): build từ CACHE (readTaskCached_ + readLogRowsCached_) thay
+    // vì đọc fresh full sheet — màn quét poll 3s + TTL detail 5s + invalidate sau
+    // mỗi scan → miss liên tục → trước đây mỗi miss getDataRange CẢ AttendanceLog +
+    // AttendanceTask (log phình → càng chậm). 2 cache này được mọi write path giữ
+    // đúng (scan → incremental updateLogRowCache_; append/batch/transform →
+    // invalidateLogRows_) nên data tươi như sheet; UI scan chỉ cần field slim.
+    // Trade-off: sửa tay trên gsheet → detail cũ tối đa LOG_ROWS TTL (~10s).
+    const task = readTaskCached_(taskId);
     if (!task) return null;
-    const log = readLogRows_(taskId);
+    const log = readLogRowsCached_(taskId);
     const counters = computeCounters({ STATUS: STATUS }, log);
     // P3: strip _rowIndex khỏi cache — rowIndex chỉ dùng khi GHI (updateLogRowScan_/
     // updateTaskStatus_ luôn đọc tươi qua readLogRows_/readTask_, không qua cache).
     // Cache giữ _rowIndex → stale nếu log/task bị xóa/chèn giữa chừng.
-    delete task._rowIndex;
     log.forEach(function (r) { delete r._rowIndex; });
     return { task: task, log: log, counters: counters };
   }, CACHE_TTL.TASK_DETAIL);

@@ -292,12 +292,22 @@ def read_task_detail_cached(task_id):
 
 
 def _read_task_detail(task_id):
-    task = read_task(task_id)
+    # 2026-08-20 (review): build từ CACHE (read_task_cached + read_log_rows_cached)
+    # thay vì đọc fresh full sheet — màn quét poll 3s + TTL detail 5s + invalidate
+    # sau mỗi scan → miss liên tục → trước đây mỗi miss đọc lại CẢ AttendanceLog +
+    # AttendanceTask (log phình → càng chậm). 2 cache này được mọi write path giữ
+    # đúng (scan → incremental update_log_row_cache; append/batch/transform →
+    # invalidate_log_rows) nên data tươi như sheet; UI scan chỉ cần field slim.
+    # Trade-off: sửa tay trên gsheet → detail cũ tối đa LOG_ROWS TTL (~10s).
+    task = read_task_cached(task_id)
     if not task:
         return None
-    log = read_log_rows(task_id)
+    log = read_log_rows_cached(task_id)
     counters = scanlogic.compute_counters({"STATUS": config.STATUS}, log)
-    task.pop("_rowIndex", None)
+    # COPY trước khi strip _rowIndex — cache Python trả OBJECT SỐNG (cache_get =
+    # tham chiếu trong store); pop trên đó làm hỏng LOG_ROWS cache → scan kế mất
+    # _rowIndex → update_log_row_scan văng KeyError.
+    log = [dict(r) for r in log]
     for r in log:
         r.pop("_rowIndex", None)
     return {"task": task, "log": log, "counters": counters}
