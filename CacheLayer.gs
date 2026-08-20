@@ -36,6 +36,39 @@ function cachedJson_(key, load, ttlSeconds) {
   return value;
 }
 
+/**
+ * cachedJson_ có version-check — cho key bị invalidate THƯỜNG XUYÊN (TASK_LIST,
+ * TASK_COUNTS all). Scan chỉ bump rev key (1 put nhỏ) thay vì remove() — value
+ * sống tiếp nên poll thiết bị khác vẫn HIT (bỏ rebuild full-sheet mỗi lượt khi
+ * ≥3 thiết bị poll 3s). Value lưu {v: rev, d: data}; rev lệch/mất → rebuild.
+ * Self-heal: rev key chưa tồn tại (deploy đầu tiên / hết hạn) → tạo '1'.
+ */
+function cachedJsonRev_(key, revKey, load, ttlSeconds) {
+  const cached = cache_().get(key);
+  if (cached !== null) {
+    try {
+      const parsed = JSON.parse(cached);
+      const rev = cache_().get(revKey);
+      if (rev !== null && String(parsed.v) === rev) return parsed.d;
+    } catch (e) { console.warn('cache parse fail', key, e.message); }
+  }
+  const value = load();
+  try {
+    let rev = cache_().get(revKey);
+    if (rev === null) { rev = '1'; cache_().put(revKey, rev, ttlSeconds); }
+    cache_().put(key, JSON.stringify({ v: rev, d: value }), ttlSeconds);
+  } catch (e) { console.warn('cache put fail', key, e.message); }
+  return value;
+}
+
+/** Bump version key — invalidate "nhẹ" (1 put), KHÔNG remove value (xem cachedJsonRev_). */
+function bumpCacheRev_(revKey) {
+  try {
+    const cur = cache_().get(revKey);
+    cache_().put(revKey, String((cur === null ? 0 : parseInt(cur, 10) || 0) + 1), CACHE_TTL.TASK_LIST);
+  } catch (e) { console.warn('bumpCacheRev_ fail', revKey, e.message); }
+}
+
 /** Cache timezone 1 lần (tránh gọi trong loop). */
 function getTimeZone_() {
   return cachedJson_(CACHE_KEYS.TZ, function () {
@@ -73,6 +106,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     cache_: cache_,
     cachedJson_: cachedJson_,
+    cachedJsonRev_: cachedJsonRev_,
+    bumpCacheRev_: bumpCacheRev_,
     getTimeZone_: getTimeZone_,
     formatTime_: formatTime_,
     formatDateTime_: formatDateTime_,

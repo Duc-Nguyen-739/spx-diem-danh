@@ -130,6 +130,7 @@ const CACHE_KEYS = {
   STAFF_INDEX: 'rc2_staffIndex_v1',
   FILTER_OPTIONS: 'rc2_filterOptions_v1',
   TASK_LIST: 'rc2_taskList_v1',
+  TASK_LIST_REV: 'rc2_taskListRev_v1',   // O4: version counter — scan bump rev thay vì remove() (poll thiết bị khác vẫn hit cache)
   TASK_DETAIL: 'rc2_taskDetail_v2_',  // v2: meal-move thêm timeRa/agency/duration (schema log đổi)
   TASK: 'rc2_task_v1_',          // v1 — task theo taskId (đường quét scanStaff)
   LOG_ROWS: 'rc2_logRows_v2_',          // v2: schema slim thêm timeRaEpoch (meal-move)

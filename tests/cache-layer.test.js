@@ -39,7 +39,7 @@ global.Utilities = {
 };
 
 global.CACHE_KEYS = { TZ: 'rc2_tz_v2', STAFF_INDEX: 'rc2_staffIndex_v1' };
-global.CACHE_TTL = { TZ: 86400, STAFF_INDEX: 300 };
+global.CACHE_TTL = { TZ: 86400, STAFF_INDEX: 300, TASK_LIST: 10 };
 
 // CsvUtil.normalizeStaffDate_ — giả lập đúng hành vi (Date → yyyy-MM-dd)
 global.normalizeStaffDate_ = function (date) {
@@ -95,6 +95,69 @@ test('cachedJson_: put fail (quota) → vẫn trả value (fallback an toàn)', 
   const v = CacheLayer.cachedJson_('k-putfail', function () { return { d: 4 }; }, 30);
   CacheService.getScriptCache().put = origPut;
   assert.deepEqual(v, { d: 4 }, 'put fail không chặn kết quả');
+});
+
+// ===== cachedJsonRev_ (O4 2026-08-20: invalidate bằng version thay vì remove) =====
+const REV = 'rc2_taskListRev_v1';
+const LST = 'rc2_taskList_v1';
+
+test('cachedJsonRev_: lần đầu (chưa có rev) → load + self-heal rev=1', () => {
+  store.delete(REV); store.delete(LST);
+  let loaded = 0;
+  const v = CacheLayer.cachedJsonRev_(LST, REV, function () { loaded++; return [{ id: 1 }]; }, 10);
+  assert.deepEqual(v, [{ id: 1 }]);
+  assert.equal(loaded, 1);
+  assert.equal(store.get(REV).value, '1', 'self-heal: tạo rev key khi chưa có');
+  assert.deepEqual(JSON.parse(store.get(LST).value), { v: '1', d: [{ id: 1 }] });
+});
+
+test('cachedJsonRev_: hit khi rev khớp → KHÔNG gọi load', () => {
+  store.set(REV, { value: '1', ttl: 10 });
+  store.set(LST, { value: JSON.stringify({ v: '1', d: [{ id: 1 }] }), ttl: 10 });
+  let loaded = 0;
+  const v = CacheLayer.cachedJsonRev_(LST, REV, function () { loaded++; return [{ id: 999 }]; }, 10);
+  assert.deepEqual(v, [{ id: 1 }]);
+  assert.equal(loaded, 0, 'rev khớp → serve cache (không rebuild)');
+});
+
+test('cachedJsonRev_: bump rev → rebuild (value cũ KHÔNG được serve)', () => {
+  store.set(REV, { value: '1', ttl: 10 });
+  store.set(LST, { value: JSON.stringify({ v: '1', d: [{ id: 1 }] }), ttl: 10 });
+  CacheLayer.bumpCacheRev_(REV);
+  assert.equal(store.get(REV).value, '2', 'bump: 1 → 2');
+  assert.ok(store.get(LST), 'bump KHÔNG remove value cache');
+  let loaded = 0;
+  const v = CacheLayer.cachedJsonRev_(LST, REV, function () { loaded++; return [{ id: 2 }]; }, 10);
+  assert.deepEqual(v, [{ id: 2 }]);
+  assert.equal(loaded, 1, 'rev lệch → rebuild');
+  assert.deepEqual(JSON.parse(store.get(LST).value), { v: '2', d: [{ id: 2 }] });
+});
+
+test('cachedJsonRev_: rev key mất (hết hạn) → rebuild, không serve value cũ', () => {
+  store.delete(REV);
+  store.set(LST, { value: JSON.stringify({ v: '1', d: [{ id: 1 }] }), ttl: 10 });
+  let loaded = 0;
+  const v = CacheLayer.cachedJsonRev_(LST, REV, function () { loaded++; return [{ id: 3 }]; }, 10);
+  assert.deepEqual(v, [{ id: 3 }]);
+  assert.equal(loaded, 1);
+  assert.equal(store.get(REV).value, '1', 'self-heal lại rev sau khi mất');
+});
+
+test('cachedJsonRev_: put fail (quota) → vẫn trả value (fallback an toàn)', () => {
+  store.delete(REV); store.delete(LST);
+  const origPut = CacheService.getScriptCache().put;
+  CacheService.getScriptCache().put = function () { throw new Error('Exceeded quota'); };
+  const v = CacheLayer.cachedJsonRev_(LST, REV, function () { return [{ id: 4 }]; }, 10);
+  CacheService.getScriptCache().put = origPut;
+  assert.deepEqual(v, [{ id: 4 }], 'put fail không chặn kết quả');
+});
+
+test('bumpCacheRev_: lần đầu → 1, tăng dần', () => {
+  store.delete(REV);
+  CacheLayer.bumpCacheRev_(REV);
+  assert.equal(store.get(REV).value, '1');
+  CacheLayer.bumpCacheRev_(REV);
+  assert.equal(store.get(REV).value, '2');
 });
 
 // ===== getTimeZone_ =====

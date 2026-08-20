@@ -59,13 +59,15 @@ function ensureSheets_() {
   // Migration an toàn: sheet cũ tạo trước khi có cột date (LOG_COL_COUNT=11) vẫn còn
   // 10 cột → getSheet_ chỉ set header khi sheet trống, không tự thêm cột. Nếu thiếu,
   // thêm cột cuối + đặt header, nếu không batchInsertLogRows_ ghi 11 giá trị sẽ vỡ.
-  // Migration: sheet cũ có thể thiếu cột date(11), timeRa(12), agency(13).
+  // Migration: sheet cũ có thể thiếu cột status(10), date(11), timeRa(12), agency(13).
   // Tự thêm cột cuối + đặt header cho từng cột thiếu — an toàn với mọi phiên bản cũ.
+  // BUG 2026-08-20 (review): headers[nextCol-11] với nextCol=10 (sheet 9 cột) →
+  // headers[-1]=undefined → header cột 10 ghi rỗng. Dùng map cột → header đúng.
+  var LOG_HEADER_BY_COL = { 10: 'status', 11: 'date', 12: 'timeRa', 13: 'agency' };
   while (logSheet.getLastColumn() < LOG_COL_COUNT) {
     var nextCol = logSheet.getLastColumn() + 1;
     logSheet.insertColumnAfter(logSheet.getLastColumn());
-    var headers = ['date', 'timeRa', 'agency']; // cột 11, 12, 13
-    logSheet.getRange(1, nextCol).setValue(headers[nextCol - 11]);
+    logSheet.getRange(1, nextCol).setValue(LOG_HEADER_BY_COL[nextCol] || '');
   }
   // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
   // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
@@ -264,9 +266,9 @@ function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
   return false;
 }
 
-/** Danh sách task (cache 30s) — mới nhất lên đầu. */
+/** Danh sách task (cache 10s — O4: version-check, scan bump rev thay vì remove). */
 function readTaskList_() {
-  return cachedJson_(CACHE_KEYS.TASK_LIST, function () {
+  return cachedJsonRev_(CACHE_KEYS.TASK_LIST, CACHE_KEYS.TASK_LIST_REV, function () {
     const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
     const values = sheet.getDataRange().getValues();
     const out = [];
@@ -289,7 +291,7 @@ function readTaskList_() {
  * Đọc AttendanceLog 1 lần rồi group — tránh N+1. scanned theo epoch
  * (nguồn sự thật — khớp computeCounters). */
 function taskCountersForList_() {
-  return cachedJson_(CACHE_KEYS.TASK_COUNTS + 'all', function () {
+  return cachedJsonRev_(CACHE_KEYS.TASK_COUNTS + 'all', CACHE_KEYS.TASK_LIST_REV, function () {
     const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
     const values = sheet.getDataRange().getValues();
     const out = {};
@@ -309,10 +311,12 @@ function taskCountersForList_() {
 }
 
 function invalidateTaskListCache_() {
-  cache_().remove(CACHE_KEYS.TASK_LIST);
-  // P3: counters list đọc 1 lần + cache riêng — phải xóa cùng TASK_LIST, nếu không
-  // task mới/reopen hiển thị total/scanned sai đến 30s (2 key độc lập không sync).
-  cache_().remove(CACHE_KEYS.TASK_COUNTS + 'all');
+  // O4 (2026-08-20): bump version thay vì remove() — cache value sống tiếp, poll
+  // thiết bị khác vẫn HIT; trước đây mỗi scan remove → mọi poll (3s × N thiết bị)
+  // miss → rebuild full-sheet (AttendanceTask + AttendanceLog) liên tục.
+  // P3: counters list đọc 1 lần + cache riêng — dùng CHUNG rev key với TASK_LIST
+  // (luôn invalidate cùng nhau) → task mới/reopen/scan hiển thị counters đúng.
+  bumpCacheRev_(CACHE_KEYS.TASK_LIST_REV);
 }
 
 // ===== AttendanceLog =====
