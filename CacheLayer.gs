@@ -28,11 +28,11 @@ function cachedJson_(key, load, ttlSeconds) {
   const cached = cache_().get(key);
   if (cached !== null) {
     try { return JSON.parse(cached); }
-    catch (e) { console.warn('cache parse fail', key, e.message); }  // F8: cache hỏng → rebuild, log để biết nếu lặp
+    catch (e) { Logger.log('cache parse fail: ' + key + ' — ' + e.message); }  // F8: cache hỏng → rebuild, log để biết nếu lặp
   }
   const value = load();
   try { cache_().put(key, JSON.stringify(value), ttlSeconds); }
-  catch (e) { console.warn('cache put fail', key, e.message); }  // F3: put >100KB/entry throw — log để biết cache đang miss âm thầm
+  catch (e) { Logger.log('cache put fail: ' + key + ' — ' + e.message); }  // F3: put >100KB/entry throw — log để biết cache đang miss âm thầm
   return value;
 }
 
@@ -50,14 +50,14 @@ function cachedJsonRev_(key, revKey, load, ttlSeconds) {
       const parsed = JSON.parse(cached);
       const rev = cache_().get(revKey);
       if (rev !== null && String(parsed.v) === rev) return parsed.d;
-    } catch (e) { console.warn('cache parse fail', key, e.message); }
+    } catch (e) { Logger.log('cache parse fail: ' + key + ' — ' + e.message); }
   }
   const value = load();
   try {
     let rev = cache_().get(revKey);
     if (rev === null) { rev = '1'; cache_().put(revKey, rev, ttlSeconds); }
     cache_().put(key, JSON.stringify({ v: rev, d: value }), ttlSeconds);
-  } catch (e) { console.warn('cache put fail', key, e.message); }
+  } catch (e) { Logger.log('cache put fail: ' + key + ' — ' + e.message); }
   return value;
 }
 
@@ -66,7 +66,7 @@ function bumpCacheRev_(revKey) {
   try {
     const cur = cache_().get(revKey);
     cache_().put(revKey, String((cur === null ? 0 : parseInt(cur, 10) || 0) + 1), CACHE_TTL.TASK_LIST);
-  } catch (e) { console.warn('bumpCacheRev_ fail', revKey, e.message); }
+  } catch (e) { Logger.log('bumpCacheRev_ fail: ' + revKey + ' — ' + e.message); }
 }
 
 /** Cache timezone 1 lần (tránh gọi trong loop). */

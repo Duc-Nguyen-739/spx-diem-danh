@@ -28,6 +28,13 @@ global.Session = {
   getScriptTimeZone: function () { tzCalls++; return 'Asia/Ho_Chi_Minh'; },
 };
 
+const logCalls = [];
+global.Logger = {
+  log: function (msg) { logCalls.push(String(msg)); },
+  warn: function () {},
+  error: function () {},
+};
+
 const fmtCalls = [];
 global.Utilities = {
   formatDate: function (date, tz, pattern) {

@@ -217,7 +217,7 @@ function readTaskCached_(taskId) {
 /** Xoá cache task — gọi sau mọi ghi task (insert/update status/update note). */
 function invalidateTaskCache_(taskId) {
   try { cache_().remove(CACHE_KEYS.TASK + taskId); }
-  catch (e) { console.warn('invalidateTaskCache_ fail', taskId, e.message); }
+  catch (e) { Logger.log('invalidateTaskCache_ fail: ' + taskId + ' — ' + e.message); }
 }
 
 /** Ghi task mới (append — tần suất thấp, chấp nhận appendRow). */
@@ -308,8 +308,8 @@ function readTaskList_() {
 }
 
 /** Đếm total/scanned/extra theo taskId cho DANH SÁCH task (cache 30s).
- * Đọc AttendanceLog 1 lần rồi group — tránh N+1. scanned theo epoch
- * (nguồn sự thật — khớp computeCounters). */
+ * Đọc AttendanceLog 1 lần rồi group — tránh N+1. scanned theo cell TIME_SCAN
+ * có giá trị (epoch derive từ cùng cell — tương đương computeCounters). */
 function taskCountersForList_() {
   return cachedJsonRev_(CACHE_KEYS.TASK_COUNTS + 'all', CACHE_KEYS.TASK_LIST_REV, function () {
     const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
@@ -427,7 +427,7 @@ function readLogRowsCached_(taskId) {
 /** Xoá cache log rows của task (gọi khi ghi batch/append mới — không cần cho scan update). */
 function invalidateLogRows_(taskId) {
   try { cache_().remove(CACHE_KEYS.LOG_ROWS + taskId); }
-  catch (e) { console.warn('invalidateLogRows_ fail', taskId, e.message); }  // F6: không giấu lỗi âm thầm (cache sống tiếp → duplicate Dư)
+  catch (e) { Logger.log('invalidateLogRows_ fail: ' + taskId + ' — ' + e.message); }  // F6: không giấu lỗi âm thầm (cache sống tiếp → duplicate Dư)
 }
 
 /**
@@ -504,7 +504,7 @@ function warmLogRowsCache_(taskId, staffList, startRow) {
     cache_().put(CACHE_KEYS.LOG_ROWS + taskId, JSON.stringify(rows), CACHE_TTL.LOG_ROWS);
     return true;
   } catch (e) {
-    console.warn('warmLogRowsCache_ fail (task quá lớn cho cache?)', taskId, e.message);  // F3: log để biết đang fallback cold
+    Logger.log('warmLogRowsCache_ fail (task quá lớn cho cache?): ' + taskId + ' — ' + e.message);  // F3: log để biết đang fallback cold
     return false;
   }
 }
@@ -538,7 +538,7 @@ function readTaskDetailCached_(taskId) {
 /** Xoá cache chi tiết task — gọi sau mọi ghi log/đổi status. */
 function invalidateTaskDetailCache_(taskId) {
   try { cache_().remove(CACHE_KEYS.TASK_DETAIL + taskId); }
-  catch (e) { console.warn('cache remove fail', CACHE_KEYS.TASK_DETAIL + taskId, e.message); }
+  catch (e) { Logger.log('cache remove fail: ' + CACHE_KEYS.TASK_DETAIL + taskId + ' — ' + e.message); }
 }
 
 /**
@@ -656,7 +656,7 @@ function updateLogRowCache_(taskId, rowIndex, mutate) {
       if (rows[i]._rowIndex === rowIndex) { mutate(rows[i]); break; }
     }
     cache_().put(key, JSON.stringify(rows), CACHE_TTL.LOG_ROWS);
-  } catch (e) { console.warn('updateLogRowCache_ fail', taskId, e.message); }
+  } catch (e) { Logger.log('updateLogRowCache_ fail: ' + taskId + ' — ' + e.message); }
 }
 
 /** Append dòng mới (quét lạ → Dư). */
