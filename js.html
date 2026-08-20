@@ -1364,8 +1364,6 @@
     if (skel) skel.style.display = 'none';
     if (tbl) tbl.style.display = '';
     renderScanTable(data.log);
-    // P1: task đã có scan → khôi phục scan card (không reset về "Chưa có")
-    restoreScanCard(data.log);
     CURRENT_COUNTERS = data.counters || { scanned: 0, absent: 0, extra: 0 };
     renderCounters(CURRENT_COUNTERS);
     var canScan = data.task.status === TASK_STATUS_C.OPEN;
@@ -3026,7 +3024,7 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
   }
 
   // ===== Helpers =====
-  // D1: HTML scan card dùng chung — showScanCard/restoreScanCard chỉ lo className.
+  // D1: HTML scan card dùng chung — showScanCard chỉ lo className.
   function scanCardHTML(status, target) {
     return '<div class="sc-status">' + esc(status) + '</div>' +
       '<div class="sc-name">' + esc(target.staffName || target.staffId) + '</div>' +
@@ -3067,29 +3065,6 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
     if (!card) return;
     card.className = 'scan-card';
     card.innerHTML = '<div class="sc-empty">Chưa có lượt quét</div>';
-  }
-
-  // P1: khi mở task đã có lượt quét — khôi phục scan card từ log (lượt mới nhất).
-  function restoreScanCard(log) {
-    var card = byId('scanCard');
-    if (!card || !log || !log.length) return;
-    var last = null;
-    // P2: chọn theo giờ quét MỚI NHẤT (không theo thứ tự sheet) — NV quét giữa danh sách
-    // (update giữ nguyên vị trí dòng) có giờ muộn hơn NV cuối. So theo epoch (số) —
-    // timeScanText "HH:mm:ss" mất ngày, xuyên nửa đêm sẽ so sai.
-    // P2: epoch là nguồn sự thật duy nhất (text mất ngày xuyên nửa đêm) — filter + so đều theo epoch.
-    log.forEach(function (r) {
-      // meal-move: lượt quét có thể là Ra (timeRaEpoch) hoặc Vào (timeScanEpoch) —
-      // lấy mốc MỚI NHẤT của cả 2 (fix 2026-08-11: trước đây chỉ xét timeScanEpoch
-      // → quét Ra xong reload không hiện NV vừa Ra trên scan card).
-      var e = Math.max(Number(r.timeScanEpoch) || 0, Number(r.timeRaEpoch) || 0);
-      var lastE = last ? Math.max(Number(last.timeScanEpoch) || 0, Number(last.timeRaEpoch) || 0) : 0;
-      if (e > lastE) last = r;
-    });
-    if (!last) { resetScanCard(); return; }
-    card.className = last.status === STATUS_C.EXTRA ? 'scan-card extra' : 'scan-card ok';
-    card.innerHTML = scanCardHTML(last.status || STATUS_C.PRESENT, last);
-    scheduleScanCardHide();
   }
 
   var toastTimer = null;
