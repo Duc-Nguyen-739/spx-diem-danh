@@ -288,6 +288,14 @@
        viewport → mở/re-render bảng nhanh hơn hẳn khi scroll (browser không hỗ trợ →
        bỏ qua, không đổi behavior). contain-intrinsic-size giữ scrollbar ổn định. */
     #scanTable tbody tr { content-visibility: auto; contain-intrinsic-size: auto 36px; }
+    /* F4 (2026-08-20 review): table-layout:fixed + colgroup (% tổng 100%) — content-visibility
+       giờ skip được LAYOUT row ngoài viewport (auto layout buộc browser đo mọi dòng để tính
+       width cột → 300-600 dòng vẫn phải layout hết). min-width theo mode task — dưới min-width
+       bảng tràn ngang → .table-wrap cuộn ngang (đúng hành vi auto layout cũ, không bao giờ cắt
+       chữ cột chính Mã NV/Ca/Trạng thái/Giờ; cột phụ Tên/Vender/Nhà Thầu ellipsis khi chật). */
+    #scanTable { table-layout: fixed; min-width: 740px; }
+    #scanTable.meal-move { min-width: 1010px; }
+    #scanTable th, #scanTable td { overflow: hidden; text-overflow: ellipsis; }
 
     .badge {
       display: inline-block;

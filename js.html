@@ -1719,7 +1719,24 @@
         '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ điểm danh</th>' +
         '</tr>';
     }
+    updateScanColgroup(isMealMove);
     updateSortIndicators();
+  }
+
+  // F4 (2026-08-20): đồng bộ colgroup với header — width % tổng 100% (khớp min-width
+  // #scanTable / #scanTable.meal-move ở css.html). Cột chính (Mã NV/Ca/Trạng thái/Giờ)
+  // đủ rộng ở min-width; cột phụ (Tên/Vender/Nhà Thầu) ellipsis khi container chật.
+  function updateScanColgroup(isMealMove) {
+    var tbl = document.querySelector('#scanTable');
+    var cg = document.querySelector('#scanTable colgroup');
+    if (tbl) tbl.classList.toggle('meal-move', !!isMealMove);
+    if (!cg) return;
+    var widths = isMealMove
+      ? ['10%', '17%', '11%', '6%', '6%', '8%', '8%', '12%', '4%', '18%']
+      : ['12%', '20%', '10%', '14%', '8%', '8%', '18%', '10%'];
+    var html = '';
+    for (var i = 0; i < widths.length; i++) html += '<col style="width:' + widths[i] + '">';
+    cg.innerHTML = html;
   }
 
   // meal-move: set mode Ra/Vào — toggle UI + state
