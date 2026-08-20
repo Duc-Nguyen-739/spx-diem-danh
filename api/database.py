@@ -6,6 +6,7 @@ KHÔNG loop từng ô). Cache in-memory (api/cache.py). Lock module-level cho wr
 chấp nhận ở quy mô kho hiện tại — ghi chú ở services.py).
 """
 
+import math
 import threading
 
 from api import cache
@@ -224,7 +225,9 @@ def log_from_row(task_id, row):
         "timeScanEpoch": scan_epoch,
         "timeRaText": cache.format_time(time_ra),
         "timeRaEpoch": ra_epoch,
-        "durationMinutes": max(0, round((scan_epoch - ra_epoch) / 60000)) if (time_ra and time_scan) else 0,
+        # 2026-08-20 (review): round() Python = banker's rounding (round(0.5)=0) —
+        # lệch GAS Math.round() (half-up: 0.5→1). floor(x+0.5) khớp GAS.
+        "durationMinutes": max(0, math.floor((scan_epoch - ra_epoch) / 60000 + 0.5)) if (time_ra and time_scan) else 0,
         "status": str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else ""),
         "dateText": cache.to_display_date(row[lc["DATE"]] if len(row) > lc["DATE"] else None),
     }

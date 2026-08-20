@@ -181,8 +181,9 @@ def _now_ms(now):
         return int(time.time() * 1000)
     if isinstance(now, (int, float)):
         return int(now)
-    # datetime → epoch ms (assume UTC-aware hoặc local; khớp GAS getTime() = UTC ms)
-    import datetime as _dt
+    # datetime → epoch ms (khớp GAS getTime() = UTC ms)
     if now.tzinfo is None:
-        now = now.replace(tzinfo=_dt.timezone.utc)
+        # 2026-08-20 (review): naive bị coi là UTC → lệch 7h so với UTC+7 thật.
+        # Throw sớm thay vì đoán — mọi caller production đều truyền aware.
+        raise ValueError("_now_ms requires tz-aware datetime (naive lệch 7h)")
     return int(now.timestamp() * 1000)

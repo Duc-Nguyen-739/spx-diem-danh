@@ -130,7 +130,7 @@ CACHE_KEYS = {
 
 # ===== Label UI (tiếng Việt) — CHỈ các message server trả về =====
 UI_LABELS = {
-    "APP_TITLE": "Điểm danh kho",
+    "APP_TITLE": "Điểm Danh HN2 SOC",  # 2026-08-20: khớp Config.gs (trước lệch 'Điểm danh kho')
     "ALREADY_SCANNED": "Đã điểm danh",
     "TASK_NOT_FOUND": "Task không tồn tại",
     "TASK_CLOSED": "Task đã kết thúc",

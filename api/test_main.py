@@ -48,7 +48,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("application/json", resp["headers"]["Content-Type"])
         data = self._json(resp)
         self.assertTrue(data["ok"])
-        self.assertEqual(data["result"]["appTitle"], "Điểm danh kho")
+        self.assertEqual(data["result"]["appTitle"], "Điểm Danh HN2 SOC")  # 2026-08-20: khớp Config.gs
 
     def test_jsonp_format(self):
         resp = main.handler(self._event("getMeta", cb="__rcJsonp1_123"))

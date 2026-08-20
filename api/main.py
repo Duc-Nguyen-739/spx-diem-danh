@@ -90,28 +90,25 @@ def handler(event, context=None):
             args = json.loads(raw_args)
         except Exception:
             args = []
-    # POST body JSON override
+    # POST body JSON override — parse 1 lần dùng chung cho action/args/token
+    # (2026-08-20 review: trước parse 2 lần — rẻ nhưng thừa)
     body = event.get("body")
+    parsed_body = None
     if body:
         try:
-            parsed = json.loads(body)
-            if isinstance(parsed, dict):
-                if parsed.get("action"):
-                    action = str(parsed["action"]).strip()
-                if parsed.get("args") is not None:
-                    args = parsed["args"]
+            parsed_body = json.loads(body)
         except Exception:
-            pass
+            parsed_body = None
+    if isinstance(parsed_body, dict):
+        if parsed_body.get("action"):
+            action = str(parsed_body["action"]).strip()
+        if parsed_body.get("args") is not None:
+            args = parsed_body["args"]
 
     # NEW-1 (2026-08-19): auth tùy chọn — kiểm tra TRƯỚC dispatch (kể cả probe).
     token = str(params.get("token") or "").strip()
-    if not token and body:
-        try:
-            parsed = json.loads(body)
-            if isinstance(parsed, dict) and parsed.get("token"):
-                token = str(parsed["token"]).strip()
-        except Exception:
-            pass
+    if not token and isinstance(parsed_body, dict) and parsed_body.get("token"):
+        token = str(parsed_body["token"]).strip()
     required = api_token()
     if required and token != required:
         out = {"ok": False, "error": "Unauthorized"}
