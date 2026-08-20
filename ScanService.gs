@@ -167,8 +167,13 @@ function scanStaff(taskId, rawStaffId, mode) {
     // P2 benchmark: tổng + tách giai đoạn — QA prod đọc Stackdriver biết ngay
     // bottleneck (read sheet vs write). Phân tích: t1→t2 = đọc task+log (full sheet),
     // t2→t3 = classify + write. Nếu read > 1.5s → cần index log (xem Database.gs).
+    // Gate >1s: kiosk quét hàng nghìn lượt/ngày → chỉ log scan chậm bất thường,
+    // tránh dìm cảnh báo thật trong Stackdriver (2026-08-20 audit).
     const t3 = Date.now();
-    Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, action: effectiveResult.action, scanPhase: effectiveResult.scanPhase || null, totalMs: t3 - t0, readMs: t2 - t1, writeMs: t3 - t2 }));
+    const benchMs = t3 - t0;
+    if (benchMs > 1000) {
+      Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, action: effectiveResult.action, scanPhase: effectiveResult.scanPhase || null, totalMs: benchMs, readMs: t2 - t1, writeMs: t3 - t2 }));
+    }
     return {
       ok: true,
       message: effectiveResult.status,
