@@ -3048,9 +3048,21 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
     if (typeof camAppendResult === 'function' && window.__RC_CAM_OPEN__) {
       camAppendResult(status, target, isError);
     }
+    scheduleScanCardHide();
+  }
+
+  // 2026-08-20 (yêu cầu user): scan card TỰ ẨN sau 15s — kiosk không treo thông tin NV
+  // vừa quét lâu (màn hình sạch khi ngừng quét). Mỗi lượt quét mới hủy timer cũ + đặt
+  // lại — lượt mới luôn hiện đủ 15s, không bị ẩn giữa chừng bởi timer lượt trước.
+  var SCAN_CARD_HIDE_MS = 15000;
+  var scanCardHideTimer = null;
+  function scheduleScanCardHide() {
+    clearTimeout(scanCardHideTimer);
+    scanCardHideTimer = setTimeout(function () { resetScanCard(); }, SCAN_CARD_HIDE_MS);
   }
 
   function resetScanCard() {
+    clearTimeout(scanCardHideTimer);
     var card = byId('scanCard');
     if (!card) return;
     card.className = 'scan-card';
@@ -3077,6 +3089,7 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
     if (!last) { resetScanCard(); return; }
     card.className = last.status === STATUS_C.EXTRA ? 'scan-card extra' : 'scan-card ok';
     card.innerHTML = scanCardHTML(last.status || STATUS_C.PRESENT, last);
+    scheduleScanCardHide();
   }
 
   var toastTimer = null;
