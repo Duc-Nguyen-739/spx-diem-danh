@@ -49,6 +49,8 @@ Trước khi code, trả lời 5 câu hỏi: (1) vấn đề thật là gì? (2)
 
 **Avoid:** abstraction phỏng đoán · refactor không cần thiết · dependency không cần thiết · feature creep · over-engineering · viết lại code không liên quan. Mỗi dòng đổi phải liên quan trực tiếp request (→ Constraint #6). Đơn giản hóa code: guard clause, tên mô tả, hàm nhỏ — **không bao giờ đổi behavior**; xóa dead code do mình tạo, logic trùng, wrapper thừa, conditional lồng nhau.
 
+**Comment:** chỉ comment rationale/gotcha cần thiết; **KHÔNG thêm marker vòng fix mới** (`FIX(2026-XX):`, `B3:`, `P1:`) — marker cũ trong codebase giữ nguyên (không đụng khi không cần).
+
 ## 7. Workflow
 
 Understand → Plan → Test (nếu đổi behavior) → Implement → Verify → Review.
@@ -56,6 +58,7 @@ Khi code: hiểu vấn đề → nêu assumption → plan ngắn → implement �
 
 - **TDD**: RED (test fail) → GREEN (implement tối thiểu) → REFACTOR. Test verify behavior, không phải implementation. Test double ưu tiên: Real → Fake → Stub → Mock. **Bug fix → viết failing reproduction test trước.**
 - **Debug**: Reproduce → Localize → Reduce → Root cause → Fix → Regression test → Verify. **Không bao giờ đoán.** Fix nguyên nhân, không fix triệu chứng.
+- **Rule of Three**: fix thứ 3 không ăn → STOP, không thử fix 4 — nghi vấn architecture, bàn với user trước. Red flags: "quick fix, investigate sau" · "thử X xem sao" · "sửa nhiều chỗ chạy test" — dừng, quay lại root cause.
 
 ## 8. Fix Priority
 
@@ -115,8 +118,9 @@ User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, 
 ## 17. Dự án
 
 RollCall v2 — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho SPX:
-Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS một file (`index.html`).
-Chi tiết: `README.md`, `docs/intent/rollcall-v2.md`, `docs/spec/2026-08-02-phase0-spec.md`.
+Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS 3 file (`index.html` + `css.html` + `js.html`, xem §20).
+**Dual runtime — cùng domain logic**: GAS (`*.gs`) là webapp chính + backend Python song song (`api/*.py`, hosting top-level). Đổi logic quét/classify → sửa CẢ `.gs` LẪN `api/*.py` + chạy cả `npm test` (`tests/*.test.js`) lẫn `npm test:py` (`python3 -m unittest discover -s api -p 'test_*.py'`).
+Chi tiết: `README.md`, `docs/intent/rollcall-v2.md`, `docs/spec/2026-08-02-phase0-spec.md`, `skills/project-skill/SKILL.md` (kiến trúc + gotchas), `skills/review-gas-failure-modes/SKILL.md` (checklist 40+ failure mode GAS).
 
 ## 18. Bài học lặp lại — Freebuff preview hay "chết" giữa phiên (RollCall v2)
 
