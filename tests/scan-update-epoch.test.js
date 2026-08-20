@@ -125,3 +125,18 @@ test('Database.gs: readStaffIndex_ cache SLIM — không chứa cardIn/cardOut/d
   assert.ok(block.indexOf('date: s.date') === -1,
     'cache KHÔNG chứa date (pre-fill dùng readStaffList_ đầy đủ — không ai đọc date từ index)');
 });
+
+// ===== O3-GAS (2026-08-20): searchStaffApi cache AttendanceLog — khớp Python O3 =====
+// Python đã cache 10s (O3); GAS searchStaffApi vẫn getDataRange CẢ sheet mỗi lần tìm
+// mã Ops (log lớn → chậm). CachedJson_ 10s đủ tươi cho luồng quét→tìm.
+test('Code.gs: searchStaffApi đọc log qua cachedJson_(CACHE_KEYS.SEARCH_LOG)', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
+  const start = code.indexOf('function searchStaffApi(');
+  assert.ok(start >= 0, 'phải có hàm searchStaffApi');
+  const end = code.indexOf('\nfunction ', start + 1);
+  const block = code.slice(start, end === -1 ? start + 2200 : end);
+  assert.ok(block.indexOf('cachedJson_(CACHE_KEYS.SEARCH_LOG') >= 0,
+    'log read phải qua cache (O3-GAS 2026-08-20 — Python đã cache, GAS sót)');
+  assert.ok(block.indexOf('getDataRange().getValues().slice(1)') >= 0,
+    'cache builder phải đọc đúng AttendanceLog (bỏ header)');
+});

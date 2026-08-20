@@ -224,7 +224,11 @@ function searchStaffApi(code) {
   // Task mà NV đã từng điểm danh: đọc AttendanceLog 1 lần (batch), lọc theo mã
   // + đã quét. Reuse readTaskList_ (đã có counters total/scanned/extra + cache 30s)
   // → danh sách lọc khớp định dạng list chính.
-  const logValues = getSheet_(SHEETS.ATTENDANCE_LOG).getDataRange().getValues().slice(1);
+  // 2026-08-20 (review): cache 10s (khớp Python O3) — trước đọc CẢ sheet mỗi lần tìm
+  // (log lớn → chậm). TTL ngắn đủ tươi cho luồng quét→tìm (scan có cooldown 1.5s).
+  const logValues = cachedJson_(CACHE_KEYS.SEARCH_LOG, function () {
+    return getSheet_(SHEETS.ATTENDANCE_LOG).getDataRange().getValues().slice(1);
+  }, CACHE_TTL.SEARCH_LOG);
   const taskIds = collectTaskIdsByStaffLog_(logValues, q, LOG_COLS);
   const tasks = taskIds.length
     ? readTaskList_().filter(function (t) { return taskIds.indexOf(t.taskId) >= 0; })

@@ -122,6 +122,7 @@ const CACHE_TTL = {
   TASK: 15,                  // 15s — task read (đường quét scanStaff) — invalidate khi ghi task
   LOG_ROWS: 30,              // 30s — log rows theo taskId (incremental mỗi scan — không invalidate)
   TASK_COUNTS: 30,           // 30s — counters list (version-gated — rebuild chỉ khi thật đổi)
+  SEARCH_LOG: 10,            // 10s — AttendanceLog full cho searchStaffApi (khớp Python O3)
   TZ: 24 * 60 * 60,          // 24h — timezone (cache 1 lần, KHÔNG gọi trong loop)
 };
 
@@ -135,6 +136,7 @@ const CACHE_KEYS = {
   TASK: 'rc2_task_v1_',          // v1 — task theo taskId (đường quét scanStaff)
   LOG_ROWS: 'rc2_logRows_v2_',          // v2: schema slim thêm timeRaEpoch (meal-move)
   TASK_COUNTS: 'rc2_taskCounts_v1_',      // prefix — counters theo taskId cho list (đếm 1 lần + cache 30s)
+  SEARCH_LOG: 'rc2_searchLog_v1',   // searchStaffApi — AttendanceLog full (khớp Python O3)
   TZ: 'rc2_tz_v2',  // v2: bump sau khi sửa manifest timeZone NY→Asia/Ho_Chi_Minh (invalidate cache 24h)
 };
 
