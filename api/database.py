@@ -429,7 +429,9 @@ def _mutate_scan_cache(r, time_scan, status):
     r["timeScanEpoch"] = cache.epoch_ms(time_scan)
     if r.get("timeRaEpoch", 0) > 0 and r.get("timeScanEpoch", 0) > 0:
         # B1 (2026-08-19): Vào trước Ra (quét bù) → clamp 0, không số âm
-        r["durationMinutes"] = max(0, round((r["timeScanEpoch"] - r["timeRaEpoch"]) / 60000))
+        # 2026-08-20 (review #2): round() banker's (2.5→2) lệch read path
+        # log_from_row floor(x+0.5) (2.5→3) → reload hiện khác response.
+        r["durationMinutes"] = max(0, math.floor((r["timeScanEpoch"] - r["timeRaEpoch"]) / 60000 + 0.5))
 
 
 def update_log_row_cache(task_id, row_index, mutate):

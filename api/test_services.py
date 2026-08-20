@@ -190,18 +190,38 @@ class TestServices(unittest.TestCase):
         self.assertEqual(r2["durationMinutes"], row["durationMinutes"],
                          "response và read path phải khớp — nếu lệch client hiện sai tới khi reload")
 
-    def test_scan_response_duration_clamped_source(self):
+    def test_scan_response_duration_clamped_halfup_source(self):
         # P2 (2026-08-19): clamp max(0) trong response scan_staff — khớp read path
         # (database.py B1). Rule duplicate 1.5s đảm bảo now >= ra_epoch + 1.5s nên
         # không reachable âm qua API → source check (convention static GAS tests).
+        # 2026-08-20 (review #2): response phải dùng floor(x+0.5) (half-up khớp GAS
+        # Math.round + read path) — round() banker's (round(2.5)=2) làm response
+        # lệch reload.
         with open(os.path.join(os.path.dirname(__file__), "services.py"), encoding="utf-8") as f:
             src = f.read()
-        i = src.find('round((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000)')
-        self.assertGreaterEqual(i, 0, "phải có công thức duration_minutes ở response")
+        i = src.find('floor((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000 + 0.5)')
+        self.assertGreaterEqual(i, 0, "phải có công thức duration_minutes ở response (floor+0.5)")
         line_start = src.rfind("\n", 0, i)
         line = src[line_start:src.find("\n", i)]
-        self.assertIn("max(0, round(", line,
+        self.assertIn("max(0, math.floor(", line,
                       "response phải clamp max(0, ...) — read path đã clamp (database.py B1)")
+
+    def test_meal_move_response_duration_halfup_matches_read_path(self):
+        # 2026-08-20 (review #2): response scan Vào phải KHỚP read path cho mọi
+        # duration lẻ .5 phút. round() banker's (round(2.5)=2) vs floor(x+0.5)
+        # (2.5→3) → response hiện "2" nhưng reload hiện "3" — regression bắt lệch.
+        r = services.create_meal_move_task({
+            "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
+        })
+        task_id = r["taskId"]
+        services.scan_staff(task_id, "Ops001", "ra", now_override=self.t0)
+        r2 = services.scan_staff(task_id, "Ops001", "vao",
+                                 now_override=self.t0 + datetime.timedelta(minutes=2, seconds=30))
+        self.assertTrue(r2["ok"], r2.get("message"))
+        self.assertEqual(r2["durationMinutes"], 3, "2m30s phải half-up thành 3, không phải 2")
+        row = services.get_task_detail(task_id)["log"][0]
+        self.assertEqual(r2["durationMinutes"], row["durationMinutes"],
+                         "response và read path phải khớp cho duration .5 phút")
 
     def test_meal_move_ra_then_vao(self):
         r = services.create_meal_move_task({

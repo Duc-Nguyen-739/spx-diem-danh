@@ -7,6 +7,7 @@ Thay Session.getActiveUser() (không có login trong bản standalone anonymous)
     (khác GAS fail-closed vì GAS luôn có session user — ghi chú divergence).
 """
 
+import math
 import threading
 import time
 
@@ -418,7 +419,10 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
                 if (result["row"].get("timeRaEpoch") or 0) > 0:
                     # P2 (2026-08-19): clamp 0 — khớp read path (database.py B1). Đồng hồ
                     # lệch giữa 2 lần quét → response có thể âm trong khi sheet/reload hiện 0.
-                    duration_minutes = max(0, round((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000))
+                    # 2026-08-20 (review #2): round() Python = banker's rounding (round(2.5)=2)
+                    # lệch GAS Math.round + read path floor(x+0.5) (half-up: 2.5→3) → response
+                    # hiện khác reload. Dùng floor(x+0.5) khớp cả 2.
+                    duration_minutes = max(0, math.floor((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000 + 0.5))
             scanned_name = result["row"].get("staffName") or None
             scanned_info = {
                 "agency": result["row"].get("agency") or None,
