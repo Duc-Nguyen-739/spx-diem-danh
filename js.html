@@ -23,7 +23,10 @@
     var seq = 0;
     function resolveRpc(res, handlers) {
       if (res && res.ok === false) {
-        if (handlers.failure) handlers.failure({ message: res.error || 'Lỗi server' });
+        // 2026-08-20 (review): GAS lẫn Python services đều trả {ok:false, message}
+        // (vd ScanService.gs 'Task đã kết thúc') — res.error CHỈ có từ dispatch
+        // exception Python → trước đây mọi reject hiện 'Lỗi server' chung chung.
+        if (handlers.failure) handlers.failure({ message: res.error || res.message || 'Lỗi server' });
       } else if (handlers.success) {
         handlers.success(res && res.ok === true ? res.result : res);
       }
@@ -59,9 +62,12 @@
       }
       // PRODUCTION (2026-08-12): backend Python api cùng origin (Freebuff hosting) →
       // fetch JSON thay JSONP (không cần CORS). API trả JSON khi không có cb.
+      // BUG 2026-08-20 (review): url vẫn kèm &cb= → server trả JSONP body cb({...}) →
+      // r.json() fail → MỌI RPC "Không kết nối được server" trên backend cùng origin.
+      // Fix: bỏ cb ở nhánh fetch (giữ token — test jsonp-api kiểm tra &token=).
       var sameOrigin = url.indexOf('//') < 0 || url.indexOf(window.location.origin) === 0;
       if (sameOrigin && typeof window.fetch === 'function') {
-        fetch(url)
+        fetch(url.replace(/&cb=[^&]*/, ''))
           .then(function (r) { return r.json(); })
           .then(function (res) { onResult(res); })
           .catch(function () {
@@ -796,6 +802,8 @@
 
   // P2: xem truoc so NV khop bo loc khi tao task (modal) — goi previewStaffApi
   var _previewTimer = null;
+  var _previewSeq = 0; // 2026-08-20 (review): response preview CŨ (đổi filter nhanh,
+                       // RPC trước chậm về sau) không được ghi đè response mới
   function updateCreatePreview() {
     var station = byId('fStation').value;
     var slotCode = getSelectedChips('fSlotCode');
@@ -824,8 +832,10 @@
     updateHud(station, '…', slotCode.length, team.length);
     clearTimeout(_previewTimer);
     _previewTimer = setTimeout(function () {  // debounce 400ms — tranh spam RPC khi doi select lien tuc
+      var seq = ++_previewSeq;
       google.script.run
         .withSuccessHandler(function (res) {
+          if (seq !== _previewSeq) return; // response cũ (đã đổi filter) — bỏ qua
           if (!res || !res.ok) {
             box.setAttribute('data-state', 'err');
             cntEl.textContent = 'Không tải được preview';
@@ -840,7 +850,7 @@
           hintEl.textContent = scope;
           updateHud(station, res.count, slotCode.length, team.length);
         })
-        .withFailureHandler(function (err) { markServerFail(); box.setAttribute('data-state', 'err'); cntEl.textContent = 'Lỗi preview: ' + err.message; updateHud(station, '—', slotCode.length, team.length); })
+        .withFailureHandler(function (err) { if (seq !== _previewSeq) return; markServerFail(); box.setAttribute('data-state', 'err'); cntEl.textContent = 'Lỗi preview: ' + err.message; updateHud(station, '—', slotCode.length, team.length); })
         .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date, contractType: contractType });
     }, 400);
   }
@@ -1201,7 +1211,9 @@
     if (cntLoading) cntLoading.textContent = '…';
     google.script.run
       .withSuccessHandler(function (tasks) {
-        _taskPage = 1;
+        // 2026-08-20 (review): BỎ _taskPage=1 — refresh tay (⟳) đang ở trang 2/3
+        // nhảy về trang 1; poll đã giữ trang (B2) còn refresh tay thì không (bất
+        // nhất). Reset trang giờ CHỈ do applyDashFilters khi ĐỔI bộ lọc.
         renderDash(tasks); // render KPI + bảng task (renderTaskList nằm trong applyDashFilters) — bỏ render trùng
         startTaskListPolling(); // poll đa người dùng: thay đổi từ thiết bị khác → tự cập nhật (không cần bấm Làm mới)
         hideLoadingOverlay();
