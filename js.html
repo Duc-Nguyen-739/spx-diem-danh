@@ -1148,8 +1148,18 @@
     if (s.st === 'open' && t.status === TASK_STATUS_C.DONE) return false;
     if (s.st === 'done' && t.status !== TASK_STATUS_C.DONE) return false;
     if (s.stn.length && s.stn.indexOf(String(t.station || '')) === -1) return false;
-    if (s.ca.length && String(t.slotCode || '') && s.ca.indexOf(String(t.slotCode)) === -1) return false; // meal-move: slotCode rong -> khong thuoc ca nao, khong bi loc
-    if (s.team.length && s.team.indexOf(String(t.team || '')) === -1) return false;
+    if (s.ca.length && String(t.slotCode || '')) {
+      var tCa = String(t.slotCode).split(',').map(function(v){ return v.trim(); }).filter(Boolean);
+      var hitCa = false;
+      for (var ci=0; ci<tCa.length; ci++) if (s.ca.indexOf(tCa[ci]) !== -1) { hitCa=true; break; }
+      if (!hitCa) return false;
+    }
+    if (s.team.length) {
+      var tTeam = String(t.team || '').split(',').map(function(v){ return v.trim(); }).filter(Boolean);
+      var hitTeam = false;
+      for (var ti=0; ti<tTeam.length; ti++) if (s.team.indexOf(tTeam[ti]) !== -1) { hitTeam=true; break; }
+      if (!hitTeam) return false;
+    }
     if (s.type.length && s.type.indexOf(t.taskType === 'meal-move' ? 'meal-move' : 'reconcile') === -1) return false;
     return true;
   }
