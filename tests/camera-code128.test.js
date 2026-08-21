@@ -669,8 +669,9 @@ test('camWorkerSend: gửi COPY buffer (frame gốc KHÔNG bị detach) + chỉ 
     const frame = { data: { data: buf }, w: 4, h: 4 };
     ctx.camWorkerSend(frame);
     assert.equal(posts.length, 1, 'worker rảnh → gửi 1 frame');
-    assert.ok(posts[0].buf instanceof ArrayBuffer, 'gửi ArrayBuffer');
+    assert.ok(posts[0].buf && typeof posts[0].buf.byteLength === 'number', 'gửi ArrayBuffer');
     assert.equal(posts[0].w, 4);
+    assert.equal(posts[0].buf.byteLength, 16, 'gửi grayscale 1 byte/px (4x4=16) thay RGBA 64 — giảm 4x copy/GC (2026-08-21 #1)');
     assert.equal(buf.length, 64, 'frame gốc KHÔNG bị detach (copy thay vì transfer)');
     ctx.camWorkerSend(frame);
     assert.equal(posts.length, 1, 'idle=false → không gửi tiếp cho tới khi worker trả kết quả');

@@ -1970,10 +1970,15 @@
     "var strat = 0;",
     "function decodeOne(d) {",
     "  if (!reader) reader = new ZXing.MultiFormatReader();",
-    "  var src = new Uint8ClampedArray(d.buf);",
-    "  var gray = new Uint8ClampedArray(d.w * d.h);",
-    "  for (var i = 0, p = 0; p < d.w * d.h; i += 4, p++) {",
-    "    gray[p] = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) | 0;",
+    "  var gray;",
+    "  if (d.buf.byteLength === d.w * d.h) {",
+    "    gray = new Uint8ClampedArray(d.buf);",
+    "  } else {",
+    "    var src = new Uint8ClampedArray(d.buf);",
+    "    gray = new Uint8ClampedArray(d.w * d.h);",
+    "    for (var i = 0, p = 0; p < d.w * d.h; i += 4, p++) {",
+    "      gray[p] = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) | 0;",
+    "    }",
     "  }",
     "  var hints = new Map();",
     "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
@@ -2034,6 +2039,7 @@
   var camWorker = null;
   var camWorkerFailed = false;
   var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
+  var camWorkerGray = null; // reuse buffer grayscale 2MB vs RGBA 8MB (2026-08-21 #1)
 
   function ensureZxingWorker() {
     if (camWorker || camWorkerFailed) return;
@@ -2056,6 +2062,8 @@
   // Gửi frame cho worker decode sâu. COPY buffer (KHÔNG transfer — main còn decode tiếp bậc
   // 2-4 + Quagga trên frame này khi worker fail). Worker decode đồng bộ trong onmessage →
   // không cần queue; main gate bằng camWorkerIdle.
+  // #1 (2026-08-21): gửi GRAYSCALE 1 byte/px (2MB cho 1920) thay RGBA 4 byte/px (8MB)
+  // → giảm 4x copy/GC, worker bỏ loop convert RGBA→gray. Tương thích: worker nhận cả 2.
   function camWorkerSend(frame) {
     if (!camWorker || camWorkerFailed || !camWorkerIdle) return;
     try {
@@ -2063,8 +2071,18 @@
       var img = frame && (frame.data || frame.imageData);
       var d = img && img.data;
       if (!d || !frame.w || !frame.h) return;
+      var n = frame.w * frame.h;
+      if (!camWorkerGray || camWorkerGray.length !== n) camWorkerGray = new Uint8ClampedArray(n);
+      // RGBA → gray (n*4 → n), nếu d đã là gray (n) thì copy trực tiếp
+      if (d.length === n) {
+        camWorkerGray.set(d);
+      } else {
+        for (var i = 0, p = 0; p < n; i += 4, p++) {
+          camWorkerGray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+        }
+      }
       camWorkerIdle = false;
-      camWorker.postMessage({ buf: d.buffer.slice(0), w: frame.w, h: frame.h });
+      camWorker.postMessage({ buf: camWorkerGray.buffer.slice(0), w: frame.w, h: frame.h });
     } catch (e) { camWorkerIdle = true; }
   }
 
