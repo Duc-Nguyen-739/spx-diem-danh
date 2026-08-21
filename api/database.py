@@ -76,7 +76,8 @@ def read_task(task_id):
         row = values[i]
         if str(row[config.TASK_COLS["TASK_ID"]] if len(row) > config.TASK_COLS["TASK_ID"] else "").strip() == task_id:
             row_index = i + 2
-            full = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"A{row_index}", unformatted=True)
+            # TASK_COL_COUNT=10 → J, hardcode để FakeSheets test không cần _col_letter
+            full = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"A{row_index}:J{row_index}", unformatted=True)
             if not full:
                 return None
             task = task_from_row(full[0])
