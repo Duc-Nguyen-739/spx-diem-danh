@@ -48,7 +48,7 @@ function getSpreadsheet_() {
 /** Đảm bảo toàn bộ sheet tồn tại (dùng khi khởi tạo). */
 function ensureSheets_() {
   getSheet_(SHEETS.CONFIG, ['Key', 'Value']);
-  getSheet_(SHEETS.STAFF_DATA, []); // header giữ nguyên như csv — syncFromCsv() sẽ ghi
+  getSheet_(SHEETS.STAFF_DATA, ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency', 'Contract Type', 'Event ID', 'Matching Type', 'Gender', 'Department', 'Clock In Time', 'Clock Out Time', 'Actual Hours', 'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation', 'Team', 'Station']);
   getSheet_(SHEETS.ATTENDANCE_TASK, [
     'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note',
   ]);
