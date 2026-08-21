@@ -54,6 +54,8 @@
   var camSharedCanvas = null; // 1 canvas dùng chung cho mọi frame tick (2026-08-16 tối ưu:
                              // hết tạo canvas+context mới mỗi ~600ms → giảm GC trên iOS)
   var camSharedCtx = null;
+  var camOcrCanvas = null; // reuse cho OCR (2026-08-21 #15) — hết tạo mới mỗi 4s
+  var camOcrCtx = null;
   var camVideoEl = null; // cache element #camVideo — loop live đọc mỗi tick/frame (rAF
                          // ~60fps + interval 300ms + OCR 2s); element tĩnh trong modal →
                          // cache 1 lần, hết query DOM mỗi lần (2026-08-16 tối ưu)
@@ -1693,6 +1695,7 @@
 
   // Cắt ĐÚNG vùng khung dẫn hướng (.camera-frame — inset 9% ngang, 12% dọc) + xám hóa
   // → OCR ít pixel hơn + ít nhiễu nền → nhận diện chữ Ops… NHANH hơn (2026-08-16 tối ưu).
+  // #15 (2026-08-21): reuse 1 canvas — hết tạo mới + GC mỗi 4s.
   function camOcrPrepareFrame(video) {
     try {
       var vw = video.videoWidth || 0;
@@ -1702,10 +1705,16 @@
       var w = Math.max(1, Math.round(vw * 0.82)), h = Math.max(1, Math.round(vh * 0.76));
       var scale = Math.min(1, 800 / Math.max(w, h));
       var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
-      var canvas = document.createElement("canvas");
-      canvas.width = cw;
-      canvas.height = ch;
-      var ctx = canvas.getContext("2d");
+      if (!camOcrCanvas) {
+        camOcrCanvas = document.createElement("canvas");
+        camOcrCtx = camOcrCanvas.getContext("2d", { willReadFrequently: true });
+      }
+      if (camOcrCanvas.width !== cw || camOcrCanvas.height !== ch) {
+        camOcrCanvas.width = cw;
+        camOcrCanvas.height = ch;
+      }
+      var canvas = camOcrCanvas;
+      var ctx = camOcrCtx;
       ctx.drawImage(video, x, y, w, h, 0, 0, cw, ch);
       // xám hóa nhẹ — OCR nhanh hơn trên ảnh xám
       try {
