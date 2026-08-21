@@ -68,13 +68,19 @@ def task_from_row(row):
 
 
 def read_task(task_id):
-    """Đọc 1 task theo taskId (scan cột taskId). Trả task kèm _rowIndex 1-based."""
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], unformatted=True)
-    for i in range(1, len(values)):
+    """Đọc 1 task theo taskId — đọc cột TASK_ID (cột A) trước, rồi đọc đúng 1 dòng
+    khớp (G1 2026-08-21: trước đọc cả sheet task mỗi lần — nhỏ nhưng đồng bộ GAS).
+    Trả task kèm _rowIndex 1-based."""
+    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_="A2:A", unformatted=True)
+    for i in range(len(values)):
         row = values[i]
         if str(row[config.TASK_COLS["TASK_ID"]] if len(row) > config.TASK_COLS["TASK_ID"] else "").strip() == task_id:
-            task = task_from_row(row)
-            task["_rowIndex"] = i + 1
+            row_index = i + 2
+            full = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"A{row_index}", unformatted=True)
+            if not full:
+                return None
+            task = task_from_row(full[0])
+            task["_rowIndex"] = row_index
             return task
     return None
 
@@ -182,16 +188,21 @@ def task_counters_for_list():
 
 
 def _task_counters_uncached():
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
+    # G1 (2026-08-21): chỉ đọc cột cần cho counter thay vì cả sheet 13 cột.
+    # TASK_ID (cột A) + TIME_SCAN (cột I) + STATUS (cột J) — I/J liền nhau → 2 range.
     lc = config.LOG_COLS
     out = {}
-    for i in range(1, len(values)):
-        row = values[i]
-        task_id = str(row[lc["TASK_ID"]] if len(row) > lc["TASK_ID"] else "").strip()
+    id_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:A", unformatted=True)
+    st_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="I2:J", unformatted=True)
+    n = len(id_values)
+    for i in range(n):
+        id_row = id_values[i]
+        task_id = str(id_row[0] if id_row else "").strip()
         if not task_id:
             continue
-        st = str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else "")
-        has_scan = bool(row[lc["TIME_SCAN"]] if len(row) > lc["TIME_SCAN"] else "")
+        st_row = st_values[i] if i < len(st_values) else []
+        st = str(st_row[1] if len(st_row) > 1 else "")
+        has_scan = bool(st_row[0] if st_row else "")
         entry = out.setdefault(task_id, {"total": 0, "scanned": 0, "extra": 0})
         entry["total"] += 1
         if has_scan:
@@ -241,15 +252,31 @@ def log_from_row(task_id, row):
 
 
 def read_log_rows(task_id):
-    """Đọc toàn bộ dòng log của task (tươi từ sheet, kèm _rowIndex 1-based)."""
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
-    out = []
+    """Đọc toàn bộ dòng log của task (tươi từ sheet, kèm _rowIndex 1-based).
+    G1 (2026-08-21): đọc cột TASK_ID (cột A) trước để lấy row index khớp, rồi đọc
+    các dòng khớp theo range — trước đây đọc cả sheet 13 cột mỗi lần miss cache."""
     lc = config.LOG_COLS
-    for i in range(1, len(values)):
-        row = values[i]
+    id_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:A", unformatted=True)
+    matches = []
+    for i in range(len(id_values)):
+        row = id_values[i]
         if str(row[lc["TASK_ID"]] if len(row) > lc["TASK_ID"] else "").strip() == task_id:
-            r = log_from_row(task_id, row)
-            r["_rowIndex"] = i + 1
+            matches.append(i + 2)  # 1-based: offset 2 (bỏ header)
+    out = []
+    # Gộp dòng liền nhau thành 1 range — ít RPC hơn đọc từng dòng.
+    for start_idx in range(len(matches)):
+        if start_idx > 0 and matches[start_idx] == matches[start_idx - 1] + 1:
+            continue
+        j = start_idx
+        while j + 1 < len(matches) and matches[j + 1] == matches[j] + 1:
+            j += 1
+        first = matches[start_idx]
+        last = matches[j]
+        range_ = f"A{first}:M{last}"
+        values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=range_, unformatted=True)
+        for k in range(first, last + 1):
+            r = log_from_row(task_id, values[k - first])
+            r["_rowIndex"] = k
             out.append(r)
     return out
 
@@ -363,29 +390,60 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
 
 
 def transform_log_statuses(task_id, mutate):
-    """Chuyển status hàng loạt — batch đọc cả sheet, sửa memory, ghi 1 cột (P1)."""
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
+    """Chuyển status hàng loạt — G1 (2026-08-21): chỉ đọc/ghi dòng khớp task (đã port từ GAS).
+
+    GAS Database.gs:576 đọc cột TASK_ID (A2:A) trước rồi batchReadRows/batchSetOneCol
+    — tránh đọc cả sheet 13 cột × 5000 dòng mỗi lần complete/reopen. Python trước đây
+    đọc/ghi cả cột STATUS 2..lastRow. Port logic G1 để đồng nhất.
+    """
     lc = config.LOG_COLS
-    done = 0
-    any_changed = False
-    for i in range(1, len(values)):
-        row = values[i]
-        if str(row[lc["TASK_ID"]] if len(row) > lc["TASK_ID"] else "").strip() != task_id:
-            continue
-        time_scan = row[lc["TIME_SCAN"]] if len(row) > lc["TIME_SCAN"] else None
-        status = str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else "")
-        next_status = mutate(status, time_scan)
-        if next_status is not None and next_status != status:
-            row[lc["STATUS"]] = next_status
-            done += 1
-            any_changed = True
-    if any_changed:
-        col = []
-        for r in range(1, len(values)):
-            col.append([values[r][lc["STATUS"]] if len(values[r]) > lc["STATUS"] else ""])
-        sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], 2, lc["STATUS"] + 1, col)
-        invalidate_task_detail_cache(task_id)
-        invalidate_log_rows(task_id)
+    # 1) Dò cột TASK_ID (A2:A) — 1 cột thay vì toàn bộ sheet
+    id_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:A", unformatted=True)
+    matches = []
+    for i, row in enumerate(id_values):
+        cell = str(row[0] if row and len(row) > lc["TASK_ID"] else "").strip() if row else ""
+        # id_values từ A2:A nên row[0] chính là TASK_ID; fallback LOG_COLS[0]=0
+        if cell == task_id:
+            matches.append(i + 2)  # 1-based sheet row
+    if not matches:
+        return 0
+    # 2) Đọc chỉ dòng khớp — gộp dòng liền nhau thành 1 range (ít RPC)
+    writes = []  # [(rowIndex, next_status)]
+    idx = 0
+    while idx < len(matches):
+        j = idx
+        while j + 1 < len(matches) and matches[j + 1] == matches[j] + 1:
+            j += 1
+        first = matches[idx]
+        last = matches[j]
+        rng = f"A{first}:M{last}"
+        chunk = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=rng, unformatted=True)
+        for k, row_idx in enumerate(range(first, last + 1)):
+            row = chunk[k] if k < len(chunk) else []
+            if len(row) < config.LOG_COL_COUNT:
+                row = row + [""] * (config.LOG_COL_COUNT - len(row))
+            time_scan = row[lc["TIME_SCAN"]] if len(row) > lc["TIME_SCAN"] else None
+            status = str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else "")
+            next_status = mutate(status, time_scan)
+            if next_status is not None and next_status != status:
+                writes.append((row_idx, next_status))
+        idx = j + 1
+    if not writes:
+        return 0
+    # 3) Ghi chỉ dòng đổi — gộp dòng liền nhau thành 1 update (batchSetOneCol)
+    writes.sort(key=lambda x: x[0])
+    i = 0
+    done = len(writes)
+    while i < len(writes):
+        j = i
+        while j + 1 < len(writes) and writes[j + 1][0] == writes[j][0] + 1:
+            j += 1
+        start_row = writes[i][0]
+        col = [[w[1]] for w in writes[i:j + 1]]
+        sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], start_row, lc["STATUS"] + 1, col)
+        i = j + 1
+    invalidate_task_detail_cache(task_id)
+    invalidate_log_rows(task_id)
     return done
 
 

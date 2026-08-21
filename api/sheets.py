@@ -98,9 +98,12 @@ def append_values(sheet_name, rows):
     ).execute()
     start = 0
     try:
-        m = re.search(r"!([A-Z]+)(\d+):[A-Z]+(\d+)$", (resp.get("updates") or {}).get("updatedRange") or "")
+        updated = (resp.get("updates") or {}).get("updatedRange") or ""
+        # G1 #20 (2026-08-21): handle cả "!A1" (single-cell, sheet rỗng) lẫn "!A5:M6"
+        m = re.search(r"!([A-Z]+)(\d+)(?::[A-Z]+(\d+))?$", updated)
         if m:
-            start = int(m.group(3)) - len(rows) + 1
+            end_row = int(m.group(3) or m.group(2))
+            start = end_row - len(rows) + 1
     except Exception:
         start = 0
     return start

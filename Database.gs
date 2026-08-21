@@ -186,14 +186,24 @@ function taskFromRow_(row) {
   };
 }
 
-/** Đọc 1 task theo taskId (scan toàn bộ cột taskId — Phase 0 đơn giản). */
+/**
+ * Đọc 1 task theo taskId.
+ * G1 (2026-08-21): đọc theo RANGE (2..lastRow) thay getDataRange() — task sheet
+ * chỉ đọc cột TASK_ID (1 cột) khi dò taskId, rồi đọc đúng 1 dòng nếu khớp. Trước
+ * đây mỗi scan read CẢ sheet mỗi cột → log >5000 dòng là 1.5-3s, risk timeout.
+ */
 function readTask_(taskId) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
-  const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][TASK_COLS.TASK_ID] || '').trim() === taskId) {
-      const task = taskFromRow_(values[i]);
-      task._rowIndex = i + 1; // 1-based cho update
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  // Đọc cột TASK_ID (cột 1) trước — 1 cột thay vì toàn bộ sheet.
+  const idCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < idCol.length; i++) {
+    if (String(idCol[i][0] || '').trim() === taskId) {
+      const rowIndex = i + 2; // 1-based: offset 2 (bỏ header)
+      const row = sheet.getRange(rowIndex, 1, 1, TASK_COL_COUNT).getValues()[0];
+      const task = taskFromRow_(row);
+      task._rowIndex = rowIndex; // 1-based cho update
       return task;
     }
   }
@@ -244,13 +254,9 @@ function updateTaskNote_(taskId, note, rowIndex) {
     return true;
   };
   if (rowIndex) return write(rowIndex);
-  const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][TASK_COLS.TASK_ID] || '').trim() === taskId) {
-      return write(i + 1);
-    }
-  }
-  return false;
+  // G1 (2026-08-21): dùng readTask_ (đọc cột TASK_ID + 1 dòng) thay getDataRange cả sheet.
+  const task = readTask_(taskId);
+  return task ? write(task._rowIndex) : false;
 }
 
 /** Cập nhật trạng thái task (status, completedAt). */
@@ -263,27 +269,21 @@ function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
     // → completedAt ĐÈ LÊN CREATED_AT (phá hủy thời điểm tạo), COMPLETED_AT không bao giờ ghi.
     sheet.getRange(r, TASK_COLS.STATUS + 1).setValue(status);
     sheet.getRange(r, TASK_COLS.COMPLETED_AT + 1).setValue(completedAt || '');
+    invalidateTaskListCache_();
+    invalidateTaskCache_(taskId);
+    invalidateTaskDetailCache_(taskId);
   };
   // F4: rowIndex optional — completeTask đã đọc task (có _rowIndex) → bỏ 1 lần
   // getDataRange + scan lại sheet (chỉ 1 caller duy nhất: TaskService.completeTask).
   if (rowIndex) {
     write(rowIndex);
-    invalidateTaskListCache_();
-    invalidateTaskCache_(taskId);
-    invalidateTaskDetailCache_(taskId);
     return true;
   }
-  const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][TASK_COLS.TASK_ID] || '').trim() === taskId) {
-      write(i + 1);
-      invalidateTaskListCache_();
-      invalidateTaskCache_(taskId);
-      invalidateTaskDetailCache_(taskId);
-      return true;
-    }
-  }
-  return false;
+  // G1 (2026-08-21): dùng readTask_ (đọc cột TASK_ID + 1 dòng) thay getDataRange cả sheet.
+  const task = readTask_(taskId);
+  if (!task) return false;
+  write(task._rowIndex);
+  return true;
 }
 
 /** Danh sách task (cache 10s — O4: version-check, scan bump rev thay vì remove). */
@@ -313,14 +313,18 @@ function readTaskList_() {
 function taskCountersForList_() {
   return cachedJsonRev_(CACHE_KEYS.TASK_COUNTS + 'all', CACHE_KEYS.TASK_LIST_REV, function () {
     const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
-    const values = sheet.getDataRange().getValues();
+    // G1 (2026-08-21): chỉ đọc cột cần cho counter thay vì getDataRange() cả 13 cột.
+    // TASK_ID (cột 1) + STATUS (cột 10) + TIME_SCAN (cột 9) — cột 9/10 liền nhau →
+    // 2 RPC (1 cột TASK_ID + 1 range 9..10) thay vì 3 RPC riêng lẻ.
+    const lastRow = sheet.getLastRow();
+    const idCol = sheet.getRange(2, 1, Math.max(0, lastRow - 1), 1).getValues();
+    const stCols = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, Math.max(0, lastRow - 1), 2).getValues();
     const out = {};
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i];
-      const taskId = String(row[LOG_COLS.TASK_ID] || '').trim();
+    for (let i = 0; i < lastRow - 1; i++) {
+      const taskId = String(idCol[i][0] || '').trim();
       if (!taskId) continue;
-      const st = String(row[LOG_COLS.STATUS] || '');
-      const hasScan = !!row[LOG_COLS.TIME_SCAN];
+      const st = String(stCols[i][1] || '');
+      const hasScan = !!stCols[i][0];
       if (!out[taskId]) out[taskId] = { total: 0, scanned: 0, extra: 0 };
       out[taskId].total++;
       if (hasScan) out[taskId].scanned++;
@@ -374,17 +378,31 @@ function logFromRow_(taskId, row) {
     dateText: formatDateShort_(row[LOG_COLS.DATE]),
   };
 }
-/** Đọc toàn bộ dòng log của task (đọc tươi từ sheet — không cache). */
+/**
+ * Đọc toàn bộ dòng log của task (đọc tươi từ sheet — không cache).
+ * G1 (2026-08-21): đọc 1 CỘT TASK_ID + 1 RANGE các dòng khớp thay vì getDataRange()
+ * CẢ sheet — log >5000 dòng trước đây đọc 13 cột × mọi dòng mỗi lần miss cache.
+ */
 function readLogRows_(taskId) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
-  const values = sheet.getDataRange().getValues();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  // 1) Dò cột TASK_ID (cột 1) để lấy các row index khớp taskId.
+  const idCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const matches = [];
+  for (let i = 0; i < idCol.length; i++) {
+    if (String(idCol[i][0] || '').trim() === taskId) matches.push(i + 2);
+  }
+  if (!matches.length) return [];
+  // 2) Đọc chỉ các dòng khớp (1 dòng × LOG_COL_COUNT mỗi lần — gom trong loop
+  //    vì row rời; tối đa = số NV/task, thường ≤ vài trăm, KHÔNG phải cả sheet).
   const out = [];
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][LOG_COLS.TASK_ID] || '').trim() === taskId) {
-      const row = logFromRow_(taskId, values[i]);
-      row._rowIndex = i + 1; // 1-based cho update
-      out.push(row);
-    }
+  for (let k = 0; k < matches.length; k++) {
+    const rowIndex = matches[k];
+    const row = sheet.getRange(rowIndex, 1, 1, LOG_COL_COUNT).getValues()[0];
+    const rowObj = logFromRow_(taskId, row);
+    rowObj._rowIndex = rowIndex; // 1-based cho update
+    out.push(rowObj);
   }
   return out;
 }
@@ -545,9 +563,11 @@ function invalidateTaskDetailCache_(taskId) {
  * Chuyển status hàng loạt cho 1 task — batch setValues 1 lần cả cột status.
  * Dùng chung cho markUnscannedAbsent_ (kết thúc) và resetAbsentToPending_ (mở lại).
  * P1: batch setValues — KHÔNG setValue trong loop (241 NV = 241 calls → timeout risk).
- * P1: ghi 1 lần CẢ CỘT status từ values đã sửa trong memory — thay vì N RPC setValues
- * (worst case 241 NV quét xen kẽ = ~240 RPC → 12-24s). Idempotent: dòng không thuộc
- * task được ghi lại đúng giá trị vừa đọc. An toàn vì caller giữ LockService.
+ * P1: ghi CÁC DÒNG KHỚP task (không CẢ CỘT như trước) từ values đã sửa trong memory —
+ * thay vì N RPC setValues (worst case 241 NV quét xen kẽ = ~240 RPC → 12-24s).
+ * G1 (2026-08-21): đọc cột TASK_ID (1 cột) → chỉ đọc/ghi các dòng khớp — log >5000 dòng
+ * trước đây getDataRange() CẢ sheet mỗi lần kết thúc/mở lại task (nặng + risk timeout).
+ * An toàn vì caller giữ LockService.
  * @param {string} taskId
  * @param {function(string, any): string|null} mutate — (status, timeScan) => status mới
  *   hoặc null (không đổi)
@@ -555,32 +575,87 @@ function invalidateTaskDetailCache_(taskId) {
  */
 function transformLogStatuses_(taskId, mutate) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
-  const values = sheet.getDataRange().getValues();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  // Đọc cột TASK_ID (cột 1) trước — 1 cột thay vì toàn bộ sheet.
+  const idCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const matches = [];
+  for (let i = 0; i < idCol.length; i++) {
+    if (String(idCol[i][0] || '').trim() === taskId) matches.push(i + 2);
+  }
+  if (!matches.length) return 0;
+  // Đọc chỉ các dòng khớp (1 range gộp các dòng liền nhau; dòng rời đọc riêng).
+  const rows = batchReadRows_(sheet, matches);
   let done = 0;
-  let anyChanged = false;
-  for (let i = 1; i < values.length; i++) {
-    const row = values[i];
-    if (String(row[LOG_COLS.TASK_ID] || '').trim() !== taskId) continue;
+  const writes = [];
+  for (let k = 0; k < matches.length; k++) {
+    const rowIndex = matches[k];
+    const row = rows[k];
     const timeScan = row[LOG_COLS.TIME_SCAN];
     const status = String(row[LOG_COLS.STATUS] || '');
     const next = mutate(status, timeScan);
     if (next !== null && next !== status) {
-      values[i][LOG_COLS.STATUS] = next;
+      row[LOG_COLS.STATUS] = next;
       done++;
-      anyChanged = true;
+      writes.push([rowIndex, next]);
     }
   }
-  if (anyChanged) {
-    const statusCol = LOG_COLS.STATUS + 1;
-    // P2: ghi từ row 2 — values[0] là header, không được ghi đè (dù idempotent hôm nay,
-    // fragile nếu đổi tên header); col.slice(1) bỏ header khỏi payload.
-    const col = [];
-    for (let r = 1; r < values.length; r++) col.push([values[r][LOG_COLS.STATUS]]);
-    sheet.getRange(2, statusCol, values.length - 1, 1).setValues(col);
+  if (writes.length) {
+    // Ghi status các dòng đã đổi — batch 1 lần (dòng rời nhau vẫn 1 setValues theo
+    // từng ô là an toàn; tối đa = số NV/task).
+    batchSetOneCol_(sheet, LOG_COLS.STATUS + 1, writes);
     invalidateTaskDetailCache_(taskId);
     invalidateLogRows_(taskId); // U2: status hàng loạt đổi → cache log rows cũ lệch, xoá
   }
   return done;
+}
+
+/**
+ * Đọc nhiều dòng rời từ sheet trong ít RPC nhất — gộp các dòng liền nhau thành 1 range.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number[]} rowIndexes — 1-based, đã sắp tăng
+ * @param {number} colCount
+ * @returns {Array<Array<Object>>} mảng dòng theo thứ tự rowIndexes
+ */
+function batchReadRows_(sheet, rowIndexes, colCount) {
+  colCount = colCount || LOG_COL_COUNT;
+  const out = [];
+  if (!rowIndexes || !rowIndexes.length) return out;
+  let i = 0;
+  while (i < rowIndexes.length) {
+    let j = i + 1;
+    while (j < rowIndexes.length && rowIndexes[j] === rowIndexes[j - 1] + 1) j++;
+    // Gộp dòng [rowIndexes[i]..rowIndexes[j-1]] thành 1 range.
+    const range = sheet.getRange(rowIndexes[i], 1, rowIndexes[j - 1] - rowIndexes[i] + 1, colCount).getValues();
+    for (let k = i; k < j; k++) out.push(range[k - i]);
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * Ghi 1 cột cho nhiều dòng rời — batch: gom dòng liền nhau thành 1 setValues range.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} col — cột 1-based
+ * @param {Array<[number, Object]>} writes — [[rowIndex 1-based, value], ...]
+ */
+function batchSetOneCol_(sheet, col, writes) {
+  if (!writes || !writes.length) return;
+  const sorted = writes.slice().sort(function (a, b) { return a[0] - b[0]; });
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i + 1;
+    while (j < sorted.length && sorted[j][0] === sorted[j - 1][0] + 1) j++;
+    const startRow = sorted[i][0];
+    const count = sorted[j - 1][0] - startRow + 1;
+    const values = [];
+    for (let k = i; k < j; k++) {
+      // Điền đúng vị trí tương đối trong range (dòng liền nên vị trí = k - i).
+      values[sorted[k][0] - startRow] = [sorted[k][1]];
+    }
+    sheet.getRange(startRow, col, count, 1).setValues(values);
+    i = j;
+  }
 }
 
 /** Khi kết thúc task: chuyển dòng chưa quét (timeScan rỗng, status '-') thành 'Vắng'. */
@@ -714,8 +789,10 @@ function updateLogRowRa_(row, timeRa, status) {
 
 /**
  * Ghi hàng loạt cập nhật log cho 1 task (paste meal-move) — batch setValues 1 lần.
- * Chỉ chạm 3 cột: STATUS, TIME_RA, TIME_SCAN. Đọc toàn bộ values → sửa trong
- * memory → ghi cả cột (idempotent — dòng không thuộc update được ghi lại đúng).
+ * Chỉ chạm 3 cột: STATUS, TIME_RA, TIME_SCAN. Đọc cột TASK_ID (1 cột) → chỉ đọc/ghi
+ * các dòng khớp task (G1 2026-08-21: log >5000 dòng trước đây getDataRange() CẢ sheet
+ * mỗi lần paste — nặng). Idempotent: dòng không thuộc update không bị ghi đè (chỉ đọc
+ * đúng dòng khớp task rồi sửa từng ô cần).
  * @param {string} taskId
  * @param {Array<{_rowIndex:number, status:string, timeRa?:Date, timeScan?:Date}>} updates
  * @returns {number} số dòng đã đổi
@@ -723,35 +800,76 @@ function updateLogRowRa_(row, timeRa, status) {
 function batchMealMoveLogUpdates_(taskId, updates) {
   if (!updates || !updates.length) return 0;
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
-  const values = sheet.getDataRange().getValues();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  // Đọc cột TASK_ID (cột 1) trước — chỉ đọc các dòng khớp task.
+  const idCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
   const byRow = {};
   updates.forEach(function (u) { byRow[u._rowIndex] = u; });
+  const matches = [];
+  for (let i = 0; i < idCol.length; i++) {
+    const rowIndex = i + 2;
+    if (byRow[rowIndex] !== undefined) matches.push(rowIndex);
+  }
+  if (!matches.length) return 0;
+  // Đọc chỉ các dòng khớp update (không phải cả sheet).
+  const rows = batchReadRows_(sheet, matches);
+  const writes = { status: [], timeRa: [], timeScan: [] };
   let anyChanged = false;
-  for (let i = 1; i < values.length; i++) {
-    const u = byRow[i + 1]; // FIX: off-by-one — _rowIndex 1-based, i 0-based → i+1 = sheet row
+  for (let k = 0; k < matches.length; k++) {
+    const rowIndex = matches[k];
+    const u = byRow[rowIndex];
+    const row = rows[k];
     if (!u) continue;
-    if (u.timeRa) { values[i][LOG_COLS.TIME_RA] = u.timeRa; anyChanged = true; }
-    if (u.timeScan) { values[i][LOG_COLS.TIME_SCAN] = u.timeScan; anyChanged = true; }
-    if (u.status && values[i][LOG_COLS.STATUS] !== u.status) {
-      values[i][LOG_COLS.STATUS] = u.status; anyChanged = true;
+    if (u.timeRa) {
+      row[LOG_COLS.TIME_RA] = u.timeRa;
+      writes.timeRa.push([rowIndex, u.timeRa]);
+      anyChanged = true;
+    }
+    if (u.timeScan) {
+      row[LOG_COLS.TIME_SCAN] = u.timeScan;
+      writes.timeScan.push([rowIndex, u.timeScan]);
+      anyChanged = true;
+    }
+    if (u.status && row[LOG_COLS.STATUS] !== u.status) {
+      row[LOG_COLS.STATUS] = u.status;
+      writes.status.push([rowIndex, u.status]);
+      anyChanged = true;
     }
   }
   if (anyChanged) {
-    [LOG_COLS.STATUS, LOG_COLS.TIME_RA, LOG_COLS.TIME_SCAN].forEach(function (colIdx) {
-      const col = [];
-      for (let r = 1; r < values.length; r++) col.push([values[r][colIdx]]);
-      const colRange = sheet.getRange(2, colIdx + 1, values.length - 1, 1);
-      colRange.setValues(col);
-      // Ép format HH:mm:ss cho cột thời gian (Date object hiển thị đúng)
-      if (colIdx === LOG_COLS.TIME_RA || colIdx === LOG_COLS.TIME_SCAN) {
-        colRange.setNumberFormat('HH:mm:ss');
-      }
-    });
+    if (writes.status.length) batchSetOneCol_(sheet, LOG_COLS.STATUS + 1, writes.status);
+    if (writes.timeRa.length) {
+      batchSetOneCol_(sheet, LOG_COLS.TIME_RA + 1, writes.timeRa);
+      batchSetNumberFormat_(sheet, LOG_COLS.TIME_RA + 1, writes.timeRa);
+    }
+    if (writes.timeScan.length) {
+      batchSetOneCol_(sheet, LOG_COLS.TIME_SCAN + 1, writes.timeScan);
+      batchSetNumberFormat_(sheet, LOG_COLS.TIME_SCAN + 1, writes.timeScan);
+    }
     invalidateTaskDetailCache_(taskId);
     invalidateTaskListCache_();  // U3: batch meal-move đổi counter → list thiết bị khác thấy ngay
     invalidateLogRows_(taskId);
   }
   return anyChanged ? updates.length : 0;
+}
+
+/**
+ * Ép number format HH:mm:ss cho 1 cột ở các dòng rời (Date object hiển thị đúng).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} col — cột 1-based
+ * @param {Array<[number, Object]>} writes — [[rowIndex, value], ...]
+ */
+function batchSetNumberFormat_(sheet, col, writes) {
+  if (!writes || !writes.length) return;
+  const sorted = writes.slice().sort(function (a, b) { return a[0] - b[0]; });
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i + 1;
+    while (j < sorted.length && sorted[j][0] === sorted[j - 1][0] + 1) j++;
+    sheet.getRange(sorted[i][0], col, sorted[j - 1][0] - sorted[i][0] + 1, 1).setNumberFormat('HH:mm:ss');
+    i = j;
+  }
 }
 
 /**

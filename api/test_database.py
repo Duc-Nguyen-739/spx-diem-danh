@@ -14,7 +14,9 @@ from api import database
 
 
 class FakeSheets:
-    """Mô phỏng api/sheets: get_values/update_values/append_values trên dict rows."""
+    """Mô phỏng api/sheets: get_values/update_values/append_values trên dict rows.
+    Hỗ trợ range A1 notation ('A2:A', 'I2:J', 'A2', 'A2:M5') cho get_values —
+    giả lập đúng sheets.get_values(range_=...) mà database.py dùng (G1 2026-08-21)."""
 
     def __init__(self):
         self.sheets = {}
@@ -23,8 +25,52 @@ class FakeSheets:
     def set_sheet(self, name, rows):
         self.sheets[name] = [list(r) for r in rows]
 
+    @staticmethod
+    def _parse_col(letters):
+        """'A' → 1, 'B' → 2, ..., 'AA' → 27."""
+        n = 0
+        for ch in letters.upper():
+            n = n * 26 + (ord(ch) - ord("A") + 1)
+        return n
+
+    @staticmethod
+    def _parse_a1(range_):
+        """'A2:A' → (start_row, end_row, start_col, end_col); None/'' → (1, None, 1, None)."""
+        if not range_:
+            return (1, None, 1, None)
+        rng = range_.replace("'", "").split("!")[-1]
+        if ":" in rng:
+            a, b = rng.split(":", 1)
+        else:
+            a = rng
+            b = None
+        import re
+        m = re.match(r"([A-Z]+)(\d*)", a)
+        if not m:
+            return (1, None, 1, None)
+        start_col = FakeSheets._parse_col(m.group(1))
+        start_row = int(m.group(2)) if m.group(2) else 1
+        end_col, end_row = None, None
+        if b:
+            m2 = re.match(r"([A-Z]+)(\d*)", b)
+            if m2:
+                end_col = FakeSheets._parse_col(m2.group(1))
+                end_row = int(m2.group(2)) if m2.group(2) else None
+        return (start_row, end_row, start_col, end_col)
+
     def get_values(self, sheet_name, range_=None, unformatted=True):
-        return [list(r) for r in self.sheets.get(sheet_name, [])]
+        """Trả mảng 2D. range_=None → toàn bộ sheet; A1 notation → slice cột/dòng."""
+        data = self.sheets.get(sheet_name, [])
+        if not range_:
+            return [list(r) for r in data]
+        start_row, end_row, start_col, end_col = self._parse_a1(range_)
+        if end_row is None:
+            end_row = len(data)
+        out = []
+        for r in range(start_row - 1, min(end_row, len(data))):
+            row = data[r]
+            out.append(list(row[start_col - 1:end_col]))
+        return out
 
     def update_values(self, sheet_name, start_row, start_col, rows):
         data = self.sheets.setdefault(sheet_name, [])
