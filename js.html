@@ -2096,9 +2096,9 @@
   // P2: seq chống response cũ đè scan card mới — quét B lúc response A đang bay,
   // response A về sẽ showScanCard(A) nhảy card về NV quét trước đó vài giây.
   var SCAN_CARD_SEQ = 0;
-  // D2: guard dùng chung — còn scan đang chờ server hoặc trong queue.
+  // D2: guard dùng chung — còn scan đang chờ server hoặc trong queue hoặc paste batch.
   function scanBusy() {
-    return SCAN_QUEUE.length > 0 || SCAN_PROCESSING;
+    return SCAN_QUEUE.length > 0 || SCAN_PROCESSING || PASTE_BUSY;
   }
   // B: recount theo timeScan (khớp server computeCounters — ScanLogic.gs) thay vì
   // đếm theo status text: tránh lệch khi dòng có timeScan nhưng status chưa cập nhật.
@@ -2350,6 +2350,10 @@
   function submitPasteMealMoveBatch(codes) {
     if (PASTE_BUSY) {
       showToast('Đang xử lý dán mã — chờ giây lát', true);
+      return false;
+    }
+    if (SCAN_QUEUE.length > 0 || SCAN_PROCESSING) {
+      showToast('Đang xử lý quét — chờ xong rồi dán', true);
       return false;
     }
     if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'meal-move') return false;
