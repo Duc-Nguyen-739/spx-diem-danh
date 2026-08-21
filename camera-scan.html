@@ -1241,18 +1241,22 @@
     camStatus('📷 Đang nhận diện mã…');
     var url = URL.createObjectURL(file);
     var img = new Image();
+    var revoked = false;
+    function doRevoke() { if (!revoked) { try { URL.revokeObjectURL(url); } catch (err) {} revoked = true; } }
     img.onload = function () {
-      try { URL.revokeObjectURL(url); } catch (err) {}
+      doRevoke();
       var w = img.naturalWidth || 0;
       var h = img.naturalHeight || 0;
       if (!w || !h) { camFail('Không đọc được ảnh — thử lại'); return; }
       decodeImageMultiScale(img, w, h);
     };
     img.onerror = function () {
-      try { URL.revokeObjectURL(url); } catch (err) {}
+      doRevoke();
       camFail('Không đọc được ảnh — thử lại');
     };
     img.src = url;
+    // Safety: revoke dù onload/onerror không bao giờ bắn (file hỏng, tab đóng sớm)
+    setTimeout(doRevoke, 15000);
   }
 
   function decodeImageMultiScale(img, w, h) {
