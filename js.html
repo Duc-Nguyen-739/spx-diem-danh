@@ -1093,9 +1093,45 @@
     var map = {};
     tasks.forEach(function (t) { var v = String(t[field] || '').trim(); if (v) map[v] = (map[v] || 0) + 1; });
     var keys = Object.keys(map).sort();
-    box.innerHTML = keys.map(function (v) {
-      return '<label class="dash-opt"><input type="checkbox" name="' + name + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span></label>';
-    }).join('');
+    // Keyed diff — giữ DOM checkbox cũ (giữ checked/focus), chỉ thêm/xóa/sửa count
+    // Fallback cho test mock thiếu appendChild/querySelector → innerHTML
+    if (typeof box.appendChild !== 'function' || typeof box.querySelector !== 'function') {
+      box.innerHTML = keys.map(function (v) {
+        return '<label class="dash-opt"><input type="checkbox" name="' + escAttr(name) + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span></label>';
+      }).join('');
+      return;
+    }
+    var existing = {};
+    for (var ei=0; ei<box.children.length; ei++) {
+      var lab = box.children[ei];
+      var inp = lab.querySelector && lab.querySelector('input');
+      if (inp && inp.value) existing[inp.value] = lab;
+    }
+    var keep = {};
+    for (var ki=0; ki<keys.length; ki++) {
+      var v = keys[ki];
+      var lab = existing[v];
+      if (!lab) {
+        lab = document.createElement('label');
+        lab.className = 'dash-opt';
+        lab.innerHTML = '<input type="checkbox" name="' + escAttr(name) + '" value="' + escAttr(v) + '" checked onchange="applyDashFilters()"> ' + esc(v) + ' <span class="dash-cnt">' + map[v] + '</span>';
+        box.appendChild(lab);
+      } else {
+        var cnt = lab.querySelector && lab.querySelector('.dash-cnt');
+        if (cnt && cnt.textContent !== String(map[v])) cnt.textContent = map[v];
+      }
+      keep[v] = lab;
+    }
+    for (var di=box.children.length-1; di>=0; di--) {
+      var l = box.children[di];
+      var inp2 = l.querySelector && l.querySelector('input');
+      if (!inp2 || !keep[inp2.value]) l.remove();
+    }
+    // Đưa về đúng thứ tự sort
+    for (var si=0; si<keys.length; si++) {
+      var el = keep[keys[si]];
+      if (box.children[si] !== el) box.insertBefore(el, box.children[si] || null);
+    }
   }
   // Bộ lọc "Loại Task" — 2 loại cố định: Điểm danh ca / Điểm danh Ra/Vào
   function buildDashTypeOpts() {
@@ -1103,9 +1139,29 @@
     if (!box) return;
     var map = { reconcile: 0, 'meal-move': 0 };
     _dashTasks.forEach(function (t) { var k = t.taskType === 'meal-move' ? 'meal-move' : 'reconcile'; map[k]++; });
-    box.innerHTML =
-      '<label class="dash-opt"><input type="checkbox" name="dashType" value="reconcile" checked onchange="applyDashFilters()"> Điểm danh ca <span class="dash-cnt">' + map.reconcile + '</span></label>' +
-      '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
+    if (typeof box.appendChild !== 'function' || typeof box.querySelector !== 'function') {
+      box.innerHTML =
+        '<label class="dash-opt"><input type="checkbox" name="dashType" value="reconcile" checked onchange="applyDashFilters()"> Điểm danh ca <span class="dash-cnt">' + map.reconcile + '</span></label>' +
+        '<label class="dash-opt"><input type="checkbox" name="dashType" value="meal-move" checked onchange="applyDashFilters()"> Điểm danh Ra/Vào <span class="dash-cnt">' + map['meal-move'] + '</span></label>';
+      return;
+    }
+    // Keyed diff cho 2 loại cố định — giữ checked, chỉ update count
+    var labels = ['reconcile', 'meal-move'];
+    var texts = { reconcile: 'Điểm danh ca', 'meal-move': 'Điểm danh Ra/Vào' };
+    for (var ti=0; ti<labels.length; ti++) {
+      var key = labels[ti];
+      var lab = box.querySelector && box.querySelector('input[value="' + key + '"]');
+      lab = lab && lab.closest ? lab.closest('label') : null;
+      if (!lab) {
+        var nl = document.createElement('label');
+        nl.className = 'dash-opt';
+        nl.innerHTML = '<input type="checkbox" name="dashType" value="' + key + '" checked onchange="applyDashFilters()"> ' + texts[key] + ' <span class="dash-cnt">' + map[key] + '</span>';
+        box.appendChild(nl);
+      } else {
+        var c = lab.querySelector && lab.querySelector('.dash-cnt');
+        if (c && c.textContent !== String(map[key])) c.textContent = map[key];
+      }
+    }
   }
   function renderDash(tasks) {
     // Giữ lọc của user TRƯỚC khi rebuild checkbox (bug 2026-08-18: poll →
