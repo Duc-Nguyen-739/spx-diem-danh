@@ -135,6 +135,19 @@ class TestCacheHelpers(unittest.TestCase):
         self.assertGreater(cache.epoch_ms(dt), -3000000000000, "epoch âm nhưng hợp lệ cho duration calc")
         self.assertEqual(cache.format_time(dt), "09:02:15")
 
+    def test_cache_max_keys_fifo(self):
+        """#12: vượt 200 key → xóa key cũ nhất (FIFO), giữ 200 mới nhất."""
+        cache.clear_cache()
+        for i in range(250):
+            cache.cache_put(f"k{i}", i, 60)
+        # _store là dict private — check qua cache_get + len
+        self.assertEqual(len(cache._store), 200, "chỉ giữ 200 key mới nhất")
+        self.assertIsNone(cache.cache_get("k0"), "k0 cũ nhất phải bị xóa")
+        self.assertIsNone(cache.cache_get("k49"), "k49 cũng bị xóa (50 key đầu)")
+        self.assertEqual(cache.cache_get("k50"), 50, "k50 là key đầu còn lại")
+        self.assertEqual(cache.cache_get("k249"), 249, "k249 mới nhất còn")
+        cache.clear_cache()
+
 
 class TestDatabase(unittest.TestCase):
     def setUp(self):
