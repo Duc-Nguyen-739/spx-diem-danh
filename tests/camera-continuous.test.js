@@ -445,3 +445,58 @@ test('popup addResultRow: update chỉ mang tên → giữ badge trạng thái +
   assert.equal(time.textContent, '09:02', 'giờ phải giữ nguyên');
   assert.ok(body.children[0].children.some((c) => c.textContent === 'Nguyễn Văn A'), 'tên thật phải được cập nhật');
 });
+
+test('decodeCameraImage: revoke objectURL trên cả onload/onerror + timeout safety (#13)', () => {
+  const sb = makeSandbox();
+  // Mock URL + Image để đếm revoke
+  let revokeCalls = 0;
+  let lastUrl = null;
+  let timeoutFn = null;
+  sb.ctx.URL = {
+    createObjectURL: (f) => { lastUrl = 'blob:test-' + f.name; return lastUrl; },
+    revokeObjectURL: (u) => { revokeCalls++; assert.equal(u, lastUrl); },
+  };
+  let imgOnload = null;
+  let imgOnerror = null;
+  sb.ctx.Image = function () {
+    return {
+      set src(v) {
+        // src set triggers async load — test gọi tay
+      },
+      get src() { return ''; },
+      set onload(fn) { imgOnload = fn; },
+      get onload() { return imgOnload; },
+      set onerror(fn) { imgOnerror = fn; },
+      get onerror() { return imgOnerror; },
+    };
+  };
+  // Override setTimeout để bắt timeout 15s
+  const origSetTimeout = sb.ctx.setTimeout;
+  sb.ctx.setTimeout = (fn, ms) => {
+    if (ms === 15000) timeoutFn = fn;
+    return origSetTimeout(fn, ms);
+  };
+  // Gọi decodeCameraImage với file mock
+  vm.runInContext('decodeCameraImage({ name: "test.jpg" });', sb.ctx);
+  assert.equal(revokeCalls, 0, 'chưa revoke ngay sau khi tạo URL');
+  assert.ok(typeof imgOnload === 'function', 'phải set onload');
+  assert.ok(typeof imgOnerror === 'function', 'phải set onerror');
+  assert.ok(typeof timeoutFn === 'function', 'phải setTimeout 15s safety');
+  // onload → revoke 1 lần
+  imgOnload();
+  assert.equal(revokeCalls, 1, 'onload phải revoke');
+  // gọi lại onload (idempotent) → không revoke thêm
+  imgOnload();
+  assert.equal(revokeCalls, 1, 'revoke idempotent, không gọi lại');
+  // timeout safety sau khi đã revoke → không revoke thêm
+  timeoutFn();
+  assert.equal(revokeCalls, 1, 'timeout sau khi đã revoke không gọi thêm');
+  // reset và test onerror path
+  revokeCalls = 0;
+  lastUrl = null;
+  timeoutFn = null;
+  sb.ctx.camDecoding = false;
+  vm.runInContext('decodeCameraImage({ name: "bad.jpg" });', sb.ctx);
+  imgOnerror();
+  assert.equal(revokeCalls, 1, 'onerror phải revoke');
+});

@@ -126,6 +126,15 @@ class TestCacheHelpers(unittest.TestCase):
     def test_to_display_date_string(self):
         self.assertEqual(cache.to_display_date("8/1/2026"), "2026-01-08")
 
+    def test_time_only_string(self):
+        """#8: legacy '09:02:15' string → 1899-12-30 epoch, không phải None."""
+        dt = cache.to_datetime("09:02:15")
+        self.assertIsNotNone(dt, "09:02:15 phải parse được, không phải None")
+        self.assertEqual(dt.strftime("%H:%M:%S"), "09:02:15")
+        self.assertEqual(dt.year, 1899, "base 1899-12-30 consistent với serial 0.xxx")
+        self.assertGreater(cache.epoch_ms(dt), -3000000000000, "epoch âm nhưng hợp lệ cho duration calc")
+        self.assertEqual(cache.format_time(dt), "09:02:15")
+
 
 class TestDatabase(unittest.TestCase):
     def setUp(self):
@@ -235,6 +244,47 @@ class TestDatabase(unittest.TestCase):
         after = database.read_log_rows("M1")
         self.assertEqual(after[0]["status"], "Ra ngoài")
         self.assertGreater(after[0]["timeRaEpoch"], 0)
+
+    def test_transform_g1_scattered(self):
+        """#4 G1: 50 dòng rời xen task khác — chỉ dòng khớp đổi STATUS, không ghi cả cột."""
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+        # 50 dòng R1 + 20 dòng R2 xen kẽ
+        rows = []
+        for i in range(50):
+            rows.append(['R1', f'OPS{i:03d}', f'NV{i}', '', '', '', '', '', '', '-', '', '', ''])
+            if i % 3 == 0:
+                rows.append(['R2', f'OPX{i:03d}', f'NVX{i}', '', '', '', '', '', '', '-', '', '', ''])
+        self.fake.set_sheet(config.SHEETS["ATTENDANCE_LOG"], [LOG_HEADER] + rows)
+        cache.clear_cache()
+        n = database.mark_unscanned_absent("R1", "reconcile")
+        self.assertEqual(n, 50, "chỉ 50 dòng R1 '-' → Vắng, R2 giữ nguyên")
+        # Verify R2 không bị đổi
+        all_rows = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        for r in all_rows[1:]:
+            if r[0] == 'R2':
+                self.assertEqual(r[9], '-', "R2 không bị đánh Vắng nhầm")
+            if r[0] == 'R1':
+                self.assertEqual(r[9], 'Vắng')
+
+    def test_sheets_updated_range_regex(self):
+        """#20: sheets.append_values regex handle '!A1' lẫn '!A5:M6'."""
+        import re
+        pat = r"!([A-Z]+)(\d+)(?::[A-Z]+(\d+))?$"
+        cases = [
+            ("'AttendanceLog'!A5:M6", 2, 5),
+            ("'AttendanceLog'!A1:M1", 1, 1),
+            ("'AttendanceLog'!A1", 1, 1),
+            ("'My Sheet'!A10:M12", 3, 10),
+            ("", 1, 0),
+        ]
+        for updated, ln, expected in cases:
+            m = re.search(pat, updated)
+            start = int(m.group(3) or m.group(2)) - ln + 1 if m else 0
+            self.assertEqual(start, expected, f"updated={updated!r} len={ln}")
+        # old regex fails single-cell
+        old_pat = r"!([A-Z]+)(\d+):[A-Z]+(\d+)$"
+        m_old = re.search(old_pat, "'AttendanceLog'!A1")
+        self.assertIsNone(m_old, "old regex không match single-cell → bug #20")
 
 
 if __name__ == "__main__":

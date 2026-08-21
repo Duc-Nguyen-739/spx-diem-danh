@@ -153,6 +153,14 @@ test('scanPollBehind: poll cũ hơn local (scanned/extra/out nhỏ hơn) → b�
   assert.equal(sb.ctx.scanPollBehind(
     { task: { taskId: 'T1', status: 'open' }, counters: { scanned: 2, extra: 0, out: 0 } },
     cur, { scanned: 2, extra: 0, out: 1 }), true);
+  // #7: absent cao hơn local (vừa quét giảm absent) → poll cũ
+  assert.equal(sb.ctx.scanPollBehind(
+    { task: { taskId: 'T1', status: 'open' }, counters: { scanned: 2, extra: 0, out: 0, absent: 5, total: 7 } },
+    cur, { scanned: 2, extra: 0, out: 0, absent: 3, total: 7 }), true);
+  // #7: total thấp hơn local (thêm Dư) → poll cũ
+  assert.equal(sb.ctx.scanPollBehind(
+    { task: { taskId: 'T1', status: 'open' }, counters: { scanned: 2, extra: 0, out: 0, absent: 3, total: 5 } },
+    cur, { scanned: 2, extra: 0, out: 0, absent: 3, total: 7 }), true);
 });
 
 test('scanPollBehind: local đã DONE nhưng poll vẫn OPEN → response cũ, bỏ qua', () => {
