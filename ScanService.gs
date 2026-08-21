@@ -208,7 +208,7 @@ function scanStaff(taskId, rawStaffId, mode) {
 function resolveMealMoveMode_(task, mode) {
   if (mode !== 'ra') return 'vao';
   if (!task) return 'vao';
-  var createdBy = String(task.createdBy || '').trim().toLowerCase();
+  const createdBy = String(task.createdBy || '').trim().toLowerCase();
   if (!createdBy) return 'vao';
   return 'ra';
 }

@@ -7,6 +7,7 @@ Thay Session.getActiveUser() (không có login trong bản standalone anonymous)
     (khác GAS fail-closed vì GAS luôn có session user — ghi chú divergence).
 """
 
+import datetime
 import math
 import threading
 import time
@@ -72,7 +73,6 @@ def preview_staff(input_):
 
 def make_task_id(now=None):
     """R20260802-0730 (giờ tạo, TZ Asia/Ho_Chi_Minh)."""
-    import datetime
     d = now or datetime.datetime.now(cache._TZ)
     return f"R{d.strftime('%Y%m%d-%H%M')}"
 
@@ -106,7 +106,6 @@ def create_reconcile_task(input_):
         if not deduped:
             return {"ok": False, "taskId": None, "count": 0, "message": config.UI_LABELS["CREATE_FAILED_EMPTY"]}
 
-        import datetime
         now = datetime.datetime.now(cache._TZ)
         task_id = make_task_id(now)
         suffix = 2
@@ -157,7 +156,6 @@ def create_meal_move_task_core(input_):
     # "Giờ Ra" (khớp GAS createMealMoveTaskCore_) — NV Có mặt coi như đã Ra, status OUT.
     time_ra_by_staff = inp.get("timeRaByStaff") or {}
 
-    import datetime
     index = database.read_staff_index()
     staff_list = []
     for id_ in ids:
@@ -210,7 +208,6 @@ def complete_task_core(task_id):
         return {"ok": False, "message": "Task đã kết thúc"}
     # fail-safe: mark Vắng TRƯỚC, update status SAU (retry được)
     absent_count = database.mark_unscanned_absent(task_id, task["taskType"])
-    import datetime
     database.update_task_status(task_id, config.TASK_STATUS["DONE"], datetime.datetime.now(cache._TZ), task.get("_rowIndex"))
     msg = f"Đã kết thúc task {task_id}"
     if absent_count > 0:
@@ -358,8 +355,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
     """now_override: hook test — datetime thay đồng hồ thật (classify + ghi).
     GAS không có param này (dùng Date.now()); thêm để test rule 1.5s không chờ thật.
     """
-    import datetime as _dt
-    now_dt = now_override or _dt.datetime.now(cache._TZ)
+    now_dt = now_override or datetime.datetime.now(cache._TZ)
     now_ms = cache.epoch_ms(now_dt)
 
     staff_id = csvutil.normalize_staff_id(raw_staff_id)
@@ -477,8 +473,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
 
 def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
     """now_override: hook test (như scan_staff) — không ảnh hưởng production."""
-    import datetime as _dt
-    now = now_override or _dt.datetime.now(cache._TZ)
+    now = now_override or datetime.datetime.now(cache._TZ)
     now_ms = cache.epoch_ms(now)
 
     lst = list(codes) if isinstance(codes, (list, tuple)) else []
