@@ -25,6 +25,7 @@ CFG = {
 }
 
 _lock = threading.Lock()
+_BUSY_MSG = "Hệ thống đang bận — thử lại sau giây lát"
 
 
 def _now_ms():
@@ -95,7 +96,9 @@ def create_reconcile_task(input_):
     if not station or not filter_slots or not filter_teams:
         return {"ok": False, "taskId": None, "count": 0, "message": "Thiếu station/slotCode/team"}
 
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "taskId": None, "count": 0, "message": _BUSY_MSG}
+    try:
         staff_list = csvutil.filter_staff_by_group(database.read_staff_list(), {
             "station": station, "slotCode": filter_slots, "team": filter_teams,
             "date": date, "contractType": filter_contracts,
@@ -122,13 +125,19 @@ def create_reconcile_task(input_):
         database.insert_task(task)
         count = database.batch_insert_log_rows(task_id, deduped, now)
         return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task thành công: {task_id}"}
+    finally:
+        _lock.release()
 
 
 # ===== Meal-move task =====
 
 def create_meal_move_task(input_):
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "taskId": None, "count": 0, "message": _BUSY_MSG}
+    try:
         return create_meal_move_task_core(input_)
+    finally:
+        _lock.release()
 
 
 def create_meal_move_task_core(input_):
@@ -192,8 +201,12 @@ def create_meal_move_task_core(input_):
 # ===== Task lifecycle =====
 
 def complete_task(task_id):
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG}
+    try:
         return complete_task_core(task_id)
+    finally:
+        _lock.release()
 
 
 def complete_task_core(task_id):
@@ -224,7 +237,9 @@ def transfer_present_list_to_meal_move(input_, old_task_id):
     """
     if not old_task_id:
         return {"ok": False, "taskId": None, "count": 0, "message": "Thiếu taskId task cũ"}
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "taskId": None, "count": 0, "message": _BUSY_MSG}
+    try:
         old_task = database.read_task(old_task_id)
         if not old_task:
             return {"ok": False, "taskId": None, "count": 0, "message": f"Không tìm thấy task {old_task_id}"}
@@ -243,12 +258,16 @@ def transfer_present_list_to_meal_move(input_, old_task_id):
             "ok": True, "taskId": created["taskId"], "count": created["count"],
             "message": f"Đã tạo {created['taskId']} và hoàn thành {old_task_id}",
         }
+    finally:
+        _lock.release()
 
 
 def reopen_task(task_id):
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId"}
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG}
+    try:
         task = database.read_task(task_id)
         if not task:
             return {"ok": False, "message": "Không tìm thấy task"}
@@ -260,18 +279,24 @@ def reopen_task(task_id):
         if reset_count > 0:
             msg += f" — {reset_count} NV Vắng được đặt lại Chưa điểm danh"
         return {"ok": True, "message": msg}
+    finally:
+        _lock.release()
 
 
 def update_task_note(task_id, note):
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId"}
     clean = str(note or "").strip()
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG}
+    try:
         task = database.read_task(task_id)
         if not task:
             return {"ok": False, "message": "Không tìm thấy task"}
         database.update_task_note(task_id, clean, task.get("_rowIndex"))
         return {"ok": True, "message": "Đã lưu ghi chú" if clean else "Đã xoá ghi chú"}
+    finally:
+        _lock.release()
 
 
 def compute_task_list_sig(tasks):
@@ -365,7 +390,9 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
             "counters": {"scanned": 0, "absent": 0, "extra": 0, "total": 0},
         }
 
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG, "status": None, "scanPhase": None, "counters": {"scanned": 0, "absent": 0, "extra": 0, "total": 0}}
+    try:
         task = database.read_task_cached(task_id)
         log_rows = database.read_log_rows_cached(task_id)
         is_meal = bool(task and task.get("taskType") == config.TASK_TYPE["MEAL_MOVE"])
@@ -469,6 +496,8 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
             "workstation": scanned_info["workstation"],
             "counters": counters,
         }
+    finally:
+        _lock.release()
 
 
 def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
@@ -493,7 +522,9 @@ def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
     if not norm_codes:
         return {"ok": False, "message": config.UI_LABELS["MEAL_NO_OPS"], "summary": None, "counters": None}
 
-    with _lock:
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG, "summary": None, "counters": None}
+    try:
         task = database.read_task_cached(task_id)
         if not task:
             return {"ok": False, "message": "Không tìm thấy task", "summary": None, "counters": None}
@@ -556,6 +587,8 @@ def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
             "summary": summary,
             "counters": counters,
         }
+    finally:
+        _lock.release()
 
 
 # ===== Search + staff index =====
