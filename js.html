@@ -738,10 +738,13 @@
         META = meta;
         // Email người dùng hiện tại (GAS Session) — phân quyền chuyển Ra/Vào meal-move
         CURRENT_USER_EMAIL = String((meta && meta.currentUser) || '').trim().toLowerCase();
-        loadStaffIndex();  // cache staff index — scan NV lạ hiện thông tin ngay
         // Header mới không còn #appTitle — cập nhật brand title nếu có
         var brand = byId('brandTitle');
         if (brand && meta.appTitle) brand.textContent = meta.appTitle;
+        // P2 (2026-08-21): bỏ loadStaffIndex() khỏi boot — staff index (~90KB RPC) chỉ
+        // cần khi mở màn quét (lookup NV lạ). Kiosk chỉ xem danh sách task → không tải
+        // thừa. loadStaffIndex gọi ở openScan (mở task đầu tiên) — cache localStorage 12h
+        // nên lần mở sau không gọi RPC lại.
         refreshAll();
       })
       .withFailureHandler(function (err) {
@@ -1279,6 +1282,9 @@
     stopTaskListPolling(); // vào màn quét → màn quét tự poll chi tiết, dừng poll danh sách
     byId('viewList').classList.add('hidden');
     byId('viewScan').classList.remove('hidden');
+    // P2 (2026-08-21): tải staff index LƯỜI tại đây (không phải lúc boot) — chỉ cần khi
+    // mở màn quét để lookup NV lạ (Dư). Cache localStorage 12h → lần mở sau không gọi RPC.
+    loadStaffIndex();
     // P2 (audit): interval auto-focus đã bị dừng khi về danh sách → khởi động lại
     startAutoFocusLoop();
     // P2 (SWR an toàn): vừa xem task này xong (<15s) → render NGAY từ bộ nhớ,
