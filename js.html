@@ -1470,6 +1470,7 @@
 
   // PURE (test được): poll trả data "cũ hơn" state local không (chống race RPC out-of-order
   // — response poll cũ có thể về SAU response quét mới). True → bỏ qua, poll kế sẽ đúng.
+  // G1 #7 (2026-08-21): thêm absent + total — absent giảm khi quét, total tăng khi thêm Dư.
   function scanPollBehind(data, currentTask, currentCounters) {
     if (!data || !data.task || !currentTask) return true;
     if (currentTask.taskId !== data.task.taskId) return true;
@@ -1478,6 +1479,8 @@
     if ((pd.scanned || 0) < (cd.scanned || 0)) return true;
     if ((pd.extra || 0) < (cd.extra || 0)) return true;
     if ((pd.out || 0) < (cd.out || 0)) return true;
+    if ((pd.absent || 0) > (cd.absent || 0)) return true;
+    if ((pd.total || 0) < (cd.total || 0)) return true;
     // Local đã thấy task DONE nhưng poll vẫn OPEN → poll là response cũ
     if (currentTask.status === TASK_STATUS_C.DONE && data.task.status === TASK_STATUS_C.OPEN) return true;
     return false;
