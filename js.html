@@ -972,7 +972,7 @@
       .join(' · ');
     var foot = String(t.createdAtText || t.createdAt || '');
     if (t.createdBy) foot += (foot ? ' · ' : '') + creatorName(t.createdBy);
-    return '<div class="task-card">' +
+    return '<div class="task-card" data-id="' + escAttr(t.taskId) + '">' +
       '<div class="tc-head"><span class="tc-id">' + esc(t.taskId) + '</span>' + statusBadge + '</div>' +
       '<div class="tc-type">' + scope + '</div>' +
       '<div class="tc-mid">' +
@@ -1026,7 +1026,7 @@
         if (listWrap) listWrap.appendChild(cardsWrap);
       }
       cardsWrap.style.display = '';
-      cardsWrap.innerHTML = slice.map(function (t) { return taskCardHTML(t); }).join('');
+      _paintTaskCards(cardsWrap, slice);
       renderTaskPagin(list.length, pages);
       return;
     }
@@ -2031,6 +2031,34 @@
     }
   }
 
+  // Keyed diff cho card DANH SÁCH TASK mobile (2026-08-21) — giống _paintScanRowCards:
+  // chỉ update card thay đổi (poll 3s không replace toàn bộ DOM → giữ scroll/flicker ít).
+  function _paintTaskCards(wrap, tasks) {
+    var existing = {};
+    var i, el;
+    for (i = 0; i < wrap.children.length; i++) {
+      el = wrap.children[i];
+      if (el.dataset && el.dataset.id) existing[el.dataset.id] = el;
+    }
+    var keep = {};
+    for (i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var html = taskCardHTML(t);
+      el = existing[t.taskId];
+      if (!el) { el = document.createElement('div'); el.dataset.id = t.taskId; wrap.appendChild(el); }
+      if (el.innerHTML !== html) el.innerHTML = html;
+      keep[t.taskId] = el;
+    }
+    for (i = wrap.children.length - 1; i >= 0; i--) {
+      el = wrap.children[i];
+      if (!keep[el.dataset && el.dataset.id]) el.remove();
+    }
+    for (i = 0; i < tasks.length; i++) {
+      el = keep[tasks[i].taskId];
+      if (wrap.lastChild !== el) wrap.appendChild(el);
+    }
+  }
+
   function updateSortIndicators() {
     var ths = document.querySelectorAll('#scanTable th.sortable');
     for (var i = 0; i < ths.length; i++) {
@@ -2351,20 +2379,11 @@
   // 1.5s rule client-side (2026-08-17: giảm từ 10s để khớp DUPLICATE_WINDOW_MS server
   // + cooldown quét camera): quét cùng mã trong 1.5s → "Trùng mã"
   function submitScanMealMove(input, staffId, target) {
-    if (target && target.timeRaEpoch && MEAL_MODE === 'ra') {
-      var diffRa = Date.now() - Number(target.timeRaEpoch);
-      if (diffRa < 1500) {
-        showToast('Trùng mã — quét lại sau 1.5 giây', true);
-        playBeep('error');
-        showScanCard('Trùng mã', target, true);
-        input.value = '';
-        if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
-        return;
-      }
-    }
-    if (target && target.timeScanEpoch && MEAL_MODE === 'vao') {
-      var diffVao = Date.now() - Number(target.timeScanEpoch);
-      if (diffVao < 1500) {
+    // Trùng mã: check epoch mốc hiện tại theo mode (Ra → timeRaEpoch, Vào → timeScanEpoch).
+    // Gộp 2 block Ra/Vào giống hệt (2026-08-21) — cùng pattern chặn + toast + card + focus.
+    if (target) {
+      var lastEpoch = MEAL_MODE === 'ra' ? Number(target.timeRaEpoch) : Number(target.timeScanEpoch);
+      if (lastEpoch > 0 && (Date.now() - lastEpoch) < 1500) {
         showToast('Trùng mã — quét lại sau 1.5 giây', true);
         playBeep('error');
         showScanCard('Trùng mã', target, true);
