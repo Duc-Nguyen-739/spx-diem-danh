@@ -551,45 +551,93 @@ def _mutate_ra_cache(r, time_ra, status):
 
 
 def batch_meal_move_log_updates(task_id, updates):
-    """Ghi hàng loạt (paste meal-move) — batch 3 cột STATUS/TIME_RA/TIME_SCAN."""
+    """Ghi hàng loạt (paste meal-move) — G1 (2026-08-21): chỉ đọc/ghi dòng khớp.
+
+    Trước đọc cả sheet 13 cột × 5000 dòng và ghi cả 3 cột 2..lastRow (15000 ô)
+    dù chỉ đổi 5-20 dòng → quota + timeout. Port GAS batchSetOneCol: chỉ
+    đọc A2:A tìm matches, gộp range đọc, chỉ ghi writes đã đổi.
+    """
     if not updates:
         return 0
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True)
     lc = config.LOG_COLS
-    # Sheets API xén cell rỗng cuối mỗi dòng → row có thể NGẮN hơn LOG_COL_COUNT
-    # (vd dòng NV lạ chỉ tới STATUS index 9). Pad để mutate TIME_RA/TIME_SCAN/STATUS
-    # không văng IndexError (write path bên dưới đã guard len — mutate phải tương đồng).
-    for i in range(1, len(values)):
-        if len(values[i]) < config.LOG_COL_COUNT:
-            values[i] = values[i] + [""] * (config.LOG_COL_COUNT - len(values[i]))
     by_row = {u["_rowIndex"]: u for u in updates}
-    any_changed = False
-    for i in range(1, len(values)):
-        u = by_row.get(i + 1)  # _rowIndex 1-based, i 0-based → i+1
-        if not u:
-            continue
+    # 1) Tìm matches thuộc task_id và có trong updates
+    id_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:A", unformatted=True)
+    matches = []
+    for i, row in enumerate(id_values):
+        ridx = i + 2
+        if ridx in by_row and str(row[0] if row and len(row) > 0 else "").strip() == task_id:
+            matches.append(ridx)
+    if not matches:
+        return 0
+    matches.sort()
+    # 2) Đọc chỉ dòng khớp — gộp liền nhau
+    # Map rowIndex → row data
+    row_map = {}
+    idx = 0
+    while idx < len(matches):
+        j = idx
+        while j + 1 < len(matches) and matches[j + 1] == matches[j] + 1:
+            j += 1
+        first = matches[idx]
+        last = matches[j]
+        rng = f"A{first}:M{last}"
+        chunk = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=rng, unformatted=True)
+        for k, ridx in enumerate(range(first, last + 1)):
+            row = chunk[k] if k < len(chunk) else []
+            if len(row) < config.LOG_COL_COUNT:
+                row = row + [""] * (config.LOG_COL_COUNT - len(row))
+            row_map[ridx] = row
+        idx = j + 1
+    # 3) Thu thập writes đã đổi
+    writes_status = []
+    writes_ra = []
+    writes_scan = []
+    for ridx in matches:
+        row = row_map.get(ridx, [])
+        u = by_row[ridx]
         if u.get("timeRa"):
-            values[i][lc["TIME_RA"]] = cache.to_iso_cell(u["timeRa"])
-            any_changed = True
+            writes_ra.append((ridx, cache.to_iso_cell(u["timeRa"])))
         if u.get("timeScan"):
-            values[i][lc["TIME_SCAN"]] = cache.to_iso_cell(u["timeScan"])
-            any_changed = True
-        if u.get("status") and values[i][lc["STATUS"]] != u["status"]:
-            values[i][lc["STATUS"]] = u["status"]
-            any_changed = True
-    if any_changed:
-        for col_idx in (lc["STATUS"], lc["TIME_RA"], lc["TIME_SCAN"]):
-            col = []
-            for r in range(1, len(values)):
-                col.append([values[r][col_idx] if len(values[r]) > col_idx else ""])
-            sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], 2, col_idx + 1, col)
-        invalidate_task_list_cache()
-        invalidate_task_detail_cache(task_id)
-        invalidate_log_rows(task_id)
-        rows_idx = sorted(u["_rowIndex"] for u in updates if u.get("timeRa") or u.get("timeScan"))
-        if rows_idx:
-            _format_time_columns(rows_idx[0], rows_idx[-1] - rows_idx[0] + 1)
-    return len(updates) if any_changed else 0
+            writes_scan.append((ridx, cache.to_iso_cell(u["timeScan"])))
+        if u.get("status") and str(row[lc["STATUS"]] if len(row) > lc["STATUS"] else "") != u["status"]:
+            writes_status.append((ridx, u["status"]))
+    any_changed = bool(writes_status or writes_ra or writes_scan)
+    if not any_changed:
+        return 0
+    # 4) Ghi chỉ dòng đổi — gộp liền nhau (batchSetOneCol)
+    def _batch_writes(col_idx, writes):
+        if not writes:
+            return
+        writes = sorted(writes, key=lambda x: x[0])
+        i = 0
+        while i < len(writes):
+            j = i
+            while j + 1 < len(writes) and writes[j + 1][0] == writes[j][0] + 1:
+                j += 1
+            start_row = writes[i][0]
+            col = [[w[1]] for w in writes[i:j + 1]]
+            sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], start_row, col_idx + 1, col)
+            i = j + 1
+    _batch_writes(lc["STATUS"], writes_status)
+    _batch_writes(lc["TIME_RA"], writes_ra)
+    _batch_writes(lc["TIME_SCAN"], writes_scan)
+    # Format chỉ vùng vừa ghi time
+    for writes, col in [(writes_ra, lc["TIME_RA"] + 1), (writes_scan, lc["TIME_SCAN"] + 1)]:
+        if not writes:
+            continue
+        ws = sorted(writes, key=lambda x: x[0])
+        i = 0
+        while i < len(ws):
+            j = i
+            while j + 1 < len(ws) and ws[j + 1][0] == ws[j][0] + 1:
+                j += 1
+            sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], ws[i][0], col, j - i + 1, 1, _TIME_FMT)
+            i = j + 1
+    invalidate_task_list_cache()
+    invalidate_task_detail_cache(task_id)
+    invalidate_log_rows(task_id)
+    return len(updates)
 
 
 def batch_append_log_rows(rows):
