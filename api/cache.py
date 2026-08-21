@@ -171,9 +171,10 @@ def to_datetime(value):
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M:%S"):
         try:
             dt = datetime.strptime(s, fmt)
-            # time-only: không có ngày → không suy epoch được → trả None (an toàn)
             if fmt == "%H:%M:%S":
-                return None
+                # legacy string time-only "09:02:15" (FORMATTED_VALUE cũ) → treat as
+                # 1899-12-30 + time, consistent with serial time-only 0.xxx
+                return datetime(1899, 12, 30, dt.hour, dt.minute, dt.second, tzinfo=_TZ)
             return dt.replace(tzinfo=_TZ)
         except ValueError:
             continue
