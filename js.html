@@ -684,6 +684,15 @@
       '.about-overlay.open, #createModal.open, #confirmModal.open, #createMealModal.open'
     ) !== null;
   }
+  // Poll đồng bộ scan KHÔNG chặn khi camera đang mở — liên tục quét (2026-08-17)
+  // vẫn cần thấy thiết bị khác quét trong thời gian thực. Chỉ chặn khi có modal
+  // tạo task/confirm/about (đang nhập liệu). Auto-focus loop vẫn dùng anyModalOpen
+  // để không bật bàn phím che camera.
+  function isPollBlockingModalOpen() {
+    return document.querySelector(
+      '.about-overlay.open, #createModal.open, #confirmModal.open, #createMealModal.open'
+    ) !== null;
+  }
 
   // Modal confirm dùng chung — thay alert/confirm trình duyệt.
   // showConfirm(title, message, onConfirm): mở modal, bấm "Đồng ý" → chạy onConfirm.
@@ -1435,7 +1444,7 @@
     if (skel) skel.style.display = 'none';
     if (tbl) tbl.style.display = '';
     renderScanTable(data.log);
-    CURRENT_COUNTERS = data.counters || { scanned: 0, absent: 0, extra: 0 };
+    CURRENT_COUNTERS = data.counters || { scanned: 0, absent: 0, extra: 0, out: 0, total: (data.log || []).length };
     renderCounters(CURRENT_COUNTERS);
     var canScan = data.task.status === TASK_STATUS_C.OPEN;
     byId('scanInput').disabled = !canScan;
@@ -1443,8 +1452,11 @@
     var camBtn = byId('btnCamScan');
     if (camBtn) camBtn.disabled = !canScan;
     updateFinishBtnState();
-    if (canScan) {
-      byId('scanInput').focus();
+    if (canScan && !window.__RC_CAM_OPEN__) {
+      var __cm = byId('cameraModal');
+      if (!__cm || __cm.style.display !== 'flex') {
+        byId('scanInput').focus();
+      }
     }
   }
 
@@ -1577,7 +1589,7 @@
     var vs = byId('viewScan');
     if (!vs || vs.classList.contains('hidden')) return;   // không ở màn quét
     if (document.visibilityState === 'hidden') return;     // tab ẩn — Safari/Chrome throttle sẵn
-    if (anyModalOpen()) return;                            // có modal (tạo task/confirm) — không phá
+    if (isPollBlockingModalOpen()) return;                 // có modal tạo task/confirm/about — không phá (camera mở vẫn poll để thấy thiết bị khác quét)
     if (scanBusy()) return;                                // queue quét đang chạy — state local là mới nhất
     scanPollInFlight = true;
     google.script.run
@@ -1608,10 +1620,13 @@
     // renderScanView mặc định reset meal-mode (creator → 'ra') → khôi phục chế độ người
     // dùng đang dùng (Ra/Vào là state UI local, KHÔNG đồng bộ giữa các thiết bị).
     if (CURRENT_TASK.taskType === 'meal-move' && MEAL_MODE !== prevMealMode) setMealMode(prevMealMode);
-    // renderScanView focus về ô quét — đang gõ ô tìm/lọc thì trả lại focus
-    if (prevActiveId === 'scanSearch' || prevActiveId === 'scanStatusFilter') {
-      var prev = document.getElementById(prevActiveId);
-      if (prev && prev.focus) prev.focus();
+    // renderScanView focus về ô quét — đang gõ ô tìm/lọc thì trả lại focus (camera mở → không giật focus che camera)
+    if (!window.__RC_CAM_OPEN__ && (prevActiveId === 'scanSearch' || prevActiveId === 'scanStatusFilter')) {
+      var __cm = byId('cameraModal');
+      if (!__cm || __cm.style.display !== 'flex') {
+        var prev = document.getElementById(prevActiveId);
+        if (prev && prev.focus) prev.focus();
+      }
     }
     LAST_SCAN_VIEW = { taskId: data.task.taskId, ts: Date.now() };
     if (wasOpen && data.task.status === TASK_STATUS_C.DONE) {
@@ -1658,7 +1673,7 @@
     var vs = byId('viewList');
     if (!vs || vs.classList.contains('hidden')) return;   // đang ở màn quét
     if (document.visibilityState === 'hidden') return;    // tab ẩn — browser throttle sẵn
-    if (anyModalOpen()) return;
+    if (isPollBlockingModalOpen()) return;                // modal tạo task/confirm/about — không phá (camera mở không chặn vì đang ở màn quét viewList đã ẩn)
     if (_refreshLock) return;                             // đang "Làm mới" tay — RPC đó lo
     if (_taskFilterStaff) return;                         // lọc theo mã Ops — không đè lọc
     taskListPollInFlight = true;
@@ -2170,7 +2185,8 @@
       else if (!hasScan) a++;
     });
     // meal-move: scanned = đã có Vào; out = đã Ra chưa Vào
-    CURRENT_COUNTERS = { scanned: s, absent: a, extra: e, out: out };
+    // G1 #7 fix: thiếu total → scanPollBehind so total sai cho task <2 người (local total luôn 0)
+    CURRENT_COUNTERS = { scanned: s, absent: a, extra: e, out: out, total: (CURRENT_LOG || []).length };
     renderCounters(CURRENT_COUNTERS);
   }
 
