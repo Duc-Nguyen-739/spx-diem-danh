@@ -1697,6 +1697,22 @@
       .getTaskListApi(lastTaskListSig);
   }
 
+  // Tối ưu mượt (2026-08-23): tab ẩn → poll tick early-return (không RPC, tiết kiệm quota/pin);
+  // khi tab hiện lại → poll ngay 1 lần để thấy thay đổi trong lúc ẩn (không chờ 3s).
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      try {
+        var vsL = byId('viewList');
+        if (vsL && !vsL.classList.contains('hidden') && !_taskFilterStaff) taskListPollTick();
+      } catch (e) {}
+      try {
+        var vsS = byId('viewScan');
+        if (vsS && !vsS.classList.contains('hidden') && CURRENT_TASK) scanPollTick(CURRENT_TASK.taskId);
+      } catch (e) {}
+    });
+  }
+
   // meal-move: hiện/ẩn cột Giờ Ra / Nhà Thầu / Số phút trong bảng scan
   function toggleMealColumns(show) {
     var cols = document.querySelectorAll('.mm-col');

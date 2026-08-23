@@ -81,13 +81,14 @@ test('apiDispatchJsonp_: trả nguyên kết quả hàm nghiệp vụ (ok:false 
 
 // ===== sanitizeCallback_ =====
 test('sanitizeCallback_: tên cb hợp lệ giữ nguyên', () => {
-  ['__rcJsonp1_1786455000000', 'myCb', 'a.b$c_1', 'callback'].forEach((cb) => {
+  ['__rcJsonp1_1786455000000', 'myCb', 'a.b_c_1', 'a.b.c', 'callback', '_myCb1'].forEach((cb) => {
     assert.equal(Api.sanitizeCallback_(cb), cb);
   });
 });
 
 test('sanitizeCallback_: tên nguy hiểm/trống → fallback "callback" (chống XSS phản chiếu)', () => {
-  ['alert(1)', 'a;alert(1)//', 'x</script><script>alert(1)', 'a b', '()=>{}', '', null, undefined].forEach((cb) => {
+  ['alert(1)', 'a;alert(1)//', 'x</script><script>alert(1)', 'a b', '()=>{}', '', null, undefined,
+    'a.b$c_1', '$.ajax', '__proto__', 'constructor', 'a..b', '.abc', '123abc', 'a.$b'].forEach((cb) => {
     assert.equal(Api.sanitizeCallback_(cb), 'callback', 'phải fallback với: ' + String(cb));
   });
 });

@@ -73,9 +73,9 @@ def preview_staff(input_):
 # ===== TaskId =====
 
 def make_task_id(now=None):
-    """R20260802-0730 (giờ tạo, TZ Asia/Ho_Chi_Minh)."""
+    """R20260802-073015 (giờ tạo, TZ Asia/Ho_Chi_Minh) — có giây để giảm trùng khi nhiều kiosk tạo cùng phút."""
     d = now or datetime.datetime.now(cache._TZ)
-    return f"R{d.strftime('%Y%m%d-%H%M')}"
+    return f"R{d.strftime('%Y%m%d-%H%M%S')}"
 
 
 # ===== Reconcile task =====

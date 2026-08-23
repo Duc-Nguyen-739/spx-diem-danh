@@ -16,7 +16,7 @@
  * Bảo mật:
  * - Whitelist action (API_ACTIONS_) — CHỈ cho gọi các hàm *Api đã duyệt (cùng năng lực
  *   với UI kiosk anonymous). Chặn mọi hàm khác (kể cả _private, editor-only).
- * - cb (tên hàm callback) phải khớp /^[A-Za-z0-9_$.]+$/ — chống phản chiếu script tùy ý.
+ * - cb (tên hàm callback) phải khớp /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/ — chống phản chiếu script tùy ý (chặn $.ajax, constructor, __proto__).
  */
 
 /** Whitelist action — mỗi action map 1:1 tới hàm GAS public đã duyệt. */
@@ -66,7 +66,12 @@ function apiDispatchJsonp_(action, args, call) {
  */
 function sanitizeCallback_(cb) {
   var s = String(cb || '').trim();
-  return /^[A-Za-z0-9_$.]+$/.test(s) ? s : 'callback';
+  if (!/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(s)) return 'callback';
+  var parts = s.split('.');
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i] === '__proto__' || parts[i] === 'constructor' || parts[i] === 'prototype') return 'callback';
+  }
+  return s;
 }
 
 /** GAS: gọi hàm thật qua global scope (mọi .gs share 1 không gian hàm). */

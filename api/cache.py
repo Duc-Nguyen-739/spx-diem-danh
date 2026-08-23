@@ -27,6 +27,8 @@ def _ttl_of(key):
         return config.CACHE_TTL["STAFF_INDEX"]
     if key == config.CACHE_KEYS["TASK_LIST"]:
         return config.CACHE_TTL["TASK_LIST"]
+    if key == config.CACHE_KEYS["SEARCH_LOG"]:
+        return config.CACHE_TTL["SEARCH_LOG"]
     if key == config.CACHE_KEYS["TZ"]:
         return config.CACHE_TTL["TZ"]
     if key.startswith(config.CACHE_KEYS["TASK_DETAIL"]):
