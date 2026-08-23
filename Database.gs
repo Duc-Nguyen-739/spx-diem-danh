@@ -230,11 +230,24 @@ function invalidateTaskCache_(taskId) {
   catch (e) { Logger.log('invalidateTaskCache_ fail: ' + taskId + ' — ' + e.message); }
 }
 
+/**
+ * Chống formula injection (A1 2026-08-23): chuỗi text từ client (note/station/team/
+ * createdBy — kiosk anonymous, ai cũng POST được) bắt đầu bằng ký tự công thức
+ * (`= + - @ \t \r`) sẽ bị Sheets parse thành công thức thực thi khi ghi USER_ENTERED.
+ * Prefix `'` khiến Sheets coi là text thuần. Áp dụng TẠI write boundary — mọi cell
+ * text client-controlled đều qua đây (khớp Python api/database.py sanitize_cell_text).
+ */
+function sanitizeCellText_(value) {
+  var s = String(value == null ? '' : value);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 /** Ghi task mới (append — tần suất thấp, chấp nhận appendRow). */
 function insertTask_(task) {
   getSheet_(SHEETS.ATTENDANCE_TASK).appendRow([
-    task.taskId, task.taskType, task.station, task.slotCode, task.team,
-    task.status, task.createdAt, task.createdBy, task.completedAt || '', task.note || '',
+    task.taskId, task.taskType,
+    sanitizeCellText_(task.station), sanitizeCellText_(task.slotCode), sanitizeCellText_(task.team),
+    task.status, task.createdAt, sanitizeCellText_(task.createdBy), task.completedAt || '', sanitizeCellText_(task.note),
   ]);
   invalidateTaskListCache_();
   invalidateTaskCache_(task.taskId);  // F8: phá negative-cache readTaskCached_ (taskId giờ-tạo có thể trùng)
@@ -246,8 +259,9 @@ function insertTask_(task) {
 /** Cập nhật ghi chú của task (cột NOTE). Gọi sau khi tạo (insertTask_ đã lưu note) để sửa. */
 function updateTaskNote_(taskId, note, rowIndex) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
+  const cleanNote = sanitizeCellText_(note);
   const write = function (r) {
-    sheet.getRange(r, TASK_COLS.NOTE + 1).setValue(note || '');
+    sheet.getRange(r, TASK_COLS.NOTE + 1).setValue(cleanNote);
     invalidateTaskListCache_();
     invalidateTaskCache_(taskId);
     invalidateTaskDetailCache_(taskId);

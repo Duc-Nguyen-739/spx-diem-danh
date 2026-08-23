@@ -191,6 +191,31 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["taskId"], "R20260803-0900")
 
+    def test_formula_injection_sanitized_on_write(self):
+        """A1: chuỗi text client bắt đầu bằng ký tự công thức phải bị prefix `'` khi
+        ghi vào sheet (USER_ENTERED → nếu không Sheets thực thi formula)."""
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+        database.insert_task({
+            "taskId": "R-INJ", "taskType": "reconcile",
+            "station": "=IMPORTXML(...)", "slotCode": "+SUM(1,2)", "team": "@evil",
+            "status": "open", "createdAt": now, "createdBy": "-cmd", "completedAt": None,
+            "note": "=1+2",
+        })
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_TASK"]]
+        self.assertEqual(data[1][config.TASK_COLS["STATION"]], "'=IMPORTXML(...)")
+        self.assertEqual(data[1][config.TASK_COLS["SLOT_CODE"]], "'+SUM(1,2)")
+        self.assertEqual(data[1][config.TASK_COLS["TEAM"]], "'@evil")
+        self.assertEqual(data[1][config.TASK_COLS["CREATED_BY"]], "'-cmd")
+        self.assertEqual(data[1][config.TASK_COLS["NOTE"]], "'=1+2")
+        # Giá trị bình thường không bị đổi
+        database.update_task_note("R-INJ", "ghi chú thường")
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_TASK"]]
+        self.assertEqual(data[1][config.TASK_COLS["NOTE"]], "ghi chú thường")
+        # Note injection qua update
+        database.update_task_note("R-INJ", "=cmd|' /C calc'!A0")
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_TASK"]]
+        self.assertEqual(data[1][config.TASK_COLS["NOTE"]], "'=cmd|' /C calc'!A0")
+
     def test_batch_insert_log_and_scan(self):
         now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
         staff = csvutil.filter_staff_by_group(database.read_staff_list(), {

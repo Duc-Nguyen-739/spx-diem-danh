@@ -22,6 +22,16 @@ def get_write_lock():
     return _write_lock
 
 
+def sanitize_cell_text(value):
+    """Chống formula injection (A1 2026-08-23, mirror GAS sanitizeCellText_): chuỗi text
+    từ client (note/station/team/createdBy) bắt đầu bằng ký tự công thức (`= + - @ \\t \\r`)
+    sẽ bị Sheets parse thành công thức khi ghi USER_ENTERED. Prefix `'` → text thuần."""
+    s = "" if value is None else str(value)
+    if s.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + s
+    return s
+
+
 # ===== StaffData =====
 
 def read_staff_index():
@@ -108,14 +118,14 @@ def insert_task(task):
     row = [""] * config.TASK_COL_COUNT
     row[c["TASK_ID"]] = task.get("taskId", "")
     row[c["TASK_TYPE"]] = task.get("taskType", "")
-    row[c["STATION"]] = task.get("station", "")
-    row[c["SLOT_CODE"]] = task.get("slotCode", "")
-    row[c["TEAM"]] = task.get("team", "")
+    row[c["STATION"]] = sanitize_cell_text(task.get("station", ""))
+    row[c["SLOT_CODE"]] = sanitize_cell_text(task.get("slotCode", ""))
+    row[c["TEAM"]] = sanitize_cell_text(task.get("team", ""))
     row[c["STATUS"]] = task.get("status", "")
     row[c["CREATED_AT"]] = cache.to_iso_cell(task.get("createdAt"))
-    row[c["CREATED_BY"]] = task.get("createdBy", "")
+    row[c["CREATED_BY"]] = sanitize_cell_text(task.get("createdBy", ""))
     row[c["COMPLETED_AT"]] = cache.to_iso_cell(task.get("completedAt"))
-    row[c["NOTE"]] = task.get("note", "")
+    row[c["NOTE"]] = sanitize_cell_text(task.get("note", ""))
     sheets.append_values(config.SHEETS["ATTENDANCE_TASK"], [row])
     invalidate_task_list_cache()
     invalidate_task_cache(task.get("taskId", ""))
@@ -127,7 +137,7 @@ def update_task_note(task_id, note, row_index=None):
     r = row_index or _find_task_row(task_id)
     if not r:
         return False
-    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["NOTE"] + 1, [[note or ""]])
+    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["NOTE"] + 1, [[sanitize_cell_text(note or "")]])
     invalidate_task_list_cache()
     invalidate_task_cache(task_id)
     invalidate_task_detail_cache(task_id)
