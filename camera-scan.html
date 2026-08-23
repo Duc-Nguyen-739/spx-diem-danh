@@ -1071,6 +1071,13 @@
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
     if (modal) { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+    // P1-4 (2026-08-23): giải phóng 4 canvas reuse (8MB+5MB+~2MB+~1MB) khi đóng camera —
+    // kiosk bật 8h không F5 sẽ leak nếu giữ tham chiếu module scope. Lazy-recreate ở lần mở sau.
+    camSharedCanvas = null; camSharedCtx = null;
+    camFastCanvas = null; camFastCtx = null;
+    camOcrCanvas = null; camOcrCtx = null;
+    camZxingCropCanvas = null; camZxingCropCtx = null;
+    camVideoEl = null;
     if (camScanMode) { try { window.close(); } catch (e) {} }
   }
 
