@@ -1643,9 +1643,7 @@
   var TASK_LIST_POLL_MS = 3000;
   var taskListPollTimer = null;
   var taskListPollInFlight = false;
-  var lastTaskListSig = null;
-
-  // PURE (test được): signature danh sách task — bằng nhau = không có gì đổi → bỏ qua
+  var lastTaskListSig = null;  // PURE (test được): signature danh sách task — bằng nhau = không có gì đổi → bỏ qua
   // re-render (tránh reset sort/filter/phân trang vô ích mỗi chu kỳ poll).
   function taskListSignature(tasks) {
     return (tasks || []).map(function (t) {
@@ -1658,7 +1656,12 @@
     stopTaskListPolling();
     if (window.__RC_DEMO__) return; // demo = dữ liệu giả tĩnh — không cần poll
     lastTaskListSig = taskListSignature(_taskPageList);
-    taskListPollTimer = setInterval(taskListPollTick, TASK_LIST_POLL_MS);
+    // B4 (2026-08-23): jitter 2500-3500ms — N thiết bị kiosk poll cố định 3s → cùng miss
+    // sau bumpCacheRev_ → N rebuild full sheet đồng loạt (thundering herd). Rải lệch
+    // ±500ms quanh base giúp các thiết bị không đánh đúng 1 nhịp.
+    var jitter = Math.round((Math.random() - 0.5) * 1000);
+    var intervalMs = Math.max(2000, TASK_LIST_POLL_MS + jitter);
+    taskListPollTimer = setInterval(taskListPollTick, intervalMs);
   }
 
   function stopTaskListPolling() {
