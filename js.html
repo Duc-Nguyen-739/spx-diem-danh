@@ -1303,6 +1303,9 @@
       })
       .withFailureHandler(function (err) {
         markServerFail();  // P2: RPC fail → server offline
+        startTaskListPolling(); // B3 (2026-08-23): poll KHÔNG chỉ chạy khi load thành công —
+                                // load đầu fail (server nghẽn) mà không start polling thì
+                                // danh sách không bao giờ tự hồi phục cho tới khi bấm ⟳ tay.
         _releaseRefreshLock();
         if (skel) skel.style.display = 'none';
         if (tbl) tbl.style.display = '';
@@ -1611,7 +1614,7 @@
         if (res.unchanged) return;
         applyPolledScanDetail(res);
       })
-      .withFailureHandler(function () { scanPollInFlight = false; })
+      .withFailureHandler(function () { scanPollInFlight = false; markServerFail(); })
       .getTaskDetailApi(taskId, lastScanPollSig);
   }
 
@@ -1703,7 +1706,7 @@
         renderDash(tasks); // render KPI + bảng task (applyDashFilters) — giống hệt "⟳ Làm mới"
         markServerOk();
       })
-      .withFailureHandler(function () { taskListPollInFlight = false; })
+      .withFailureHandler(function () { taskListPollInFlight = false; markServerFail(); })
       .getTaskListApi(lastTaskListSig);
   }
 
