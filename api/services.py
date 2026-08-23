@@ -648,13 +648,37 @@ def search_staff(code):
 def sheets_log_values():
     """AttendanceLog values đã bỏ header — cho search.
     2026-08-20 (O3): cache 10s (version-key) — trước đọc CẢ sheet mỗi lần tìm
-    (log lớn → chậm dần). TTL ngắn đủ tươi cho luồng quét→tìm."""
+    (log lớn → chậm dần). TTL ngắn đủ tươi cho luồng quét→tìm.
+    P2-1 (2026-08-23): G1 — chỉ đọc 4 cột cần (A2:B + I2:I + L2:L) thay full 13 cột
+    (đồng bộ Code.gs — Python trước cũng getDataRange full)."""
     from api import sheets
     return cache.cached(
         config.CACHE_KEYS["SEARCH_LOG"],
-        lambda: (sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], unformatted=True) or [])[1:],
+        lambda: _sheets_log_values_g1(),
         config.CACHE_TTL["SEARCH_LOG"],
     )
+
+
+def _sheets_log_values_g1():
+    """G1 helper — đọc 4 cột cần cho search, build sparse rows cho collectTaskIds."""
+    from api import config as cfg
+    from api import sheets
+    id_staff = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="A2:B", unformatted=True) or []
+    scan_col = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="I2:I", unformatted=True) or []
+    ra_col = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="L2:L", unformatted=True) or []
+    n = len(id_staff)
+    out = []
+    for i in range(n):
+        row = [""] * cfg.LOG_COL_COUNT
+        ab = id_staff[i] if i < len(id_staff) else []
+        row[cfg.LOG_COLS["TASK_ID"]] = ab[0] if len(ab) > 0 else ""
+        row[cfg.LOG_COLS["STAFF_ID"]] = ab[1] if len(ab) > 1 else ""
+        sc = scan_col[i] if i < len(scan_col) else []
+        row[cfg.LOG_COLS["TIME_SCAN"]] = sc[0] if sc else ""
+        rc = ra_col[i] if i < len(ra_col) else []
+        row[cfg.LOG_COLS["TIME_RA"]] = rc[0] if rc else ""
+        out.append(row)
+    return out
 
 
 def get_staff_index():

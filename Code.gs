@@ -226,8 +226,26 @@ function searchStaffApi(code) {
   // → danh sách lọc khớp định dạng list chính.
   // 2026-08-20 (review): cache 10s (khớp Python O3) — trước đọc CẢ sheet mỗi lần tìm
   // (log lớn → chậm). TTL ngắn đủ tươi cho luồng quét→tìm (scan có cooldown 1.5s).
+  // P2-1 (2026-08-23): G1 — chỉ đọc 4 cột cần (TASK_ID, STAFF_ID, TIME_SCAN, TIME_RA)
+  // thay getDataRange() 13 cột × N dòng (log 10k = 130k cell → 40k cell + 3 RPC).
   const logValues = cachedJson_(CACHE_KEYS.SEARCH_LOG, function () {
-    return getSheet_(SHEETS.ATTENDANCE_LOG).getDataRange().getValues().slice(1);
+    const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+    const n = lastRow - 1;
+    const ab = sheet.getRange(2, 1, n, 2).getValues(); // A2:B taskId+staffId liền nhau
+    const scanCol = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, n, 1).getValues();
+    const raCol = sheet.getRange(2, LOG_COLS.TIME_RA + 1, n, 1).getValues();
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const row = [];
+      row[LOG_COLS.TASK_ID] = ab[i][0];
+      row[LOG_COLS.STAFF_ID] = ab[i][1];
+      row[LOG_COLS.TIME_SCAN] = scanCol[i][0];
+      row[LOG_COLS.TIME_RA] = raCol[i][0];
+      out.push(row);
+    }
+    return out;
   }, CACHE_TTL.SEARCH_LOG);
   const taskIds = collectTaskIdsByStaffLog_(logValues, q, LOG_COLS);
   const tasks = taskIds.length

@@ -114,11 +114,9 @@
       // được ở trang top-level trên iOS, đã verify với demo standalone 2026-08-12).
       // Popup bị chặn (window.open null) hoặc camera trong popup bị chặn → fallback
       // camera native (<input capture>) — không bao giờ kẹt.
-      // OCR chữ Ops… cho popup (bug 2026-08-19): popup gọi LIBS.ocr = opener.camOcrFrame
-      // nhưng camOcrEnabled chỉ được bật qua startOcrLoop (đường MODAL) — đường popup
-      // không bao giờ load Tesseract → OCR im lặng chết trên GAS. Bật ngay ở parent
-      // trước khi mở popup (fail load → camOcrLoadFailed → popup OCR no-op an toàn).
-      ensureOcrLib(function () {});
+        // P2-2 (2026-08-23): OCR lazy — không load Tesseract ngay (2MB wasm) khi mở popup;
+      // chỉ load sau 5 lần ZXing fail liên tiếp trên modal (tiết kiệm băng thông/CPU cho mã nét).
+      // Popup OCR vẫn gate qua LIBS.ocr (camOcrFrame) → nếu chưa load thì no-op an toàn.
       openScanPopup();
       return;
     }
@@ -831,8 +829,10 @@
         if (sb) sb.style.display = 'none';
         camStartedAt = Date.now();
         camHintShown = false;
+        camOcrFailStreak = 0;
         startCameraDecodeLoop();
-        startOcrLoop(); // song song: OCR đọc chữ Ops… khi mã vạch mờ (2026-08-16)
+        // P2-2 (2026-08-23): OCR lazy — không start ngay (2MB wasm), chỉ sau 5 lần ZXing fail liên tiếp
+        // (mã nét không cần OCR → tiết kiệm băng thông/CPU; mã mờ mới cần fallback chữ).
         // TỰ TÌM MÃ (2026-08-17, điều chỉnh): fast path 800px decode MỖI tick + full
         // chain mỗi 2 tick + focus liên tục — KHÔNG bật find mode mặc định (full chain
         // MỖI tick ~1.5s/tick trên iPhone → nhận rất chậm, bug 2026-08-17); bấm nút
@@ -926,9 +926,16 @@
         if (decide.run) {
           camDecoding = false;
           camAutoDecode(frame); // full chain (jsQR + 3 config + majority) — camAutoDecode tự set cờ
+          // full chain sẽ gọi onCameraDecoded nếu thành công (reset streak); nếu fail thì
+          // streak vẫn tăng ở tick kế — không tăng ngay để tránh đếm double (fast fail + full fail)
           return;
         }
         camDecoding = false;
+        // P2-2: fast fail + không chạy full chain → 1 lần ZXing fail; đủ 5 lần mới lazy-load OCR
+        if (!camOcrEnabled && !camOcrLoading && !camOcrLoadFailed) {
+          camOcrFailStreak++;
+          if (camOcrFailStreak >= 5) startOcrLoop();
+        }
       });
     }, 200);
   }
@@ -1063,6 +1070,7 @@
     camLastCode = '';
     camLastCodeTs = 0;
     camResultPending = [];
+    camOcrFailStreak = 0;
     var resBody = document.getElementById('camResultsBody');
     if (resBody) { resBody.innerHTML = ''; }
     var resHead = document.getElementById('camResultsHead');
@@ -1546,6 +1554,7 @@
   var camOcrBusy = false;      // đang có 1 OCR chạy
   var camOcrQueue = [];        // frame chờ khi busy (photo fallback đợi live OCR xong)
   var camOcrTimer = null;      // timer quét OCR song song
+  var camOcrFailStreak = 0;    // P2-2 (2026-08-23): đếm ZXing fail liên tiếp — đủ 5 mới lazy-load Tesseract
 
   // PURE — chuẩn hóa chuỗi OCR → mã 'OPS…' (test được trên Node).
   // OCR hay nhầm: chữ O ↔ số 0, p ↔ b, dính khoảng trắng/colon/gạch. Chỉ chấp nhận dạng
@@ -2286,6 +2295,7 @@
   function onCameraDecoded(code) {
     var clean = String(code || '').trim();
     if (!clean) return;
+    camOcrFailStreak = 0; // P2-2: mã nét decode được → reset streak OCR lazy
     // QUÉT LIÊN TỤC (2026-08-17): cùng mã trong CAM_CODE_COOLDOWN_MS → bỏ qua. Thẻ vẫn
     // nằm trong khung → nếu không chặn, mỗi tick (~600ms) submit 1 lần → spam toast +
     // danh sách kết quả. Cooldown khớp DUPLICATE_WINDOW_MS server (1.5s, 2026-08-17 giảm

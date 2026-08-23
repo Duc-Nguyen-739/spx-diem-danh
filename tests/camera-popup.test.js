@@ -106,12 +106,14 @@ test('openCameraScan trong iframe → mở popup quét live (window.open + docum
   assert.equal(sb.ctx.camPopupBusy, true, 'cờ busy được bật khi popup mở');
 });
 
-test('openCameraScan trong iframe → bật OCR (ensureOcrLib) cho popup', () => {
+test('openCameraScan trong iframe → KHÔNG bật OCR ngay (lazy sau 5 ZXing fail — P2-2 2026-08-23)', () => {
   const sb = makeSandbox({ popupFactory: () => fakePopup([]) });
   sb.ctx.openCameraScan();
   assert.equal(sb.opened.length, 1, 'phải gọi window.open 1 lần');
-  assert.equal(sb.ctx.camOcrLoading, true, 'phải bắt đầu tải Tesseract (OCR popup — bug 2026-08-19)');
+  assert.equal(sb.ctx.camOcrLoading, false, 'KHÔNG tải Tesseract ngay — lazy sau 5 fail để tiết kiệm 2MB/wasm/CPU cho mã nét');
   assert.equal(sb.ctx.camOcrLoadFailed, false, 'chưa fail ở thời điểm mở popup');
+  // P2-2: đủ 5 lần fail liên tiếp mới load — test streak logic
+  assert.equal(typeof sb.ctx.camOcrFailStreak, 'number', 'phải có biến đếm fail streak');
 });
 
 test('window.open trả null (popup bị chặn) → fallback camera native (camFile.click)', () => {

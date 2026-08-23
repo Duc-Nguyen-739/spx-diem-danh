@@ -134,11 +134,13 @@ test('Code.gs: searchStaffApi đọc log qua cachedJson_(CACHE_KEYS.SEARCH_LOG)'
   const start = code.indexOf('function searchStaffApi(');
   assert.ok(start >= 0, 'phải có hàm searchStaffApi');
   const end = code.indexOf('\nfunction ', start + 1);
-  const block = code.slice(start, end === -1 ? start + 2200 : end);
+  const block = code.slice(start, end === -1 ? start + 3200 : end);
   assert.ok(block.indexOf('cachedJson_(CACHE_KEYS.SEARCH_LOG') >= 0,
     'log read phải qua cache (O3-GAS 2026-08-20 — Python đã cache, GAS sót)');
-  assert.ok(block.indexOf('getDataRange().getValues().slice(1)') >= 0,
-    'cache builder phải đọc đúng AttendanceLog (bỏ header)');
+  // P2-1 (2026-08-23): G1 — chỉ đọc 4 cột cần (A2:B + I + L) thay getDataRange 13 cột
+  assert.ok(block.indexOf('SHEETS.ATTENDANCE_LOG') >= 0, 'cache builder phải đọc đúng AttendanceLog');
+  assert.ok(block.indexOf('LOG_COLS.TIME_SCAN') >= 0 && block.indexOf('LOG_COLS.TIME_RA') >= 0,
+    'cache builder phải đọc TIME_SCAN + TIME_RA (G1 sparse read)');
 });
 
 // ===== O-A (2026-08-20): DELTA POLL — server so signature, trả unchanged thay full =====
