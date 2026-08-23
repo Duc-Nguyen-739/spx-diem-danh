@@ -1,16 +1,16 @@
 ---
 name: project-skill
-description: SPX Điểm Danh (RollCall v2) — project skill. Use for ANY edit in this repo (GAS client/server, Python backend, tests, docs, camera scanning): architecture mental model, dual-runtime sync, gotchas, deterministic editing, perf, pitfalls. Nguồn: skill Hermes `rollcall` + AGENTS.md repo này.
+description: SPX Điểm Danh (Điểm Danh HN2 SOC) — project skill. Use for ANY edit in this repo (GAS client/server, Python backend, tests, docs, camera scanning): architecture mental model, dual-runtime sync, gotchas, deterministic editing, perf, pitfalls. Nguồn: skill Hermes `rollcall` + AGENTS.md repo này.
 ---
 
-# Project Skill — SPX Điểm Danh (RollCall v2)
+# Project Skill — SPX Điểm Danh (Điểm Danh HN2 SOC)
 
-> Bản skill đóng gói cho AI agent làm việc trong repo `spx-diem-danh` (GitHub: `Duc-Nguyen-739/spx-diem-danh`; package `rollcall-kiosk-v2` v0.1.0).
+> Bản skill đóng gói cho AI agent làm việc trong repo `spx-diem-danh` (GitHub: `Duc-Nguyen-739/spx-diem-danh`; package `diem-danh-hn2-soc` v0.1.0).
 > Dùng khi: bất kỳ edit nào với repo này (UI, GAS server, Python backend, tests, docs, camera).
 > **Nguồn quyết định**: file `AGENTS.md` ở gốc repo (quy tắc ngôn ngữ, workflow, GAS/Web guidelines, lịch sử fix camera). Nếu mâu thuẫn, `AGENTS.md` là mới nhất.
 > References: xem `references/architecture-gotchas.md` (gotchas sâu) · `references/editing-conventions.md` (line endings / git / secrets / no over-engineering).
 >
-> ⚠️ **Bản `project-skill` cũ từ `van90bg/rollcall-kiosk-v2x` KHÔNG dùng được** — nó mô tả repo KHÁC (`RollCall_2_deploy` / `attendance-portal`: portal có sidebar + viewAdmin/reports, 155 tests, 9 module JS, CRLF + .gitattributes). Repo này là kiosk barcode, 3-file UI, **LF**, ~337 tests, **có backend Python song song**. Đừng áp dụng rule của bản cũ (đặc biệt rule CRLF).
+> ⚠️ **Bản `project-skill` cũ từ `van90bg/diem-danh-hn2-socx` KHÔNG dùng được** — nó mô tả repo KHÁC (`Điểm Danh HN2 SOC_deploy` / `attendance-portal`: portal có sidebar + viewAdmin/reports, 155 tests, 9 module JS, CRLF + .gitattributes). Repo này là kiosk barcode, 3-file UI, **LF**, ~337 tests, **có backend Python song song**. Đừng áp dụng rule của bản cũ (đặc biệt rule CRLF).
 
 ## 1. Repo facts
 

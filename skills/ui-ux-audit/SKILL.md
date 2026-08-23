@@ -3,7 +3,7 @@ name: ui-ux-audit
 description: Audit UI/UX toàn diện cho webapp GAS (SPX Điểm Danh) — design language nhất quán + WCAG 2.2 accessibility + performance + lớp verify tự động (node:test + CDP). Dùng khi: rà soát UI/UX toàn diện, trước refactor UI lớn, sau nhiều fix UI muốn verify, user nói "rà soát hết UI/style".
 ---
 
-# Skill: UI/UX Audit toàn diện (SPX Điểm Danh — RollCall v2)
+# Skill: UI/UX Audit toàn diện (SPX Điểm Danh — Điểm Danh HN2 SOC)
 
 > Bundle skill — 1 lần chạy được: design-language → accessibility → performance → verify tự động.
 > Output: bảng P0/P1/P2 kèm file:line + đề xuất fix; **trình user duyệt TRƯỚC khi fix** (luật `audit-webapp-optimize`).
@@ -73,7 +73,7 @@ Load skill `accessibility` — checklist chính:
 - `../project-skill/SKILL.md` — architecture, gotchas, dual-runtime, editing conventions
 - `../project-skill/references/architecture-gotchas.md` — gotchas sâu (doGet, epoch, lock, cache)
 - `../project-skill/references/editing-conventions.md` — line endings LF, no BOM, git workflow
-- `component-inventory.md` — kiểm kê 8 nhóm thành phần UI của RollCall v2
+- `component-inventory.md` — kiểm kê 8 nhóm thành phần UI của Điểm Danh HN2 SOC
 - `../audit-webapp-optimize/SKILL.md` — 3-phase audit + GAS perf patterns
 - `../review-gas-failure-modes/SKILL.md` — failure modes backend
 - Scripts: `scripts/serve.js` · `scripts/build-static.js` · `scripts/inline-html.js` · `scripts/cdp-helper.js`

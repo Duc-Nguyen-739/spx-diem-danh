@@ -2,7 +2,7 @@
  * scripts/test-local-mock.js — Tự động test UI trên LOCAL MOCK (file://) qua CDP.
  *
  * Port từ attendance-portal/scripts/test-local-mock.js (2026-08-13) sang spx-diem-danh
- * (RollCall v2 kiosk) — giữ cùng cơ chế Chrome headless + CDP WebSocket (Node 22+,
+ * (Điểm Danh HN2 SOC kiosk) — giữ cùng cơ chế Chrome headless + CDP WebSocket (Node 22+,
  * không cần thư viện). Khác biệt chính:
  *   - build-local.js dùng inline-html.js (index.html → index.local.html) thay vì regex 9 module
  *   - DOM IDs: viewList/viewScan, taskListTable/scanTable, cScanned/cAbsent/cExtra, scanInput
@@ -36,7 +36,7 @@ async function ensureCdp() {
     await httpGet('/json/version');
     return;
   } catch (e) { /* chưa mở */ }
-  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rollcall-kiosk-mock-'));
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diem-danh-hn2-soc-mock-'));
   const exe = process.env.CHROME_PATH || [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',

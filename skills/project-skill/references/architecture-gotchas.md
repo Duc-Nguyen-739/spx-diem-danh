@@ -1,4 +1,4 @@
-# Architecture Gotchas — SPX Điểm Danh (RollCall v2)
+# Architecture Gotchas — SPX Điểm Danh (Điểm Danh HN2 SOC)
 
 > Chi tiết từ `ScanLogic.gs` / `ScanService.gs` / `Code.gs` / `Database.gs` / `Config.gs` / `api/*`. Đọc trước mọi fix logic quét / task / cache.
 

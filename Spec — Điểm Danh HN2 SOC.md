@@ -1,11 +1,11 @@
-# Spec — RollCall v2: Hệ thống Điểm danh Nhân viên Kho
+# Spec — Điểm Danh HN2 SOC: Hệ thống Điểm danh Nhân viên Kho
 
 > **Version:**  2.0.0 | **Status:**  Final | **Last updated:**  2026-07-31
 
 ## 1. Tổng quan
 
-**Tên dự án:**  RollCall v2
-**Loại:**  Refactor mới hoàn toàn, tách riêng khỏi rollcall-kiosk
+**Tên dự án:**  Điểm Danh HN2 SOC
+**Loại:**  Refactor mới hoàn toàn, tách riêng khỏi diem-danh-hn2-soc
 **Mục tiêu:**  Hệ thống điểm danh nhân viên kho bằng barcode, architecture đơn giản hơn, dễ maintain hơn
 
 ---
@@ -467,9 +467,9 @@ Batch flush (10 records hoặc 20s):
 
 ---
 
-## 13. So sánh RollCall v1 vs v2
+## 13. So sánh Điểm Danh HN2 SOC v1 vs v2
 
-| Thuộc tính        | v1 (rollcall-kiosk)      | v2 (mới)                                       |
+| Thuộc tính        | v1 (diem-danh-hn2-soc)      | v2 (mới)                                       |
 | :---------------- | :----------------------- | :--------------------------------------------- |
 | Cache             | 8+ layers                | **Đơn giản hơn**                               |
 | Data source       | Import CSV               | **Sheet HR có sẵn (auto đọc)**                 |

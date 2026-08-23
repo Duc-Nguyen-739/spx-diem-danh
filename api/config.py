@@ -1,4 +1,4 @@
-"""Config — hằng số toàn cục RollCall v2 (port từ Config.gs, 2026-08-12).
+"""Config — hằng số toàn cục Điểm Danh HN2 SOC (port từ Config.gs, 2026-08-12).
 
 Cột sheet/file: tiếng Anh · Hiển thị web: tiếng Việt (UI_LABELS).
 KHÔNG hardcode string rải rác — mọi hằng số tập trung tại đây.

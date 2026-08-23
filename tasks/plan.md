@@ -1,6 +1,6 @@
-# Plan — RollCall v2 Phase 0 (MVP: Luồng 2 — Đối chiếu từ csv)
+# Plan — Điểm Danh HN2 SOC Phase 0 (MVP: Luồng 2 — Đối chiếu từ csv)
 
-> Ngày: 2026-08-02 · Spec: `docs/spec/2026-08-02-phase0-spec.md` · Intent: `docs/intent/rollcall-v2.md`
+> Ngày: 2026-08-02 · Spec: `docs/spec/2026-08-02-phase0-spec.md` · Intent: `docs/intent/diem-danh-hn2-soc.md`
 
 ## Mục tiêu Plan
 

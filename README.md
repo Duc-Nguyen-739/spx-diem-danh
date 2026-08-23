@@ -1,7 +1,7 @@
-# RollCall v2 — Điểm danh kho
+# Điểm Danh HN2 SOC — Điểm danh kho
 
 > Hệ thống điểm danh nhân viên kho (warehouse) bằng barcode, chạy trên **Google Apps Script WebApp** + **Google Sheets**.
-> Repo: `Duc-Nguyen-739/spx-diem-danh` · Spec đầy đủ: [`Spec — RollCall v2.md`](Spec%20—%20RollCall%20v2.md)
+> Repo: `Duc-Nguyen-739/spx-diem-danh` · Spec đầy đủ: [`Spec — Điểm Danh HN2 SOC.md`](Spec%20—%20Điểm%20Danh%20HN2%20SOC.md)
 
 ## Tính năng
 

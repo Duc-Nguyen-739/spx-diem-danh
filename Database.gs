@@ -26,7 +26,7 @@ function getSheet_(name, header) {
 /**
  * Spreadsheet chứa dữ liệu.
  * Thứ tự ưu tiên: DEFAULT_SPREADSHEET_ID (Config) → Script Properties 'SPREADSHEET_ID'
- * → spreadsheet bind → tạo mới 'RollCall v2 DB'.
+ * → spreadsheet bind → tạo mới 'Điểm Danh HN2 SOC DB'.
  */
 function getSpreadsheet_() {
   if (DEFAULT_SPREADSHEET_ID) {
@@ -40,7 +40,7 @@ function getSpreadsheet_() {
   const active = SpreadsheetApp.getActiveSpreadsheet();
   if (active) return active;
   // Standalone + chưa set ID → tạo sheet mới, lưu ID để dùng tiếp.
-  const created = SpreadsheetApp.create('RollCall v2 DB');
+  const created = SpreadsheetApp.create('Điểm Danh HN2 SOC DB');
   props.setProperty('SPREADSHEET_ID', created.getId());
   return created;
 }

@@ -87,7 +87,7 @@ async function getActiveTab() {
     const sel = tabs.find((t) => t.type === 'page' && t.id === selectedTabId);
     if (sel) return sel;
   }
-  // Ưu tiên tab do ta mở (title chứa "RollCall" hoặc URL chứa macros)
+  // Ưu tiên tab do ta mở (title chứa "Điểm Danh HN2 SOC" hoặc URL chứa macros)
   const target = tabs.find((t) => t.type === 'page' && /macros|rollcall|scripts\.google/i.test(t.url))
     || tabs.find((t) => t.type === 'page');
   if (!target) throw new Error('Không có tab page nào');

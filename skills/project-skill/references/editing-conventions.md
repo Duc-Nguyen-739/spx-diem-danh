@@ -1,11 +1,11 @@
-# Editing Conventions — SPX Điểm Danh (RollCall v2)
+# Editing Conventions — SPX Điểm Danh (Điểm Danh HN2 SOC)
 
 > Quy tắc sửa file an toàn trong repo này. Khác bản project-skill cũ (bản cũ bảo CRLF — SAI với repo này).
 
 ## 1. Line endings — LF, KHÔNG CRLF (quan trọng)
 
 - Repo này: **mọi file nguồn là LF trên disk**, KHÔNG có `.gitattributes`, KHÔNG BOM (verify: `head -c 3 file | xxd -p` phải ra `3c`/`2f`, không `efbbbf`).
-- Bản project-skill cũ từ `van90bg/rollcall-kiosk-v2x` bảo CRLF + `.gitattributes` + `utf-8-sig` — **đó là repo KHÁC**, đừng áp dụng. Áp dụng sai → diff khổng lồ / BOM gây lỗi serve.
+- Bản project-skill cũ từ `van90bg/diem-danh-hn2-socx` bảo CRLF + `.gitattributes` + `utf-8-sig` — **đó là repo KHÁC**, đừng áp dụng. Áp dụng sai → diff khổng lồ / BOM gây lỗi serve.
 - **Dùng Edit tool trực tiếp** cho file `.gs`/`.html`/`.js` — an toàn, giữ LF. KHÔNG cần script Python `newline=''` như bản cũ.
 - Verify sau edit lớn: `node --check <file.gs>` (syntax) + `npm test` (regression).
 

@@ -1,4 +1,4 @@
-"""services — nghiệp vụ RollCall (port từ TaskService.gs + ScanService.gs + Code.gs, 2026-08-12).
+"""services — nghiệp vụ Điểm Danh HN2 SOC (port từ TaskService.gs + ScanService.gs + Code.gs, 2026-08-12).
 
 Thay LockService bằng threading.Lock module-level (serverless 1 process).
 Thay Session.getActiveUser() (không có login trong bản standalone anonymous):

@@ -1,7 +1,7 @@
-# Intent — RollCall v2 (MVP)
+# Intent — Điểm Danh HN2 SOC (MVP)
 
 > Xác nhận: 2026-08-02 (sau interview `/interview-me`)
-> Repo: `C:\Users\Van90BG\Documents\AppScript\RollCall_2`
+> Repo: `C:\Users\Van90BG\Documents\AppScript\Điểm Danh HN2 SOC`
 > Mẫu csv: `Att.csv` (242 dòng, 1 ngày 8/1/2026, 20 cột)
 
 ## Outcome

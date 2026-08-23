@@ -1,4 +1,4 @@
-# Todo — RollCall v2 Phase 0 (MVP: Luồng 2)
+# Todo — Điểm Danh HN2 SOC Phase 0 (MVP: Luồng 2)
 
 > Spec: `docs/spec/2026-08-02-phase0-spec.md` · Plan: `tasks/plan.md`
 

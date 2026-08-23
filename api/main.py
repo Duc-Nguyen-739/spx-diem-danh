@@ -1,4 +1,4 @@
-"""main — HTTP handler cho RollCall backend (port JsonpApi.gs + doGet JSONP, 2026-08-12).
+"""main — HTTP handler cho Điểm Danh HN2 SOC backend (port JsonpApi.gs + doGet JSONP, 2026-08-12).
 
 Giao thức (khớp shim google.script.run trong js.html + JsonpApi.gs):
   GET ?action=<fn>&args=<JSON array>&cb=<callback>  → cb({"ok":true,"result":...});
@@ -69,7 +69,7 @@ def sanitize_callback(cb):
 
 
 def api_token():
-    """Token API tùy chọn (env ROLLCALL_API_TOKEN) — 2026-08-19 (NEW-1).
+    """Token API tùy chọn (env ROLLCALL_API_TOKEN — Điểm Danh HN2 SOC) — 2026-08-19 (NEW-1).
 
     Rỗng = KHÔNG bắt buộc (backward compat — preview/demo/test local).
     Khi set: mọi action phải kèm token (query `token=` hoặc body JSON), sai → 401.

@@ -1,5 +1,5 @@
 /**
- * Config.gs — Hằng số toàn cục RollCall v2
+ * Config.gs — Hằng số toàn cục Điểm Danh HN2 SOC
  * Cột sheet/file: tiếng Anh · Hiển thị web: tiếng Việt (UI_LABELS)
  * KHÔNG hardcode string rải rác — mọi hằng số tập trung tại đây.
  */
@@ -14,7 +14,7 @@ const SHEETS = {
 
 /**
  * Spreadsheet chứa dữ liệu (sheet mới user cung cấp 2026-08-04).
- * Nếu để rỗng: Database tự tạo 'RollCall v2 DB' khi chạy lần đầu.
+ * Nếu để rỗng: Database tự tạo 'Điểm Danh HN2 SOC DB' khi chạy lần đầu.
  */
 const DEFAULT_SPREADSHEET_ID = '1kL4Jr3E70NzU3l7wAr3oLve5rBAZ9AqdbvcvmABuVi0';
 

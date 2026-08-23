@@ -1,4 +1,4 @@
-# Deploy RollCall v2 bằng Codespace + clasp
+# Deploy Điểm Danh HN2 SOC bằng Codespace + clasp
 
 > Branch `main` → script: `1HmmGcLI8JBUU53JtyDY8qogYDIUpJMXa7PD3dW_XemBe_pTUMzhPTVED`
 > Sheet: `1NQQnLnVDITrUIII59ibk6vVfuDnMHKqsDtfGmHgjNYo` (HR tự đồng bộ vào StaffData)
@@ -8,7 +8,7 @@
 
 ### 1. Mở Codespace
 
-GitHub → repo `rollcall-kiosk-v2` → **Code → Codespaces → Create codespace on `main`**
+GitHub → repo `diem-danh-hn2-soc` → **Code → Codespaces → Create codespace on `main`**
 (máy ảo cloud của GitHub — có sẵn Node, terminal, VS Code trong browser).
 
 ### 2. Cài clasp

@@ -1,4 +1,4 @@
-"""sheets — Google Sheets API client (service account) cho backend RollCall v2.
+"""sheets — Google Sheets API client (service account) cho backend Điểm Danh HN2 SOC.
 
 Auth: đọc service account từ env GOOGLE_SERVICE_ACCOUNT_JSON (nội dung JSON)
 hoặc GOOGLE_SERVICE_ACCOUNT_FILE (đường dẫn file). User tạo service account trên

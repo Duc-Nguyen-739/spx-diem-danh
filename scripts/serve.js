@@ -102,5 +102,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[serve] RollCall v2 static server: http://${HOST}:${PORT} (root ${ROOT})`);
+  console.log(`[serve] Điểm Danh HN2 SOC static server: http://${HOST}:${PORT} (root ${ROOT})`);
 });
