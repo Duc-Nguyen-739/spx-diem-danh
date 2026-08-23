@@ -70,6 +70,22 @@ class TestMain(unittest.TestCase):
         self.assertFalse(data["ok"])
         self.assertIn("Unknown action", data["error"])
 
+    def test_dispatch_exception_generic_message(self):
+        """A3 (2026-08-23): hàm throw → client nhận message chung, KHÔNG leak str(e)."""
+        from unittest import mock
+        saved = dict(main.API_ACTIONS)
+        main.API_ACTIONS["boom"] = (lambda: (_ for _ in ()).throw(RuntimeError("secret path /home/abc")), 0)
+        try:
+            resp = main.handler(self._event("boom"))
+            data = self._json(resp)
+        finally:
+            main.API_ACTIONS.clear()
+            main.API_ACTIONS.update(saved)
+        self.assertFalse(data["ok"])
+        self.assertNotIn("secret", data["error"])
+        self.assertNotIn("/home/", data["error"])
+        self.assertIn("Lỗi hệ thống", data["error"])
+
     def test_create_task_end_to_end(self):
         resp = main.handler(self._event("createReconcileTaskApi", [{
             "station": "HN2 SOC", "slotCode": ["08:00-17:00"], "team": ["Outbound"],

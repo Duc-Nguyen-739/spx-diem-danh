@@ -62,10 +62,17 @@ test('apiDispatchJsonp_: args non-array → xử lý như []', () => {
   assert.deepEqual(seen, []);
 });
 
-test('apiDispatchJsonp_: hàm throw → {ok:false, error}, không crash', () => {
-  const res = Api.apiDispatchJsonp_('getTaskDetailApi', ['X'], () => { throw new Error('boom'); });
-  assert.equal(res.ok, false);
-  assert.match(res.error, /boom/);
+test('apiDispatchJsonp_: hàm throw → {ok:false, error} generic, KHÔNG leak e.message (A3)', () => {
+  global.Logger = { log: () => {} };
+  try {
+    const res = Api.apiDispatchJsonp_('getTaskDetailApi', ['X'], () => { throw new Error('boom secret path /home/abc'); });
+    assert.equal(res.ok, false);
+    assert.ok(!/boom/.test(res.error), 'không được chứa e.message gốc (leak nội bộ)');
+    assert.ok(!/\/home\//.test(res.error), 'không được chứa đường dẫn');
+    assert.ok(/Lỗi hệ thống/.test(res.error), 'client nhận message chung');
+  } finally {
+    delete global.Logger;
+  }
 });
 
 test('apiDispatchJsonp_: trả nguyên kết quả hàm nghiệp vụ (ok:false + message giữ nguyên)', () => {
@@ -100,7 +107,7 @@ test('handleJsonpRequest_: JSON.stringify bọc try — result không serialize 
   // Phải có try quanh JSON.stringify + fallback {ok:false,error} — nếu không, vòng tham
   // chiếu/giá trị không serialize được ném ra khỏi doGet → HTTP 500, client mất response.
   assert.match(block, /try\s*\{[\s\S]*JSON\.stringify\(out\)/, 'JSON.stringify phải nằm trong try');
-  assert.match(block, /Cannot serialize result/, 'phải có message fallback khi serialize fail');
+  assert.match(block, /Lỗi hệ thống/, 'phải có message fallback chung khi serialize fail (không leak chi tiết)');
 });
 
 // ===== client shim (js.html) gửi token kèm JSONP/fetch (NEW-1 2026-08-19) =====

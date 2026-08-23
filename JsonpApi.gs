@@ -56,7 +56,10 @@ function apiDispatchJsonp_(action, args, call) {
   try {
     return { ok: true, result: call(fnName, argArray) };
   } catch (e) {
-    return { ok: false, error: String((e && e.message) || e) };
+    // A3 (2026-08-23): KHÔNG trả e.message gốc cho client (leak đường dẫn/tên service
+    // nội bộ). Log đầy đủ server-side, client nhận message chung.
+    Logger.log('apiDispatchJsonp_: ' + fnName + ' throw — ' + String((e && e.stack) || e));
+    return { ok: false, error: 'Lỗi hệ thống — thử lại sau' };
   }
 }
 
@@ -97,7 +100,7 @@ function handleJsonpRequest_(e) {
   try {
     json = JSON.stringify(out);
   } catch (err) {
-    json = JSON.stringify({ ok: false, error: 'Cannot serialize result: ' + String((err && err.message) || err) });
+    json = JSON.stringify({ ok: false, error: 'Lỗi hệ thống — thử lại sau (serialize)' });
   }
   return ContentService.createTextOutput(cb + '(' + json + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);

@@ -60,7 +60,11 @@ def dispatch(action, args):
     try:
         return {"ok": True, "result": fn(*arg_list[:max_args])}
     except Exception as e:  # noqa: BLE001 — fail rõ ràng, không leak stack
-        return {"ok": False, "error": str(e)}
+        # A3 (2026-08-23): log đầy đủ server-side, client nhận message chung — không
+        # leak đường dẫn/tên service qua str(e).
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": "Lỗi hệ thống — thử lại sau"}
 
 
 def sanitize_callback(cb):
