@@ -262,6 +262,39 @@ test('updateMealPreview: đủ Station + Team → loading + gọi previewStaffAp
   assert.ok(els.mealPreviewCount.textContent.includes('12'));
 });
 
+test('updateMealPreview (B1): source chứa _mealPreviewSeq guard (seq !== _mealPreviewSeq)', () => {
+  assert.ok(block.includes('_mealPreviewSeq'), 'khối MEAL-CREATE phải khai báo _mealPreviewSeq');
+  assert.ok(block.includes('var seq = ++_mealPreviewSeq'), 'phải có seq = ++_mealPreviewSeq');
+  assert.ok(block.includes('if (seq !== _mealPreviewSeq) return;'), 'phải có guard seq !== _mealPreviewSeq');
+});
+
+test('updateMealPreview (B1): response MỚI về → hiện đúng số NV', async (t) => {
+  resetEls();
+  els.mealStation.value = 'HN2 SOC';
+  const chip = makeChipButton('Outbound');
+  els.mealTeam.appendChild(chip);
+  chip.classList.add('selected');
+  const captured = { success: null, failure: null };
+  const saved = global.google.script.run;
+  global.google.script.run = new Proxy({}, {
+    get(_t, fn) {
+      if (fn === 'withSuccessHandler') return (h) => { captured.success = h; return global.google.script.run; };
+      if (fn === 'withFailureHandler') return (h) => { captured.failure = h; return global.google.script.run; };
+      return () => { lastCall = { fn: String(fn) }; return global.google.script.run; };
+    },
+  });
+  try {
+    api.updateMealPreview();
+    await new Promise((r) => setTimeout(r, 460));
+    captured.success({ ok: true, count: 42 });
+    assert.equal(els.mealPreview.attrs['data-state'], 'ok');
+    assert.ok(els.mealPreviewCount.textContent.includes('42'));
+  } finally {
+    global.google.script.run = saved;
+  }
+});
+
+
 test('createMealMoveTask: thiếu Station/Team → chặn, toast, KHÔNG gọi API', () => {
   resetEls();
   api.createMealMoveTask();

@@ -2223,6 +2223,9 @@
   // MEAL-CREATE-START
   var _mealFilterOptions = null;  // cache options (stations/teams) — dùng chung cả 2 modal
   var _mealPreviewTimer = null;
+  // 2026-08-23 (B1): seq guard chống response preview CŨ (đổi Station/Team nhanh → RPC
+  // trước chậm về sau) ghi đè response mới — mirror _previewSeq của updateCreatePreview.
+  var _mealPreviewSeq = 0;
 
   function openCreateMealModal() {
     var m = document.getElementById('createMealModal');
@@ -2339,8 +2342,10 @@
     hintEl.textContent = '';
     clearTimeout(_mealPreviewTimer);
     _mealPreviewTimer = setTimeout(function () {
+      var seq = ++_mealPreviewSeq;
       google.script.run
         .withSuccessHandler(function (res) {
+          if (seq !== _mealPreviewSeq) return; // response cũ (đã đổi Station/Team) — bỏ qua
           if (!res || !res.ok) {
             box.setAttribute('data-state', 'err');
             cntEl.textContent = 'Không tải được preview';
@@ -2351,6 +2356,7 @@
           hintEl.textContent = station + ' · ' + teams.length + ' team';
         })
         .withFailureHandler(function (err) {
+          if (seq !== _mealPreviewSeq) return; // response cũ (đã đổi Station/Team) — bỏ qua
           box.setAttribute('data-state', 'err');
           cntEl.textContent = 'Lỗi preview: ' + err.message;
         })
