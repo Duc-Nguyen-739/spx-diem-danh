@@ -29,6 +29,7 @@ Nếu user yêu cầu vi phạm constraint không-override được → từ ch�
 | 6  | Mỗi dòng đổi phải liên quan trực tiếp request                                  | ✅        |
 | 7  | Giữ nguyên behavior trừ khi được yêu cầu đổi                                   | ✅ (đây chính là cách override #6) |
 | 8  | Không claim "fixed"/"test pass" khi chưa verify                                | ❌        |
+| 9  | Không tự đoán mò — mọi thứ phải có dẫn chứng = test (fail→pass / log / output) | ❌        |
 
 ## 4. Core Principles
 
