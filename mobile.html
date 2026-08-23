@@ -86,12 +86,20 @@
   .task-list-card { margin-bottom: 0; }
 }
 @media (max-width: 600px) {
-  /* Task info vừa full width mobile (2026-08-23: main 16px → 8px + scan view edge-to-edge để scanLayout 95% và counters 91% thay vì 85%, hết co bé) */
-  main { padding: 8px; }
-  #viewScan { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); max-width: calc(100% + 16px); }
-  .dash-layout { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); max-width: calc(100% + 16px); }
-  .scan-col-left .card { padding: 8px; }
+  /* Full-bleed mobile (2026-08-23): ảnh chụp cho thấy viewScan vẫn lọt thỏm
+     (main 8px + card 8px → inset ~16px mỗi bên). Cho main 0 ngang + viewScan
+     100% không bù trừ, card trái 4px / card phải 0 để thông tin mã Ops tràn
+     sát mép màn hình như header. */
+  main { padding: 8px 0 8px 0; }
+  #viewScan { margin-left: 0; margin-right: 0; width: 100%; max-width: 100%; }
+  .dash-layout { margin-left: 0; margin-right: 0; width: 100%; max-width: 100%; }
+  .scan-col-left .card { padding: 4px !important; }
   .scan-col-right .card { padding: 0 !important; }
+  /* Full-bleed: bỏ bo góc + viền trái/phải để card/ topbar tràn sát mép
+     (trước bo 12px để lại vệt xám 2 bên như ảnh). Chỉ áp trong viewScan. */
+  #viewScan .scan-topbar,
+  #viewScan .scan-col-left .card,
+  #viewScan .scan-col-right .card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
   .scan-topbar { padding: 10px 10px !important; gap: 8px 8px !important; }
   .scan-layout { gap: 10px !important; }
   .counters { gap: 6px !important; }
