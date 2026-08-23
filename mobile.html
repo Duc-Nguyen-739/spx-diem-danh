@@ -70,9 +70,22 @@
   .task-pagin .p-info { font-size: 10.5px; margin-left: 6px; }
 }
 @media (max-width: 600px) {
-  /* Task info vừa full width mobile (2026-08-23: main 16px → 8px để scanLayout/counters/scanCard dùng 96% viewport thay vì 85%, hết co bé) */
+  /* Task info vừa full width mobile (2026-08-23: main 16px → 8px + scan view edge-to-edge để scanLayout 95% và counters 91% thay vì 85%, hết co bé) */
   main { padding: 8px; }
+  #viewScan { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); max-width: calc(100% + 16px); }
   .dash-layout { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); max-width: calc(100% + 16px); }
+  .scan-col-left .card, .scan-col-right .card { padding: 8px; }
+  .scan-topbar { padding: 10px 10px !important; gap: 8px 8px !important; }
+  .scan-layout { gap: 10px !important; }
+  .counters { gap: 6px !important; }
+  .counter { padding: 8px 4px 10px !important; }
+  .counter .num { font-size: 26px !important; }
+  .counter .lbl { font-size: 10px !important; padding: 1px 6px !important; letter-spacing: .3px !important; }
+  .scan-card { padding: 12px 14px !important; min-height: 70px !important; }
+  .scan-card .sc-name { font-size: 22px !important; }
+  .scan-card .sc-meta { font-size: 12px !important; }
+  .scan-row { gap: 8px !important; }
+  .scan-input-wrap input { font-size: 22px !important; padding: 12px 14px !important; }
   /* Topbar scan cố định trên mobile (fix 2026-08-12): header (logo/thanh trên) CUỘN
      ĐI (position static), scan-topbar sticky giữ nguyên ở đỉnh màn hình — trước đây
      cả 2 cùng sticky top:0 → topbar (z-30) đè lên header (z-10) che logo khi cuộn. */
