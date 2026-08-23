@@ -1,4 +1,5 @@
 # ===== Test & docs (never push to GAS) =====
+index.local.html
 tests/**
 docs/**
 tasks/**

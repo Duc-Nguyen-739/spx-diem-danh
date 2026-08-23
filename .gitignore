@@ -20,6 +20,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Build local cho test chrome (file://) — sinh từ index.html + css/js qua inline-html
+index.local.html
+
 # Codegraph — index cục bộ (theo yêu cầu: không commit codegraph.json)
 codegraph.json
 .codegraph/
