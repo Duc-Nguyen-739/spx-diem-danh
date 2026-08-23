@@ -317,8 +317,13 @@
       '      var img = f && (f.data || f.imageData); // popup frameToImageData trả { imageData }',
       '      var d = img && img.data;',
       '      if (!d || !f.w || !f.h) return;',
+      '      // B1 (2026-08-23): offload RGBA→gray sang worker — popup gửi thẳng RGBA, worker tự',
+      '      // convert (decodeOne đã có nhánh). Copy đúng phần bytes (d.buffer.slice(0) trước copy',
+      '      // cả buffer đệm thừa nếu ImageData không chiếm trọn — giờ slice đúng byteOffset/len).',
+      '      var n = f.w * f.h;',
+      '      var buf = (d.length === n) ? d : d.subarray(0, n * 4);',
       '      popWorkerIdle = false;',
-      '      popWorker.postMessage({ buf: d.buffer.slice(0), w: f.w, h: f.h });',
+      '      popWorker.postMessage({ buf: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), w: f.w, h: f.h });',
       '    } catch (e) { popWorkerIdle = true; }',
       '  }',
       '  function popWorkerOnMessage(data) {',
@@ -2039,7 +2044,6 @@
   var camWorker = null;
   var camWorkerFailed = false;
   var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
-  var camWorkerGray = null; // reuse buffer grayscale 2MB vs RGBA 8MB (2026-08-21 #1)
 
   function ensureZxingWorker() {
     if (camWorker || camWorkerFailed) return;
@@ -2064,6 +2068,9 @@
   // không cần queue; main gate bằng camWorkerIdle.
   // #1 (2026-08-21): gửi GRAYSCALE 1 byte/px (2MB cho 1920) thay RGBA 4 byte/px (8MB)
   // → giảm 4x copy/GC, worker bỏ loop convert RGBA→gray. Tương thích: worker nhận cả 2.
+  // B1 (2026-08-23): offload RGBA→gray conversion sang WORKER (bỏ loop 2M px trên main) —
+  // main chỉ copy RGBA buffer rồi postMessage, worker decodeOne tự convert (worker đã có
+  // nhánh if byteLength !== w*h). Chi phí postMessage 8MB nhẹ hơn loop CPU trên main thread.
   function camWorkerSend(frame) {
     if (!camWorker || camWorkerFailed || !camWorkerIdle) return;
     try {
@@ -2072,17 +2079,11 @@
       var d = img && img.data;
       if (!d || !frame.w || !frame.h) return;
       var n = frame.w * frame.h;
-      if (!camWorkerGray || camWorkerGray.length !== n) camWorkerGray = new Uint8ClampedArray(n);
-      // RGBA → gray (n*4 → n), nếu d đã là gray (n) thì copy trực tiếp
-      if (d.length === n) {
-        camWorkerGray.set(d);
-      } else {
-        for (var i = 0, p = 0; p < n; i += 4, p++) {
-          camWorkerGray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
-        }
-      }
+      // Nếu d đã là gray (popup gửi sẵn 1 byte/px) → gửi nguyên bản, worker bỏ convert.
+      // Nếu RGBA → gửi thẳng, worker tự convert (offload CPU khỏi main — B1 2026-08-23).
+      var buf = (d.length === n) ? d : d.subarray(0, n * 4);
       camWorkerIdle = false;
-      camWorker.postMessage({ buf: camWorkerGray.buffer.slice(0), w: frame.w, h: frame.h });
+      camWorker.postMessage({ buf: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), w: frame.w, h: frame.h });
     } catch (e) { camWorkerIdle = true; }
   }
 
