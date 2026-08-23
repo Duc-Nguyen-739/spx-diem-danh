@@ -41,7 +41,18 @@ def get_service():
     global _service
     if _service is None:
         from googleapiclient.discovery import build
-        _service = build("sheets", "v4", credentials=_load_credentials(), cache_discovery=False)
+        import httplib2
+        # C3 (2026-08-23): socket timeout 30s + num_retries 3 — trước đây httplib2.Http()
+        # mặc định KHÔNG timeout → request Google API treo vĩnh viễn giữ `_lock` → mọi
+        # request sau trả BUSY tới khi process restart. Timeout + retry giúp fail nhanh,
+        # lock được giải phóng.
+        _service = build(
+            "sheets", "v4",
+            credentials=_load_credentials(),
+            cache_discovery=False,
+            http=httplib2.Http(timeout=30),
+            num_retries=3,
+        )
     return _service
 
 
