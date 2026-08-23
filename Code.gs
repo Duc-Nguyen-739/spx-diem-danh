@@ -26,9 +26,16 @@
 
 /** WebApp: trả về index.html. */
 function doGet(e) {
-  // Tự khởi tạo mọi sheet (kèm header) — không cần chạy setupSheets() tay.
-  // getSheet_() chỉ set header khi sheet trống, nên gọi mỗi lần load rất rẻ.
-  ensureSheets_();
+  // C1 (2026-08-23): skip ensureSheets_ khi là JSONP poll (?action=...) — poll chạy
+  // mỗi 3s/thiết bị, ensureSheets_ tốn ~10+ RPC (getSheet_ mỗi sheet + check header).
+  // Sheet đã được đảm bảo khi deploy/setup lần đầu; action path (JSONP API) chỉ đọc/ghi
+  // dữ liệu, không cần init lại mỗi poll.
+  const isJsonpPoll = !!(e && e.parameter && e.parameter.action);
+  if (!isJsonpPoll) {
+    // Tự khởi tạo mọi sheet (kèm header) — không cần chạy setupSheets() tay.
+    // getSheet_() chỉ set header khi sheet trống, nên gọi mỗi lần load rất rẻ.
+    ensureSheets_();
+  }
   // Debug: URL?debug=1 → trả JSON cấu trúc sheet (QA/verify — KHÔNG dùng production)
   // P2: gate editor-only — kiosk anonymous, ai cũng gọi URL này → leak cấu trúc
   // sheet + taskId + mẫu log. Session.getActiveUser() rỗng khi anonymous truy cập.

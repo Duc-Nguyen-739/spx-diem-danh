@@ -23,6 +23,12 @@ function getSheet_(name, header) {
   return sheet;
 }
 
+/** Spreadsheet instance cache (C1 2026-08-23): memoize trong 1 execution — tránh
+ * openById/getActiveSpreadsheet ~100-300ms mỗi lần gọi getSheet_(). LockService
+ * có thể thay đổi spreadsheet binding giữa các execution, nhưng trong 1 HTTP request
+ * thì không — GAS không cho phép. */
+var _memoSpreadsheet_ = null;
+
 /**
  * Spreadsheet chứa dữ liệu.
  * Thứ tự ưu tiên: DEFAULT_SPREADSHEET_ID (Config) → Script Properties 'SPREADSHEET_ID'
@@ -30,22 +36,25 @@ function getSheet_(name, header) {
  * B2 (2026-08-23): mọi fallthrough do ID hỏng đều LOG rõ (trước im lặng → scan ghi
  * vào DB rỗng mới mà không ai biết). Auto-create CHỈ khi chạy từ editor (spreadsheet
  * bind tồn tại) — webapp path throw rõ để không bao giờ âm thầm tạo DB rỗng.
+ * C1 (2026-08-23): memoize biến module-level — 1 execution gọi 1 lần openById
+ * (getSheet_ gọi getSpreadsheet_ nhiều lần, trước mỗi lần openById ~100-300ms).
  */
 function getSpreadsheet_() {
+  if (_memoSpreadsheet_) return _memoSpreadsheet_;
   if (DEFAULT_SPREADSHEET_ID) {
-    try { return SpreadsheetApp.openById(DEFAULT_SPREADSHEET_ID); } catch (e) {
+    try { _memoSpreadsheet_ = SpreadsheetApp.openById(DEFAULT_SPREADSHEET_ID); return _memoSpreadsheet_; } catch (e) {
       Logger.log('getSpreadsheet_: DEFAULT_SPREADSHEET_ID (' + DEFAULT_SPREADSHEET_ID + ') mở fail — fallthrough: ' + e.message);
     }
   }
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('SPREADSHEET_ID');
   if (id) {
-    try { return SpreadsheetApp.openById(id); } catch (e) {
+    try { _memoSpreadsheet_ = SpreadsheetApp.openById(id); return _memoSpreadsheet_; } catch (e) {
       Logger.log('getSpreadsheet_: Script Properties SPREADSHEET_ID (' + id + ') mở fail — fallthrough: ' + e.message);
     }
   }
   const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
+  if (active) { _memoSpreadsheet_ = active; return active; }
   // Standalone + chưa set ID → chỉ tự tạo khi chạy từ SCRIPT EDITOR (có người cầm lái,
   // lỗi cấu hình thấy được ngay). Webapp path (kiosk) mà tới đây = cấu hình sai →
   // THROW rõ để không âm thầm ghi vào DB rỗng mới (scans "biến mất" — bug B2).
@@ -55,6 +64,7 @@ function getSpreadsheet_() {
       const created = SpreadsheetApp.create('Điểm Danh HN2 SOC DB');
       props.setProperty('SPREADSHEET_ID', created.getId());
       Logger.log('getSpreadsheet_: tự tạo DB mới ' + created.getId() + ' (editor ' + activeUser + ')');
+      _memoSpreadsheet_ = created;
       return created;
     }
   } catch (e) { /* Session không khả dụng — xử lý dưới */ }
