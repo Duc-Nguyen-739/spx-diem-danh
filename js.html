@@ -1360,6 +1360,16 @@
     // P2 (2026-08-21): tải staff index LƯỜI tại đây (không phải lúc boot) — chỉ cần khi
     // mở màn quét để lookup NV lạ (Dư). Cache localStorage 12h → lần mở sau không gọi RPC.
     loadStaffIndex();
+    // T1 preload có gate (2026-08-23): vào màn quét mới tải ZXing lúc idle (sau 1.5s),
+    // không tải lúc boot/list (kiosk chỉ xem list không quét → tiết kiệm 328KB).
+    // requestIdleCallback ưu tiên idle, fallback setTimeout; fail-open (mất mạng → Quagga).
+    try {
+      if (!window.__RC_DEMO__ && typeof ensureZxingLib === 'function') {
+        var preloadZxing = function () { try { ensureZxingLib(); } catch (e2) {} };
+        if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(preloadZxing, { timeout: 3000 });
+        else setTimeout(preloadZxing, 1500);
+      }
+    } catch (e) {}
     // P2 (audit): interval auto-focus đã bị dừng khi về danh sách → khởi động lại
     startAutoFocusLoop();
     // P2 (SWR an toàn): vừa xem task này xong (<15s) → render NGAY từ bộ nhớ,

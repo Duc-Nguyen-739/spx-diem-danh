@@ -42,6 +42,13 @@ function isDenied(rel) {
   if (/\.gs$/i.test(rel)) return true;  // source GAS (scriptId/URL deployment) — preview không cần serve
   return rel.split(/[\\/]/).some((seg) => DENY_SEGMENTS.indexOf(seg) >= 0);
 }
+// T4 whitelist (2026-08-23): preview bind 0.0.0.0 public — chỉ serve file cần cho UI,
+// không lộ source/docs/api/tests. Denylist trước vẫn lộ README.md/docs/api/*.py.
+const ALLOW_RE = /^(index\.html|mock\/.+\.(js|json)|favicon\.ico)$/;
+function isAllowed(rel) {
+  if (rel === 'index.html') return true;
+  return ALLOW_RE.test(rel);
+}
 function safeResolve(urlPath) {
   let clean;
   try {
@@ -50,6 +57,7 @@ function safeResolve(urlPath) {
     return null; // URL encode lỗi
   }
   const rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
+  if (!isAllowed(rel)) return null;
   if (isDenied(rel)) return null;
   const abs = path.resolve(ROOT, rel);
   if (abs !== ROOT && !abs.startsWith(ROOT + path.sep)) return null;
