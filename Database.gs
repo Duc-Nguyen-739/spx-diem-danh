@@ -394,13 +394,15 @@ function readLogRows_(taskId) {
     if (String(idCol[i][0] || '').trim() === taskId) matches.push(i + 2);
   }
   if (!matches.length) return [];
-  // 2) Đọc chỉ các dòng khớp (1 dòng × LOG_COL_COUNT mỗi lần — gom trong loop
-  //    vì row rời; tối đa = số NV/task, thường ≤ vài trăm, KHÔNG phải cả sheet).
+  // 2) Đọc chỉ các dòng khớp — batchReadRows_ gộp dòng liền nhau thành 1 range.
+  //    (A2 2026-08-23: trước đây đọc từng dòng 1 RPC/row — task 241 NV = 241
+  //    getRange → 3-5s mỗi lần miss cache, dễ chạm timeout. Giờ task lớn chỉ vài
+  //    range gộp; row rời nhiều vẫn rẻ hơn đáng kể.)
+  const raw = batchReadRows_(sheet, matches, LOG_COL_COUNT);
   const out = [];
-  for (let k = 0; k < matches.length; k++) {
+  for (let k = 0; k < raw.length; k++) {
     const rowIndex = matches[k];
-    const row = sheet.getRange(rowIndex, 1, 1, LOG_COL_COUNT).getValues()[0];
-    const rowObj = logFromRow_(taskId, row);
+    const rowObj = logFromRow_(taskId, raw[k]);
     rowObj._rowIndex = rowIndex; // 1-based cho update
     out.push(rowObj);
   }
