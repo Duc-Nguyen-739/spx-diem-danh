@@ -27,22 +27,38 @@ function getSheet_(name, header) {
  * Spreadsheet chứa dữ liệu.
  * Thứ tự ưu tiên: DEFAULT_SPREADSHEET_ID (Config) → Script Properties 'SPREADSHEET_ID'
  * → spreadsheet bind → tạo mới 'Điểm Danh HN2 SOC DB'.
+ * B2 (2026-08-23): mọi fallthrough do ID hỏng đều LOG rõ (trước im lặng → scan ghi
+ * vào DB rỗng mới mà không ai biết). Auto-create CHỈ khi chạy từ editor (spreadsheet
+ * bind tồn tại) — webapp path throw rõ để không bao giờ âm thầm tạo DB rỗng.
  */
 function getSpreadsheet_() {
   if (DEFAULT_SPREADSHEET_ID) {
-    try { return SpreadsheetApp.openById(DEFAULT_SPREADSHEET_ID); } catch (e) { /* fallthrough */ }
+    try { return SpreadsheetApp.openById(DEFAULT_SPREADSHEET_ID); } catch (e) {
+      Logger.log('getSpreadsheet_: DEFAULT_SPREADSHEET_ID (' + DEFAULT_SPREADSHEET_ID + ') mở fail — fallthrough: ' + e.message);
+    }
   }
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('SPREADSHEET_ID');
   if (id) {
-    try { return SpreadsheetApp.openById(id); } catch (e) { /* fallthrough */ }
+    try { return SpreadsheetApp.openById(id); } catch (e) {
+      Logger.log('getSpreadsheet_: Script Properties SPREADSHEET_ID (' + id + ') mở fail — fallthrough: ' + e.message);
+    }
   }
   const active = SpreadsheetApp.getActiveSpreadsheet();
   if (active) return active;
-  // Standalone + chưa set ID → tạo sheet mới, lưu ID để dùng tiếp.
-  const created = SpreadsheetApp.create('Điểm Danh HN2 SOC DB');
-  props.setProperty('SPREADSHEET_ID', created.getId());
-  return created;
+  // Standalone + chưa set ID → chỉ tự tạo khi chạy từ SCRIPT EDITOR (có người cầm lái,
+  // lỗi cấu hình thấy được ngay). Webapp path (kiosk) mà tới đây = cấu hình sai →
+  // THROW rõ để không âm thầm ghi vào DB rỗng mới (scans "biến mất" — bug B2).
+  try {
+    const activeUser = Session.getActiveUser().getEmail();
+    if (activeUser) {
+      const created = SpreadsheetApp.create('Điểm Danh HN2 SOC DB');
+      props.setProperty('SPREADSHEET_ID', created.getId());
+      Logger.log('getSpreadsheet_: tự tạo DB mới ' + created.getId() + ' (editor ' + activeUser + ')');
+      return created;
+    }
+  } catch (e) { /* Session không khả dụng — xử lý dưới */ }
+  throw new Error('getSpreadsheet_: không tìm thấy spreadsheet (cấu hình DEFAULT_SPREADSHEET_ID / SPREADSHEET_ID sai hoặc thiếu) — KHÔNG tự tạo DB rỗng khi chạy webapp');
 }
 
 /** Đảm bảo toàn bộ sheet tồn tại (dùng khi khởi tạo). */
