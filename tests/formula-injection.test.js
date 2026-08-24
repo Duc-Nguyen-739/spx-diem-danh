@@ -55,3 +55,50 @@ test('A1: ký tự `=` không phải đầu chuỗi → không đổi', () => {
   assert.equal(run('a=b'), 'a=b');
   assert.equal(run('nhóm = Outbound'), 'nhóm = Outbound');
 });
+
+// ===== LOG WRITE BOUNDARY (2026-08-24 review): staffName/station/team/agency/date
+// copy từ CSV (untrusted) ghi vào AttendanceLog KHÔNG được qua sanitizeCellText_ →
+// cell `=cmd` thực thi khi mở sheet. Sanitize mọi field text trên CẢ 3 hàm ghi log. =====
+
+function extractLogWriteFns() {
+  const names = ['appendLogRow_', 'batchInsertLogRows_', 'batchAppendLogRows_'];
+  const out = {};
+  for (const name of names) {
+    const m = src.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n\\}'));
+    assert.ok(m, name + ' phải tồn tại trong Database.gs');
+    out[name] = m[0];
+  }
+  return out;
+}
+
+test('A1-log: appendLogRow_ phải sanitize field text trước khi ghi log', () => {
+  const fns = extractLogWriteFns();
+  const block = fns.appendLogRow_;
+  // staffName/station/team/agency/date copy từ CSV — phải qua sanitizeCellText_
+  ['row.staffName', 'row.station', 'row.team', 'row.agency', 'row.date'].forEach((field) => {
+    assert.ok(block.indexOf('sanitizeCellText_(' + field) >= 0,
+      `appendLogRow_ phải sanitize ${field} (thiếu → formula injection qua CSV)`);
+  });
+  // staffId/taskId KHÔNG được bọc (được client/code chuẩn hóa — Ops pattern) — chỉ
+  // check không biến mất các cột: vẫn phải có 13 field log.
+  assert.ok(block.indexOf('row.taskId') >= 0, 'appendLogRow_ giữ taskId');
+  assert.ok(block.indexOf('row.staffId') >= 0, 'appendLogRow_ giữ staffId');
+});
+
+test('A1-log: batchInsertLogRows_ phải sanitize field text (pre-fill từ CSV)', () => {
+  const fns = extractLogWriteFns();
+  const block = fns.batchInsertLogRows_;
+  ['s.staffName', 's.station', 's.team', 's.agency', 's.date'].forEach((field) => {
+    assert.ok(block.indexOf('sanitizeCellText_(' + field) >= 0,
+      `batchInsertLogRows_ phải sanitize ${field}`);
+  });
+});
+
+test('A1-log: batchAppendLogRows_ phải sanitize field text (paste meal-move NV lạ)', () => {
+  const fns = extractLogWriteFns();
+  const block = fns.batchAppendLogRows_;
+  ['row.staffName', 'row.station', 'row.team', 'row.agency', 'row.date'].forEach((field) => {
+    assert.ok(block.indexOf('sanitizeCellText_(' + field) >= 0,
+      `batchAppendLogRows_ phải sanitize ${field}`);
+  });
+});

@@ -148,6 +148,28 @@ class TestCacheHelpers(unittest.TestCase):
         self.assertEqual(cache.cache_get("k249"), 249, "k249 mới nhất còn")
         cache.clear_cache()
 
+    def test_cache_cached_negative_sentinel(self):
+        """C5: cached(None) phải negative-cache — lần 2 trả None mà không gọi load lại."""
+        cache.clear_cache()
+        call_count = 0
+        def load():
+            nonlocal call_count
+            call_count += 1
+            return None
+        # Lần 1: miss → load → put sentinel
+        r1 = cache.cached("test-none", load, 60)
+        self.assertIsNone(r1)
+        self.assertEqual(call_count, 1, "load gọi 1 lần")
+        # Lần 2: hit sentinel → trả None, KHÔNG gọi load lại
+        r2 = cache.cached("test-none", load, 60)
+        self.assertIsNone(r2)
+        self.assertEqual(call_count, 1, "load KHÔNG được gọi lần 2 (negative-cache)")
+        # Miss khác → load gọi
+        r3 = cache.cached("test-none-2", load, 60)
+        self.assertIsNone(r3)
+        self.assertEqual(call_count, 2, "key khác → load gọi lần 2")
+        cache.clear_cache()
+
 
 class TestDatabase(unittest.TestCase):
     def setUp(self):
@@ -303,6 +325,69 @@ class TestDatabase(unittest.TestCase):
                 self.assertEqual(r[9], '-', "R2 không bị đánh Vắng nhầm")
             if r[0] == 'R1':
                 self.assertEqual(r[9], 'Vắng')
+
+    def test_formula_injection_log_write(self):
+        """A1-log (2026-08-24): field text copy từ CSV (staffName/station/team/agency/date)
+        ghi vào AttendanceLog phải qua sanitize_cell_text — nếu không cell `=cmd` thành
+        formula thực thi khi mở sheet. Cover cả 3 hàm ghi log."""
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+
+        # append_log_row (quét lạ → Dư)
+        database.append_log_row({
+            "taskId": "R1", "staffId": "OPS999",
+            "staffName": "=HYPERLINK(\"http://evil\")", "slotCode": "08:00-17:00",
+            "station": "+SUM(1,1)", "team": "-cmd", "workstation": "",
+            "timeRef": now, "timeScan": now, "status": config.STATUS["EXTRA"],
+            "date": "=TODAY()", "timeRa": None, "agency": "@evil",
+        })
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        last = data[-1]
+        self.assertEqual(last[config.LOG_COLS["STAFF_NAME"]], "'=HYPERLINK(\"http://evil\")")
+        self.assertEqual(last[config.LOG_COLS["STATION"]], "'+SUM(1,1)")
+        self.assertEqual(last[config.LOG_COLS["TEAM"]], "'-cmd")
+        self.assertEqual(last[config.LOG_COLS["AGENCY"]], "'@evil")
+        self.assertEqual(last[config.LOG_COLS["DATE"]], "'=TODAY()")
+
+        # batch_insert_log_rows (pre-fill từ CSV)
+        cache.clear_cache()
+        database.batch_insert_log_rows("R2", [
+            {"staffId": "OPS001", "staffName": "=1+1", "slotCode": "", "station": "@x",
+             "team": "", "workstation": "", "timeRef": now, "timeScan": "", "status": "-",
+             "date": "+TODAY()", "timeRa": None, "agency": "-a"},
+        ], now)
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        pre = next(r for r in data if r[config.LOG_COLS["TASK_ID"]] == "R2")
+        self.assertEqual(pre[config.LOG_COLS["STAFF_NAME"]], "'=1+1")
+        self.assertEqual(pre[config.LOG_COLS["STATION"]], "'@x")
+        self.assertEqual(pre[config.LOG_COLS["DATE"]], "'+TODAY()")
+        self.assertEqual(pre[config.LOG_COLS["AGENCY"]], "'-a")
+
+        # batch_append_log_rows (paste meal-move NV lạ)
+        cache.clear_cache()
+        database.batch_append_log_rows([{
+            "taskId": "M1", "staffId": "OPS888", "staffName": "=cmd|' /C calc'!A0",
+            "slotCode": "", "station": "=1", "team": "", "workstation": "",
+            "timeRef": now, "timeScan": now, "status": config.STATUS["EXTRA"],
+            "date": "", "timeRa": now, "agency": "=EXPORT",
+        }])
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        batched = next(r for r in data if r[config.LOG_COLS["TASK_ID"]] == "M1")
+        self.assertEqual(batched[config.LOG_COLS["STAFF_NAME"]], "'=cmd|' /C calc'!A0")
+        self.assertEqual(batched[config.LOG_COLS["STATION"]], "'=1")
+        self.assertEqual(batched[config.LOG_COLS["AGENCY"]], "'=EXPORT")
+
+        # Giá trị bình thường không đổi
+        database.append_log_row({
+            "taskId": "R1", "staffId": "OPS998", "staffName": "NV Bình Thường",
+            "slotCode": "", "station": "HN2 SOC", "team": "Outbound", "workstation": "",
+            "timeRef": now, "timeScan": now, "status": config.STATUS["EXTRA"],
+            "date": "2026-08-01", "timeRa": None, "agency": "GRG",
+        })
+        data = self.fake.sheets[config.SHEETS["ATTENDANCE_LOG"]]
+        last = data[-1]
+        self.assertEqual(last[config.LOG_COLS["STAFF_NAME"]], "NV Bình Thường")
+        self.assertEqual(last[config.LOG_COLS["STATION"]], "HN2 SOC")
+        self.assertEqual(last[config.LOG_COLS["AGENCY"]], "GRG")
 
     def test_sheets_updated_range_regex(self):
         """#20: sheets.append_values regex handle '!A1' lẫn '!A5:M6'."""

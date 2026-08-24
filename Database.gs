@@ -505,10 +505,12 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
     // status OUT (đã Ra). Reconcile: không có → giờ Ra trống, status PENDING (như cũ).
     const timeRa = s.timeRa || null;
     const status = s.status || STATUS.PENDING;
+    // A1-log (2026-08-24): sanitize field text copy từ CSV — chống formula injection.
     return [
-      taskId, s.staffId, s.staffName, s.slotCode, s.station, s.team, s.workstation,
-      createdAt, '', status, s.date || '',
-      timeRa, s.agency || '',  // timeRa (giờ Ra — chỉ meal-move có), agency (Nhà Thầu — meal-move)
+      taskId, s.staffId, sanitizeCellText_(s.staffName), sanitizeCellText_(s.slotCode),
+      sanitizeCellText_(s.station), sanitizeCellText_(s.team), sanitizeCellText_(s.workstation),
+      createdAt, '', status, sanitizeCellText_(s.date || ''),
+      timeRa, sanitizeCellText_(s.agency || ''),  // timeRa (giờ Ra — chỉ meal-move có), agency (Nhà Thầu — meal-move)
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);
@@ -778,10 +780,14 @@ function updateLogRowCache_(taskId, rowIndex, mutate) {
 
 /** Append dòng mới (quét lạ → Dư). */
 function appendLogRow_(row) {
+  // A1-log (2026-08-24): field text copy từ CSV (staffName/station/team/agency/date) —
+  // untrusted → sanitize trước khi ghi, chống formula injection (cell =cmd thực thi khi
+  // mở sheet). taskId/staffId giữ nguyên (chuẩn hóa Ops pattern).
   getSheet_(SHEETS.ATTENDANCE_LOG).appendRow([
-    row.taskId, row.staffId, row.staffName, row.slotCode, row.station, row.team, row.workstation,
-    row.timeRef || '', row.timeScan || '', row.status, row.date || '',
-    row.timeRa || '', row.agency || '',  // timeRa, agency (meal-move)
+    row.taskId, row.staffId, sanitizeCellText_(row.staffName),
+    sanitizeCellText_(row.slotCode), sanitizeCellText_(row.station), sanitizeCellText_(row.team),
+    sanitizeCellText_(row.workstation), row.timeRef || '', row.timeScan || '', row.status,
+    sanitizeCellText_(row.date || ''), row.timeRa || '', sanitizeCellText_(row.agency || ''),
   ]);
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: dòng Dư mới → counter list đổi
@@ -924,10 +930,12 @@ function batchAppendLogRows_(rows) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
   const startRow = sheet.getLastRow() + 1;
   const payload = rows.map(function (row) {
+    // A1-log (2026-08-24): sanitize field text copy từ CSV — chống formula injection.
     return [
-      row.taskId, row.staffId, row.staffName, row.slotCode, row.station, row.team, row.workstation,
-      row.timeRef || '', row.timeScan || '', row.status, row.date || '',
-      row.timeRa || '', row.agency || '',
+      row.taskId, row.staffId, sanitizeCellText_(row.staffName), sanitizeCellText_(row.slotCode),
+      sanitizeCellText_(row.station), sanitizeCellText_(row.team), sanitizeCellText_(row.workstation),
+      row.timeRef || '', row.timeScan || '', row.status, sanitizeCellText_(row.date || ''),
+      row.timeRa || '', sanitizeCellText_(row.agency || ''),
     ];
   });
   const range = sheet.getRange(startRow, 1, payload.length, LOG_COL_COUNT);

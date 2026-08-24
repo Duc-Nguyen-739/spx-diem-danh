@@ -380,19 +380,21 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         row = [""] * config.LOG_COL_COUNT
         row[lc["TASK_ID"]] = task_id
         row[lc["STAFF_ID"]] = s.get("staffId", "")
-        row[lc["STAFF_NAME"]] = s.get("staffName", "")
-        row[lc["SLOT_CODE"]] = s.get("slotCode", "")
-        row[lc["STATION"]] = s.get("station", "")
-        row[lc["TEAM"]] = s.get("team", "")
-        row[lc["WORKSTATION"]] = s.get("workstation", "")
+        # A1-log (2026-08-24): sanitize field text copy từ CSV — chống formula injection
+        # (mirror GAS appendLogRow_/batchInsertLogRows_).
+        row[lc["STAFF_NAME"]] = sanitize_cell_text(s.get("staffName", ""))
+        row[lc["SLOT_CODE"]] = sanitize_cell_text(s.get("slotCode", ""))
+        row[lc["STATION"]] = sanitize_cell_text(s.get("station", ""))
+        row[lc["TEAM"]] = sanitize_cell_text(s.get("team", ""))
+        row[lc["WORKSTATION"]] = sanitize_cell_text(s.get("workstation", ""))
         row[lc["TIME_REF"]] = cache.to_iso_cell(created_at)
         row[lc["TIME_SCAN"]] = ""
         # 2026-08-19: meal-move pre-fill timeRa ("Giờ Ra" = "Giờ điểm danh") + status OUT
         # (đã Ra) — khớp GAS batchInsertLogRows_ (trước Python luôn PENDING + giờ Ra trống).
         row[lc["STATUS"]] = s.get("status") or config.STATUS["PENDING"]
-        row[lc["DATE"]] = s.get("date", "")
+        row[lc["DATE"]] = sanitize_cell_text(s.get("date", ""))
         row[lc["TIME_RA"]] = cache.to_iso_cell(s.get("timeRa")) if s.get("timeRa") else ""
-        row[lc["AGENCY"]] = s.get("agency", "")
+        row[lc["AGENCY"]] = sanitize_cell_text(s.get("agency", ""))
         rows.append(row)
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
     invalidate_log_rows(task_id)  # scan đầu sẽ đọc tươi (cold 1 lần, an toàn)
@@ -524,17 +526,18 @@ def append_log_row(row):
     out = [""] * config.LOG_COL_COUNT
     out[lc["TASK_ID"]] = row.get("taskId", "")
     out[lc["STAFF_ID"]] = row.get("staffId", "")
-    out[lc["STAFF_NAME"]] = row.get("staffName", "")
-    out[lc["SLOT_CODE"]] = row.get("slotCode", "")
-    out[lc["STATION"]] = row.get("station", "")
-    out[lc["TEAM"]] = row.get("team", "")
-    out[lc["WORKSTATION"]] = row.get("workstation", "")
+    # A1-log (2026-08-24): sanitize field text copy từ CSV — chống formula injection.
+    out[lc["STAFF_NAME"]] = sanitize_cell_text(row.get("staffName", ""))
+    out[lc["SLOT_CODE"]] = sanitize_cell_text(row.get("slotCode", ""))
+    out[lc["STATION"]] = sanitize_cell_text(row.get("station", ""))
+    out[lc["TEAM"]] = sanitize_cell_text(row.get("team", ""))
+    out[lc["WORKSTATION"]] = sanitize_cell_text(row.get("workstation", ""))
     out[lc["TIME_REF"]] = cache.to_iso_cell(row.get("timeRef"))
     out[lc["TIME_SCAN"]] = cache.to_iso_cell(row.get("timeScan"))
     out[lc["STATUS"]] = row.get("status", "")
-    out[lc["DATE"]] = row.get("date", "")
+    out[lc["DATE"]] = sanitize_cell_text(row.get("date", ""))
     out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
-    out[lc["AGENCY"]] = row.get("agency", "")
+    out[lc["AGENCY"]] = sanitize_cell_text(row.get("agency", ""))
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], [out])
     _format_time_columns(start, 1)
     invalidate_task_list_cache()
@@ -660,17 +663,18 @@ def batch_append_log_rows(rows):
         out = [""] * config.LOG_COL_COUNT
         out[lc["TASK_ID"]] = row.get("taskId", "")
         out[lc["STAFF_ID"]] = row.get("staffId", "")
-        out[lc["STAFF_NAME"]] = row.get("staffName", "")
-        out[lc["SLOT_CODE"]] = row.get("slotCode", "")
-        out[lc["STATION"]] = row.get("station", "")
-        out[lc["TEAM"]] = row.get("team", "")
-        out[lc["WORKSTATION"]] = row.get("workstation", "")
+        # A1-log (2026-08-24): sanitize field text copy từ CSV — chống formula injection.
+        out[lc["STAFF_NAME"]] = sanitize_cell_text(row.get("staffName", ""))
+        out[lc["SLOT_CODE"]] = sanitize_cell_text(row.get("slotCode", ""))
+        out[lc["STATION"]] = sanitize_cell_text(row.get("station", ""))
+        out[lc["TEAM"]] = sanitize_cell_text(row.get("team", ""))
+        out[lc["WORKSTATION"]] = sanitize_cell_text(row.get("workstation", ""))
         out[lc["TIME_REF"]] = cache.to_iso_cell(row.get("timeRef"))
         out[lc["TIME_SCAN"]] = cache.to_iso_cell(row.get("timeScan"))
         out[lc["STATUS"]] = row.get("status", "")
-        out[lc["DATE"]] = row.get("date", "")
+        out[lc["DATE"]] = sanitize_cell_text(row.get("date", ""))
         out[lc["TIME_RA"]] = cache.to_iso_cell(row.get("timeRa"))
-        out[lc["AGENCY"]] = row.get("agency", "")
+        out[lc["AGENCY"]] = sanitize_cell_text(row.get("agency", ""))
         payload.append(out)
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
     _format_time_columns(start, len(payload))
