@@ -80,13 +80,22 @@ def clear_cache():
 
 
 def cached(key, load, ttl_seconds):
-    """Đọc cache; miss → load() → put (fallback an toàn: load lỗi thì rethrow)."""
-    val = cache_get(key)
-    if val is not None:
-        return val
+    """Đọc cache; miss → load() → put (fallback an toàn: load lỗi thì rethrow).
+
+    C5 (2026-08-23): PHÂN BIỆT miss vs cached-None bằng sentinel — trước đây
+    cache_get trả None cho cả 2 → giá trị None (vd task không tồn tại) KHÔNG được
+    negative-cache → poll vào task không tồn tại đọc sheet MỖI request. Giờ lưu
+    {"v": val}; cache_get trả None cho miss, dict sentinel cho cached-None.
+    """
+    hit = cache_get(key)
+    if hit is not None:
+        try:
+            return hit["v"]
+        except (TypeError, KeyError):
+            pass
     val = load()
     try:
-        cache_put(key, val, ttl_seconds)
+        cache_put(key, {"v": val}, ttl_seconds)
     except Exception:
         pass  # cache put fail → lần sau rebuild (không fail-open)
     return val

@@ -508,14 +508,18 @@ def _mutate_scan_cache(r, time_scan, status):
 def update_log_row_cache(task_id, row_index, mutate):
     try:
         key = config.CACHE_KEYS["LOG_ROWS"] + task_id
-        rows = cache.cache_get(key)
-        if rows is None:
+        hit = cache.cache_get(key)
+        if hit is None:
             return
+        # C5 (2026-08-23): cached() lưu {"v": rows} — đọc trực tiếp phải unwrap
+        # trước khi mutate và put lại CÙNG format (raw entry cũ vẫn hỗ trợ).
+        wrapped = isinstance(hit, dict) and "v" in hit and isinstance(hit["v"], list)
+        rows = hit["v"] if wrapped else hit
         for r in rows:
             if r.get("_rowIndex") == row_index:
                 mutate(r)
                 break
-        cache.cache_put(key, rows, config.CACHE_TTL["LOG_ROWS"])
+        cache.cache_put(key, {"v": rows} if wrapped else rows, config.CACHE_TTL["LOG_ROWS"])
     except Exception:
         pass
 

@@ -170,3 +170,55 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 **Công cụ CDP:** `node scripts/cdp-helper.js list|open <url>|eval <expr>|shot <png>|evalframe|evaliframe|click <x> <y>` — dùng `WebSocket` global (Node 22+), timeout 10-15s, không treo. Chrome path: `CHROME_PATH` env hoặc tự tìm `google-chrome`/`chromium`.
 
 **Khớp attendance-portal §7:** `npm run test` 219 tests bên portal tương đương `npm test` 354 + `audit-css`/`audit-gs` bên này; `build-local.js` + `test-local-mock.js` port nguyên văn, adapt DOM IDs `viewList/viewScan` + counters `S:3`.
+
+## 22. Định dạng output (Freebuff)
+
+> Nguồn: tài liệu "Freebuff — Định dạng Output" (2026-08-23) do user cung cấp.
+
+**1. Output trong khung hội thoại (chat)**
+
+Mọi câu trả lời của agent đều là **Markdown**, hiển thị trực tiếp trong terminal/app:
+
+| Phần tử | Ví dụ |
+| :------ | :---- |
+| Tiêu đề | `# H1` · `## H2` · `### H3` |
+| Danh sách | `- item` · `1. item` |
+| Bảng | `\| cột A \| cột B \|` |
+| Code inline | `` `const x = 1` `` |
+| Code block | ` ```ts ... ``` ` (có highlight theo ngôn ngữ) |
+| Trích dẫn | `> ghi chú` |
+| Link | `[văn bản](https://...)` |
+
+Ngoài ra agent còn hiển thị **tiến trình làm việc**: danh sách việc cần làm (todos), lệnh terminal đang chạy, và diff thay đổi file.
+
+**2. Output dạng file**
+
+- Agent đọc/ghi **mọi định dạng file văn bản** trong repo: `.md`, `.txt`, `.json`, `.yaml`, `.ts/.js/.py/.gs`, HTML/CSS…
+- **`.md` (Markdown): hỗ trợ đầy đủ** — có thể đọc, tạo mới, hoặc chỉnh sửa bất kỳ file `.md` nào khi được yêu cầu.
+- File được ghi thẳng vào working directory của repo (qua công cụ file, không qua shell redirection).
+
+**3. Các loại output khác**
+
+- **Preview URL**: với dự án web, Freebuff chạy dev server trong sandbox và trả về URL xem trước.
+- **Deploy**: build tĩnh ra thư mục output (ví dụ `dist/`) rồi triển lên hosting do Freebuff quản lý.
+- **Báo cáo kiểm tra**: kết quả typecheck/test trả về dạng log văn bản kèm phân tích lỗi.
+
+**4. Mẫu output chuẩn (template)**
+
+```markdown
+# <Tiêu đề công việc>
+
+## Tóm tắt
+- <Đã làm gì, kết quả ra sao>
+
+## Thay đổi
+| File | Nội dung thay đổi |
+| :--- | :---------------- |
+| path/to/file.ts | <mô tả ngắn> |
+
+## Cách kiểm chứng
+1. Chạy `<lệnh>` → kết quả: <pass/fail>
+
+## Việc tiếp theo (tuỳ chọn)
+- [ ] <gợi ý bước kế>
+```
