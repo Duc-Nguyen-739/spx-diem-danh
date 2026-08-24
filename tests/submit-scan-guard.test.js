@@ -68,3 +68,19 @@ test('js.html: toggleSound bật âm phải unlock audio ngay trong click gestur
   assert.ok(block.indexOf('if (SOUND_ON) ensureAudioUnlocked();') >= 0,
     'bật âm qua nút 🔊 (click = user gesture) phải unlock AudioContext ngay — không chờ lượt quét đầu');
 });
+
+// ===== BUG 2026-08-24 (review Muse B6): openScan thiếu scanBusy() guard =====
+// backToList/finishTask đều chặn khi scanBusy() (queue đang xử lý) nhưng openScan không
+// → bấm Quét task khác khi queue chạy → CURRENT_TASK đổi giữa chừng, response cũ render
+// vào task mới (scan card/toast lệch task). Phải mirror backToList ở đầu openScan.
+test('js.html: openScan phải chặn khi scanBusy() (mirror backToList)', () => {
+  const i = src.indexOf('function openScan(taskId)');
+  assert.ok(i >= 0, 'phải có openScan');
+  const block = src.slice(i, i + 520);
+  assert.ok(block.indexOf('if (scanBusy()) {') >= 0,
+    'openScan phải check scanBusy() ở đầu — nếu không bấm mở task khác khi queue đang chạy sẽ render response cũ vào task sai');
+  assert.ok(block.indexOf('showToast') >= 0,
+    'openScan khi busy phải showToast báo user chờ');
+  assert.ok(block.indexOf('return;') >= 0,
+    'openScan khi busy phải return (không mở task khác)');
+});

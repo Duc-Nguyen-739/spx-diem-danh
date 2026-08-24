@@ -1357,6 +1357,15 @@
   }
 
   function openScan(taskId) {
+    // (2026-08-24 review, Muse B6): mirror backToList — chặn mở task khác khi còn scan
+    // queue/đang xử lý (nếu không CURRENT_TASK đổi giữa chừng → response cũ render vào
+    // task mới, scan card/toast lệch task).
+    if (scanBusy()) {
+      showToast(SCAN_QUEUE.length > 0
+        ? 'Đang xử lý ' + SCAN_QUEUE.length + ' lượt quét — chờ xong rồi mở task'
+        : 'Đang xử lý lượt quét — chờ xong rồi mở task', true);
+      return;
+    }
     stopTaskListPolling(); // vào màn quét → màn quét tự poll chi tiết, dừng poll danh sách
     byId('viewList').classList.add('hidden');
     byId('viewScan').classList.remove('hidden');
