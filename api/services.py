@@ -73,9 +73,11 @@ def preview_staff(input_):
 # ===== TaskId =====
 
 def make_task_id(now=None):
-    """R20260802-073015 (giờ tạo, TZ Asia/Ho_Chi_Minh) — có giây để giảm trùng khi nhiều kiosk tạo cùng phút."""
+    """R20260824-143015482 (giờ tạo TZ Asia/Ho_Chi_Minh + millisecond) — ms giúp 2 kiosk
+    tạo CÙNG GIÂY vẫn khác ID, tránh vòng suffix -2/-3 tốn thêm RPC read_task trong lock
+    khi cao điểm; while-read_task giữ làm backstop (mirror GAS makeTaskId_)."""
     d = now or datetime.datetime.now(cache._TZ)
-    return f"R{d.strftime('%Y%m%d-%H%M%S')}"
+    return f"R{d.strftime('%Y%m%d-%H%M%S')}{d.microsecond // 1000:03d}"
 
 
 # ===== Reconcile task =====
@@ -171,6 +173,8 @@ def create_meal_move_task_core(input_):
         info = index.get(id_) or {}
         ra_epoch = int(time_ra_by_staff.get(id_) or 0) or 0
         time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
+        # date luôn "" — staff index SLIM không giữ date (khớp GAS readStaffIndex_:
+        # cache <100KB; pre-fill dùng read_staff_list riêng, không qua index)
         staff_list.append({
             "staffId": id_, "staffName": info.get("staffName") or "",
             "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",

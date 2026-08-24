@@ -436,6 +436,22 @@ class TestServices(unittest.TestCase):
             d.update(patch)
             self.assertNotEqual(services.compute_detail_sig(d), base_sig, f"đổi {name} → sig phải đổi")
 
+    def test_make_task_id_has_milliseconds(self):
+        """B2 (2026-08-24): taskId có millisecond — 2 kiosk tạo CÙNG GIÂY vẫn khác ID
+        (tránh vòng suffix -2/-3 tốn RPC read_task trong lock). Format R+8-12 số."""
+        tid = services.make_task_id()
+        self.assertTrue(tid.startswith("R"), tid)
+        body = tid[1:]
+        self.assertEqual(len(body), 18, f"{tid} — yyyyMMdd-HHMMSSmmm = 8+1+9 ký tự")
+        date_part, time_part = body.split("-")
+        self.assertEqual(len(time_part), 9, f"phần giờ phải có ms (6+3): {tid}")
+        # 2 lần gọi cùng datetime (cùng giây, khác ms) → KHÔNG trùng
+        base = datetime.datetime(2026, 8, 24, 14, 30, 15, tzinfo=cache._TZ)
+        t1 = services.make_task_id(base.replace(microsecond=123000))
+        t2 = services.make_task_id(base.replace(microsecond=456000))
+        self.assertNotEqual(t1, t2, "cùng giây khác ms → ID phải khác")
+        self.assertEqual(t1[:16], t2[:16], "cùng giây → cùng phần giây")
+
 
 if __name__ == "__main__":
     unittest.main()

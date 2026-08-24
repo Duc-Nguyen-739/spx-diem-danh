@@ -6,14 +6,17 @@
  * → quét đối chiếu → Kết thúc (done).
  */
 
-/** Tạo taskId có thứ tự đọc được: R20260802-073015 (giờ tạo, có giây để giảm trùng khi nhiều kiosk tạo cùng phút). */
+/** Tạo taskId có thứ tự đọc được: R20260824-143015482 (giờ tạo HN + millisecond —
+ * ms giúp 2 kiosk tạo CÙNG GIÂY vẫn khác ID, tránh vòng suffix -2/-3 tốn thêm RPC
+ * readTask_ trong lock khi cao điểm; while-readTask_ giữ làm backstop). */
 function makeTaskId_(now) {
   const d = now || new Date();
   const pad = function (n) { return String(n).padStart(2, '0'); };
   const datePart = d.getFullYear()
     + pad(d.getMonth() + 1)
     + pad(d.getDate());
-  const timePart = pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  const msPart = String(d.getMilliseconds()).padStart(3, '0');
+  const timePart = pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + msPart;
   return 'R' + datePart + '-' + timePart;
 }
 
