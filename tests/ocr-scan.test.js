@@ -135,3 +135,44 @@ test('pickOpsCandidate: text rỗng / không có Ops → null', () => {
   assert.equal(ctx.pickOpsCandidate('khong co ma o day', [], known, 70), null);
   assert.equal(ctx.pickOpsCandidate('OpsXYZ', [], known, 70), null);
 });
+
+// ---- OCR worker leak + interval mồ côi (2026-08-24 review, Hy3 #1 / Mimo #12) ----
+// Bug: stopOcrLoop chỉ clearInterval không terminate camOcrWorker (WASM ~2MB resident);
+// camOcrTimer set trong callback async ensureOcrLib → đóng camera khi đang tải Tesseract
+// tạo interval MỒ CÔI bắn mỗi 4s vào stream đã tắt. Cần: terminate worker + guard active.
+
+test('OCR leak: stopOcrLoop phải terminate camOcrWorker (không chỉ clearInterval)', () => {
+  const block = script.match(/function stopOcrLoop\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(block, 'phải có stopOcrLoop');
+  assert.ok(block[0].indexOf('camOcrWorker') >= 0,
+    'stopOcrLoop phải đụng tới camOcrWorker (terminate) — nếu chỉ clearInterval là leak WASM');
+  assert.ok(block[0].indexOf('.terminate') >= 0,
+    'stopOcrLoop phải gọi camOcrWorker.terminate() để giải phóng Tesseract worker');
+  assert.ok(block[0].indexOf('camOcrWorker = null') >= 0,
+    'stopOcrLoop phải reset camOcrWorker = null (lần mở sau tạo lại sạch)');
+});
+
+test('OCR leak: callback async ensureOcrLib chỉ set interval khi loop còn active', () => {
+  // Bug mồ côi: camOcrTimer set TRONG callback ensureOcrLib — đóng camera khi đang tải
+  // → callback chạy sau vẫn tạo interval. Phải có cờ guard camOcrLoopActive.
+  assert.ok(script.indexOf('camOcrLoopActive') >= 0,
+    'phải có cờ camOcrLoopActive guard');
+  const startBlock = script.match(/function startOcrLoop\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(startBlock, 'phải có startOcrLoop');
+  assert.ok(startBlock[0].indexOf('camOcrLoopActive = true') >= 0,
+    'startOcrLoop phải set camOcrLoopActive = true khi bắt đầu');
+  // Interval chỉ set khi cả camOcrEnabled LẪN camOcrLoopActive
+  const setIntervalLine = script.match(/if \(camOcrEnabled && camOcrLoopActive\) \{/);
+  assert.ok(setIntervalLine,
+    'interval chỉ set khi `camOcrEnabled && camOcrLoopActive` — chống mồ côi');
+});
+
+test('OCR leak: initOcrWorker promise resolve sau khi camera đóng → terminate, không giữ', () => {
+  // Worker tải xong (Promise .then) SAU khi stopOcrLoop chạy → phải terminate thay vì giữ.
+  const initBlock = script.match(/function initOcrWorker\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(initBlock, 'phải có initOcrWorker');
+  assert.ok(initBlock[0].indexOf('camOcrLoopActive') >= 0,
+    'initOcrWorker phải check camOcrLoopActive trước khi giữ worker (chống tạo lại sau đóng)');
+  assert.ok(initBlock[0].indexOf('!camOcrLoopActive') >= 0,
+    'initOcrWorker phải terminate worker khi !camOcrLoopActive');
+});

@@ -244,3 +244,31 @@ test('popup: phải unlock AudioContext tại user gesture (popUnlockAudio + lis
     popScript.indexOf('if (!popAudioCtx) return;') >= 0,
     'popTone phải gọi popUnlockAudio trước khi phát — nếu tự new AudioContext trong postMessage → suspended, câm trên PC');
 });
+
+// ===== BUG 2026-08-24 (review Hy3 #3 / Mimo #13): Blob URL không revoke =====
+// stopZxingWorker (modal) + stop() (popup) terminate worker nhưng không revokeObjectURL
+// → mỗi lần mở camera tạo 1 Blob URL rò rỉ. Giải pháp: lưu url + revoke khi terminate.
+
+test('modal: ensureZxingWorker phải lưu camWorkerUrl để revoke', () => {
+  assert.ok(script.indexOf('camWorkerUrl') >= 0,
+    'modal phải có biến camWorkerUrl (lưu Blob URL khi tạo worker)');
+  const stopBlock = script.match(/function stopZxingWorker\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(stopBlock, 'phải có stopZxingWorker');
+  assert.ok(stopBlock[0].indexOf('URL.revokeObjectURL(camWorkerUrl)') >= 0,
+    'stopZxingWorker phải revoke camWorkerUrl (nếu không Blob URL rò rỉ mỗi lần mở camera)');
+  assert.ok(stopBlock[0].indexOf('camWorkerUrl = null') >= 0,
+    'stopZxingWorker phải reset camWorkerUrl = null (lần mở sau không revoke url cũ)');
+});
+
+test('popup: ensurePopWorker phải lưu popWorkerUrl để revoke', () => {
+  const written = [];
+  const sb = makeSandbox({ popupFactory: () => fakePopup(written) });
+  sb.ctx.openScanPopup();
+  const m = written[0].match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(m, 'popup phải có khối <script>');
+  const popScript = m[1];
+  assert.ok(popScript.indexOf('popWorkerUrl') >= 0,
+    'popup phải có biến popWorkerUrl');
+  assert.ok(popScript.indexOf('URL.revokeObjectURL(popWorkerUrl)') >= 0,
+    'popup phải revoke popWorkerUrl khi terminate worker');
+});

@@ -297,16 +297,17 @@
       '  // cũ → mã nghiêng/mờ nhẹ bắt SỚM hơn. Fail-open: worker không tạo được (CSP/trình',
       '  // duyệt cũ/mất mạng) → vẫn dùng opener.camFastDecode như cũ, không mất gì.',
       '  var popWorkerSrc = ' + JSON.stringify(CAM_WORKER_SRC) + ';',
-      '  var popWorker = null, popWorkerIdle = true, popWorkerFailed = false;',
+      '  var popWorker = null, popWorkerIdle = true, popWorkerFailed = false, popWorkerUrl = null;',
       '  function ensurePopWorker() {',
       '    if (popWorker || popWorkerFailed) return;',
       '    try {',
       '      if (typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) { popWorkerFailed = true; return; }',
       '      var blob = new Blob([popWorkerSrc], { type: "application/javascript" });',
       '      var url = URL.createObjectURL(blob);',
+      '      popWorkerUrl = url;',
       '      popWorker = new Worker(url);',
       '      popWorker.onmessage = function (e) { popWorkerOnMessage(e.data); };',
-      '      popWorker.onerror = function () { popWorkerFailed = true; popWorker = null; };',
+      '      popWorker.onerror = function () { popWorkerFailed = true; popWorker = null; if (popWorkerUrl) { try { URL.revokeObjectURL(popWorkerUrl); } catch (e2) {} popWorkerUrl = null; } };',
       '    } catch (e) { popWorkerFailed = true; popWorker = null; }',
       '  }',
       '  function popWorkerSend(f) {',
@@ -521,6 +522,7 @@
       '  function stop() {',
       '    if (timer) { clearInterval(timer); timer = null; }',
       '    if (popWorker) { try { popWorker.terminate(); } catch (e) {} popWorker = null; }',
+      '    if (popWorkerUrl) { try { URL.revokeObjectURL(popWorkerUrl); } catch (e) {} popWorkerUrl = null; }',
       '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
       '    video.srcObject = null;',
       '  }',
@@ -1554,6 +1556,9 @@
   var camOcrBusy = false;      // đang có 1 OCR chạy
   var camOcrQueue = [];        // frame chờ khi busy (photo fallback đợi live OCR xong)
   var camOcrTimer = null;      // timer quét OCR song song
+  var camOcrLoopActive = false; // (2026-08-24) guard mồ côi: interval chỉ set khi loop đang
+                                // "chủ ý chạy" — tránh callback async ensureOcrLib tạo timer
+                                // SAU khi camera đã đóng (bug: interval bắn mỗi 4s vĩnh viễn)
   var camOcrFailStreak = 0;    // P2-2 (2026-08-23): đếm ZXing fail liên tiếp — đủ 5 mới lazy-load Tesseract
 
   // PURE — chuẩn hóa chuỗi OCR → mã 'OPS…' (test được trên Node).
@@ -1653,6 +1658,13 @@
         corePath: OCR_CORE_PATH,
         langPath: OCR_LANG_PATH
       }).then(function (w) {
+        // (2026-08-24) guard mồ côi: camera có thể đã đóng trong lúc worker đang tải
+        // (createWorker tải wasm+traineddata vài trăm ms) → worker mới tạo xong sẽ LEAK.
+        // Nếu loop không còn active → terminate ngay thay vì giữ.
+        if (!camOcrLoopActive) {
+          try { if (typeof w.terminate === 'function') w.terminate(); } catch (e2) {}
+          return;
+        }
         camOcrWorker = w;
         var statusEl = document.getElementById('camStatusLive');
         if (statusEl) statusEl.textContent = '📷 Đưa mã vào khung — tự nhận diện (vạch + chữ Ops)';
@@ -1703,12 +1715,13 @@
   function startOcrLoop() {
     stopOcrLoop();
     if (camOcrLoadFailed) return;
+    camOcrLoopActive = true;  // guard: chỉ callback async mới được set timer khi còn active
     var statusEl = document.getElementById('camStatusLive');
     if (!camOcrEnabled && !camOcrLoading && statusEl) {
       statusEl.textContent = '📷 Đang tải nhận diện chữ Ops… (lần đầu hơi lâu)';
     }
     ensureOcrLib(function () {
-      if (camOcrEnabled) {
+      if (camOcrEnabled && camOcrLoopActive) {
         camOcrTimer = setInterval(function () { ocrTick(); }, CAM_OCR_INTERVAL_MS);
       }
     });
@@ -1752,7 +1765,19 @@
   }
 
   function stopOcrLoop() {
+    camOcrLoopActive = false;
     if (camOcrTimer) { clearInterval(camOcrTimer); camOcrTimer = null; }
+    // (2026-08-24) LEAK FIX: terminate worker Tesseract — WASM ~2MB + traineddata
+    // resident vĩnh viễn nếu chỉ clear interval (kiosk mở/đóng camera nhiều lần mỗi
+    // ca → bộ nhớ tăng dần, iPhone chậm dần). createWorker trả Promise worker object
+    // có .terminate() — terminate an toàn, lần mở sau initOcrWorker tạo lại.
+    // Tesseract.loader/worker.terminate có thể ném nếu worker chưa ready — bọc try/catch.
+    if (camOcrWorker) {
+      try { if (typeof camOcrWorker.terminate === 'function') camOcrWorker.terminate(); } catch (e) {}
+      camOcrWorker = null;
+    }
+    // reset cờ phụ — lần mở sau bắt đầu sạch
+    camOcrBusy = false;
   }
 
   function ocrTick() {
@@ -2060,6 +2085,7 @@
   var camWorker = null;
   var camWorkerFailed = false;
   var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
+  var camWorkerUrl = null;    // (2026-08-24) Blob URL — revoke khi terminate (tránh rò rỉ URL mỗi lần mở camera)
 
   function ensureZxingWorker() {
     if (camWorker || camWorkerFailed) return;
@@ -2070,11 +2096,13 @@
       }
       var blob = new Blob([CAM_WORKER_SRC], { type: 'application/javascript' });
       var url = URL.createObjectURL(blob);
+      camWorkerUrl = url;
       camWorker = new Worker(url);
       camWorker.onmessage = function (e) { camWorkerOnMessage(e.data); };
       camWorker.onerror = function () {
         camWorkerFailed = true;
         camWorker = null;
+        if (camWorkerUrl) { try { URL.revokeObjectURL(camWorkerUrl); } catch (e2) {} camWorkerUrl = null; }
       };
     } catch (e) { camWorkerFailed = true; camWorker = null; }
   }
@@ -2118,6 +2146,8 @@
 
   function stopZxingWorker() {
     if (camWorker) { try { camWorker.terminate(); } catch (e) {} camWorker = null; }
+    // (2026-08-24) revoke Blob URL khi dừng worker — trước đây chỉ terminate, URL rò rỉ mỗi lần mở camera
+    if (camWorkerUrl) { try { URL.revokeObjectURL(camWorkerUrl); } catch (e) {} camWorkerUrl = null; }
     camWorkerFailed = false; // cho phép tạo lại lần mở sau (lỗi có thể tạm thời)
     camWorkerIdle = true;
   }
