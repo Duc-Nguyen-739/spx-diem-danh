@@ -5,8 +5,8 @@ Giao thức (khớp shim google.script.run trong js.html + JsonpApi.gs):
   POST body JSON {"action":..., "args":[...]}       → {"ok":true,"result":...}
   Không có cb → trả JSON thuần (dùng khi same-origin fetch).
 
-Bảo mật: whitelist action (chỉ hàm đã duyệt); cb sanitize /^[A-Za-z0-9_$.]+$/
-(chống phản chiếu script tùy ý — mirror JsonpApi.gs).
+Bảo mật: whitelist action (chỉ hàm đã duyệt); cb sanitize /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/
+(mirror JsonpApi.gs — chống phản chiếu script tùy ý + prototype pollution).
 
 Handler theo convention event/context (Vercel-style: event.queryStringParameters;
 AWS-style cũng chấp nhận event["query"]) — Freebuff hosting đọc api/*.py, verify
@@ -68,8 +68,17 @@ def dispatch(action, args):
 
 
 def sanitize_callback(cb):
+    """Mirror JsonpApi.gs sanitizeCallback_: chỉ cho ký tự định danh JS an toàn,
+    chống XSS (cb được phản chiếu nguyên văn vào output JS). Chặn chuỗi rỗng,
+    số đầu, `$`, và prototype pollution (__proto__/constructor/prototype)."""
     s = str(cb or "").strip()
-    return s if re.match(r"^[A-Za-z0-9_$.]+$", s) else "callback"
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$", s):
+        return "callback"
+    # Chặn prototype pollution (khớp JsonpApi.gs)
+    for part in s.split("."):
+        if part in ("__proto__", "constructor", "prototype"):
+            return "callback"
+    return s
 
 
 def api_token():

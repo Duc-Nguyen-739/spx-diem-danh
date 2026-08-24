@@ -64,6 +64,23 @@ class TestMain(unittest.TestCase):
         resp = main.handler(self._event("getMeta", cb="alert(1);x"))
         self.assertTrue(resp["body"].startswith("callback("), "cb nguy hiểm → fallback callback")
 
+    def test_cb_sanitize_matches_gas(self):
+        """2026-08-24: unify regex với JsonpApi.gs — GAS chặt hơn (cấm số đầu/$/proto).
+        Python trước /^[A-Za-z0-9_$.]+$/ cho phép '1a', '$.x', '__proto__' → lệch + prototype pollution."""
+        cases_ok = [
+            "cb", "_cb", "cb1", "cb.obj", "myApp.scan.callback", "a.b.c",
+        ]
+        cases_block = [
+            "1cb", "1.cb",          # số đầu — GAS cấm
+            "$.ajax", "a.$b", "a.b$",  # $ — GAS cấm
+            "__proto__", "a.__proto__", "constructor", "a.constructor", "prototype", "a.prototype",
+            "", " ", "alert(1)", "cb;evil", "cb..x", ".cb", "cb.", "cb .x",
+        ]
+        for cb in cases_ok:
+            self.assertEqual(main.sanitize_callback(cb), cb, f"cb hợp lệ {cb!r} phải giữ nguyên")
+        for cb in cases_block:
+            self.assertEqual(main.sanitize_callback(cb), "callback", f"cb nguy hiểm {cb!r} phải fallback")
+
     def test_unknown_action(self):
         resp = main.handler(self._event("deleteEverything"))
         data = self._json(resp)

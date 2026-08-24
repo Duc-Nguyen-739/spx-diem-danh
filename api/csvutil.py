@@ -151,7 +151,11 @@ def _header_col_map(values):
 
 
 def build_staff_index(values):
-    """Map { staffId: staff } từ mảng 2D. Duplicate staffId → dòng sau thắng (mới nhất)."""
+    """Map { staffId: staff } từ mảng 2D. Duplicate staffId → dòng sau thắng (mới nhất).
+    SLIM schema (2026-08-20 GAS, 2026-08-24 Python): chỉ giữ field đường quét cần
+    (staffName/slotCode/station/team/workstation/agency) — bỏ cardIn/cardOut/date để
+    cache <100KB (full ~200B/NV → 600 NV vượt CacheService 100KB/key). KHÔNG bao giờ
+    đọc 3 field này từ index (pre-fill dùng read_staff_list riêng)."""
     index = {}
     if not values or len(values) < 2:
         return index
@@ -171,10 +175,7 @@ def build_staff_index(values):
             "slotCode": str(_cell(v, col, "slotCode") or "").strip(),
             "team": str(_cell(v, col, "team") or "").strip(),
             "workstation": str(_cell(v, col, "workstation") or "").strip(),
-            "cardIn": str(_cell(v, col, "cardIn") or "").strip(),
-            "cardOut": str(_cell(v, col, "cardOut") or "").strip(),
             "agency": str(_cell(v, col, "agency") or "").strip(),
-            "date": normalize_staff_date(_cell(v, col, "date")),
         }
     return index
 
