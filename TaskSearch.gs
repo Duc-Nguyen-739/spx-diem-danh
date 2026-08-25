@@ -30,7 +30,7 @@ function collectTaskIdsByStaffLog_(logValues, staffCode, cols) {
     const row = logValues[i] || [];
     const taskId = String(row[cols.TASK_ID] || '').trim();
     if (!taskId) continue;
-    if (String(row[cols.STAFF_ID] || '').toUpperCase() !== q) continue;
+    if (String(row[cols.STAFF_ID] || '').trim().toUpperCase() !== q) continue;
     if (!row[cols.TIME_SCAN] && !row[cols.TIME_RA]) continue;  // chưa điểm danh (pre-fill '-')
     if (!seen[taskId]) { seen[taskId] = true; ids.push(taskId); }
   }

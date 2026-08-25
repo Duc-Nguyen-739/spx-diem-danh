@@ -629,7 +629,7 @@ def collect_task_ids_by_staff_log(log_values, staff_code, cols):
         task_id = str(row[cols["TASK_ID"]] if len(row) > cols["TASK_ID"] else "").strip()
         if not task_id:
             continue
-        if str(row[cols["STAFF_ID"]] if len(row) > cols["STAFF_ID"] else "").upper() != q:
+        if str(row[cols["STAFF_ID"]] if len(row) > cols["STAFF_ID"] else "").strip().upper() != q:
             continue
         if not (row[cols["TIME_SCAN"]] if len(row) > cols["TIME_SCAN"] else "") and \
            not (row[cols["TIME_RA"]] if len(row) > cols["TIME_RA"] else ""):
