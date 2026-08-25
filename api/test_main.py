@@ -164,8 +164,14 @@ class TestMain(unittest.TestCase):
 
     def test_token_env_accepts_query_and_body_token(self):
         self._with_token_env("sekret")
+        # P1-3 (2026-08-25): cb + token sai → 200 cb({error}) để JSONP không treo, không còn 401 JSON thuần
         resp = main.handler(self._event("getMeta", cb="__rcJsonp1_123"))
-        self.assertEqual(resp["statusCode"], 401)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertIn("text/javascript", resp["headers"]["Content-Type"])
+        self.assertIn("Unauthorized", resp["body"])
+        # không cb + token sai → 401 JSON thuần
+        resp_401 = main.handler(self._event("getMeta"))
+        self.assertEqual(resp_401["statusCode"], 401)
         qs = {"action": "getMeta", "token": "sekret"}
         resp2 = main.handler({"queryStringParameters": qs})
         self.assertEqual(resp2["statusCode"], 200)

@@ -130,6 +130,16 @@ def handler(event, context=None):
     required = api_token()
     if required and token != required:
         out = {"ok": False, "error": "Unauthorized"}
+        # P1-3 (2026-08-25): khi có cb= thì phải wrap 401 thành cb({...}); — nếu trả
+        # JSON thuần, script JSONP SyntaxError và withFailureHandler không bao giờ fire → kiosk treo
+        cb401 = str(params.get("cb") or "").strip()
+        if cb401:
+            safe401 = sanitize_callback(cb401)
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "text/javascript; charset=utf-8"},
+                "body": f"{safe401}({json.dumps(out, ensure_ascii=False)});",
+            }
         return {
             "statusCode": 401,
             "headers": {"Content-Type": "application/json; charset=utf-8"},
