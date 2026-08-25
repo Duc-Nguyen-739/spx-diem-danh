@@ -36,7 +36,7 @@ async function ensureCdp() {
     await httpGet('/json/version');
     return;
   } catch (e) { /* chưa mở */ }
-  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diem-danh-hn2-soc-mock-'));
+  userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diem-danh-hn2-soc-mock-'));
   const exe = process.env.CHROME_PATH || [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
@@ -75,17 +75,37 @@ function httpGet(p, method) {
 
 let msgId = 0;
 const pending = new Map();
+const WS_CONNECT_TIMEOUT_MS = 10000;
+const WS_SEND_TIMEOUT_MS = 15000;
+let userDataDir = null;
+function rejectAllPending(err) {
+  pending.forEach((p) => {
+    if (p.timeout) clearTimeout(p.timeout);
+    p.reject(err);
+  });
+  pending.clear();
+}
 function connect(wsUrl) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => resolve(ws);
-    ws.onerror = (e) => reject(new Error('WS error: ' + (e && e.message)));
+    let ws;
+    const to = setTimeout(() => {
+      try { ws && ws.close(); } catch (e) {}
+      reject(new Error('WS connect timeout'));
+    }, WS_CONNECT_TIMEOUT_MS);
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => { clearTimeout(to); resolve(ws); };
+    ws.onerror = (e) => { clearTimeout(to); reject(new Error('WS error: ' + (e && e.message))); };
+    ws.onclose = () => { clearTimeout(to); rejectAllPending(new Error('WS closed')); };
   });
 }
 function send(ws, method, params) {
   return new Promise((resolve, reject) => {
     const id = ++msgId;
-    pending.set(id, { resolve, reject });
+    const to = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('CDP timeout: ' + method));
+    }, WS_SEND_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timeout: to });
     ws.send(JSON.stringify({ id, method, params: params || {} }));
   });
 }
@@ -95,10 +115,12 @@ function setupListener(ws) {
     if (msg.id && pending.has(msg.id)) {
       const p = pending.get(msg.id);
       pending.delete(msg.id);
+      if (p.timeout) clearTimeout(p.timeout);
       if (msg.error) p.reject(new Error(msg.error.message));
       else p.resolve(msg.result);
     }
   };
+  ws.onclose = () => rejectAllPending(new Error('WS closed'));
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -120,14 +142,17 @@ async function evalIn(ws, expression) {
 }
 
 async function main() {
+  let target = null;
+  let ws = null;
+  try {
   console.log('INDEX:', INDEX_FILE);
   await ensureCdp();
 
-  const target = await httpGet('/json/new?' + encodeURIComponent(INDEX_FILE), 'PUT');
+  target = await httpGet('/json/new?' + encodeURIComponent(INDEX_FILE), 'PUT');
   console.log('Opened tab:', target.id);
   await sleep(LOAD_WAIT_MS);
 
-  const ws = await connect(target.webSocketDebuggerUrl);
+  ws = await connect(target.webSocketDebuggerUrl);
   setupListener(ws);
   await send(ws, 'Runtime.enable');
 
@@ -264,10 +289,17 @@ async function main() {
   const failed = results.filter((r) => !r.pass).length;
   console.log('\n===== SUMMARY =====');
   console.log(`PASS: ${passed} / ${results.length}  FAIL: ${failed}`);
-  ws.close();
-  await httpGet('/json/close/' + target.id).catch(() => {});
-  if (chromeProc) { chromeProc.kill(); chromeProc = null; }
-  process.exit(failed > 0 ? 1 : 0);
+  var _exitCode = failed > 0 ? 1 : 0;
+  } catch (e) {
+    console.error('ERR:', e.message);
+    var _exitCode = 1;
+  } finally {
+    try { if (ws) ws.close(); } catch (e) {}
+    try { if (target) await httpGet('/json/close/' + target.id).catch(() => {}); } catch (e) {}
+    try { if (chromeProc) { chromeProc.kill(); chromeProc = null; } } catch (e) {}
+    try { if (userDataDir) { fs.rmSync(userDataDir, { recursive: true, force: true }); userDataDir = null; } } catch (e) {}
+    process.exit(typeof _exitCode !== 'undefined' ? _exitCode : 1);
+  }
 }
 
-main().catch((e) => { console.error('ERR:', e.message); process.exit(1); });
+main().catch((e) => { console.error('ERR:', e.message); try { if (chromeProc) chromeProc.kill(); } catch(e){} try { if (userDataDir) fs.rmSync(userDataDir, {recursive:true, force:true}); } catch(e){} process.exit(1); });

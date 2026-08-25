@@ -19,7 +19,7 @@ const args = process.argv.slice(2);
 const cmd = args[0] || 'list';
 
 function rejectAllPending(err) {
-  pending.forEach((p) => p.reject(err));
+  pending.forEach((p) => { if (p.timeout) clearTimeout(p.timeout); p.reject(err); });
   pending.clear();
 }
 

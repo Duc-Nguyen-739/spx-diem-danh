@@ -105,7 +105,12 @@ const server = http.createServer((req, res) => {
         return;
       }
     }
-    fs.createReadStream(abs).pipe(res);
+    const stream = fs.createReadStream(abs);
+    stream.on('error', () => {
+      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('500 Read error');
+    });
+    stream.pipe(res);
   });
 });
 
