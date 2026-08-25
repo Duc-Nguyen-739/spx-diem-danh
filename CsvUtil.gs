@@ -72,13 +72,23 @@ function normalizeStaffDate_(date) {
       + ('0' + date.getDate()).slice(-2);
   }
   const s = String(date).trim();
-  // Dạng 2: "8/1/2026" / "26-07-2026" / "2026-01-08"
-  const m = s.match(/^(\d{1,2})[/\-.]?(\d{1,2})[/\-.]?(\d{2,4})$/);
+  // Dạng 2a: ISO "2026-01-08" / "2026/01/08" — phải trước DMY để không rơi vào new Date() lệch TZ
+  const mIso = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (mIso) {
+    const yy = mIso[1];
+    const mm = ('0' + mIso[2]).slice(-2);
+    const dd = ('0' + mIso[3]).slice(-2);
+    const mmN = Number(mIso[2]); const ddN = Number(mIso[3]);
+    if (mmN >= 1 && mmN <= 12 && ddN >= 1 && ddN <= 31) return yy + '-' + mm + '-' + dd;
+  }
+  // Dạng 2: "8/1/2026" / "26-07-2026" — ngày/tháng/năm, separator bắt buộc để "1/2026" không ra tháng 20
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (m) {
     const dd = ('0' + m[1]).slice(-2);
     const mm = ('0' + m[2]).slice(-2);
     const yy = m[3].length === 2 ? '20' + m[3] : m[3];
-    return yy + '-' + mm + '-' + dd;
+    const mmN = Number(m[2]); const ddN = Number(m[1]);
+    if (mmN >= 1 && mmN <= 12 && ddN >= 1 && ddN <= 31) return yy + '-' + mm + '-' + dd;
   }
   // Dạng 3: string kiểu JS "Mon Aug 03 2026 00:00:00 GMT+0700 (Indochina Time)"
   const dt = new Date(s);

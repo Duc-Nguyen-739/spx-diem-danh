@@ -62,14 +62,23 @@ def normalize_staff_date(date):
         except Exception:
             return ""
     s = str(date).strip()
-    # Dạng 2: "8/1/2026" / "26-07-2026" / "2026-01-08"
     import re
-    m = re.match(r"^(\d{1,2})[/\-.]?(\d{1,2})[/\-.]?(\d{2,4})$", s)
+    # Dạng 2a: ISO "2026-01-08" — trước DMY để không rơi vào parsedate lệch TZ
+    m_iso = re.match(r"^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$", s)
+    if m_iso:
+        yy, mm, dd = m_iso.group(1), m_iso.group(2).zfill(2), m_iso.group(3).zfill(2)
+        if 1 <= int(m_iso.group(2)) <= 12 and 1 <= int(m_iso.group(3)) <= 31:
+            return f"{yy}-{mm}-{dd}"
+    # Dạng 2: "8/1/2026" / "26-07-2026" — separator bắt buộc để "1/2026" không ra tháng 20
+    m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$", s)
     if m:
-        dd = m.group(1).zfill(2)
-        mm = m.group(2).zfill(2)
-        yy = m.group(3) if len(m.group(3)) == 4 else "20" + m.group(3)
-        return f"{yy}-{mm}-{dd}"
+        if not (1 <= int(m.group(2)) <= 12 and 1 <= int(m.group(1)) <= 31):
+            pass
+        else:
+            dd = m.group(1).zfill(2)
+            mm = m.group(2).zfill(2)
+            yy = m.group(3) if len(m.group(3)) == 4 else "20" + m.group(3)
+            return f"{yy}-{mm}-{dd}"
     # Dạng 3: "Mon Aug 03 2026 00:00:00 GMT+0700 (Indochina Time)"
     try:
         # Bỏ phần timezone name; datetime.fromisoformat/dateutil quá nặng — parse thủ công
