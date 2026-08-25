@@ -89,8 +89,8 @@
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
-  var scanPollTimer = null;  // poll localStorage chờ kết quả từ tab quét
-  var scanPollSince = 0;     // chỉ nhận kết quả mới hơn thời điểm mở tab
+  var camLegacyPollTimer = null;  // P3-54: đổi tên tránh trùng scanPollTimer của js.html (dead code)
+  var camLegacyPollSince = 0;     // chỉ nhận kết quả mới hơn thời điểm mở tab
   var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
   var CAM_QUAGGA_READERS = ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader'];
 
@@ -726,30 +726,30 @@
   // ===== NHẬN KẾT QUẢ TỪ TAB QUÉT RIÊNG =====
   function startScanResultPolling(token) {
     stopScanResultPolling();
-    scanPollSince = Date.now();
+    camLegacyPollSince = Date.now();
     var hintTimer = setTimeout(function () {
       camStatus('Nếu camera chưa mở: bấm lại 📷 Quét Camera và chọn Mở/Open khi trình duyệt hỏi', true);
     }, 8000);
-    scanPollTimer = setInterval(function () {
+    camLegacyPollTimer = setInterval(function () {
       var data = null;
       try {
         var raw = localStorage.getItem('rcScanResult');
         if (raw) data = JSON.parse(raw);
       } catch (e) { data = null; }
       if (!data || !data.code) return;
-      if (data.token !== token || data.ts < scanPollSince) return;
+      if (data.token !== token || data.ts < camLegacyPollSince) return;
       try { localStorage.removeItem('rcScanResult'); } catch (e) {}
       stopScanResultPolling();
       onCameraDecoded(data.code); // điền mã + submitScan() — Done
     }, 400);
-    scanPollTimer._hint = hintTimer;
+    camLegacyPollTimer._hint = hintTimer;
   }
 
   function stopScanResultPolling() {
-    if (scanPollTimer) {
-      if (scanPollTimer._hint) clearTimeout(scanPollTimer._hint);
-      clearInterval(scanPollTimer);
-      scanPollTimer = null;
+    if (camLegacyPollTimer) {
+      if (camLegacyPollTimer._hint) clearTimeout(camLegacyPollTimer._hint);
+      clearInterval(camLegacyPollTimer);
+      camLegacyPollTimer = null;
     }
   }
 

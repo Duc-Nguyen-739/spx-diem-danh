@@ -15,12 +15,6 @@ from api import csvutil
 from api import scanlogic
 from api import sheets
 
-_write_lock = threading.Lock()
-
-
-def get_write_lock():
-    return _write_lock
-
 
 def sanitize_cell_text(value):
     """Chống formula injection (A1 2026-08-23, mirror GAS sanitizeCellText_): chuỗi text
