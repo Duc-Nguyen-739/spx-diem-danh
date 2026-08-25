@@ -2331,7 +2331,7 @@
     // danh sách kết quả. Cooldown khớp DUPLICATE_WINDOW_MS server (1.5s, 2026-08-17 giảm
     // từ 10s) nên không làm mất lượt quét Ra→Vào hợp lệ.
     var now = Date.now();
-    if (clean === camLastCode && now - camLastCodeTs < CAM_CODE_COOLDOWN_MS) return;
+    if (clean === camLastCode && now - camLastCodeTs < CAM_CODE_COOLDOWN_MS) { camDecoding = false; camSnapping = false; return; }
     camLastCode = clean;
     camLastCodeTs = now;
     if (camScanMode) {
