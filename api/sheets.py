@@ -16,6 +16,14 @@ from api import config
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 _service = None
+_service_lock = None  # lazy init threading.Lock cho execute (P2-8 thread-safety)
+
+def _get_lock():
+    global _service_lock
+    if _service_lock is None:
+        import threading
+        _service_lock = threading.Lock()
+    return _service_lock
 
 # google-api-python-client / google-auth chỉ import trong hàm (lazy) — module
 # import được cả khi chưa cài deps (test logic chạy được trên máy không có google).
@@ -68,12 +76,16 @@ def get_values(sheet_name, range_=None, unformatted=True):
     → convert qua cache.to_datetime giữ nguyên epoch (khớp GAS Date.getTime()).
     unformatted=False → FORMATTED_VALUE: chuỗi hiển thị ("09:02:15") — mất ngày,
     không dùng cho log.
+    P2-8: httplib2.Http singleton không thread-safe (google-api-python-client khuyến cáo
+    mỗi thread 1 Http) — server dùng ThreadingHTTPServer → bọc execute() bằng lock.
     """
     rng = f"'{sheet_name}'" + (f"!{range_}" if range_ else "")
-    result = get_service().spreadsheets().values().get(
+    req = get_service().spreadsheets().values().get(
         spreadsheetId=spreadsheet_id(), range=rng,
         valueRenderOption="UNFORMATTED_VALUE" if unformatted else "FORMATTED_VALUE",
-    ).execute()
+    )
+    with _get_lock():
+        result = req.execute()
     return result.get("values", [])
 
 
@@ -85,10 +97,12 @@ def update_values(sheet_name, start_row, start_col, rows):
     end_col = start_col + len(rows[0]) - 1
     rng = f"'{sheet_name}'!{_col_letter(start_col)}{start_row}:{_col_letter(end_col)}{end_row}"
     body = {"values": rows}
-    get_service().spreadsheets().values().update(
+    req = get_service().spreadsheets().values().update(
         spreadsheetId=spreadsheet_id(), range=rng,
         valueInputOption="USER_ENTERED", body=body,
-    ).execute()
+    )
+    with _get_lock():
+        req.execute()
     return len(rows)
 
 
@@ -103,10 +117,12 @@ def append_values(sheet_name, rows):
         return 0
     rng = f"'{sheet_name}'"
     body = {"values": rows}
-    resp = get_service().spreadsheets().values().append(
+    req = get_service().spreadsheets().values().append(
         spreadsheetId=spreadsheet_id(), range=rng,
         valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body=body,
-    ).execute()
+    )
+    with _get_lock():
+        resp = req.execute()
     start = 0
     try:
         updated = (resp.get("updates") or {}).get("updatedRange") or ""
@@ -135,10 +151,12 @@ _sheet_ids = {}
 def sheet_id(sheet_name):
     """Grid sheetId theo tên — repeatCell/batchUpdate cần sheetId, không phải tên."""
     if sheet_name not in _sheet_ids:
-        resp = get_service().spreadsheets().get(
+        req = get_service().spreadsheets().get(
             spreadsheetId=spreadsheet_id(),
             fields="sheets(properties(sheetId,title))",
-        ).execute()
+        )
+        with _get_lock():
+            resp = req.execute()
         for s in resp.get("sheets", []):
             _sheet_ids[s["properties"]["title"]] = s["properties"]["sheetId"]
     return _sheet_ids.get(sheet_name)
@@ -166,6 +184,8 @@ def set_number_format(sheet_name, start_row, start_col, num_rows, num_cols, fmt)
             }
         }]
     }
-    get_service().spreadsheets().batchUpdate(
+    req = get_service().spreadsheets().batchUpdate(
         spreadsheetId=spreadsheet_id(), body=body,
-    ).execute()
+    )
+    with _get_lock():
+        req.execute()
