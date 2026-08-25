@@ -647,7 +647,8 @@ def search_staff(code):
     matches = [s for s in staff_list if str(s.get("staffId") or "").upper() == q]
     staff = None
     if matches:
-        s = matches[0]
+        # P2-9: last-wins — dòng sau thắng (khớp build_staff_index) để hiển thị khớp quét
+        s = matches[-1]
         staff = {"staffId": s["staffId"], "staffName": s["staffName"], "slotCode": s["slotCode"],
                  "team": s["team"], "station": s["station"]}
         if s.get("agency"):

@@ -220,7 +220,8 @@ function searchStaffApi(code) {
     return String(s.staffId || '').toUpperCase() === q;
   });
   const staff = matches.length ? (function () {
-    const s = matches[0];
+    // P2-9: last-wins — dòng sau thắng (khớp buildStaffIndex) để hiển thị khớp quét
+    const s = matches[matches.length - 1];
     const o = { staffId: s.staffId, staffName: s.staffName, slotCode: s.slotCode, team: s.team, station: s.station };
     if (s.agency) o.agency = s.agency;
     if (s.date) o.date = s.date;
