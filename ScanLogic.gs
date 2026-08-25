@@ -182,7 +182,8 @@ function classifyMealMoveScan(cfg, task, logRows, staffId, mode, nowMs, staffInf
 
     // Rule chống quét trùng (DUPLICATE_WINDOW_MS — 1.5s): so với mốc cuối cùng (Ra hoặc Vào)
     var lastEpoch = Math.max(Number(row.timeRaEpoch) || 0, Number(row.timeScanEpoch) || 0);
-    if (lastEpoch > 0 && (now - lastEpoch) < (cfg.DUPLICATE_WINDOW_MS || 1500)) {
+    var diff = now - lastEpoch;
+    if (lastEpoch > 0 && diff >= 0 && diff < (cfg.DUPLICATE_WINDOW_MS || 1500)) {
       return { action: 'reject', status: null, reason: 'duplicate', row: row, scanPhase: null };
     }
 

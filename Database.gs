@@ -357,8 +357,9 @@ function taskCountersForList_() {
     // TASK_ID (cột 1) + STATUS (cột 10) + TIME_SCAN (cột 9) — cột 9/10 liền nhau →
     // 2 RPC (1 cột TASK_ID + 1 range 9..10) thay vì 3 RPC riêng lẻ.
     const lastRow = sheet.getLastRow();
-    const idCol = sheet.getRange(2, 1, Math.max(0, lastRow - 1), 1).getValues();
-    const stCols = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, Math.max(0, lastRow - 1), 2).getValues();
+    if (lastRow < 2) return {};
+    const idCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const stCols = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, lastRow - 1, 2).getValues();
     const out = {};
     for (let i = 0; i < lastRow - 1; i++) {
       const taskId = String(idCol[i][0] || '').trim();

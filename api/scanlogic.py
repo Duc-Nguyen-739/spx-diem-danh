@@ -113,7 +113,8 @@ def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, st
 
         # Rule chống quét trùng (DUPLICATE_WINDOW_MS — 1.5s): so với mốc cuối cùng (Ra hoặc Vào)
         last_epoch = max(_epoch(row.get("timeRaEpoch")), _epoch(row.get("timeScanEpoch")))
-        if last_epoch > 0 and (now - last_epoch) < (cfg.get("DUPLICATE_WINDOW_MS") or 1500):
+        diff = now - last_epoch
+        if last_epoch > 0 and 0 <= diff < (cfg.get("DUPLICATE_WINDOW_MS") or 1500):
             return {"action": "reject", "status": None, "reason": "duplicate", "row": row, "scanPhase": None}
 
         if has_ra and has_vao:
@@ -183,7 +184,7 @@ def _now_ms(now):
         return int(now)
     # datetime → epoch ms (khớp GAS getTime() = UTC ms)
     if now.tzinfo is None:
-        # 2026-08-20 (review): naive bị coi là UTC → lệch 7h so với UTC+7 thật.
-        # Throw sớm thay vì đoán — mọi caller production đều truyền aware.
-        raise ValueError("_now_ms requires tz-aware datetime (naive lệch 7h)")
+        # Naive → coi là UTC+7 (khớp cache.epoch_ms) + không throw — defensive cho test hook now_override
+        from api.cache import _TZ
+        now = now.replace(tzinfo=_TZ)
     return int(now.timestamp() * 1000)

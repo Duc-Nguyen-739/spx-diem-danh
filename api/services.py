@@ -179,7 +179,7 @@ def create_meal_move_task_core(input_):
             "staffId": id_, "staffName": info.get("staffName") or "",
             "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",
             "team": info.get("team") or "", "workstation": info.get("workstation") or "",
-            "agency": info.get("agency") or "", "date": info.get("date") or "",
+            "agency": info.get("agency") or "",
             "timeRa": time_ra, "timeRaEpoch": ra_epoch,
             "status": config.STATUS["OUT"] if time_ra else config.STATUS["PENDING"],
         })
@@ -398,7 +398,8 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
         return {"ok": False, "message": _BUSY_MSG, "status": None, "scanPhase": None, "counters": {"scanned": 0, "absent": 0, "extra": 0, "total": 0}}
     try:
         task = database.read_task_cached(task_id)
-        log_rows = database.read_log_rows_cached(task_id)
+        # copy để không mutate cached list trực tiếp (fragile nếu bỏ lock)
+        log_rows = list(database.read_log_rows_cached(task_id))
         is_meal = bool(task and task.get("taskType") == config.TASK_TYPE["MEAL_MOVE"])
 
         if is_meal:
@@ -467,6 +468,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
             else:
                 extra_row = scanlogic.build_extra_row(CFG, task_id, staff_id, staff_info, now_dt)
             database.append_log_row(extra_row)
+            # log_rows đã là copy (không phải cached object) → append an toàn
             log_rows.append(extra_row)
             time_scan_text = cache.format_time(extra_row.get("timeScan"))
             time_scan_epoch = extra_row.get("timeScanEpoch") or 0

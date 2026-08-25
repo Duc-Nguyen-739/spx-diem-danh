@@ -204,6 +204,8 @@ def _task_counters_uncached():
     lc = config.LOG_COLS
     out = {}
     id_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:A", unformatted=True)
+    if not id_values:
+        return {}
     st_values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="I2:J", unformatted=True)
     n = len(id_values)
     for i in range(n):
@@ -286,7 +288,10 @@ def read_log_rows(task_id):
         range_ = f"A{first}:M{last}"
         values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=range_, unformatted=True)
         for k in range(first, last + 1):
-            r = log_from_row(task_id, values[k - first])
+            idx = k - first
+            if idx >= len(values):
+                continue
+            r = log_from_row(task_id, values[idx])
             r["_rowIndex"] = k
             out.append(r)
     return out
