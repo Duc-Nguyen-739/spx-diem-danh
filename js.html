@@ -720,6 +720,8 @@
     if (e.key === 'Escape') {
       var tm = byId('taskMenu');
       if (tm && tm.classList.contains('show')) { closeTaskMenu(); return; }
+      var cam = byId('cameraModal');
+      if (cam && cam.style.display === 'flex') { if (typeof closeCameraModal === 'function') closeCameraModal(); return; }
       var m = byId('createModal');
       if (m && m.classList.contains('open')) { closeCreateModal(); return; }
       m = byId('createMealModal');
@@ -732,7 +734,11 @@
     // Tab giữ trong dialog khi mở
     if (e.key === 'Tab') {
       var m = document.querySelector('.about-overlay.open');
-      if (!m) return;
+      if (!m) {
+        var cam2 = byId('cameraModal');
+        if (cam2 && cam2.style.display === 'flex') m = cam2;
+        else return;
+      }
       var focusables = m.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
       if (!focusables.length) return;
       var first = focusables[0], last = focusables[focusables.length - 1];
