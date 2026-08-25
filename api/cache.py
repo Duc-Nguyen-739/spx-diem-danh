@@ -104,7 +104,9 @@ def cached(key, load, ttl_seconds):
 def cache_get_or_put_rev(key, rev_key, load, ttl_seconds):
     """cached() có version-check (O4 2026-08-20): scan chỉ bump rev thay vì remove —
     poll thiết bị khác vẫn HIT (bỏ rebuild full-sheet mỗi lượt khi ≥3 thiết bị poll 3s).
-    Value lưu {v: rev, d: data}; rev lệch/mất → rebuild. Self-heal: chưa có rev → '1'."""
+    Value lưu {v: rev, d: data}; rev lệch/mất → rebuild. Self-heal: chưa có rev → '1'.
+    TOCTOU fix (P1-2 2026-08-25): đọc rev trước load(), sau load đọc lại — lệch thì
+    bỏ cache (tránh độc stale gắn rev mới khi bump chen giữa load và put)."""
     hit = cache_get(key)
     if hit is not None:
         try:
@@ -112,13 +114,17 @@ def cache_get_or_put_rev(key, rev_key, load, ttl_seconds):
                 return hit["d"]
         except Exception:
             pass
+    rev_before = cache_get(rev_key)
     value = load()
     try:
-        rev = cache_get(rev_key)
-        if rev is None:
-            rev = "1"
-            cache_put(rev_key, rev, ttl_seconds)
-        cache_put(key, {"v": rev, "d": value}, ttl_seconds)
+        rev_after = cache_get(rev_key)
+        if rev_after is None:
+            rev_after = "1"
+            cache_put(rev_key, rev_after, ttl_seconds)
+        elif rev_before is not None and rev_after != rev_before:
+            # rev bump chen giữa load và put → value stale, không độc cache
+            return value
+        cache_put(key, {"v": rev_after, "d": value}, ttl_seconds)
     except Exception:
         pass  # cache put fail → lần sau rebuild (không fail-open)
     return value
