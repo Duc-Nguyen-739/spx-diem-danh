@@ -867,6 +867,8 @@
         var video = camVideo();
         if (!camStream || !video || !video.videoWidth) { camRaf = null; return; }
         camDetector.detect(video).then(function (results) {
+          // P2-6: guard stale sau khi đóng camera (promise resolve muộn) — chỉ nhận khi phiên còn mở
+          if (!camScanMode && (!camOpen || !camStream)) { camRaf = requestAnimationFrame(loop); return; }
           if (results && results.length && results[0].rawValue) {
             onCameraDecoded(results[0].rawValue);
             // QUÉT LIÊN TỤC: sau 1 mã KHÔNG dừng loop — lên lịch frame kế tiếp
@@ -2138,6 +2140,13 @@
     if (!data) return;
     if (data.ready) return; // tín hiệu load xong worker — không phải mã
     if (!data.text) return;
+    // P2-6: guard stale sau khi đóng camera — worker resolve muộn
+    // Chỉ chặn khi modal đã đóng (production sau close: cameraModal display !== 'flex');
+    // test Node không có modal (getElementById → null) → cho qua để test không fail.
+    if (!camScanMode && !camOpen) {
+      var __m2 = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('cameraModal') : null;
+      if (__m2 && __m2.style.display !== 'flex') return;
+    }
     var code = camZxingPickCode(data.text);
     if (!code) return;
     if (camSnapping) return;
