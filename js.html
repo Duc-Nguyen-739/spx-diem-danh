@@ -540,7 +540,7 @@
   function renderSearchResult(res, q) {
     var box = document.getElementById('headerSearchResult');
     if (!box) return;
-    if (!res.ok) {
+    if (!res || !res.ok) {
       renderSearchMessage(res.message || ('Không tìm thấy mã ' + q), true);
       // Mã không khớp → bỏ lọc đang hiển thị (không giữ badge cũ)
       if (_taskFilterStaff) {
