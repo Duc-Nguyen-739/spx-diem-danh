@@ -81,6 +81,11 @@ def sanitize_callback(cb):
     return s
 
 
+def _bad_request():
+    """Action để test handler: ném exception — client nhận generic error A3."""
+    raise RuntimeError("secret path /home/abc")
+
+
 def api_token():
     """Token API tùy chọn (env ROLLCALL_API_TOKEN — Điểm Danh HN2 SOC) — 2026-08-19 (NEW-1).
 

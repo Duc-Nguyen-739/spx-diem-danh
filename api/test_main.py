@@ -91,7 +91,7 @@ class TestMain(unittest.TestCase):
         """A3 (2026-08-23): hàm throw → client nhận message chung, KHÔNG leak str(e)."""
         from unittest import mock
         saved = dict(main.API_ACTIONS)
-        main.API_ACTIONS["boom"] = (lambda: (_ for _ in ()).throw(RuntimeError("secret path /home/abc")), 0)
+        main.API_ACTIONS["boom"] = (main._bad_request, 0)
         try:
             resp = main.handler(self._event("boom"))
             data = self._json(resp)
