@@ -74,6 +74,10 @@ function createReconcileTask(input) {
     if (!deduped.length) {
       return { ok: false, taskId: null, count: 0, message: UI_LABELS.CREATE_FAILED_EMPTY };
     }
+    // P2-7 (2026-08-25): cap số lượng NV để tránh vượt quota/timeout 6 phút khi StaffData lớn
+    if (deduped.length > 1000) {
+      return { ok: false, taskId: null, count: 0, message: 'Quá nhiều nhân viên (' + deduped.length + '), giới hạn 1000' };
+    }
 
     const now = new Date();
     let taskId = makeTaskId_(now);
@@ -96,10 +100,15 @@ function createReconcileTask(input) {
       completedAt: null,
       note: note,
     };
-    insertTask_(task);
-    const count = batchInsertLogRows_(taskId, deduped, now);
-
-    return { ok: true, taskId: taskId, count: count, message: 'Tạo task thành công: ' + taskId };
+    // P2-7: nguyên tử — nếu pre-fill fail, đóng task vừa tạo để không để lại task ma OPEN 0 dòng
+    try {
+      insertTask_(task);
+      const count = batchInsertLogRows_(taskId, deduped, now);
+      return { ok: true, taskId: taskId, count: count, message: 'Tạo task thành công: ' + taskId };
+    } catch (e) {
+      try { updateTaskStatus_(taskId, TASK_STATUS.DONE, new Date(), task._rowIndex); } catch (e2) {}
+      throw e;
+    }
   } finally {
     lock.releaseLock();
   }
@@ -266,6 +275,10 @@ function createMealMoveTaskCore_(input) {
     return { ok: false, taskId: null, count: 0, message: 'Vui lòng chọn Station và Team để tạo task' };
   }
   const raw = Array.isArray(input && input.staffIds) ? input.staffIds : [];
+  // P2-7: cap danh sách mã — tránh batchInsertLogRows_ 50k dòng vượt quota/timeout 6 phút
+  if (raw.length > 1000) {
+    return { ok: false, taskId: null, count: 0, message: 'Quá nhiều mã (' + raw.length + '), giới hạn 1000' };
+  }
   // 2026-08-18: map staffId → epoch ms "Giờ điểm danh" của task reconcile — ghi vào
   // cột "Giờ Ra" (TIME_RA) khi pre-fill log, để NV có sẵn giờ Ra (không phải quét lại).
   const timeRaByStaff = (input && input.timeRaByStaff) || {};
@@ -335,11 +348,16 @@ function createMealMoveTaskCore_(input) {
       completedAt: null,
       note: note,
     };
-    insertTask_(task);
-    // Pre-fill log: 1 dòng / NV, status PENDING, chưa có Ra/Vào
-    const count = batchInsertLogRows_(taskId, staffList, now);
-
-    return { ok: true, taskId: taskId, count: count, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
+    // P2-7: nguyên tử — nếu pre-fill fail, đóng task vừa tạo
+    try {
+      insertTask_(task);
+      // Pre-fill log: 1 dòng / NV, status PENDING, chưa có Ra/Vào
+      const count = batchInsertLogRows_(taskId, staffList, now);
+      return { ok: true, taskId: taskId, count: count, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
+    } catch (e) {
+      try { updateTaskStatus_(taskId, TASK_STATUS.DONE, new Date(), task._rowIndex); } catch (e2) {}
+      throw e;
+    }
 }
 
 /** Lấy danh sách task (cho getTaskList API). */

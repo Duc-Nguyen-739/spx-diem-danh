@@ -110,6 +110,8 @@ def create_reconcile_task(input_):
 
         if not deduped:
             return {"ok": False, "taskId": None, "count": 0, "message": config.UI_LABELS["CREATE_FAILED_EMPTY"]}
+        if len(deduped) > 1000:
+            return {"ok": False, "taskId": None, "count": 0, "message": f"Quá nhiều nhân viên ({len(deduped)}), giới hạn 1000"}
 
         now = datetime.datetime.now(cache._TZ)
         task_id = make_task_id(now)
@@ -124,9 +126,16 @@ def create_reconcile_task(input_):
             "status": config.TASK_STATUS["OPEN"], "createdAt": now,
             "createdBy": created_by, "completedAt": None, "note": note,
         }
-        database.insert_task(task)
-        count = database.batch_insert_log_rows(task_id, deduped, now)
-        return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task thành công: {task_id}"}
+        try:
+            database.insert_task(task)
+            count = database.batch_insert_log_rows(task_id, deduped, now)
+            return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task thành công: {task_id}"}
+        except Exception:
+            try:
+                database.update_task_status(task_id, config.TASK_STATUS["DONE"], datetime.datetime.now(cache._TZ))
+            except Exception:
+                pass
+            raise
     finally:
         _lock.release()
 
@@ -152,6 +161,8 @@ def create_meal_move_task_core(input_):
         return {"ok": False, "taskId": None, "count": 0, "message": "Vui lòng chọn Station và Team để tạo task"}
 
     raw = list(inp.get("staffIds")) if isinstance(inp.get("staffIds"), (list, tuple)) else []
+    if len(raw) > 1000:
+        return {"ok": False, "taskId": None, "count": 0, "message": f"Quá nhiều mã ({len(raw)}), giới hạn 1000"}
     seen = set()
     ids = []
     for c in raw:
@@ -197,9 +208,16 @@ def create_meal_move_task_core(input_):
         "status": config.TASK_STATUS["OPEN"], "createdAt": now,
         "createdBy": created_by, "completedAt": None, "note": note,
     }
-    database.insert_task(task)
-    count = database.batch_insert_log_rows(task_id, staff_list, now)
-    return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task Điểm danh Ra/Vào: {task_id}"}
+    try:
+        database.insert_task(task)
+        count = database.batch_insert_log_rows(task_id, staff_list, now)
+        return {"ok": True, "taskId": task_id, "count": count, "message": f"Tạo task Điểm danh Ra/Vào: {task_id}"}
+    except Exception:
+        try:
+            database.update_task_status(task_id, config.TASK_STATUS["DONE"], datetime.datetime.now(cache._TZ))
+        except Exception:
+            pass
+        raise
 
 
 # ===== Task lifecycle =====
