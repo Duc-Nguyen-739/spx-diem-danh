@@ -2429,7 +2429,7 @@
     }
     var input = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT);
     if (!input.staffIds.length) {
-      showToast('Chưa có nhân viên nào Có mặt để chuyển', true);
+      showToast('Chưa có nhân viên nào Có mặt/Dư để chuyển', true);
       return;
     }
     if (!canSubmitMealCreate(input.station, input.team)) {
@@ -2782,8 +2782,12 @@
     }
     var staffIds = [];
     var timeRaByStaff = {};
+    // 2026-08-25: lấy cả "Có mặt" và "Dư" (NV lạ) sang task Ra/Vào — trước chỉ lấy Có mặt
+    // Hardcode 2 label để khối PURE-LOGIC không phụ thuộc STATUS_C (nằm ngoài block)
+    var wantStatuses = ['Có mặt', 'Dư'];
+    if (presentStatus && wantStatuses.indexOf(presentStatus) === -1) wantStatuses.push(presentStatus);
     (logRows || []).forEach(function (r) {
-      if (r && r.status === presentStatus && r.staffId) {
+      if (r && wantStatuses.indexOf(r.status) >= 0 && r.staffId) {
         var id = String(r.staffId).trim();
         staffIds.push(id);
         if (Number(r.timeScanEpoch) > 0) timeRaByStaff[id] = Number(r.timeScanEpoch);

@@ -413,7 +413,7 @@ test('transferPresentListToMealMove: không có NV Có mặt → toast + không 
   global.CURRENT_TASK = { taskId: 'RC-1', taskType: 'reconcile', station: 'HN2 SOC', team: 'Outbound', status: 'open' };
   global.CURRENT_LOG = [{ staffId: 'OPS2', status: 'Vắng' }];
   api.transferPresentListToMealMove();
-  assert.equal(toastMsg, 'Chưa có nhân viên nào Có mặt để chuyển');
+  assert.equal(toastMsg, 'Chưa có nhân viên nào Có mặt/Dư để chuyển');
   assert.equal(lastCall, null);
 });
 
