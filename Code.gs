@@ -332,7 +332,8 @@ function getTaskListApi(clientSig) {
   if (clientSig && computeTaskListSig(tasks) === clientSig) {
     return { ok: true, unchanged: true };
   }
-  return tasks;
+  // P2-11: thống nhất shape với getTaskDetailApi — luôn {ok, tasks}
+  return { ok: true, tasks: tasks };
 }
 
 /** Chi tiết task + log + counters. clientSig (O-A): khớp → {ok:true, unchanged:true}. */

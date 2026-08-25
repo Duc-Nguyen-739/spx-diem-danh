@@ -361,11 +361,12 @@ def compute_detail_sig(detail):
 
 
 def list_tasks(client_sig=None):
-    """O-A: client_sig khớp → {ok:True, unchanged:True} (~40B) thay vì full list mỗi poll."""
+    """O-A: client_sig khớp → {ok:True, unchanged:True} (~40B) thay vì full list mỗi poll.
+    P2-11: luôn trả {ok, tasks} khi có dữ liệu để thống nhất shape với get_task_detail."""
     tasks = database.read_task_list()
     if client_sig and compute_task_list_sig(tasks) == client_sig:
         return {"ok": True, "unchanged": True}
-    return tasks
+    return {"ok": True, "tasks": tasks}
 
 
 def get_task_detail(task_id, client_sig=None):

@@ -255,7 +255,8 @@ class TestServices(unittest.TestCase):
         services.create_meal_move_task({
             "station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["Ops001"], "createdBy": "creator@x",
         })
-        task_id = services.list_tasks()[0]["taskId"]
+        _res = services.list_tasks()
+        task_id = (_res["tasks"] if isinstance(_res, dict) else _res)[0]["taskId"]
         r = services.paste_meal_move_scan(task_id, ["Ops001", "Ops002", "OPS999"], "ra", now_override=self.t0)
         self.assertTrue(r["ok"], r.get("message"))
         self.assertEqual(r["summary"]["ra"], 3)  # cả 3 ghi Ra (kể cả NV lạ)
@@ -322,7 +323,8 @@ class TestServices(unittest.TestCase):
         self.assertTrue(row.get("timeRaText"))
         self.assertEqual(detail["counters"]["scanned"], 1)
         self.assertEqual(detail["counters"]["out"], 0)
-        lst = services.list_tasks()[0]
+        _lst_res = services.list_tasks()
+        lst = (_lst_res["tasks"] if isinstance(_lst_res, dict) else _lst_res)[0]
         self.assertEqual(lst["scanned"], 1)
 
     def test_resolve_meal_move_mode_anyone_can_ra(self):
@@ -404,16 +406,21 @@ class TestServices(unittest.TestCase):
     def test_task_list_delta_poll_unchanged(self):
         # O-A (2026-08-20): list_tasks nhận client_sig — khớp → unchanged thay full list.
         # (list rỗng → sig "" falsy → server trả full — behavior đúng, cần task để sig khác rỗng)
+        # P2-11: luôn {ok, tasks} khi có dữ liệu
         self._create_task()
-        tasks = services.list_tasks()
+        res = services.list_tasks()
+        self.assertIsInstance(res, dict)
+        self.assertIn("tasks", res)
+        tasks = res["tasks"]
         self.assertIsInstance(tasks, list)
         sig = services.compute_task_list_sig(tasks)
         self.assertTrue(sig, "có task → signature không rỗng")
         out = services.list_tasks(sig)
         self.assertTrue(out.get("unchanged"), "sig khớp → phải trả unchanged")
         out2 = services.list_tasks("sig-khac")
-        self.assertIsInstance(out2, list, "sig khác → trả full list (không phải dict unchanged)")
-        self.assertEqual(out2[0]["taskId"], tasks[0]["taskId"])
+        self.assertIsInstance(out2, dict, "sig khác → trả {ok, tasks}")
+        self.assertIn("tasks", out2)
+        self.assertEqual(out2["tasks"][0]["taskId"], tasks[0]["taskId"])
 
     def test_detail_sig_field_scope(self):
         # O-A: sig phải BAO PHỦ mọi field render — status/counters/log row đổi đều đổi sig

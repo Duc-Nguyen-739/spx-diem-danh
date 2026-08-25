@@ -128,7 +128,10 @@ class TestMain(unittest.TestCase):
         resp = main.handler({"body": body})
         data = self._json(resp)
         self.assertTrue(data["ok"])
-        self.assertIsInstance(data["result"], list)
+        # P2-11: luôn {ok, tasks}
+        self.assertIsInstance(data["result"], dict)
+        self.assertIn("tasks", data["result"])
+        self.assertIsInstance(data["result"]["tasks"], list)
 
     def test_probe(self):
         resp = main.handler(self._event("probe"))

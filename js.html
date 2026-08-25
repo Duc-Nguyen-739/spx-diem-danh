@@ -1291,7 +1291,9 @@
     var cntLoading = byId('taskCount');
     if (cntLoading) cntLoading.textContent = '…';
     google.script.run
-      .withSuccessHandler(function (tasks) {
+      .withSuccessHandler(function (res) {
+        // P2-11: thống nhất shape {ok, tasks} — tương thích array cũ
+        var tasks = Array.isArray(res) ? res : (res && res.tasks) ? res.tasks : [];
         // 2026-08-20 (review): BỎ _taskPage=1 — refresh tay (⟳) đang ở trang 2/3
         // nhảy về trang 1; poll đã giữ trang (B2) còn refresh tay thì không (bất
         // nhất). Reset trang giờ CHỈ do applyDashFilters khi ĐỔI bộ lọc.
@@ -1707,8 +1709,9 @@
         taskListPollInFlight = false;
         // O-A (2026-08-20): server so signature — khớp → {ok, unchanged} ~40B thay
         // full list; giữ lastTaskListSig để lần kế server so tiếp.
+        // P2-11: thống nhất shape {ok, tasks} — tương thích array cũ
         if (res && res.unchanged) { markServerOk(); return; }
-        var tasks = res || [];
+        var tasks = Array.isArray(res) ? res : (res && res.tasks) ? res.tasks : (res || []);
         var sig = taskListSignature(tasks);
         if (sig === lastTaskListSig) return; // không đổi → giữ nguyên (không reset sort/filter)
         lastTaskListSig = sig;
