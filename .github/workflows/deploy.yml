@@ -15,10 +15,15 @@ jobs:
         with:
           node-version: '22'
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: CI gate — chặn regression (dual runtime)
         run: |
           npm ci
           npm test
+          pip install -r requirements.txt
           python3 -m unittest discover -s api -p 'test_*.py'
 
       - name: Setup Node + clasp
