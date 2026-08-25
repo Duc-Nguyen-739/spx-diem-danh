@@ -1052,6 +1052,11 @@
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
       }
+      /* Exempt loading indicators — keep spinner visible */
+      .spinner, .spinner::before, .spinner::after {
+        animation-duration: 0.7s !important;
+        animation-iteration-count: infinite !important;
+      }
     }
 
     /* High contrast (tham khảo v1): kiosk màn cũ/sáng gắt — đậm border, tương phản cao */

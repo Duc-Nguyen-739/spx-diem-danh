@@ -227,7 +227,12 @@
     if (mqDash) {
       var syncDashMini = function (m) {
         var layout = document.querySelector('.dash-layout');
-        if (layout && m.matches && !layout.classList.contains('mini')) layout.classList.add('mini');
+        if (!layout) return;
+        if (m.matches) {
+          if (!layout.classList.contains('mini')) layout.classList.add('mini');
+        } else {
+          layout.classList.remove('mini');
+        }
       };
       if (mqDash.addEventListener) mqDash.addEventListener('change', syncDashMini);
       else if (mqDash.addListener) mqDash.addListener(syncDashMini);
@@ -1887,6 +1892,7 @@
     var sw = byId('btnMealSwitch');
     if (sw) {
       sw.textContent = mode === 'ra' ? 'Chuyển Quét Điểm Danh' : 'Chuyển Quét Lấy Danh Sách';
+      sw.setAttribute('aria-label', sw.textContent);
     }
     // Cập nhật placeholder scan
     var inp = byId('scanInput');
