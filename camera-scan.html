@@ -628,6 +628,7 @@
       '      row.className = "rrow new"; // highlight dòng mới rồi tự tắt (2026-08-17)',
       '      row.setAttribute("data-code", String(d.code));',
       '      body.appendChild(row);',
+      '      if (body.children.length > 100) { try { body.removeChild(body.children[0]); } catch (e) {} }',
       '    } else {',
       // BUG 2026-08-19: update CHỈ mang tên (camUpdateName gửi status/time rỗng) →
       // giữ badge trạng thái + giờ cũ của dòng, không xóa trắng.
@@ -2278,6 +2279,10 @@
     row.setAttribute('data-code', code);
     row.innerHTML = camResultRowHTML(payload);
     body.appendChild(row);
+    // P3-52: cap 100 dòng — tránh DOM tăng vô hạn khi quét liên tục 1000+ lượt/ca
+    if (body.children.length > 100) {
+      try { body.removeChild(body.children[0]); } catch (e) { try { body.children.shift(); } catch (e2) {} }
+    }
     // Scroll CONTAINER #camResults (.camera-results — overflow-y:auto) xuống dòng mới.
     // Trước set trên #camResultsBody (con, không scroll được) → danh sách đứng im (bug
     // 2026-08-17 — user báo "thông tin bên dưới không cuộn theo mã vừa quét").
