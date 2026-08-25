@@ -168,6 +168,10 @@ function readStaffListUncached_() {
     const f = CSV_HEADER_FIELD[header[c]];
     if (f !== undefined) fieldOf[f] = c;
   }
+  if (fieldOf.staffId === undefined) {
+    try { Logger.log('readStaffListUncached_: Staff ID header missing — header=' + JSON.stringify(header)); } catch (e2) {}
+    return [];
+  }
   const out = [];
   for (let r = 1; r < values.length; r++) {
     const v = values[r];

@@ -173,6 +173,10 @@ function buildStaffIndex(values) {
     const f = CSV_HEADER_FIELD[header[c]];
     if (f) col[f] = c;
   }
+  if (col.staffId === undefined) {
+    try { Logger.log('buildStaffIndex: Staff ID header missing — header=' + JSON.stringify(header)); } catch (e) {}
+    return index;
+  }
   for (let r = 1; r < values.length; r++) {
     const v = values[r];
     const staffId = normalizeStaffId(v[col.staffId]);
