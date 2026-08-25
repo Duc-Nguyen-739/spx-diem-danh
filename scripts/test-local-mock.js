@@ -50,6 +50,8 @@ async function ensureCdp() {
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-gpu',
+    // Container/CI cần --no-sandbox; máy thường no-op an toàn
+    '--no-sandbox',
     'about:blank',
   ], { stdio: 'ignore' });
   for (let i = 0; i < 20; i++) {
