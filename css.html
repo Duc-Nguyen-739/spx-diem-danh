@@ -1040,6 +1040,19 @@
   .btn-meal-switch:active { transform: translateY(0) scale(.97); }
   .btn-meal-switch:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
   .btn-meal-switch[hidden] { display: none; }
+  /* Copy mã Ops — nằm cùng hàng Hoàn Thành/Chuyển Danh Sách (2026-08-25): viền cam SPX, hover fill, pulse khi copy */
+  .btn-copy-ops {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #fff; color: var(--primary); border: 1.5px solid var(--primary);
+    font-weight: 700; white-space: nowrap; padding: 9px 16px; border-radius: 10px;
+    transition: all .18s ease; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  .btn-copy-ops:hover { background: var(--primary); color: #fff; transform: translateY(-1px); box-shadow: 0 5px 14px rgba(11,87,208,.25); }
+  .btn-copy-ops:active { transform: translateY(0) scale(.97); }
+  .btn-copy-ops:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-copy-ops[hidden] { display: none; }
+  .btn-copy-ops.copied { background: var(--success); border-color: var(--success); color: #fff; animation: copyPulse .42s ease; }
+  @keyframes copyPulse { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
   .counter.out .num { color: #e65100; }
   .counter.out .lbl { color: #e65100; }
 

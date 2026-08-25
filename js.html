@@ -2476,6 +2476,66 @@
       })
       .transferPresentListToMealMoveApi(input, CURRENT_TASK.taskId);
   }
+  // COPY MÃ OPS (2026-08-25): copy toàn bộ mã Ops trong task hiện tại (cả reconcile + meal-move)
+  // Nút nằm cùng hàng Hoàn Thành/Chuyển Danh Sách — dùng cho cả task open/done.
+  function copyAllOpsCodes() {
+    var list = CURRENT_LOG || [];
+    if (!list.length) {
+      showToast('Không có mã Ops nào để copy', true);
+      return;
+    }
+    var codes = [];
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i] && list[i].staffId ? String(list[i].staffId).trim() : '';
+      if (id) codes.push(id);
+    }
+    if (!codes.length) {
+      showToast('Không có mã hợp lệ để copy', true);
+      return;
+    }
+    var text = codes.join('\n');
+    var btn = byId('btnCopyOps');
+    var onDone = function () {
+      showToast('Đã copy ' + codes.length + ' mã Ops ✓', false);
+      if (btn) {
+        var old = btn.textContent;
+        btn.textContent = '✓ Đã copy';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = old;
+          btn.classList.remove('copied');
+        }, 1400);
+      }
+    };
+    var onFail = function (msg) {
+      showToast(msg || 'Không copy được — thử lại', true);
+    };
+    var fallbackCopy = function () {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) onDone();
+        else onFail('Không copy được — trình duyệt chặn');
+      } catch (e) {
+        onFail(e && e.message ? e.message : 'Không copy được');
+      }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onDone).catch(function () {
+        fallbackCopy();
+      });
+    } else {
+      fallbackCopy();
+    }
+  }
   // MEAL-CREATE-END
 
   // Meal-move: dán hàng loạt mã Ops (từ ô quét) → gọi pasteMealMoveScanApi (batch 1 RPC).
@@ -2987,6 +3047,15 @@
       transferBtn.hidden = !isOpen || !CURRENT_TASK || CURRENT_TASK.taskType === 'meal-move';
       transferBtn.disabled = scanBusy() || !isOpen;
       transferBtn.title = scanBusy() ? 'Đang xử lý quét — chờ xong rồi chuyển' : '';
+    }
+    // Nút "Copy mã Ops" (2026-08-25): hiện cho cả 2 loại task (reconcile + meal-move), cả open/done
+    // Disable khi chưa có log để copy.
+    var copyBtn = byId('btnCopyOps');
+    if (copyBtn) {
+      copyBtn.hidden = !CURRENT_TASK;
+      var hasLog = !!(CURRENT_LOG && CURRENT_LOG.length);
+      copyBtn.disabled = !hasLog;
+      copyBtn.title = hasLog ? 'Copy ' + CURRENT_LOG.length + ' mã Ops (mỗi dòng 1 mã)' : 'Chưa có mã nào để copy';
     }
     // Nhãn nút Kết Thúc: OPEN + chưa có Ra → "Hoàn Thành" (xanh); OPEN + đã có Ra → "Kết Thúc" (đỏ)
     if (btn && CURRENT_TASK && isOpen) {
