@@ -6,7 +6,7 @@
  * code được deploy (trích từ js.html), giống tests/task-cards.test.js cho danh sách task.
  *
  * Đảm bảo: card cùng dữ liệu với bảng desktop (Mã NV + Tên + badge + chips thông tin);
- * reconcile hiện agency/slot/team/station + Giờ; meal-move hiện Ra/Vào/Vender/Phút;
+ * reconcile hiện Vender/Ca/Team/Station + Giờ; meal-move hiện Ca/Team/Station/Ra/Vào/Vender/Phút;
  * NV Dư thêm class extra + badge Dư; staffId/staffName được escape (chống XSS) — cả text
  * lẫn data-id.
  */
@@ -60,7 +60,7 @@ const ctx = makeSandbox();
 vm.createContext(ctx);
 vm.runInContext(script, ctx);
 
-test('scanRowCardHTML: reconcile → Mã NV + Tên + badge Chưa điểm danh + chips đủ (agency/slot/team/station/Giờ)', () => {
+test('scanRowCardHTML: reconcile → Mã NV + Tên + badge Chưa điểm danh + chips đủ (Vender/Ca/Team/Station/Giờ)', () => {
   ctx.CURRENT_TASK = { taskType: 'reconcile' };
   const html = ctx.scanRowCardHTML({
     staffId: 'OPS12345', staffName: 'Nguyễn Văn A', status: '-',
@@ -71,9 +71,11 @@ test('scanRowCardHTML: reconcile → Mã NV + Tên + badge Chưa điểm danh + 
   assert.ok(html.indexOf('OPS12345') >= 0, 'phải hiện mã NV');
   assert.ok(html.indexOf('Nguyễn Văn A') >= 0, 'phải hiện tên NV');
   assert.ok(html.indexOf('badge pending') >= 0 && html.indexOf('Chưa điểm danh') >= 0, 'badge phải là Chưa điểm danh');
-  assert.ok(html.indexOf('Thầu X') >= 0 && html.indexOf('08:00-17:00') >= 0, 'phải hiện agency + Ca');
-  assert.ok(html.indexOf('Outbound') >= 0 && html.indexOf('HN2 SOC') >= 0, 'phải hiện Team + Station');
-  assert.ok(html.indexOf('Giờ') >= 0 && html.indexOf('09:05:12') >= 0, 'phải hiện Giờ điểm danh');
+  assert.ok(html.indexOf('<i>Vender</i>') >= 0 && html.indexOf('Thầu X') >= 0, 'phải hiện Vender');
+  assert.ok(html.indexOf('<i>Ca</i>') >= 0 && html.indexOf('08:00-17:00') >= 0, 'phải hiện Ca');
+  assert.ok(html.indexOf('<i>Team</i>') >= 0 && html.indexOf('Outbound') >= 0, 'phải hiện Team');
+  assert.ok(html.indexOf('<i>Station</i>') >= 0 && html.indexOf('HN2 SOC') >= 0, 'phải hiện Station');
+  assert.ok(html.indexOf('<i>Giờ</i>') >= 0 && html.indexOf('09:05:12') >= 0, 'phải hiện Giờ điểm danh');
   assert.ok(html.indexOf('data-id="OPS12345"') >= 0, 'data-id phải đúng mã NV');
   assert.ok(html.indexOf('extra') < 0, 'NV thường không được có class extra');
 });
@@ -87,7 +89,7 @@ test('scanRowCardHTML: reconcile chưa quét → chip Giờ hiện — (không c
   assert.ok(html.indexOf('—') >= 0, 'chưa quét → Giờ hiện —');
 });
 
-test('scanRowCardHTML: meal-move → chip Ra/Vào/Vender/Phút; không hiện chip Giờ reconcile', () => {
+test('scanRowCardHTML: meal-move → chip Ca/Team/Station/Ra/Vào/Vender/Phút; không hiện chip Giờ reconcile', () => {
   ctx.CURRENT_TASK = { taskType: 'meal-move' };
   const html = ctx.scanRowCardHTML({
     staffId: 'OPS2', staffName: 'B', status: 'Có mặt',
@@ -95,10 +97,13 @@ test('scanRowCardHTML: meal-move → chip Ra/Vào/Vender/Phút; không hiện ch
     timeRaText: '11:30:00', timeScanText: '11:45:20', durationMinutes: 15,
   });
   assert.ok(html.indexOf('badge present') >= 0 && html.indexOf('Có mặt') >= 0, 'badge phải là Có mặt');
-  assert.ok(html.indexOf('Ra') >= 0 && html.indexOf('11:30:00') >= 0, 'phải hiện Giờ Ra');
-  assert.ok(html.indexOf('Vào') >= 0 && html.indexOf('11:45:20') >= 0, 'phải hiện Giờ Vào');
-  assert.ok(html.indexOf('Vender') >= 0 && html.indexOf('Thầu Y') >= 0, 'phải hiện Vender');
-  assert.ok(html.indexOf('Phút') >= 0 && html.indexOf('>15<') >= 0, 'phải hiện số phút');
+  assert.ok(html.indexOf('<i>Ca</i>') >= 0 && html.indexOf('08:00-17:00') >= 0, 'phải hiện Ca');
+  assert.ok(html.indexOf('<i>Team</i>') >= 0 && html.indexOf('Inbound') >= 0, 'phải hiện Team');
+  assert.ok(html.indexOf('<i>Station</i>') >= 0 && html.indexOf('HN3') >= 0, 'phải hiện Station');
+  assert.ok(html.indexOf('<i>Ra</i>') >= 0 && html.indexOf('11:30:00') >= 0, 'phải hiện Giờ Ra');
+  assert.ok(html.indexOf('<i>Vào</i>') >= 0 && html.indexOf('11:45:20') >= 0, 'phải hiện Giờ Vào');
+  assert.ok(html.indexOf('<i>Vender</i>') >= 0 && html.indexOf('Thầu Y') >= 0, 'phải hiện Vender');
+  assert.ok(html.indexOf('<i>Phút</i>') >= 0 && html.indexOf('>15<') >= 0, 'phải hiện số phút');
   assert.ok(html.indexOf('<i>Giờ</i>') < 0, 'meal-move không dùng chip Giờ reconcile');
   assert.ok(html.indexOf('>—<') < 0, 'meal-move có đủ Ra/Vào → không có chip — thay thế');
 });

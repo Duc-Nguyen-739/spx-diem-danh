@@ -2117,18 +2117,18 @@
     var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
     var chips = [];
     if (isMealMove) {
-      if (r.slotCode) chips.push('<span>' + esc(r.slotCode) + '</span>');
-      if (r.team) chips.push('<span>' + esc(r.team) + '</span>');
-      if (r.station) chips.push('<span>' + esc(r.station) + '</span>');
+      if (r.slotCode) chips.push('<span><i>Ca</i>' + esc(r.slotCode) + '</span>');
+      if (r.team) chips.push('<span><i>Team</i>' + esc(r.team) + '</span>');
+      if (r.station) chips.push('<span><i>Station</i>' + esc(r.station) + '</span>');
       chips.push('<span><i>Ra</i>' + esc(r.timeRaText || '—') + '</span>');
       chips.push('<span><i>Vào</i>' + esc(r.timeScanText || '—') + '</span>');
       if (r.agency) chips.push('<span><i>Vender</i>' + esc(r.agency) + '</span>');
       if (r.durationMinutes != null) chips.push('<span><i>Phút</i>' + r.durationMinutes + '</span>');
     } else {
-      if (r.agency) chips.push('<span>' + esc(r.agency) + '</span>');
-      if (r.slotCode) chips.push('<span>' + esc(r.slotCode) + '</span>');
-      if (r.team) chips.push('<span>' + esc(r.team) + '</span>');
-      if (r.station) chips.push('<span>' + esc(r.station) + '</span>');
+      if (r.agency) chips.push('<span><i>Vender</i>' + esc(r.agency) + '</span>');
+      if (r.slotCode) chips.push('<span><i>Ca</i>' + esc(r.slotCode) + '</span>');
+      if (r.team) chips.push('<span><i>Team</i>' + esc(r.team) + '</span>');
+      if (r.station) chips.push('<span><i>Station</i>' + esc(r.station) + '</span>');
       chips.push('<span><i>Giờ</i>' + esc(r.timeScanText || '—') + '</span>');
     }
     return '<div class="scan-row-card' + (r.status === STATUS_C.EXTRA ? ' extra' : '') + '" data-id="' + escAttr(r.staffId) + '">' +
