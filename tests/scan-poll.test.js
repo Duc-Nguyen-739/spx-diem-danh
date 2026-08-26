@@ -483,8 +483,8 @@ test('auto-focus loop: camera mở → KHÔNG input.focus() (không bật bàn p
   scanView.classList.contains = function () { return false; }; // viewScan đang hiện
   sb.ctx.startAutoFocusLoop();
   sb.win.__RC_CAM_OPEN__ = true;
-  const interval = sb.timers.filter(function (t) { return t.kind === 'interval'; }).find(function (t) { return t.ms === 30000; });
-  assert.ok(interval, 'phải có auto-focus interval 30s (yêu cầu 2026-08-18 — trước 3s giật focus quá thường xuyên)');
+  const interval = sb.timers.filter(function (t) { return t.kind === 'interval'; }).find(function (t) { return t.ms === 3000; });
+  assert.ok(interval, 'phải có auto-focus interval 3s (yêu cầu user — trước 15s, giờ 3s quay về scan input)');
   interval.fn();
   assert.equal(focusCalls, 0, 'camera mở → loop không được gọi input.focus()');
 });

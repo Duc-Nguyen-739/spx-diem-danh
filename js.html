@@ -323,7 +323,10 @@
     onScroll();
   }
 
-  /* ===== Auto-focus loop (tham khảo v1): giữ focus vào scan input trên kiosk touch ===== */
+  /* ===== Auto-focus loop (tham khảo v1): giữ focus vào scan input trên kiosk touch =====
+     3s: tự quay về ô "Quét hoặc dán mã nhân viên…" khi kiosk idle — áp dụng cả 2 task
+     Điểm danh ca (reconcile) và Điểm danh Ra/Vào (meal-move), cùng input #scanInput.
+     KHÔNG giật focus khi đang focus ở ô lọc #scanSearch / ghi chú #taskNoteEdit (INPUT/TEXTAREA). */
   function startAutoFocusLoop() {
     if (AUTO_FOCUS_TIMER) return;
     AUTO_FOCUS_TIMER = setInterval(function () {
@@ -332,15 +335,18 @@
       var scanView = byId('viewScan');
       var input = byId('scanInput');
       // P2 (audit): viewScan hidden → không cần giữ focus (đang ở danh sách task);
-      // dừng luôn interval để không chạy vô ích mỗi 30s trên kiosk bật lâu.
+      // dừng luôn interval để không chạy vô ích mỗi 3s trên kiosk bật lâu.
       if (!scanView || scanView.classList.contains('hidden')) { stopAutoFocusLoop(); return; }
       if (input && !input.disabled) {
         var active = document.activeElement;
-        if (active !== input && active && active.tagName !== 'SELECT' && active.tagName !== 'INPUT') {
+        // Giữ nguyên khi user đang nhập liệu (INPUT/SELECT/TEXTAREA) — tránh giật focus giữa lúc gõ
+        // (lọc bảng #scanSearch / #scanStatusFilter, sửa ghi chú #taskNoteEdit). Sau 3s nếu focus
+        // đã ra ngoài input (body/bảng) → tự quay về ô quét. Áp dụng cả 2 loại task cùng #scanInput.
+        if (active !== input && active && active.tagName !== 'SELECT' && active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA') {
           input.focus();
         }
       }
-    }, 30000);
+    }, 3000);
   }
   function stopAutoFocusLoop() {
     if (AUTO_FOCUS_TIMER) { clearInterval(AUTO_FOCUS_TIMER); AUTO_FOCUS_TIMER = null; }
