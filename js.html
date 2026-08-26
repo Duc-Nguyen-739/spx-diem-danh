@@ -1457,7 +1457,7 @@
     // fallback cũ (hiện nút, mặc định 'ra'); server resolveMealMoveMode_ vẫn tự ép quyền.
     var isCreator = CURRENT_USER_EMAIL && CURRENT_USER_EMAIL === String(data.task.createdBy || '').trim().toLowerCase();
     var effCreator = CURRENT_USER_EMAIL ? isCreator : true;
-    // meal-move: hiện cột Giờ Ra / Giờ Vào / Nhà Thầu / Số phút + toggle Ra|Vào + counter "Ra ngoài"
+    // meal-move: hiện cột Giờ Ra / Giờ Vào / Vender / Số phút + toggle Ra|Vào + counter "Ra ngoài"
     toggleMealColumns(isMealMove);
     var toggleWrap = byId('mealToggleWrap');
     if (toggleWrap) toggleWrap.style.display = isMealMove ? 'flex' : 'none';
@@ -1470,7 +1470,7 @@
     var lockNote = byId('mealCreatorLock');
     if (lockNote) lockNote.style.display = (isMealMove && !effCreator) ? '' : 'none';
     // Reconcile (Điểm Danh Ca): render header 7 cột (Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh)
-    // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Nhà Thầu/Số phút. Header luôn khớp body.
+    // meal-move: render header 10 cột có Giờ Ra/Giờ Vào/Vender/Số phút. Header luôn khớp body.
     renderScanHeader(isMealMove);
     if (isMealMove) {
       // Creator → mặc định 'ra' (Quét Danh Sách); người khác → ép 'vao' (Điểm Danh)
@@ -1749,7 +1749,7 @@
     });
   }
 
-  // meal-move: hiện/ẩn cột Giờ Ra / Nhà Thầu / Số phút trong bảng scan
+  // meal-move: hiện/ẩn cột Giờ Ra / Vender / Số phút trong bảng scan
   function toggleMealColumns(show) {
     var cols = document.querySelectorAll('.mm-col');
     for (var i = 0; i < cols.length; i++) {
@@ -1762,7 +1762,7 @@
 
   // Render header bảng scan theo loại task — đảm bảo header khớp body
   // (reconcile = 7 cột: Mã NV|Tên NV|Ca|Team|Station|Trạng thái|Giờ điểm danh;
-  //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Nhà Thầu/Số phút).
+  //  meal-move = 10 cột có thêm Giờ Ra/Giờ Vào/Vender/Số phút).
   // ===== Ghi chú task: hiển thị dưới task-meta + nút "Sửa ghi chú" nhỏ màu =====
   function renderTaskNote(task, force) {
     var wrap = byId('taskNoteWrap');
@@ -1845,7 +1845,7 @@
         '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
         '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>' +
         '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Vào</th>' +
-        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Nhà Thầu</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Vender</th>' +
         '<th scope="col" data-sort="8" class="sortable" aria-sort="none">Số phút</th>' +
         '<th scope="col" data-sort="9" class="sortable" aria-sort="none">Trạng thái</th>' +
         '</tr>';
@@ -1867,7 +1867,7 @@
 
   // F4 (2026-08-20): đồng bộ colgroup với header — width % tổng 100% (khớp min-width
   // #scanTable / #scanTable.meal-move ở css.html). Cột chính (Mã NV/Ca/Trạng thái/Giờ)
-  // đủ rộng ở min-width; cột phụ (Tên/Vender/Nhà Thầu) ellipsis khi container chật.
+  // đủ rộng ở min-width; cột phụ (Tên/Vender) ellipsis khi container chật.
   function updateScanColgroup(isMealMove) {
     var tbl = document.querySelector('#scanTable');
     var cg = document.querySelector('#scanTable colgroup');
@@ -1952,7 +1952,7 @@
     out.sort(function (a, b) {
       var va, vb;
       if (isMealMove) {
-        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Giờ Ra, 6=Giờ Vào, 7=Nhà Thầu, 8=Số phút, 9=Trạng thái
+        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Giờ Ra, 6=Giờ Vào, 7=Vender, 8=Số phút, 9=Trạng thái
         if (col === 9) { va = statusRank(a.status); vb = statusRank(b.status); }
         else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
         else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
@@ -2066,7 +2066,7 @@
     var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
     var cells;
     if (isMealMove) {
-      // Meal-move: Mã NV | Tên NV | Ca | Team | Station | Giờ Ra | Giờ Vào | Nhà Thầu | Số phút | Trạng Thái
+      // Meal-move: Mã NV | Tên NV | Ca | Team | Station | Giờ Ra | Giờ Vào | Vender | Số phút | Trạng Thái
       cells = [
         '<td><b>' + esc(r.staffId) + '</b></td>',
         '<td>' + esc(r.staffName || '') + '</td>',
@@ -2122,7 +2122,7 @@
       if (r.station) chips.push('<span>' + esc(r.station) + '</span>');
       chips.push('<span><i>Ra</i>' + esc(r.timeRaText || '—') + '</span>');
       chips.push('<span><i>Vào</i>' + esc(r.timeScanText || '—') + '</span>');
-      if (r.agency) chips.push('<span><i>Thầu</i>' + esc(r.agency) + '</span>');
+      if (r.agency) chips.push('<span><i>Vender</i>' + esc(r.agency) + '</span>');
       if (r.durationMinutes != null) chips.push('<span><i>Phút</i>' + r.durationMinutes + '</span>');
     } else {
       if (r.agency) chips.push('<span>' + esc(r.agency) + '</span>');

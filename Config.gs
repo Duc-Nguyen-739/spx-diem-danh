@@ -73,9 +73,9 @@ const LOG_COLS = {
   TIME_SCAN: 8,   // giờ quét đối chiếu
   STATUS: 9,
   DATE: 10,       // ngày vào làm (copy từ StaffData) — hiển thị cột Date, khác TIME_REF (ngày task)
-  // Meal-move (2026-08-04): 2 mốc Ra/Vào + agency (Nhà Thầu)
+  // Meal-move (2026-08-04): 2 mốc Ra/Vào + agency (Vender)
   TIME_RA: 11,    // giờ quét Ra (đi ra ngoài) — chỉ meal-move
-  AGENCY: 12,     // Nhà Thầu (copy từ StaffData cột Agency) — chỉ meal-move
+  AGENCY: 12,     // Vender (copy từ StaffData cột Agency) — chỉ meal-move
 };
 const LOG_COL_COUNT = 13;
 

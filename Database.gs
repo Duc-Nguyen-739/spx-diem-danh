@@ -187,7 +187,7 @@ function readStaffListUncached_() {
       workstation: String(v[fieldOf.workstation] || '').trim(),
       cardIn: String(v[fieldOf.cardIn] || '').trim(),
       cardOut: String(v[fieldOf.cardOut] || '').trim(),
-      agency: String(v[fieldOf.agency] || '').trim(),  // Nhà Thầu (Vendor) — lấy từ cột Agency StaffData
+      agency: String(v[fieldOf.agency] || '').trim(),  // Vender — lấy từ cột Agency StaffData
       date: normalizeStaffDate_(v[fieldOf.date]),  // ngay vao lam (StaffData Date) — chuẩn yyyy-MM-dd
     });
   }
@@ -403,7 +403,7 @@ function logFromRow_(taskId, row) {
     station: String(row[LOG_COLS.STATION] || ''),
     team: String(row[LOG_COLS.TEAM] || ''),
     workstation: String(row[LOG_COLS.WORKSTATION] || ''),
-    // meal-move: Nhà Thầu (agency copy từ StaffData)
+    // meal-move: Vender (agency copy từ StaffData)
     agency: String(row[LOG_COLS.AGENCY] || ''),
     // KHÔNG trả Date qua google.script.run (serialize lỗi → null toàn bộ).
     // Chỉ trả text đã format theo TZ script — client hiển thị trực tiếp.
@@ -475,7 +475,7 @@ function readLogRowsCached_(taskId) {
         slotCode: r.slotCode,
         station: r.station,
         team: r.team,
-        agency: r.agency,          // meal-move: Nhà Thầu
+        agency: r.agency,          // meal-move: Vender
         timeRaText: r.timeRaText,  // meal-move: giờ Ra
         timeRaEpoch: r.timeRaEpoch, // meal-move: epoch Ra (sort + duplicate check)
         timeScanText: r.timeScanText,
@@ -515,7 +515,7 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
       taskId, s.staffId, sanitizeCellText_(s.staffName), sanitizeCellText_(s.slotCode),
       sanitizeCellText_(s.station), sanitizeCellText_(s.team), sanitizeCellText_(s.workstation),
       createdAt, '', status, sanitizeCellText_(s.date || ''),
-      timeRa, sanitizeCellText_(s.agency || ''),  // timeRa (giờ Ra — chỉ meal-move có), agency (Nhà Thầu — meal-move)
+      timeRa, sanitizeCellText_(s.agency || ''),  // timeRa (giờ Ra — chỉ meal-move có), agency (Vender — meal-move)
     ];
   });
   sheet.getRange(startRow, 1, rows.length, LOG_COL_COUNT).setValues(rows);

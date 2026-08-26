@@ -69,7 +69,7 @@ LOG_COLS = {
     "STATUS": 9,
     "DATE": 10,       # ngày vào làm (copy từ StaffData) — hiển thị cột Date
     "TIME_RA": 11,    # giờ quét Ra (đi ra ngoài) — chỉ meal-move
-    "AGENCY": 12,     # Nhà Thầu (copy từ StaffData cột Agency) — chỉ meal-move
+    "AGENCY": 12,     # Vender (copy từ StaffData cột Agency) — chỉ meal-move
 }
 LOG_COL_COUNT = 13
 

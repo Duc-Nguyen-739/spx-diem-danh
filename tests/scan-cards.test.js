@@ -6,7 +6,7 @@
  * code được deploy (trích từ js.html), giống tests/task-cards.test.js cho danh sách task.
  *
  * Đảm bảo: card cùng dữ liệu với bảng desktop (Mã NV + Tên + badge + chips thông tin);
- * reconcile hiện agency/slot/team/station + Giờ; meal-move hiện Ra/Vào/Thầu/Phút;
+ * reconcile hiện agency/slot/team/station + Giờ; meal-move hiện Ra/Vào/Vender/Phút;
  * NV Dư thêm class extra + badge Dư; staffId/staffName được escape (chống XSS) — cả text
  * lẫn data-id.
  */
@@ -87,7 +87,7 @@ test('scanRowCardHTML: reconcile chưa quét → chip Giờ hiện — (không c
   assert.ok(html.indexOf('—') >= 0, 'chưa quét → Giờ hiện —');
 });
 
-test('scanRowCardHTML: meal-move → chip Ra/Vào/Thầu/Phút; không hiện chip Giờ reconcile', () => {
+test('scanRowCardHTML: meal-move → chip Ra/Vào/Vender/Phút; không hiện chip Giờ reconcile', () => {
   ctx.CURRENT_TASK = { taskType: 'meal-move' };
   const html = ctx.scanRowCardHTML({
     staffId: 'OPS2', staffName: 'B', status: 'Có mặt',
@@ -97,7 +97,7 @@ test('scanRowCardHTML: meal-move → chip Ra/Vào/Thầu/Phút; không hiện ch
   assert.ok(html.indexOf('badge present') >= 0 && html.indexOf('Có mặt') >= 0, 'badge phải là Có mặt');
   assert.ok(html.indexOf('Ra') >= 0 && html.indexOf('11:30:00') >= 0, 'phải hiện Giờ Ra');
   assert.ok(html.indexOf('Vào') >= 0 && html.indexOf('11:45:20') >= 0, 'phải hiện Giờ Vào');
-  assert.ok(html.indexOf('Thầu') >= 0 && html.indexOf('Thầu Y') >= 0, 'phải hiện Nhà thầu');
+  assert.ok(html.indexOf('Vender') >= 0 && html.indexOf('Thầu Y') >= 0, 'phải hiện Vender');
   assert.ok(html.indexOf('Phút') >= 0 && html.indexOf('>15<') >= 0, 'phải hiện số phút');
   assert.ok(html.indexOf('<i>Giờ</i>') < 0, 'meal-move không dùng chip Giờ reconcile');
   assert.ok(html.indexOf('>—<') < 0, 'meal-move có đủ Ra/Vào → không có chip — thay thế');
