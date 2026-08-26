@@ -164,8 +164,9 @@
       min-height: 0;
     }
     @media (max-width: 991px) {
-      .scan-layout { flex-direction: column; }
-      .scan-col-left { flex: none; max-width: none; }
+      .scan-layout { flex-direction: column; align-items: stretch; }
+      .scan-col-left { flex: none; max-width: none; width: 100%; }
+      .scan-col-right { width: 100%; }
     }
     /* P2 (header responsive): màn hẹp — topbar thoát sticky (bỏ hardcode 53px vốn
        giả định header cao cố định; khi header wrap cao hơn dễ đè). Ẩn logo ngoại
@@ -306,7 +307,7 @@
        giờ skip được LAYOUT row ngoài viewport (auto layout buộc browser đo mọi dòng để tính
        width cột → 300-600 dòng vẫn phải layout hết). min-width theo mode task — dưới min-width
        bảng tràn ngang → .table-wrap cuộn ngang (đúng hành vi auto layout cũ, không bao giờ cắt
-       chữ cột chính Mã NV/Ca/Trạng thái/Giờ; cột phụ Tên/Vender/Nhà Thầu ellipsis khi chật). */
+       chữ cột chính Mã NV/Ca/Trạng thái/Giờ; cột phụ Tên/Vender ellipsis khi chật). */
     #scanTable { table-layout: fixed; min-width: 740px; }
     #scanTable.meal-move { min-width: 1010px; }
     #scanTable th, #scanTable td { overflow: hidden; text-overflow: ellipsis; }

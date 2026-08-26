@@ -78,10 +78,11 @@
   .scan-col-left .card { padding: 8px; }
   .scan-col-right .card { padding: 0 !important; }
   .scan-topbar { padding: 10px 12px !important; gap: 8px 8px !important; }
-  .scan-layout { gap: 10px !important; }
-  .counters { gap: 6px !important; }
-  .counter { padding: 8px 4px 10px !important; }
-  .scan-row-card { padding: 8px 10px !important; margin-bottom: 6px !important; }
+  .scan-layout { gap: 10px !important; align-items: stretch !important; }
+  .scan-col-left, .scan-col-right { width: 100% !important; max-width: 100% !important; flex: 0 0 auto !important; align-self: stretch !important; box-sizing: border-box !important; }
+  .scan-col-left .card, .scan-col-right .card { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+  .scan-col-right .card .table-wrap, #scanCards, .scan-cards { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+  .scan-row-card { padding: 8px 10px !important; margin-bottom: 6px !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
   .att-toolbar { padding: 8px 8px !important; gap: 6px !important; }
   .task-list-card { margin-bottom: 0; }
 }
@@ -111,8 +112,17 @@
   .scan-card .sc-meta { font-size: 12px !important; }
   .scan-row { gap: 8px !important; }
   .scan-input-wrap input { font-size: 22px !important; padding: 12px 14px !important; }
-  .scan-row-card { padding: 8px 10px !important; margin-bottom: 6px !important; }
+  .scan-row-card { padding: 8px 10px !important; margin-bottom: 6px !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
   .att-toolbar { padding: 8px 8px !important; gap: 6px !important; }
+  /* FIX co hẹp bảng Điểm danh ca trên mobile (2026-08-26): ảnh iPhone cho thấy khối
+     bảng NV bị co vào, chừa khoảng trắng phải ~30% màn hình. Nguyên nhân: .scan-layout
+     column với align-items:flex-start khiến flex item co theo nội dung trên Safari
+     (Chrome vẫn tràn nhưng Safari shrink-wrap). Ép stretch + width 100% cho mọi cấp
+     scan-col/card/table-wrap/scanCards/rowCard để tràn full màn hình như khối counters. */
+  .scan-layout { align-items: stretch !important; }
+  .scan-col-left, .scan-col-right { width: 100% !important; max-width: 100% !important; flex: 0 0 auto !important; align-self: stretch !important; box-sizing: border-box !important; }
+  .scan-col-left .card, .scan-col-right .card { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+  .scan-col-right .card .table-wrap, #scanCards, .scan-cards { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
   /* Topbar scan cố định trên mobile (fix 2026-08-12): header (logo/thanh trên) CUỘN
      ĐI (position static), scan-topbar sticky giữ nguyên ở đỉnh màn hình — trước đây
      cả 2 cùng sticky top:0 → topbar (z-30) đè lên header (z-10) che logo khi cuộn. */
