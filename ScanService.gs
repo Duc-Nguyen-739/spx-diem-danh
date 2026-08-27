@@ -50,15 +50,15 @@ function scanStaff(taskId, rawStaffId, mode) {
     const t2 = Date.now();
     // F1 (simplify): KHÔNG đọc staffIndex mỗi scan — chỉ cần ở nhánh append (NV lạ,
     // hiếm). 52KB JSON.parse + 1 full-read StaffData mỗi 5 phút là thừa với 99% scan.
-
-    const result = classifyScan(
+    // Meal-move: branch riêng — 2 mốc Ra/Vào + mode + permission (fix P2 #7: không gọi
+    // classifyScan thừa cho meal-move — kết quả bị bỏ, waste ~0.1ms mỗi scan meal-move).
+    const isMealMove = task && task.taskType === TASK_TYPE.MEAL_MOVE;
+    const result = isMealMove ? null : classifyScan(
       { STATUS: STATUS, TASK_STATUS: TASK_STATUS },
       task,
       logRows,
       staffId
     );
-    // Meal-move: branch riêng — 2 mốc Ra/Vào + mode + permission
-    const isMealMove = task && task.taskType === TASK_TYPE.MEAL_MOVE;
     // Tối ưu 2026-08-11: KHÔNG đọc staffIndex sớm cho meal-move — nhánh update không
     // cần staffInfo (classifyMealMoveScan chỉ trả staffInfo ở kết quả append), và nhánh
     // append bên dưới đã tự lookup 1 lần. Trước đây mỗi scan meal-move parse 52KB JSON
