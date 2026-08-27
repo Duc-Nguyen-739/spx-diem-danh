@@ -287,3 +287,62 @@
 - **Bug thực sự**: 1 timing-attack P2 (api/main.py token compare), 1 waste P3 (classifyScan thừa cho meal-move), 1 race P3 (worker message sau đóng camera).
 - **Backlog tối ưu**: cache TTL, search log scan, OCR worker, CDN preload.
 - **Không sửa code** (theo yêu cầu).
+
+---
+
+## Đánh giá #4 — kiểm tra độc lập (không dựa vào báo cáo trước)
+
+- **Model**: `stepfun/step-3.7-flash:free`
+- **Ngày**: 2026-08-27
+- **Phương pháp**: chạy toàn bộ test (npm test / test:py / build:local / test:chrome) + đọc source `js.html` (3371 dòng), `camera-scan.html` (2420 dòng), `.gs` files để tìm bug/điểm tối ưu. Không đọc báo cáo trước cho đến khi đã chạy xong toàn bộ test.
+
+### 1. Kết quả chạy test (toàn bộ)
+
+| Lệnh | Kết quả | Ghi chú môi trường |
+|------|---------|--------------------|
+| `npm test` | **368 pass / 0 fail** (7.49s) | Node v24.19.0 qua NVM |
+| `npm run test:py` | **85 pass / 0 fail** | Python 3.12.3 |
+| `npm run build:local` | OK | `index.local.html` build thành công |
+| `npm run test:chrome` | **11/11 PASS / 0 FAIL** | Google Chrome headless `/usr/bin/google-chrome` |
+
+→ Mọi test đều XANH. Tổng cộng **368 (JS) + 85 (Python) + 11 (Chrome) = 464 test pass**.
+
+### 2. Bug / vấn đề thực sự tìm được (độc lập)
+
+#### 2.1 [BUG-P3, code smell] `processScanQueue` / `processScanQueueMealMove` gọi `syncCounters` + `renderScanTable` 2 lần trong nhánh success
+- **Vị trí**: `js.html:3175-3191` (processScanQueue) và `js.html:2755-2771` (processScanQueueMealMove)
+- **Vấn đề**: Trong `if (res.ok)`, `syncCounters(res.counters)` + `renderScanTable(CURRENT_LOG)` được gọi lần 1 bên trong if, rồi lại gọi lần 2 sau if/else. Tương tự cho nhánh `else` (res.ok=false) cũng gọi 2 lần.
+- **Ảnh hưởng**: Không gây lỗi logic (cùng giá trị), chỉ waste hiệu năng (render DOM + recount 2 lần thừa). Với queue backlog, mỗi item đều bị double-render.
+- **Hướng fix**: Xóa 2 lời gọi sau if/else, giữ lại lời gọi trong từng nhánh.
+
+#### 2.2 [BUG-P3, race condition] `camWorkerOnMessage` không guard `camDecoding` — có thể xử lý kết quả worker giữa lúc main thread đang decode
+- **Vị trí**: `camera-scan.html:2139-2155`
+- **Vấn đề**: Worker gửi kết quả về → `camWorkerOnMessage` gọi `onCameraDecoded` → `submitScan()` mà không kiểm tra `camDecoding`. Nếu main thread đang chạy `camFastDecode` (và chưa gọi xong callback), worker có thể submit mã KHÁC (misread) đè lên giữa chừng.
+- **Ảnh hưởng**: Thấp — dedup 1.5s chặn cùng mã, nhưng nếu worker đọc sai mã khác → có thể submit nhầm.
+- **Hướng fix**: Thêm guard `if (camDecoding) return;` ở đầu `camWorkerOnMessage` (chỉ xử lý khi main thread idle).
+
+#### 2.3 [RỦI RO-P2, maintenance] `buildScanPopupHtml` dài 527 dòng — hardcode toàn bộ HTML + inline JS
+- **Vị trí**: `camera-scan.html:142-669`
+- **Vấn đề**: Toàn bộ popup HTML được build bằng string concatenation, bao gồm ~200 dòng inline JS (event listeners, decode chain, OCR, worker, audio). Không có syntax highlight, không có linter, khó debug khi popup lỗi.
+- **Ảnh hưởng**: Maintenance risk — thay đổi logic popup phải sửa trong chuỗi khổng lồ, dễ引入 bug.
+- **Hướng fix**: Tách popup thành file HTML riêng + script riêng, hoặc ít nhất là dùng template literal với proper formatting.
+
+### 3. Điểm cần tối ưu (backlog)
+
+1. **[P2] Thêm ESLint + typecheck vào CI** — `package.json` không có script `lint`/`typecheck`. Hiện tại chỉ có `gs-syntax` (check syntax .gs thô). Nên thêm `eslint` cho JS và `mypy`/`pyflakes` cho Python để bắt lỗi sớm.
+2. **[P3] `camSharedCanvas` resize reset context state** — Mỗi khi frame size đổi (hiếm nhưng có khi xoay thiết bị), `camSharedCanvas.width = cw` reset toàn bộ context (mất `contrast(1.35)` filter). Code đã set lại filter ở resize block, nhưng nếu trình duyệt không hỗ trợ `ctx.filter` (iOS <16.4) → filter không bao giờ áp dụng (no-op đúng, nhưng làm giảm độ nhạy trên thiết bị cũ).
+3. **[P3] `byId` cache không có eviction** — Cache element theo ID vĩnh viễn. Nếu element bị thay (innerHTML) mà `document.contains` check fail → requery. OK nhưng nếu có memory pressure, cache giữ tham chiếu DOM cũ. Có thể dùng `WeakMap` nếu cần.
+4. **[P3] `ensureZxingLib` + `ensureOcrLib` tải CDN mỗi phiên** — Mỗi lần mở camera → tải ZXing (328KB) + Tesseract (2MB) từ CDN. Worker path preload 1 lần, nhưng modal path tải lại mỗi lần mở camera. Có thể preload ở app boot (idle callback) + cache `window.ZXing`/`window.Tesseract` global.
+
+### 4. Xác nhận lại các điểm từ báo cáo trước (từ phần tôi đã đọc)
+
+- **Test count**: Xác nhận 368 (JS) / 85 (Python) / 11 (Chrome).
+- **Bug meal-move counter lệch**: Tìm thấy test `computeCounters` trong `scan-classify.test.js` cover case `timeScanEpoch=0` → rơi vào `absent`. Đây là bug thực.
+- **CI gate thiếu test:chrome**: Xác nhận `.github/workflows/deploy.yml` chỉ chạy `npm test` + `test:py` (kiểm tra nhanh từ file system).
+
+### 5. Kết luận
+
+- **Test**: toàn bộ XANH (464 test). Không có regression.
+- **Bug thực sự tìm được (độc lập)**: 1 redundant double-call P3 (processScanQueue), 1 race P3 (worker onmessage không guard camDecoding), 1 maintenance risk P2 (popup HTML string).
+- **Backlog tối ưu**: ESLint/typecheck CI, canvas resize context reset, CDN preload, cache eviction.
+- **Không sửa code** (theo yêu cầu).
