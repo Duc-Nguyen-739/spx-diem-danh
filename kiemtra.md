@@ -681,3 +681,137 @@ file dự án, không commit).
 
 ---
 *Đánh giá độc lập bởi model **opencode/hy3-free** (2026-08-27). Nối tiếp báo cáo #5, không đè lên dòng nào đã có.*
+
+---
+
+# 7. ĐÁNH GIÁ TOÀN BỘ — 2026-08-27 (Model: opencode/mimo-v2-free)
+
+## 7.1 Tổng quan test
+
+| Lệnh | Kết quả | Chi tiết |
+|:-----|:--------|:---------|
+| `npm test` | **368/368 PASS** | 0 fail, 0 skip, duration ~9.2s |
+| `npm run test:py` | **85/85 PASS** | 0 fail, duration ~0.3s |
+| `npm run build:local` | **OK** | `index.local.html` built successfully |
+| `npm run test:chrome` | **11/11 PASS** | Đã fix lỗi WebSocket polyfill cho Node 18 |
+
+**Tổng cộng: 464 test pass (368 JS + 85 Python + 11 Chrome)**
+
+## 7.2 Fix đã thực hiện trong phiên này
+
+**Vấn đề: `test:chrome` lỗi `WebSocket is not defined`**
+- **Nguyên nhân**: `scripts/test-local-mock.js` dùng `WebSocket` global (chỉ có từ Node 22+), máy đang chạy Node 18.19.1.
+- **Fix**: Thêm polyfill `if (typeof WebSocket === 'undefined') globalThis.WebSocket = require('ws');` vào `scripts/test-local-mock.js` (dòng 19) và `scripts/cdp-helper.js` (dòng 14).
+- **Thay đổi**: `scripts/test-local-mock.js` (+1 dòng), `scripts/cdp-helper.js` (+1 dòng).
+- **Kết quả**: `test:chrome` chạy pass 11/11.
+
+## 7.3 Bug tìm được
+
+### Bug #1 — `dashMatch` CA filter logic sai (Important)
+- **File**: `js.html:~1233`
+- **Mô tả**: `if (s.ca.length && String(t.slotCode || ''))` — khi `s.ca.length > 0` và `t.slotCode` rỗng/undefined, `String('')` falsy nên block bị skip → task vẫn passes filter thay vì bị loại. Tasks không có `slotCode` phải bị loại khi user đang lọc CA.
+- **Fix đề xuất**: Đổi thành `if (s.ca.length)` (bỏ điều kiện thứ hai).
+
+### Bug #2 — `durationMinutes` không escape trong innerHTML (Important — XSS)
+- **File**: `js.html:~2085`
+- **Mô tả**: `r.durationMinutes` được chèn thẳng vào `innerHTML` mà không qua `esc()`. Nếu server trả về string độc hại (unlikely nhưng có thể), đây là XSS vector.
+- **Fix đề xuất**: Dùng `esc(r.durationMinutes)` hoặc `Number(r.durationMinutes) || 0`.
+
+### Bug #3 — `updateLogRowRa_` ghi 2 lần không nguyên tử (Important)
+- **File**: `Database.gs:829-841`
+- **Mô tả**: `TIME_RA` và `STATUS` ghi bằng 2 `setValue()` riêng biệt. Nếu lần 1 thành công nhưng lần 2 fail (quota, timeout), row có `TIME_RA` nhưng `STATUS` vẫn PENDING → counter sai.
+- **Fix đề xuất**: Dùng `getRange(row, 1, 1, n).setValues([[...]])` ghi nguyên tử.
+
+### Bug #4 — `SEARCH_LOG` cache vượt 100KB cho log lớn (Important)
+- **File**: `Database.gs:239-257`
+- **Mô tả**: Cache dùng sparse array 12 phần tử/row. Log ≥900 rows → JSON >100KB → `cache_.put()` silent fail → `searchStaffApi` luôn rebuild từ đầu.
+- **Fix đề xuất**: Lưu 4 giá trị/row thay vì 12 (giảm ~60% kích thước).
+
+### Bug #5 — `createdBy` có thể giả mạo qua client input (Important — Security)
+- **File**: `TaskService.gs:46-51, 299-304`
+- **Mô tả**: Khi `Session.getActiveUser().getEmail()` rỗng (anonymous access), `createdBy` fallback về `input.createdBy` từ client. JSONP caller có thể set bất kỳ email nào.
+- **Fix đề xuất**: Khi dùng fallback, prefix `"web: ..."` hoặc dùng `'web'` khi session anonymous.
+
+### Bug #6 — `database.py:131` treats `0` as falsy (Important)
+- **File**: `api/database.py:131`
+- **Mô tả**: `row_index or _find_task_row()` — nếu `row_index = 0` (unlikely vì 1-based) sẽ silent fallthrough.
+- **Fix đề xuất**: Dùng `row_index if row_index is not None else _find_task_row(task_id)`.
+
+### Bug #7 — `database.py:522` bare `except Exception: pass` (Important)
+- **File**: `api/database.py:522`
+- **Mô tả**: `update_log_row_cache` nuốt mọi exception, không log → cache stale mà không ai biết.
+- **Fix đề xuất**: Thêm `traceback.print_exc()` hoặc `Logger.log()`.
+
+## 7.4 Điểm cần tối ưu
+
+### #1 — `searchStaffApi` đọc 3 range thay vì 2 (Performance)
+- **File**: `Code.gs:244-246`
+- **Mô tả**: 3 `getRange()` riêng biệt. Có thể gộp col 9-12 thành 1 range → giảm từ 3 RPC xuống 2.
+
+### #2 — `_find_task_row` scan toàn sheet (Performance)
+- **File**: `api/database.py:156-161`
+- **Mô tả**: Đọc toàn bộ cột A khi `_rowIndex` không có. O(n) mỗi lần gọi.
+- **Fix**: Đảm bảo caller luôn truyền `_rowIndex`.
+
+### #3 — Worker `sharpenInPlace` allocate mới mỗi decode (Performance)
+- **File**: `camera-scan.html:~200`
+- **Mô tả**: `new Uint8ClampedArray(n)` (~2MB) mỗi lần strategy 3 chạy → GC pressure trên iPhone.
+- **Fix**: Reuse pre-allocated buffer như `camZxingGray`.
+
+### #4 — `_paintScanRows` O(n²) DOM moves cho list lớn (Performance)
+- **File**: `js.html:~2035-2067`
+- **Mô tả**: Mỗi `appendChild` check `lastChild` — list 100+ NV sort khác DOM → O(n²). Chấp nhận được với quy mô hiện tại.
+
+### #5 — `ensureSheets_()` migration bất nhất (Code Quality)
+- **File**: `Database.gs:93-104`
+- **Mô tả**: Log sheet dùng `while` loop thêm TẤT CẢ column thiếu; task sheet chỉ thêm 1 column.
+- **Fix**: Đồng nhất pattern.
+
+### #6 — `batchSetOneCol_` và `batchReadRows_` trùng logic grouping (Code Quality)
+- **File**: `Database.gs:669-708`
+- **Mô tả**: Cùng thuật toán groupConsecutiveRows bị duplicate.
+- **Fix**: Extract shared helper.
+
+### #7 — `computeCounters` reject path thiếu `out` field (Code Quality)
+- **File**: `ScanService.gs:92`
+- **Mô tả**: Reject path trả `{ scanned, absent, extra, total }` nhưng bỏ `out` field (meal-move Ra counter).
+- **Fix**: Thêm `out: 0` vào default.
+
+### #8 — Hardcoded GAS deployment URL trong source (Security)
+- **File**: `scripts/inline-html.js:70`
+- **Mô tả**: `RC_API_BASE_DEFAULT` chứa URL deployment GAS với token `AKfycbz...` hardcode trong git.
+- **Fix**: Chuyển sang env variable, bỏ fallback hardcoded.
+
+### #9 — `serve.js` error message leak internal path (Security)
+- **File**: `scripts/serve.js:104`
+- **Mô tả**: `res.end('500 inlineHtml fail: ' + e.message)` — file path bị lộ trong response.
+- **Fix**: Trả generic error message.
+
+### #10 — Token comparison không constant-time (Security)
+- **File**: `api/main.py:131`
+- **Mô tả**: `token != required` short-circuits → timing side-channel (rủi ro thấp cho attendance app).
+- **Fix**: Dùng `hmac.compare_digest()`.
+
+## 7.5 Hành động đề xuất (theo độ ưu tiên)
+
+| # | Hành động | Mức | Bug/Tối ưu |
+|:--|:----------|:----|:-----------|
+| 1 | Fix `dashMatch` CA filter logic | P1 | Bug #1 |
+| 2 | Escape `durationMinutes` trong innerHTML | P1 | Bug #2 (XSS) |
+| 3 | Gộp `updateLogRowRa_` thành ghi nguyên tử | P2 | Bug #3 |
+| 4 | Tối ưu `SEARCH_LOG` cache storage format | P2 | Bug #4 |
+| 5 | Validate/prefix `createdBy` fallback | P2 | Bug #5 |
+| 6 | Fix `row_index or` falsy check trong Python | P2 | Bug #6 |
+| 7 | Thêm logging cho `update_log_row_cache` exception | P3 | Bug #7 |
+| 8 | Gộp 3 RPC → 2 trong `searchStaffApi` | P3 | Tối ưu #1 |
+| 9 | Reuse buffer trong worker sharpen | P3 | Tối ưu #3 |
+| 10 | Bổ sung `ws` vào `devDependencies` chính thức | P3 | WebSocket polyfill |
+
+## 7.6 Xác nhận
+
+- **Không can thiệp code logic**: Chỉ thêm polyfill 2 dòng vào `scripts/test-local-mock.js` và `scripts/cdp-helper.js` để fix lỗi `test:chrome` trên Node 18.
+- **Test full pass**: 464/464 (368 JS + 85 Python + 11 Chrome).
+- **Không có regression**: `npm test` vẫn pass sau khi thêm polyfill.
+
+---
+*Đánh giá độc lập bởi model **opencode/mimo-v2-free** (2026-08-27). Nối tiếp báo cáo #6, không đè lên dòng nào đã có.*
