@@ -572,3 +572,110 @@ npm run test:chrome
 ---
 
 *Đánh giá #3 được tạo tự động bởi minimax/minimax-m3:free (sandbox kilo), không sửa code, chỉ đọc + chạy test + code review độc lập. Append nối tiếp báo cáo #1 (agnes-2.5-flash) và #2 (muse-spark-1.2-contributor-free) — không ghi đè dòng cũ.*
+
+---
+
+# BÁO CÁO KIỂM TRA #4 — Điểm Danh HN2 SOC
+**Model:** bynara/deepseek-v4-flash
+**Ngày kiểm tra:** 2026-08-27
+**Phương pháp:** Chạy độc lập toàn bộ test (JS + Python + Chrome) + đọc source (Code.gs, Database.gs, ScanService.gs, TaskService.gs, ScanLogic.gs, Config.gs, CacheLayer.gs, JsonpApi.gs, api/main.py, api/services.py, camera-scan.html, js.html) + cross-check dual-runtime. KHÔNG mở các báo cáo trước trong file này để định hướng test; mọi phát hiện suy ra trực tiếp từ source + kết quả chạy thực tế. KHÔNG sửa code.
+
+---
+
+## 1. KẾT QUẢ TEST (CHẠY ĐỘC LẬP)
+
+| Suite | Lệnh | Kết quả | Ghi chú |
+|-------|------|---------|---------|
+| JS (Node) | `npm test` | **368/368 PASS** | 27 file test, ~6.5s |
+| Python | `npm run test:py` | **85/85 PASS** | 5 file test, ~0.18s (traceback `RuntimeError secret path /home/abc` là output cố ý của test probe dùng `_bad_request`, không phải lỗi) |
+| Build local | `npm run build:local` | **OK** | `index.local.html built (templates resolved)` |
+| Chrome | `npm run test:chrome` | **11/11 PASS** | `PASS 11/11, FAIL 0` |
+
+**Nhận xét môi trường:** Node hiện tại là `v18.19.1` (không phải ≥22 như `package.json engines` khai). `test:chrome` vẫn chạy được vì `scripts/test-local-mock.js` tự shim `WebSocket` bằng gói `ws`. Không cần sửa code — chỉ cần lưu ý khi cài môi trường CI phải có Chrome (`google-chrome` tồn tại `/usr/bin/google-chrome`).
+
+---
+
+## 2. BUG / VẤN ĐỀ (TÔI TỰ XÁC MINH TỪ SOURCE)
+
+### Nhóm DUAL-RUNTIME PARITY (GAS ↔ Python lệch logic cùng domain)
+
+**BUG-4.1 [IMPORTANT] Meal-move taskId lệch tiền tố `R` giữa 2 runtime**
+- GAS `TaskService.gs:332` dùng `'M' + makeTaskId_(now)` → `makeTaskId_` trả `'R'+...` (TaskService.gs:20) → kết quả **`MR20260824-...`**.
+- Python `services.py:199` dùng `"M" + make_task_id(now)[1:]` → cắt mất ký tự `R` → kết quả **`M20260824-...`** (không có `R`).
+- Hệ quả: cùng 1 thao tác tạo task meal-move ở GAS vs Python sinh ID khác nhau. Nếu 2 backend ghi chung 1 spreadsheet, taskId không nhất quán; mọi giả định parse theo prefix cũng vỡ.
+- Gợi ý sửa: đổi Python `services.py:199` thành `"M" + make_task_id(now)` (giữ `R`), khớp GAS.
+
+**BUG-4.2 [IMPORTANT] Python lấy timestamp `now` TRƯỚC khi acquire lock → timestamp lệch khi lock bị nghẽn**
+- Python `services.py:406-407` tính `now_dt = now_override or datetime.datetime.now(cache._TZ)` và `now_ms` **trước** `_lock.acquire(timeout=10)` (dòng 416). Nếu lock chờ tới 10s, các lần quét/paste ghi timestamp cũ (trước cả lúc ghi thật) → có thể đẩy 2 lần quét liên tiếp xuống dưới `DUPLICATE_WINDOW_MS` (bị nhận "trùng" nhầm) và làm sai `durationMinutes`.
+- GAS thì khác: `ScanService.gs:106` gọi `const now = new Date()` **bên trong** lock → timestamp sát lúc ghi.
+- Gợi ý sửa: di chuyển `now_dt`/`now_ms` vào sau `_lock.acquire()` thành công trong cả `scan_staff` lẫn `paste_meal_move_scan`.
+
+**BUG-4.3 [IMPORTANT] `createdBy` do client tự gửi làm lỏng cổng phân quyền meal-move `ra` (cả 2 runtime)**
+- GAS `TaskService.gs:299-304`: ưu tiên `Session.getActiveUser()`; khi anonymous (kiosk), fallback `createdBy` từ `input`. `ScanService.gs:208-214` `resolveMealMoveMode_` cấp quyền `ra` chỉ dựa vào `createdBy` không rỗng → client anonymous gửi `createdBy='boss@x.com'` là đủ để "giả mạo người tạo" và bật nhánh Ra.
+- Python `services.py:175` mirror y hệt (`created_by = ... or "web"`).
+- Hệ quả: cổng "chỉ creator mới được ghi Ra" của meal-move bị bypass.
+- Gợi ý sửa: khi anonymous, ép `ra` về `vao` (fail-closed) HOẶC bỏ phân quyền và document trade-off; không tin `createdBy` client cho phân quyền.
+
+### Nhóm CLIENT / CAMERA
+
+**BUG-4.4 [IMPORTANT] Worker decode không có watchdog → `camWorkerIdle` kẹt `false` làm worker im lặng chết vĩnh viễn**
+- `camera-scan.html:2132` đặt `camWorkerIdle = false` khi gửi frame; chỉ được set lại `true` trong `camWorkerOnMessage` (dòng 2140) hoặc `stopZxingWorker` (dòng 2162).
+- Nếu 1 frame worker không bao giờ postMessage lại (decode treo / message lạc / tab bị gián đoạn) thì `camWorkerIdle` đứng yên `false` suốt phiên → worker decode nền **im lặng ngừng hoạt động** còn main thread vẫn chạy (suy giảm âm thầm, kiosk mở lâu nhiều giờ dễ dính).
+- Gợi ý: thêm `setTimeout` watchdog (~1500ms) quanh `postMessage` để tự reset `camWorkerIdle = true` nếu không có `onmessage`; sau N lần timeout liên tiếp thì terminate + tạo lại worker.
+
+**BUG-4.5 [IMPORTANT] `camWorkerSend` nhân đôi copy ~8MB RGBA mỗi frame vô ích**
+- `camera-scan.html:2133`: `camWorker.postMessage({ buf: buf.buffer.slice(...), ...})` — `slice()` đã tạo 1 bản copy, rồi `postMessage` KHÔNG kèm transfer list `[arr]` → bị clone thêm 1 lần nữa. Với frame 1920×1080 RGBA ~8MB → ~16MB churn/copy mỗi lần gửi, tick ~200ms tạo GC liên tục trên main thread iPhone (đúng thứ code đang cố tránh).
+- Gợi ý: chuyển buffer copy bằng transfer list: `var copy = buf.buffer.slice(...); postMessage({buf: copy, w, h}, [copy]);` — bản `copy` sau khi gửi không ai dùng lại ở main nên transfer an toàn, tiết kiệm 8MB mỗi lần gửi.
+
+### Nhóm CACHE / GHI CHÉP
+
+**BUG-4.6 [P2] `transformLogStatuses_` (kết thúc/mở lại task) không invalidate `SEARCH_LOG`; `invalidateTaskListCache_` chỉ được gọi ngoài ở 1 nhánh**
+- `Database.gs:652-660`: khi có writes chỉ gọi `invalidateTaskDetailCache_` + `invalidateLogRows_`. `markUnscannedAbsent_` dựa vào `completeTaskCore_` gọi `updateTaskStatus_` → `invalidateTaskListCache_` nên list counters thường vẫn đúng, nhưng nếu ai gọi `transformLogStatuses_` độc lập thì list counters stale tới `TASK_COUNTS` TTL (~30s).
+- Đồng thời `SEARCH_LOG` (10s, `Code.gs:239`) không bị invalidate ở bất kỳ write path nào (`appendLogRow_` Database.gs:792, `batchAppendLogRows_` Database.gs:937, `transformLogStatuses_`) → search ngay sau scan (<10s) có thể không thấy NV vừa quét.
+- Gợi ý: thêm `invalidateTaskListCache_()` + `cache_().remove(CACHE_KEYS.SEARCH_LOG)` vào block writes của `transformLogStatuses_`, và bỏ `SEARCH_LOG` ở các write path log.
+
+**BUG-4.7 [P2] `previewStaffApi` không áp cap 1000 NV như `createReconcileTask` → UX lệch**
+- `TaskService.gs:78-80` cap `deduped.length > 1000` (chặn tạo). `Code.gs:192-207` `previewStaffApi` chỉ trả `count` = toàn bộ `deduped.length`, không cap → modal hiện "Số NV: 1500" rồi bấm Tạo lại bị chặn ngay.
+- Gợi ý: trong `previewStaffApi`, nếu vượt 1000 thì đánh dấu `capped:true` để modal cảnh báo, hoặc `count = Math.min(deduped.length, 1000)`.
+
+---
+
+## 3. TỐI ƯU ĐỀ XUẤT (không phải bug)
+
+| # | File:line | Nội dung | Impact |
+|---|-----------|----------|--------|
+| OPT-4.1 | `Code.gs:243-256` | `searchStaffApi` đọc 2 range nhưng 4 cột cần (TIME_SCAN, STATUS, DATE, TIME_RA) nằm trong 1 RPC gộp — xem lại chỉ đọc đủ cột cần để giảm cell | Giảm quota RPC |
+| OPT-4.2 | `TaskService.gs:86-89` | Vòng `while (readTask_(taskId))` khi trùng ID gọi `readTask_` (đọc cả cột TASK_ID + 1 dòng). Tần suất rất thấp (taskId có ms) | Vi tối ưu |
+| OPT-4.3 | `camera-scan.html` | Main thread chạy bậc 4/4b (crop 1.4× + TRY_HARDER + GlobalHistogram) đồng bộ MỖI tick khi miss — nặng nhất; cân nhắc giới hạn chạy mỗi N tick hoặc khi Tìm Mã | Giảm UI jank iPhone |
+| OPT-4.4 | `js.html` | `_paintScanRows` so chuỗi `innerHTML` đầy đủ mỗi cell mỗi render (~600 dòng × 8 cell × poll). Có thể so signature nhẹ (`status + epoch`) thay vì toàn HTML | Giảm CPU poll |
+
+---
+
+## 4. ĐÁNH GIÁ TỔNG QUAN
+
+| Hạng mục | Điểm (1-10) | Nhận xét |
+|----------|-------------|----------|
+| Correctness | 9 | Scan/classify chuẩn, 368+85 tests phủ tốt; 2 bug parity GAS/Python (taskId + timestamp) đáng chú ý nhất |
+| Security | 8 | Sanitize cell text (A1), XSS escape, JSONP cb whitelist, hmac token, gate `isEditor_()` — còn: client `createdBy` lỏng cổng Ra |
+| Performance | 8 | Cache version-key + G1 (đọc theo cột) + batch setValues tốt — còn worker double-copy + main-thread TRY_HARDER mỗi tick |
+| Test coverage | 9 | 368 JS + 85 Py + 11 Chrome = 464 tests, smoke `.gs`, contract mock↔server |
+| Maintainability | 7 | Comment rationale tốt, tách Pure vs GAS wrapper — `js.html` (3370 dòng) + `camera-scan.html` (2420 dòng) lớn, khó review |
+| **Tổng** | **8.2** | Production-ready; test pass đủ 3 runtime. Ưu tiên: fix 2 parity backend (4.1, 4.2), worker watchdog (4.4), transfer-list (4.5) |
+
+---
+
+## 5. LỆNH ĐÃ CHẠY (verify)
+
+```bash
+node --version                       # v18.19.1
+which google-chrome                  # /usr/bin/google-chrome
+
+npm test                             # 368/368 PASS (27 files, ~6.5s)
+npm run test:py                      # 85/85 PASS (5 files, ~0.18s)
+npm run build:local                  # index.local.html built
+npm run test:chrome                  # PASS: 11 / 11, FAIL: 0
+```
+
+---
+
+*Báo cáo #4 được tạo khép kín bởi bynara/deepseek-v4-flash từ việc chạy test độc lập + đọc source trực tiếp, không dựa vào báo cáo trước trong file này. Nối tiếp sau báo cáo #1 (agnes-2.5-flash), #2 (muse-spark-1.2-contributor-free), #3 (minimax-m3:free) — không ghi đè dòng cũ.*
