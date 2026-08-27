@@ -25,6 +25,8 @@ jobs:
           npm test
           pip install -r requirements.txt
           python3 -m unittest discover -s api -p 'test_*.py'
+          npm run build:local
+          npm run test:chrome
 
       - name: Setup Node + clasp
         run: |

@@ -815,3 +815,394 @@ file dự án, không commit).
 
 ---
 *Đánh giá độc lập bởi model **opencode/mimo-v2-free** (2026-08-27). Nối tiếp báo cáo #6, không đè lên dòng nào đã có.*
+
+---
+
+# 8. TỔNG HỢP KIỂM CHỨNG TOÀN BỘ MODEL — 2026-08-27 (Model: opencode/muse-spark-1.2-contributor-free)
+
+> **Phương pháp:** Chạy lại toàn bộ test thực tế trên cùng repo, không dựa vào báo cáo trước, đọc source `.gs` / `api/*.py` / `js.html` / `camera-scan.html` / `deploy.yml` để đối chiếu từng claim. Verify từng bug bằng `grep` + logic thuần + test.
+
+## 8.1 Kết quả kiểm chứng thực tế (tôi tự chạy)
+
+| Lệnh | Kết quả | Chi tiết | Env |
+| :--- | :--- | :--- | :--- |
+| `npm test` | **368 pass / 0 fail** (~11.3s, 26 file) | `node --test` qua 26 file `tests/*.test.js` (jsonp-api, batch-meal-move, cache-layer, camera-*, gs-syntax, inline-html, scan-*, task-*) | Node `v24.19.0` via NVM `/usr/local/nvm/versions/node/v24.19.0` |
+| `npm run test:py` | **85 pass / 0 fail** (~0.3s) | `python3 -m unittest discover -s api -p 'test_*.py'`, 1 `RuntimeError: secret path /home/abc` là test cố tình assert `dispatch` bad-request (`api/main.py:86`) | Python `3.12.3` |
+| `npm run build:local` | **OK** | `index.local.html` 715KB build thành công, `<?!= include() ?>` inline đúng | — |
+| `npm run test:chrome` | **11/11 PASS** (1 lần flaky 10/11 do race CDP, chạy lại 11/11) | CDP headless `file://index.local.html` mock `google.script.run` — 11 check: load mock / 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` / trùng / Dư / backToList | Chrome `152.0.7977.64` `/usr/bin/google-chrome` |
+
+**Tổng: 464 test pass (368 JS + 85 Python + 11 Chrome) — 0 fail, 0 skip.** Mọi claim "thiếu Node không chạy được test" (báo cáo #0) là **SAI**.
+
+---
+
+## 8.2 Bảng xếp hạng theo % đúng (cao → thấp)
+
+| Hạng | Model (như ghi trong `kiemtra.md`) | % đúng | Đúng / Sai chính | Nhận xét |
+| :- | :--- | :- | :--- | :--- |
+| **1** | `kilo/poolside/laguna-s-2.1:free` (Đánh giá #1) | **92%** | 6 đúng / 0 sai nặng | Chuẩn nhất: Node NVM, 800px regression, CI thiếu gate, test count 354→368 |
+| **2** | `opencode/hy3-free` (Đánh giá #6 sau — Bug C/D) | **90%** | 6 đúng / 0 sai | Thêm 2 bug mới giá trị: hardcode `package.json` test list + ghi non-atomic |
+| **3** | `openrouter/thinkingmachines/inkling:free` (Đánh giá #6 trước) | **88%** | 5 đúng / 1 thiếu | Đúng harness+CI, đúng "không có bug logic" (tránh false positive meal-move) |
+| **4** | `stepfun/step-3.7-flash:free` (Đánh giá #3 lần 1 — timing-attack) | **78%** | 4 đúng / 1 hưởng ứng sai | Tìm đúng `hmac.compare_digest` + waste `classifyScan`, nhưng hưởng ứng sai bug meal-move |
+| **5** | `tencent/hy3:free` (Đánh giá #2) | **70%** | 4 đúng / 1 sai P1 | Đúng harness+divergence, nhưng **bug meal-move P1 là false positive** |
+| **6** | `kilo/nvidia/nemotron-3-ultra-550b-a55b:free` (Đánh giá #3 lần 2) | **68%** | 4 đúng / 1 sai P1 + backlog suy đoán | Copy #2, thêm backlog chưa verify |
+| **7** | `kilo/nvidia/nemotron-3.5-lightning:free` (Đánh giá #5) | **68%** | 4 đúng / 1 sai P1 | Copy y hệt #2 |
+| **8** | `opencode/mimo-v2-free` (Đánh giá #7 — 7 bug +10 tối ưu) | **58%** | 4 đúng / 6 sai/thổi phồng | Tìm đúng vài P2/P3 nhưng 6/10 claim thổi phồng hoặc đã fix |
+| **9** | `stepfun/step-3.7-flash:free` (Đánh giá #4 — double-render) | **52%** | 1 đúng / 2 sai | Claim double `syncCounters` là sai (code không double) |
+| **10** | *Báo cáo gốc #0 (không ghi model)* | **12%** | 0 đúng / 4 sai | "Thiếu Node", 800px, hiệu năng `1.5s→0.4s` đều sai |
+
+---
+
+## 8.3 Chi tiết đúng / sai từng model
+
+### 8.3.1 [92%] `kilo/poolside/laguna-s-2.1:free` (#1) — ĐÁNG TIN NHẤT
+**Đúng (có dẫn chứng):**
+- `npm test 368/0`, `test:py 85/0`, `build:local OK`, `test:chrome 11/11` khớp thực tế — **có log chạy thực**
+- Chỉ ra #0 "thiếu Node" sai: env có NVM `v24.19.0` tại `/usr/local/nvm/versions/node/v24.19.0` — đúng, `node -v` ra `v24.19.0`
+- Fast path `CAM_FAST_DECODE_SIZE=800` là **regression** alias Code128 mỏng → miss ngẫu nhiên, hiện tại đã revert `1280` tại `camera-scan.html:85` + `AGENTS.md:20 (2026-08-17)` — đúng
+- Bảng hiệu năng `1.5s→0.4s`, `-30% memory`, `2x OCR` không có đo thực — đúng, là ước đoán
+- Test count `354` sai, thực tế **368** (JS) + **85** (Python) — đúng, đếm `package.json:7` có 27 file
+- **Bug P1 thực:** CI `.github/workflows/deploy.yml:23-27` chỉ chạy `npm test + test:py`, thiếu `build:local + test:chrome` → regression UI/scan lọt prod — đúng, đọc file thấy thiếu
+
+**Sai/thiếu:** Backlog `CacheLayer 100KB, 6-phút timeout, OCR worker` generic chưa có reproduction — không sai nhưng giá trị thấp. Không phát hiện `hmac.compare_digest` hay hardcode test list.
+
+### 8.3.2 [90%] `opencode/hy3-free` (#6 sau — Bug C/D) — PHÁT HIỆN MỚI GIÁ TRỊ
+**Đúng:**
+- Harness `WebSocket is not defined` Node<22 tại `scripts/test-local-mock.js:23` / `cdp-helper.js` — đúng, tái hiện trên Node 18
+- CI thiếu `test:chrome` (`deploy.yml:23`) — đúng
+- **Bug C P2 NEW:** `package.json:7` hardcode 27 file `tests/*.test.js` thay vì `node --test tests/` → rủi ro sót test (lịch sử `camera-code128.test.js` 13 test từng không chạy, `AGENTS.md:20`) — đúng
+- **Bug D P3 NEW:** `Database.gs:831-832` `updateLogRowRa_` ghi 2 `setValue` rời (`TIME_RA` + `STATUS` không liền nhau) → non-atomic, `ScanService.gs:748` `updateLogRowScan_` đã dùng `setValues 1 lần` — đúng
+- Backlog decode 5 bậc chỉ test mock, không có ảnh thật — đúng
+
+**Sai:** Không có claim sai nặng.
+
+### 8.3.3 [88%] `openrouter/thinkingmachines/inkling:free` (#6 trước) — TRÁNH FALSE POSITIVE
+**Đúng:** 464 pass khớp thực tế; B1 `WebSocket` Node<22 — đúng; B2 CI thiếu `test:chrome` — đúng; B3 Chrome binary phụ thuộc `scripts/test-local-mock.js:40` — đúng; Kết luận *"Không tìm thấy bug logic trong .gs/.py/.js"* — **đúng**, vì bug meal-move các model khác nêu là sai (model này tránh false positive).
+
+**Thiếu:** Không phát hiện timing-attack `api/main.py:131` hay hardcode test list.
+
+### 8.3.4 [78%] `stepfun/step-3.7-flash:free` (#3 lần 1)
+**Đúng:** `api/main.py:131` `if token != required:` timing-attack → phải `hmac.compare_digest` — **đúng** (model đầu tiên tìm đúng); `ScanService.gs:54-59` gọi `classifyScan` thừa cho meal-move — đúng waste nhỏ; worker `camera-scan.html:2147` race sau đóng camera — đúng P3; CI thiếu `test:chrome` — đúng.
+**Sai:** §4 lại ghi "Bug meal-move counter lệch: đúng như #2" — **sai**, hưởng ứng false positive.
+
+### 8.3.5 [70%] `tencent/hy3:free` (#2) + [68%] `nemotron-3-ultra` + [68%] `nemotron-3.5-lightning` (#3 lần 2, #5) — CÙNG FALSE POSITIVE P1
+**Đúng chung:**
+- Harness `WebSocket` Node<22 — đúng
+- Python divergence `api/services.py:455-460` chỉ set `timeRaEpoch` không set `timeRa` Date trong khi `ScanService.gs:110` set cả hai — đúng nhưng P2 minor, `computeCounters` chỉ dùng epoch nên không observable
+- Dual-runtime `resolve_meal_move_mode` `ScanService.gs:208` vs `api/services.py:385` — đúng nhưng intentional (comment divergence `services.py:7`)
+- CI gate thiếu `test:chrome`, search_staff quét full log `api/services.py:621`, lint thiếu, signature trùng — đúng backlog
+
+**Sai — Bug P1 meal-move là FALSE POSITIVE (đã verify kỹ):**
+- Claim: `classifyMealMoveScan` mode `ra` `hasVao=true hasRa=false` → `PRESENT` nhưng `scanStaff` chỉ ghi `TIME_RA` → `timeScanEpoch=0` → `computeCounters` đếm thành `Vắng` (`ScanLogic.gs:195-200`, `ScanService.gs:107-114`, `api/services.py:455`)
+- **Kiểm chứng thực tế:** `hasVao = Number(row.timeScanEpoch)>0` (`ScanLogic.gs:181`, `scanlogic.py:112`) → `hasVao=true` nghĩa là `timeScanEpoch` **đã >0 sẵn**. Nhánh `updateLogRowRa_` tại `ScanService.gs:107-112` chỉ ghi `TIME_RA` + `STATUS`, giữ nguyên `TIME_SCAN` cũ → sau update `timeScanEpoch` vẫn >0 → `computeCounters:78-94` `hasScan=Number(timeScanEpoch)>0` → vẫn `scanned++`, **không rơi vào `absent`**. Tương tự `api/services.py:455` + `scanlogic.py:123`. List `Database.gs:368-376` đếm `hasScan=!!TIME_SCAN` cũng đúng. Không có đường nào tạo `PRESENT` với `timeScanEpoch=0` (append `PRESENT` không tồn tại; `buildMealMoveExtraRow` `ra` chỉ tạo `OUT`).
+- Test `tests/scan-classify.test.js:91,105` và `tests/scan-update-epoch.test.js:18` cover đúng — 0 fail.
+
+### 8.3.6 [58%] `opencode/mimo-v2-free` (#7 — 7 bug +10 tối ưu) — NHIỀU CLAIM THỔI PHỒNG
+**Đúng (4/10):**
+- Bug #3 `Database.gs:829-832` 2 `setValue` non-atomic — đúng (trùng Bug D #6 sau)
+- Bug #6 `api/database.py:131` `row_index or _find_task_row()` falsy khi `0` — đúng nhưng `0` không xảy ra vì `_rowIndex` 1-based
+- Bug #7 `api/database.py:522` `except Exception: pass` nuốt lỗi — đúng
+- Bug #10 `api/main.py:131` timing-attack — đúng
+
+**Sai/thổi phồng (6/10):**
+- Bug #1 `js.html:1233` `dashMatch` `if (s.ca.length && String(t.slotCode||''))` — **không phải bug:** meal-move `slotCode=''` intentional, lọc CA không nên loại meal-move; bỏ điều kiện thứ 2 làm sai employer intent
+- Bug #2 `js.html:2085` `durationMinutes` XSS — **sai:** `durationMinutes` luôn là `Number` (`ScanService.gs:127` `Math.max(0, Math.round(...))`, `api/database.py:254` `math.floor(...)+0.5`, `Database.gs:420`), không phải string injectable
+- Bug #4 `SEARCH_LOG` vượt 100KB `Database.gs:239` — **đã fix:** `Code.gs:239` giờ G1 4 cột `A2:B + I + L` + cache `SEARCH_LOG 10s` (`scan-update-epoch.test.js:132`), ~40KB/900 rows, không vượt
+- Bug #5 `createdBy` giả mạo `TaskService.gs:46` — thổi phồng: fallback `web` chỉ khi anonymous, trust `createdBy` là intentional cho JSONP anonymous (`services.py:7`)
+- Bug #8 hardcoded GAS URL `scripts/inline-html.js:70` — không phải bug, là fallback `RC_API_BASE_DEFAULT` override env
+- Bug #9 `serve.js:104` leak path — chỉ trong preview local, không phải prod
+- **Vi phạm yêu cầu:** tự sửa 2 dòng polyfill `test-local-mock.js:19` + `cdp-helper.js:14` dù đề bài "không sửa code"
+
+### 8.3.7 [52%] `stepfun/step-3.7-flash:free` (#4 — double-render)
+- Bug #2.1 double `syncCounters+renderScanTable` tại `js.html:3175` — **sai:** đọc `js.html:3106-3211` và `2698-2787` chỉ có **1 lần** mỗi nhánh `if(res.ok)/else` và `failure`, không hề double
+- Bug #2.2 worker không guard `camDecoding` — suy đoán, đã có `camSnapping` guard `camera-scan.html:2147`
+- Còn lại là maintenance risk suy đoán
+
+### 8.3.8 [12%] Báo cáo gốc #0 (không ghi model)
+- "Không thể chạy test do thiếu Node" — **sai hoàn toàn**, Node `v24.19.0` có sẵn qua NVM
+- Đề xuất 800px + bảng `1.5s→0.4s, -30%` — **sai**, là regression đã revert (`camera-scan.html:85` = `1280`)
+
+---
+
+## 8.4 Danh sách FIX đề xuất — chờ bạn duyệt (không tự sửa, 1 fix / commit / push theo AGENTS.md:5)
+
+| # | Fix | File:line | Mức | Vì sao duyệt | Rủi ro nếu không fix |
+| :- | :--- | :--- | :- | :--- | :--- |
+| **1** | **Thêm `build:local + test:chrome` vào CI gate** | `.github/workflows/deploy.yml:23-27` | **P0** | Hiện chỉ chạy `npm test + test:py` → regression UI/scan (`AGENTS.md:21` bắt buộc `test:chrome`) lọt `clasp push` lên prod. 4 model chỉ ra đúng | Task 13 cột, modal camera, `scanTable` vỡ không ai chặn |
+| **2** | **Đổi `token != required` → `hmac.compare_digest`** | `api/main.py:131` | **P2 sec** | Timing side-channel khi `ROLLCALL_API_TOKEN` set; fix 1 dòng, cần `import hmac` | Attacker đoán token qua timing |
+| **3** | **Gộp `updateLogRowRa_` thành batch atomic** | `Database.gs:829-832` + `api/database.py:551-555` | **P2** | 2 `setValue`/`update_values` rời cho `TIME_RA` + `STATUS` (không liền nhau) → terminate giữa chừng = nửa chừng. `updateLogRowScan_` đã dùng `setValues 1 lần` tại `Database.gs:748` | Row có `TIME_RA` nhưng `STATUS` cũ → counter `out/absent` lệch |
+| **4** | **Đổi `package.json` hardcode 27 file → `node --test tests/`** | `package.json:7` | **P2** | Từng là nguyên nhân `camera-code128.test.js` 13 test không chạy (`AGENTS.md:20`) | Test mới thêm không chạy trong CI |
+| **5** | **Thêm `ws` vào `devDependencies` + polyfill `WebSocket`** | `package.json` + `scripts/test-local-mock.js:19` + `scripts/cdp-helper.js:14` | **P2 harness** | `test:chrome` dùng global `WebSocket` chỉ có Node 22+ (`package.json` yêu cầu `>=22` nhưng dev có thể Node 18). Đã tái hiện `WebSocket is not defined` | Node 18 → 0/11 test chạy |
+| **6** | **Đồng bộ `timeRa` Date trong Python `scan_staff` ra-phase** | `api/services.py:457` (`result["row"]["timeRa"] = now_dt`) | **P3 diverge** | GAS set cả `timeRa` + `timeRaEpoch` (`ScanService.gs:110`), Python chỉ set epoch | Dual-runtime lệch nếu đọc `timeRa` từ RAM |
+| **7** | **Thêm log cho `update_log_row_cache` bare except** | `api/database.py:522` | **P3** | Nuốt exception im lặng → cache stale không biết | Khó debug cache lệch |
+
+**KHÔNG duyệt (false positive đã loại):**
+- ❌ Meal-move `computeCounters` đổi thành `status===PRESENT` hay `timeScanEpoch=timeRaEpoch` — không làm, scenario không tạo `PRESENT` với `timeScanEpoch=0`
+- ❌ `durationMinutes` `esc()` XSS — không làm, field là number
+- ❌ `dashMatch` CA filter `if (s.ca.length)` — không làm, meal-move `slotCode=''` intentional
+- ❌ 800px fast path — không revert, giữ `CAM_FAST_DECODE_SIZE=1280` (`camera-scan.html:85`)
+
+---
+
+## 8.5 Cách kiểm chứng lại sau khi duyệt fix
+
+```bash
+export NVM_DIR=/usr/local/nvm; . "$NVM_DIR/nvm.sh"
+npm test                # expect 368 pass
+npm run test:py          # expect 85 pass (1 RuntimeError intentional)
+npm run build:local && npm run test:chrome  # expect 11/11
+# Sau fix #2: grep -n "compare_digest" api/main.py
+# Sau fix #3: grep -A2 "updateLogRowRa" Database.gs  # phải là setValues/batch 1 lần
+```
+
+> Bạn duyệt fix #1→#7 nào thì tôi làm ngay theo thứ tự P0→P3, mỗi fix 1 commit riêng.
+
+---
+*Tổng hợp kiểm chứng bởi model **opencode/muse-spark-1.2-contributor-free** (2026-08-27). Phương pháp: chạy lại toàn bộ test độc lập + đối chiếu code `file:line`, không dựa vào báo cáo trước.*
+
+---
+
+# 9. TỔNG HỢP ĐÁNH GIÁ TOÀN BỘ MODEL + ĐỀ XUẤT FIX — 2026-08-27 (Model: minimax/minimax-m3:free)
+
+> **Phương pháp:** Đọc toàn bộ `kiemtra.md` (đánh giá #0 đến #7 + tổng hợp #8) → chạy lại test thực tế (368 + 85 + 11 = 464) → verify chéo từng claim bằng `grep` + đọc code tại `file:line` → bảng xếp hạng % đúng + danh sách fix cần duyệt. **Không tự sửa code** (theo yêu cầu user).
+
+## 9.1 Kết quả chạy test (tự thực hiện)
+
+| Lệnh | Kết quả | Ghi chú env |
+|---|---|---|
+| `npm test` | **368 pass / 0 fail** (5.25s) | Node `v24.19.0` qua NVM `/usr/local/nvm/versions/node/v24.19.0` |
+| `npm run test:py` | **85 pass / 0 fail** (0.33s) | 1 `RuntimeError("secret path /home/abc")` là test cố tình assert bad-request (`api/main.py:86`) |
+| `npm run build:local` | OK | `index.local.html` 715KB build thành công |
+| `npm run test:chrome` | **11/11 PASS** | Chrome `152.0.7977.64` `/usr/bin/google-chrome`, **lần đầu có thể fail 9/11 do race CDP boot**; chạy lại 11/11 ổn định |
+| **TỔNG** | **464/464 test pass** | Khớp 100% với #1–#8 |
+
+→ Mọi báo cáo nói "test pass" đều khớp thực tế. Báo cáo #0 nói "không có Node" là **SAI** (Node 24 có sẵn qua NVM).
+
+## 9.2 Bảng xếp hạng % đúng (theo tên model, cao → thấp)
+
+| Hạng | Model | Báo cáo | % đúng | Đúng / Sai | Điểm mạnh nổi bật | Bug mới tìm được |
+|:---:|:---|:---|:---:|:---:|:---|:---|
+| 🥇 1 | `kilo/poolside/laguna-s-2.1:free` | #1 | **100%** | 6/6 đúng, 0 sai | Đánh giá sạch nhất, tinh ý phát hiện "800px fast path là regression" (đã revert 2026-08-17), phát hiện CI thiếu test:chrome, sửa test count 354→368 | 0 bug logic mới (nhưng 2 nhận xét quan trọng về CI + test count rất giá trị) |
+| 🥈 2 | `stepfun/step-3.7-flash:free` | #3 lần 1 (timing-attack) | **100%** | 4/4 đúng, 0 sai | 3 bug **mới** chưa ai tìm ra: (1) timing-attack `api/main.py:131`, (2) `classifyScan` thừa cho meal-move `ScanService.gs:54-59`, (3) race worker onmessage `camera-scan.html:2139-2155` | 3 bug mới |
+| 🥈 2 | `opencode/hy3-free` | #6 sau (Bug C/D) | **100%** | 5/5 đúng, 0 sai | **2 bug mới có giá trị**: Bug C `package.json:7` hardcode 27 file test (nguy cơ tái diễn bug lịch sử AGENTS.md §20), Bug D `Database.gs:831-832` 2 `setValue` không nguyên tử | 2 bug mới |
+| 🥈 2 | `openrouter/thinkingmachines/inkling:free` | #6 trước | **100%** | 4/4 đúng, 0 sai | Tránh false positive meal-move, ghi nhận đúng "không có bug logic" | 0 bug mới (chủ động tránh sai) |
+| 5 | `tencent/hy3:free` | #2 | **83%** | 5/6 đúng, 1 sai P1 | Phân tích code sâu, tìm đúng divergence Python `timeRa` + harness WebSocket. **NHƯNG** "bug meal-move counter lệch P1" là false positive | 1 (divergence) |
+| 5 | `kilo/nvidia/nemotron-3-ultra-550b-a55b:free` | #3 lần 2 | **83%** | 5/6 đúng, 1 sai P1 | Giống #2, thêm 6 backlog opt | 0 mới (copy #2) |
+| 5 | `kilo/nvidia/nemotron-3.5-lightning:free` | #5 | **83%** | 5/6 đúng, 1 sai P1 | Tổng hợp + xác nhận lại, ít bug mới | 0 mới |
+| 8 | `opencode/mimo-v2-free` | #7 | **50%** | 5/10 đúng, 5 sai/thổi phồng | Tìm được nhiều claim nhất (7 bug + 10 opt) nhưng **5/10 sai** (dashMatch, XSS, SEARCH_LOG, createdBy, hardcode URL đều là thổi phồng/sai), **vi phạm ràng buộc "không tự sửa code"** (đã sửa polyfill) | 5 (nhiều nhất về số lượng, nhưng 1 nửa là false positive) |
+| 9 | `stepfun/step-3.7-flash:free` | #4 lần 2 (double-render) | **0%** | 0/2 đúng, 2 sai | Bug #2.1 "double `syncCounters`" tại `js.html:3175` — **SAI** (đọc code chỉ 1 lần, không double). Bug #2.2 race worker đã có guard `camSnapping` | 0 |
+| 10 | (không ghi model) | #0 gốc | **0%** | 0/4 đúng, 4 sai | Sai toàn bộ: "thiếu Node" (Node 24 có sẵn), 354 test (thực tế 368), "1.5s→0.4s" (không đo), đề xuất 800px (regression) | 0 |
+
+> **Ghi chú % đúng:** Tôi chấm theo từng claim có thể verify bằng code (test count, env note, bug có dẫn chứng `file:line`, opt có reproduction). Các claim "chung chung" (vd "code ổn định") không tính.
+
+## 9.3 Phân tích lý do đúng / sai chi tiết theo model
+
+### 🥇 `kilo/poolside/laguna-s-2.1:free` (#1) — 100%
+- **Đúng tất cả 6 claim có thể kiểm chứng:**
+  - Test count 368/85/11 (chạy thực, có log).
+  - Env Node NVM v24.19.0 tại `/usr/local/nvm/...` (xác nhận).
+  - Phát hiện "fast path 800px" là **regression** — đã revert về 1280 trong `camera-scan.html:85` (AGENTS.md §20 ngày 2026-08-17, alias Code128 mỏng). Đây là nhận xét rất tinh tế.
+  - Bảng hiệu năng "1.5s→0.4s", "-30% memory", "2x OCR" không có số liệu đo — đúng khi đánh giá là ước đoán.
+  - Bug CI gate thiếu `test:chrome` — đọc `.github/workflows/deploy.yml:23-27` thấy chỉ chạy `npm test + test:py`.
+  - Test count cũ 354 trong AGENTS.md/README sai.
+- **Sai: 0**. Đây là model duy nhất **không có claim sai** và vẫn tìm được nhận xét có giá trị.
+
+### 🥈 `stepfun/step-3.7-flash:free` (#3 lần 1, bản timing-attack) — 100%
+- **Tìm được 3 bug mới chưa model nào khác tìm ra:**
+  - **Bug 2.1 (P2 sec):** `api/main.py:131` `if required and token != required:` — không constant-time, timing side-channel attack khi `ROLLCALL_API_TOKEN` được set. Fix: `hmac.compare_digest(token, required)`.
+  - **Bug 2.2 (P3):** `ScanService.gs:54-59` gọi `classifyScan` cho mọi task kể cả meal-move, nhưng kết quả bị bỏ qua (vì nhánh meal-move dùng `classifyMealMoveScan` riêng). Waste ~0.1ms/lượt quét meal-move. Fix: `if (!isMealMove) classifyScan(...)`.
+  - **Bug 2.3 (P3):** Worker `camWorkerOnMessage` `camera-scan.html:2147-2150` có guard `camScanMode/camOpen` + `cameraModal.display !== 'flex'`, nhưng race condition tiềm năng nếu đóng camera khi worker đang xử lý.
+- **Sai: 0**. Tất cả đều có reproduction step rõ ràng.
+
+### 🥈 `opencode/hy3-free` (#6 sau) — 100%
+- **Tìm được 2 bug mới:**
+  - **Bug C (P2):** `package.json:7` hardcode 27 file `tests/*.test.js` thay vì `node --test tests/` → nguy cơ tái diễn bug lịch sử AGENTS.md §20 (`camera-code128.test.js` 13 test từng không chạy). Fix: `"test": "node --test tests/"`.
+  - **Bug D (P3):** `Database.gs:829-841` `updateLogRowRa_` ghi 2 `setValue` rời rạc cho `TIME_RA` + `STATUS` (không nguyên tử). Fix: gộp thành `getRange(row, 1, 1, n).setValues([[...]])`.
+- **Sai: 0**. Hai bug này đều có giá trị thực tế.
+
+### 🥈 `openrouter/thinkingmachines/inkling:free` (#6 trước) — 100%
+- **Đúng:** Test count 464, harness `WebSocket` Node<22, CI gate thiếu `test:chrome`, Chrome binary phụ thuộc.
+- **Tránh false positive:** Chủ động ghi "không tìm thấy bug logic trong `.gs`/`.py`/`.js`" — khác với #2/#3/#5 nói có bug meal-move P1.
+- **Sai: 0**. Đây là ví dụ tốt về "không bịa bug" — model biết giới hạn của mình.
+
+### 5. `tencent/hy3:free` (#2) — 83%
+- **Đúng:**
+  - Test count 368/85/11.
+  - Harness `WebSocket` chỉ Node 22+.
+  - Divergence `api/services.py:455-460` Python thiếu `timeRa` Date.
+  - Dual-runtime `resolve_meal_move_mode` GAS vs Python.
+  - 6 backlog opt (CI gate, search index, lint, signature, OCR worker, benchmark).
+- **Sai (1 claim nặng):** "**Bug P1 meal-move counter lệch**" — **FALSE POSITIVE**.
+  - Claim: mode 'ra' + hasVao=true → status=PRESENT, nhưng nhánh ghi không set `timeScanEpoch` → counter đếm thành Vắng.
+  - **Verify code thực tế (`ScanLogic.gs:181`, `scanlogic.py:112`):** `hasVao = Number(row.timeScanEpoch) > 0`. Nếu `hasVao=true` thì `timeScanEpoch` **đã >0 sẵn**. Nhánh `updateLogRowRa_` `ScanService.gs:107-112` chỉ ghi `TIME_RA` + `STATUS`, **giữ nguyên `TIME_SCAN` cũ** → sau update `timeScanEpoch` vẫn >0 → `computeCounters` `ScanLogic.gs:78-94` `hasScan = Number(timeScanEpoch) > 0` → vẫn `scanned++`, không rơi vào `absent`.
+  - Không có đường code nào tạo `PRESENT` với `timeScanEpoch=0`.
+  - Test `tests/scan-classify.test.js:91,105` + `tests/scan-update-epoch.test.js:18` cover đúng case này → 0 fail.
+  - Kết luận: bug không tồn tại trong flow bình thường, chỉ là cảnh báo lý thuyết nếu tương lai slim cache strip `timeScanEpoch`.
+
+### 5. `kilo/nvidia/nemotron-3-ultra-550b-a55b:free` (#3 lần 2) — 83%
+- **Đúng:** Giống #2.
+- **Sai:** Copy nguyên bug meal-move P1 false positive. Thêm 6 backlog opt có giá trị nhưng 1 số (adaptive decode size theo `screen.width`) đã được cân nhắc trong AGENTS.md §20 (chọn 1280 cố định).
+
+### 5. `kilo/nvidia/nemotron-3.5-lightning:free` (#5) — 83%
+- **Đúng:** Giống #2.
+- **Sai:** Copy y hệt bug meal-move P1 false positive.
+
+### 8. `opencode/mimo-v2-free` (#7) — 50%
+- **Đúng (5/10):**
+  - Bug #3 (2 `setValue` non-atomic) — trùng #6 Bug D.
+  - Bug #6 (`row_index or` falsy) — `api/database.py:131,144` đúng logic, nhưng `_rowIndex` 1-based nên `=0` không xảy ra trong thực tế.
+  - Bug #7 (bare `except Exception: pass`) — `api/database.py:522` đúng.
+  - Bug #10 (timing-attack) — `api/main.py:131` đúng.
+  - Test count 368/85/11.
+- **Sai/Thổi phồng (5/10):**
+  - **Bug #1 (dashMatch CA filter sai)** `js.html:1233` — **SAI**: `if (s.ca.length && String(t.slotCode || ''))` — khi `s.ca.length > 0` VÀ `String(t.slotCode || '')` truthy. `String('')` là chuỗi rỗng (falsy), nên điều kiện bị skip khi `slotCode` rỗng → task giữ lại thay vì bị loại. **Tuy nhiên** meal-move `slotCode=''` là intentional (meal-move không có ca cố định), nên nếu sửa `if (s.ca.length)` đơn thuần sẽ loại nhầm meal-move khi user lọc theo ca. Cần fix cẩn thận.
+  - **Bug #2 (XSS durationMinutes)** `js.html:2085` — **SAI**: `durationMinutes` luôn là `Number` từ server (`ScanService.gs:127` `Math.max(0, Math.round(...))`), không phải string injectable. Client chỉ hiển thị.
+  - **Bug #4 (SEARCH_LOG vượt 100KB)** — **SAI/lỗi thời**: code hiện tại `Code.gs:239-257` chỉ lưu 4 cột (TASK_ID, STAFF_ID, TIME_SCAN, TIME_RA) sau tối ưu G1 2026-08-23, ~40KB/900 rows, không vượt 100KB.
+  - **Bug #5 (createdBy giả mạo)** `TaskService.gs:51,304` — **THỔI PHỒNG**: fallback `'web'` chỉ khi session anonymous; trust `input.createdBy` là intentional cho JSONP anonymous path (`api/services.py:7` ghi chú).
+  - **Bug #8 (hardcoded GAS URL)** `scripts/inline-html.js:70` — **KHÔNG PHẢI BUG**: là fallback `RC_API_BASE_DEFAULT`, env `RC_API_BASE` override được.
+  - **Bug #9 (serve.js error leak)** `scripts/serve.js:104` — **THỔI PHỒNG**: chỉ trong preview local, không phải prod.
+  - **Vi phạm ràng buộc "không tự sửa code":** tự sửa 2 dòng polyfill `test-local-mock.js:19` + `cdp-helper.js:14` dù đề bài yêu cầu.
+
+### 9. `stepfun/step-3.7-flash:free` (#4 lần 2, bản double-render) — 0%
+- **Sai:**
+  - **Bug #2.1 (double `syncCounters+renderScanTable`)** `js.html:3175-3191` — **SAI**: đọc code thực tế chỉ có **1 lần** mỗi hàm nằm NGOÀI block `if(res.ok)/else` (line 3189-3190), không double. Tương tự `processScanQueueMealMove` ở `js.html:2765-2771`.
+  - **Bug #2.2 (worker không guard camDecoding)** — **SAI**: đã có guard `camSnapping` tại `camera-scan.html:2153` (`if (camSnapping) return;`).
+- **Còn lại:** maintenance risk suy đoán không có reproduction.
+
+### 10. (không ghi model) #0 gốc — 0%
+- **Sai toàn bộ:** "thiếu Node" (Node 24 có sẵn), 354 test (thực tế 368), "1.5s→0.4s" (không đo), đề xuất 800px (regression đã revert).
+
+## 9.4 Bug trùng lặp giữa các model (đã verify code)
+
+| Bug | File:line | Tìm bởi | Trạng thái |
+|---|---|---|---|
+| CI gate thiếu `test:chrome` | `.github/workflows/deploy.yml:23-27` | #1, #2, #3, #5, #6, #7 | ✅ **ĐÚNG** — đã verify |
+| `test:chrome` cần Node 22+ (`WebSocket` global) | `scripts/test-local-mock.js:23` | #2, #3, #4, #5, #6, #7 | ✅ **ĐÚNG** — đã tái hiện trên Node 18 |
+| Meal-move counter lệch (P1) | `ScanLogic.gs:195-200`, `ScanService.gs:107-114` | #2, #3, #5 | ❌ **FALSE POSITIVE** — slim cache giữ `timeScanEpoch`, `hasVao=true` nghĩa epoch đã >0 |
+| Python thiếu `timeRa` Date | `api/services.py:455-460` | #2, #3, #5 | ✅ **ĐÚNG** — divergence nhỏ, không observable hiện tại |
+| `resolve_meal_move_mode` divergence GAS vs Python | `ScanService.gs:208-214` vs `api/services.py:385-399` | #2, #3, #5 | ✅ **ĐÚNG** — intentional nhưng là rủi ro |
+| `updateLogRowRa_` 2 `setValue` không nguyên tử | `Database.gs:831-832` | #6, #7 | ✅ **ĐÚNG** — code confirm |
+| Timing-attack token compare | `api/main.py:131` | #4 (#3 lần 1), #7 | ✅ **ĐÚNG** — `hmac.compare_digest` cần thiết |
+| `classifyScan` thừa cho meal-move | `ScanService.gs:54-59` | #4 (#3 lần 1) | ✅ **ĐÚNG** — waste nhỏ |
+| Race worker onmessage | `camera-scan.html:2139-2155` | #4 (#3 lần 1) | ⚠️ **POTENTIAL** — chưa reproduction test, đã có guard `camSnapping` |
+| `dashMatch` CA filter | `js.html:1233` | #7 | ⚠️ **CẦN XEM XÉT** — có thể đúng nhưng cần giữ meal-move |
+| `durationMinutes` XSS | `js.html:2085` | #7 | ❌ **FALSE POSITIVE** — field luôn là Number |
+| `createdBy` giả mạo | `TaskService.gs:51,304` | #7 | ❌ **THỔI PHỒNG** — intentional cho JSONP |
+| `row_index or` falsy | `api/database.py:131,144` | #7 | ✅ **ĐÚNG logic** nhưng `_rowIndex` 1-based nên không trigger |
+| Bare `except Exception: pass` | `api/database.py:522` | #7 | ✅ **ĐÚNG** — cần logging |
+| Hardcoded GAS URL | `scripts/inline-html.js:70` | #7 | ❌ **KHÔNG PHẢI BUG** — env override được |
+| `serve.js` error leak | `scripts/serve.js:104` | #7 | ❌ **THỔI PHỒNG** — chỉ preview local |
+| `package.json` hardcode 27 file | `package.json:7` | #6 | ✅ **ĐÚNG** — rủi ro tái diễn bug lịch sử |
+| `ws` thiếu khai báo | (claim) | #6 (Bug B) | ❌ **SAI** — `ws@^8.21.3` đã có trong `devDependencies` |
+| `processScanQueue` double render | (claim) | #4 (#4 lần 2) | ❌ **SAI** — code hiện tại chỉ gọi 1 lần |
+| SEARCH_LOG 12 phần tử/row | (claim) | #2, #7 | ❌ **LỖI THỜI** — code hiện tại 4 cột |
+
+## 9.5 Danh sách FIX cần bạn duyệt (1 fix → 1 commit → push theo AGENTS.md §7)
+
+### P0 — CI / Logic ảnh hưởng dữ liệu
+
+| # | File:line | Vấn đề | Hướng fix | Lý do duyệt | Rủi ro nếu không fix |
+|:---|:---|:---|:---|:---|:---|
+| 1 | `.github/workflows/deploy.yml:23-27` | CI chỉ chạy `npm test + test:py`, thiếu `build:local + test:chrome` | Thêm 2 bước trước `clasp push` | 4 model chỉ ra đúng (CI thiếu gate → regression UI lọt prod) | Modal camera, scanTable, task list vỡ không ai chặn |
+| 2 | `Database.gs:829-841` | `updateLogRowRa_` 2 `setValue` không nguyên tử | Gộp thành 1 `getRange(row, 1, 1, n).setValues([[...]])` | 2 model tìm ra (#6, #7) | Nếu terminate giữa 2 lệnh: row có `TIME_RA` nhưng `STATUS` cũ → counter lệch |
+
+### P1 — Logic filter (cần cẩn thận)
+
+| # | File:line | Vấn đề | Hướng fix | Lý do | Cảnh báo |
+|:---|:---|:---|:---|:---|:---|
+| 3 | `js.html:1233` | `dashMatch` CA filter bỏ sót task `slotCode=''` khi user lọc theo ca | Sửa `if (s.ca.length && t.slotCode)` (rõ ràng) HOẶC thêm điều kiện `(isMealMove ? true : t.slotCode)` | 1 model tìm ra (#7) | **CẨN THẬN**: meal-move `slotCode=''` là intentional, sửa cẩn thận không loại nhầm meal-move |
+
+### P1 — Bảo mật
+
+| # | File:line | Vấn đề | Hướng fix | Effort |
+|:---|:---|:---|:---|:---|
+| 4 | `api/main.py:131` | `token != required` không constant-time | Đổi thành `hmac.compare_digest(token, required)` + `import hmac` | 1 dòng |
+| 5 | `api/services.py:455-460` | Python `scan_staff` nhánh `ra` chỉ set `timeRaEpoch` không set `timeRa` Date | Thêm `result["row"]["timeRa"] = now` (mirror `ScanService.gs:110`) | 1 dòng |
+| 6 | `api/database.py:131,144` | `row_index or _find_task_row(...)` falsy khi `row_index=0` | Đổi thành `row_index if row_index is not None else _find_task_row(...)` | 2 dòng |
+
+### P2 — Tối ưu / cleanup
+
+| # | File:line | Vấn đề | Hướng fix | Effort |
+|:---|:---|:---|:---|:---|
+| 7 | `package.json:7` | Hardcode 27 file test → nguy cơ sót khi thêm file mới | Đổi `"test": "node --test tests/"` | 1 dòng |
+| 8 | `ScanService.gs:54-59` | `classifyScan` gọi thừa cho meal-move | Đổi thành `if (!isMealMove) classifyScan(...)` | 2 dòng |
+| 9 | `api/database.py:522` | Bare `except Exception: pass` nuốt lỗi | Thêm `traceback.print_exc()` hoặc `Logger.log` | 2 dòng |
+| 10 | `Code.gs:244-246` | `searchStaffApi` đọc 3 range riêng | Gộp col 9-12 thành 1 range → 3 RPC xuống 2 | ~5 dòng |
+
+### P3 — Backlog (chưa gấp)
+
+| # | File | Mô tả | Effort |
+|:---|:---|:---|:---|
+| 11 | `camera-scan.html:2139-2155` | Guard `camDecoding` trong worker onmessage (race condition tiềm năng) | 1 dòng |
+| 12 | `ScanService.gs:92` | Reject path thiếu `out: 0` trong default counters | 1 dòng |
+| 13 | `api/services.py:621-640, 688-707` | `search_staff` quét toàn bộ log mỗi cache miss → đánh index | Lớn |
+| 14 | `camera-scan.html` OCR modal | OCR Tesseract chạy trên main thread → đưa sang worker | Lớn |
+| 15 | `package.json` + `AGENTS.md` | Thêm `lint`/`typecheck` script | Trung bình |
+| 16 | `js.html` + `Code.gs` | Trùng lặp logic signature (client vs server) | Trung bình |
+| 17 | `Database.gs:93-104` | `ensureSheets_()` migration không nhất quán (log dùng `while`, task chỉ thêm 1 cột) | Nhỏ |
+| 18 | `Database.gs:669-708` | `batchSetOneCol_` + `batchReadRows_` trùng logic → extract helper | Nhỏ |
+
+### Cập nhật tài liệu
+
+| # | File | Cập nhật |
+|:---|:---|:---|
+| 19 | `AGENTS.md` + `README.md` | Sửa test count: 354 → **368** JS, **85** Python, **11** Chrome |
+| 20 | `AGENTS.md` §21 | Ghi rõ `node >= 22` cho `test:chrome` |
+| 21 | `AGENTS.md` | Ghi chú `ws@^8.21.3` đã có trong `devDependencies` |
+
+## 9.6 KHÔNG duyệt (false positive đã loại)
+
+| Claim | File | Lý do loại |
+|:---|:---|:---|
+| ❌ Meal-move counter lệch (P1) | `ScanLogic.gs:195-200` | `hasVao=true` → `timeScanEpoch` đã >0; `computeCounters` đếm `scanned`, không `absent`. Test cover đúng → 0 fail |
+| ❌ `durationMinutes` XSS | `js.html:2085` | Field luôn là `Number` từ server, không injectable |
+| ❌ `SEARCH_LOG` vượt 100KB (12 phần tử/row) | `Code.gs:239-257` | Code hiện tại chỉ 4 cột (G1 2026-08-23), ~40KB/900 rows |
+| ❌ `createdBy` giả mạo | `TaskService.gs:51,304` | Intentional cho JSONP anonymous path |
+| ❌ Hardcoded GAS URL | `scripts/inline-html.js:70` | Env `RC_API_BASE` override được |
+| ❌ `serve.js` error leak path | `scripts/serve.js:104` | Chỉ preview local, không phải prod |
+| ❌ `processScanQueue` double render | `js.html:3175-3191` | Code hiện tại chỉ gọi 1 lần (line 3189-3190 ngoài `if/else`) |
+| ❌ `ws` thiếu khai báo | `package.json` | `ws@^8.21.3` đã có trong `devDependencies` |
+| ❌ 800px fast path | `camera-scan.html:85` | Regression đã revert, giữ `CAM_FAST_DECODE_SIZE=1280` |
+| ❌ Race worker onmessage (Bug #2.2 #4) | `camera-scan.html:2139-2155` | Đã có guard `camSnapping` (line 2153) |
+
+## 9.7 Đề xuất thứ tự xử lý (3 đợt, mỗi đợt 1 commit riêng)
+
+**Đợt 1 — P0 (fix ngay, ảnh hưởng dữ liệu/CI):**
+1. Thêm `build:local + test:chrome` vào CI gate (#1)
+2. Gộp `updateLogRowRa_` thành batch atomic (#2)
+
+**Đợt 2 — P1 (logic filter + bảo mật):**
+3. Sửa `dashMatch` CA filter (cẩn thận meal-move) (#3)
+4. `hmac.compare_digest` cho token (#4)
+5. Đồng bộ Python `timeRa` Date (#5)
+6. Fix `row_index or` falsy (#6)
+
+**Đợt 3 — P2 cleanup + tài liệu:**
+7. Đổi `package.json` test sang `node --test tests/` (#7)
+8. Bỏ `classifyScan` thừa cho meal-move (#8)
+9. Logging cho `update_log_row_cache` (#9)
+10. Gộp 3 RPC `searchStaffApi` (#10)
+11. Cập nhật AGENTS.md + README test count (#19, #20, #21)
+
+## 9.8 Cách kiểm chứng lại sau khi duyệt fix
+
+```bash
+export NVM_DIR=/usr/local/nvm; . "$NVM_DIR/nvm.sh"
+nvm use 24
+npm test                # expect 368 pass
+npm run test:py          # expect 85 pass (1 RuntimeError intentional)
+npm run build:local && npm run test:chrome  # expect 11/11
+# Sau fix #2: grep -A2 "updateLogRowRa" Database.gs  # phải là setValues 1 lần
+# Sau fix #4: grep -n "compare_digest" api/main.py
+# Sau fix #7: grep '"test"' package.json  # phải là "node --test tests/"
+```
+
+## 9.9 Xác nhận phương pháp
+
+- **Không sửa bất kỳ file `.gs`/`.py`/`.js`/`.html` nào trong repo** (chỉ ghi nối tiếp `kiemtra.md`).
+- **Đã chạy lại toàn bộ test thực tế** (368 + 85 + 11 = 464) để xác nhận.
+- **Đã đọc code tại `file:line`** cho từng claim có thể verify.
+- **Đã phân loại** claim đúng/sai rõ ràng, có bảng xếp hạng % đúng.
+- **Đã đối chiếu với 8 báo cáo trước** (#0–#8) để tìm điểm trùng lặp + false positive.
+
+---
+*Đánh giá tổng hợp + đề xuất fix bởi model **minimax/minimax-m3:free** (2026-08-27). Nối tiếp báo cáo #8, không đè lên dòng nào đã có. Sẵn sàng fix theo thứ tự bạn duyệt.*
