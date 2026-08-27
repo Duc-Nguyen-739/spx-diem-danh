@@ -128,7 +128,7 @@ def insert_task(task):
 
 def update_task_note(task_id, note, row_index=None):
     c = config.TASK_COLS
-    r = row_index or _find_task_row(task_id)
+    r = row_index if row_index is not None else _find_task_row(task_id)
     if not r:
         return False
     sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["NOTE"] + 1, [[sanitize_cell_text(note or "")]])
@@ -141,7 +141,7 @@ def update_task_note(task_id, note, row_index=None):
 def update_task_status(task_id, status, completed_at, row_index=None):
     """Ghi 2 cột rời nhau (STATUS, COMPLETED_AT) — P0 fix: không ghi đè CREATED_AT."""
     c = config.TASK_COLS
-    r = row_index or _find_task_row(task_id)
+    r = row_index if row_index is not None else _find_task_row(task_id)
     if not r:
         return False
     sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["STATUS"] + 1, [[status]])
