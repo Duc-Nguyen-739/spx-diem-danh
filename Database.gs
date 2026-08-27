@@ -828,8 +828,12 @@ function overwriteStaffData_(staffList) {
  */
 function updateLogRowRa_(row, timeRa, status) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
-  sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setValue(timeRa);
-  sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1).setValue(status);
+  // Atomic: STATUS (cột 10) và TIME_RA (cột 12) không liền nhau (cách DATE cột 11)
+  // → đọc DATE để không ghi đè, rồi ghi 3 cột liền nhau (STATUS→TIME_RA) trong 1 setValues
+  // (thay 2 setValue rời rạc — terminate giữa chừng = nửa chừng, fix P0 #2).
+  const dateVal = sheet.getRange(row._rowIndex, LOG_COLS.DATE + 1).getValue();
+  sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1, 1, 3).setValues([[status, dateVal, timeRa]]);
+  sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setNumberFormat('HH:mm:ss');
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: Ra đổi status/counter → danh sách task thiết bị khác thấy ngay
   updateLogRowCache_(row.taskId, row._rowIndex, function (r) {

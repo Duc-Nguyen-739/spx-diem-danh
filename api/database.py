@@ -549,10 +549,14 @@ def append_log_row(row):
 
 
 def update_log_row_ra(row, time_ra, status):
-    """Ghi timeRa + status (2 cột rời nhau — tần suất thấp)."""
+    """Ghi timeRa + status — atomic 1 RPC (STATUS→TIME_RA 3 cột liền nhau, giữ DATE)."""
     lc = config.LOG_COLS
-    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, [[cache.to_iso_cell(time_ra)]])
-    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["STATUS"] + 1, [[status]])
+    # Atomic: STATUS (col 10) và TIME_RA (col 12) cách nhau DATE (col 11) → đọc DATE
+    # để không ghi đè, rồi ghi 3 cột STATUS→TIME_RA trong 1 update_values (thay 2 RPC rời).
+    date_vals = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"K{row['_rowIndex']}:K{row['_rowIndex']}", unformatted=True)
+    date_val = date_vals[0][0] if date_vals and date_vals[0] else ""
+    # DATE val có thể là serial number (unformatted) — giữ nguyên, update ghi USER_ENTERED sẽ hiển thị đúng
+    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["STATUS"] + 1, [[status, date_val, cache.to_iso_cell(time_ra)]])
     sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
