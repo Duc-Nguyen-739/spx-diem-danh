@@ -1846,12 +1846,12 @@
       thead.innerHTML = '<tr>' +
         '<th scope="col" data-sort="0" class="sortable" aria-sort="none">Mã NV</th>' +
         '<th scope="col" data-sort="1" class="sortable" aria-sort="none">Tên NV</th>' +
-        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Ca</th>' +
-        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Team</th>' +
-        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Station</th>' +
-        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Giờ Ra</th>' +
-        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Vào</th>' +
-        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Vender</th>' +
+        '<th scope="col" data-sort="2" class="sortable" aria-sort="none">Vender</th>' +
+        '<th scope="col" data-sort="3" class="sortable" aria-sort="none">Ca</th>' +
+        '<th scope="col" data-sort="4" class="sortable" aria-sort="none">Team</th>' +
+        '<th scope="col" data-sort="5" class="sortable" aria-sort="none">Station</th>' +
+        '<th scope="col" data-sort="6" class="sortable" aria-sort="none">Giờ Ra</th>' +
+        '<th scope="col" data-sort="7" class="sortable" aria-sort="none">Giờ Vào</th>' +
         '<th scope="col" data-sort="8" class="sortable" aria-sort="none">Số phút</th>' +
         '<th scope="col" data-sort="9" class="sortable" aria-sort="none">Trạng thái</th>' +
         '</tr>';
@@ -1880,7 +1880,7 @@
     if (tbl) tbl.classList.toggle('meal-move', !!isMealMove);
     if (!cg) return;
     var widths = isMealMove
-      ? ['10%', '13%', '9%', '8%', '9%', '10%', '10%', '10%', '9%', '12%']
+      ? ['10%', '13%', '10%', '9%', '8%', '9%', '10%', '10%', '9%', '12%']
       : ['12%', '17%', '10%', '12%', '8%', '10%', '14%', '17%'];
     var html = '';
     for (var i = 0; i < widths.length; i++) html += '<col style="width:' + widths[i] + '">';
@@ -1958,16 +1958,16 @@
     out.sort(function (a, b) {
       var va, vb;
       if (isMealMove) {
-        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Ca, 3=Team, 4=Station, 5=Giờ Ra, 6=Giờ Vào, 7=Vender, 8=Số phút, 9=Trạng thái
+        // Meal-move columns: 0=Mã NV, 1=Tên NV, 2=Vender, 3=Ca, 4=Team, 5=Station, 6=Giờ Ra, 7=Giờ Vào, 8=Số phút, 9=Trạng thái
         if (col === 9) { va = statusRank(a.status); vb = statusRank(b.status); }
         else if (col === 0) { va = String(a.staffId || '').toUpperCase(); vb = String(b.staffId || '').toUpperCase(); }
         else if (col === 1) { va = String(a.staffName || '').toUpperCase(); vb = String(b.staffName || '').toUpperCase(); }
-        else if (col === 2) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
-        else if (col === 3) { va = String(a.team || ''); vb = String(b.team || ''); }
-        else if (col === 4) { va = String(a.station || ''); vb = String(b.station || ''); }
-        else if (col === 5) { va = Number(a.timeRaEpoch) || 0; vb = Number(b.timeRaEpoch) || 0; }
-        else if (col === 6) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
-        else if (col === 7) { va = String(a.agency || ''); vb = String(b.agency || ''); }
+        else if (col === 2) { va = String(a.agency || ''); vb = String(b.agency || ''); }
+        else if (col === 3) { va = String(a.slotCode || ''); vb = String(b.slotCode || ''); }
+        else if (col === 4) { va = String(a.team || ''); vb = String(b.team || ''); }
+        else if (col === 5) { va = String(a.station || ''); vb = String(b.station || ''); }
+        else if (col === 6) { va = Number(a.timeRaEpoch) || 0; vb = Number(b.timeRaEpoch) || 0; }
+        else if (col === 7) { va = Number(a.timeScanEpoch) || 0; vb = Number(b.timeScanEpoch) || 0; }
         else if (col === 8) { va = Number(a.durationMinutes) || 0; vb = Number(b.durationMinutes) || 0; }
       } else {
         // Reconcile (Điểm Danh Ca) columns: 0=Mã NV, 1=Tên NV, 2=Vender, 3=Ca, 4=Team, 5=Station, 6=Trạng Thái, 7=Giờ điểm danh
@@ -2072,16 +2072,16 @@
     var isMealMove = CURRENT_TASK && CURRENT_TASK.taskType === 'meal-move';
     var cells;
     if (isMealMove) {
-      // Meal-move: Mã NV | Tên NV | Ca | Team | Station | Giờ Ra | Giờ Vào | Vender | Số phút | Trạng Thái
+      // Meal-move: Mã NV | Tên NV | Vender | Ca | Team | Station | Giờ Ra | Giờ Vào | Số phút | Trạng Thái
       cells = [
         '<td><b>' + esc(r.staffId) + '</b></td>',
         '<td>' + esc(r.staffName || '') + '</td>',
+        '<td>' + esc(r.agency || '') + '</td>',
         '<td>' + esc(r.slotCode || '') + '</td>',
         '<td>' + esc(r.team || '') + '</td>',
         '<td>' + esc(r.station || '') + '</td>',
         '<td class="mm-col">' + esc(r.timeRaText || '') + '</td>',
         '<td class="mm-col">' + esc(r.timeScanText || '') + '</td>',
-        '<td class="mm-col">' + esc(r.agency || '') + '</td>',
         '<td class="mm-col num">' + (r.durationMinutes != null ? r.durationMinutes : '') + '</td>',
         '<td>' + badge + '</td>'
       ];
