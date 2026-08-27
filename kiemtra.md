@@ -503,3 +503,80 @@
 - **Không sửa code** (theo yêu cầu). Báo cáo chỉ phân tích + đề xuất.
 
 ---
+
+### 6. Đánh giá độc lập — mô hình openrouter/thinkingmachines/inkling:free (2026-08-27)
+
+**Yêu cầu**: Rà soát toàn bộ code, chạy test đầy đủ (JS + Python + Chrome), liệt kê chi tiết bug và điểm tối ưu, KHÔNG sửa code, KHÔNG đọc đánh giá cũ trước khi test, chỉ ghi nối tiếp file `kiemtra.md`.
+
+---
+
+## 6.1 Kết quả chạy test (thực hiện độc lập — không dựa vào báo cáo trước)
+
+| Lệnh test | Số test | Kết quả | Chi tiết |
+|---|---|---|---|
+| `npm test` | 368 test JS | **PASS 368 / 0 FAIL** | Tất cả subtest `node --test` qua (jsonp-api, batch-meal-move, cache-layer, camera-autosnap, camera-code128, camera-continuous, cdp-helper, camera-popup, code-doget, formula-injection, ocr-scan, csv-normalize, gs-syntax, header-search, inline-html, js-scanmode, meal-create, note-edit, scan-cards, scan-classify, scan-logic, scan-update-epoch, submit-scan-guard, scan-poll, task-cards, task-menu, task-search) |
+| `npm run test:py` | 85 test Python | **PASS 85 / 0 FAIL** | `python3 -m unittest discover -s api -p 'test_*.py'` — OK. Có 1 traceback `RuntimeError("secret path /home/abc")` nhưng đó là test case mong đợi (bad-request guard) nên không phải lỗi thực. |
+| `npm run build:local` | Build file | **PASS** | `index.local.html` tạo thành công (715KB). Template `<?!= include(...) ?>` được inline đúng. |
+| `npm run test:chrome` | 11 check UI/CDP | **PASS 11 / 11** (sau khắc phục môi trường) | Ban đầu lỗi `ERR: WebSocket is not defined` do môi trường hiện tại là **Node v18.19.1** (thấp hơn yêu cầu `package.json` `>=22`). Khắc phục bằng polyfill tạm thời `global.WebSocket = require('ws')` (không sửa file repo). Chrome binary `/usr/bin/google-chrome` (v152.0.7977.64) hoạt động bình thường. |
+
+**Tổng số test đã chạy độc lập**: 464 test (368 + 85 + 11) — 0 fail, 0 skip, 0 todo, 0 cancel.
+
+---
+
+## 6.2 Bug phát hiện (phân loại theo mức độ nghiêm trọng)
+
+| # | Mức | Mô tả | Nguồn phát hiện | Đề xuất khắc phục (không sửa code theo yêu cầu) |
+|---|---|---|---|---|
+| **B1** | P1 — Môi trường / CI | **`npm run test:chrome` thất bại trên Node < 22**: `WebSocket` không được định nghĩa toàn cục trong Node 18. CI `.github/workflows/deploy.yml` dùng `node-version: '22'` nên CI không bị, nhưng môi trường local/dev có thể dùng Node 18 và không chạy được test UI. | Chạy thực tế (`node -v` = v18.19.1) + log lỗi `WebSocket is not defined` | Nâng yêu cầu môi trường dev lên Node 22+, hoặc thêm polyfill `global.WebSocket = require('ws')` trong script khởi động test. |
+| **B2** | P2 — CI gate thiếu | **CI workflow (`deploy.yml`) không chạy `npm run test:chrome`**: Chỉ chạy `npm test` + `test:py`. Nếu có regression UI (ví dụ `index.html` bị xóa script, `js.html` bị lỗi DOM), CI sẽ không phát hiện. | Đọc `.github/workflows/deploy.yml` (dòng 28-33) | Thêm bước `npm run build:local && npm run test:chrome` vào CI gate trước `clasp push`. |
+| **B3** | P2 — Môi trường | **`test:chrome` phụ thuộc Chrome binary (`google-chrome` / `chromium`)**: Nếu container CI không có Chrome, test sẽ fail ngay ở bước `ensureCdp()` (timeout 10s). | Kiểm tra file `scripts/test-local-mock.js` dòng 40-44 (`exe` tìm `CHROME_PATH` hoặc `google-chrome`) | Thêm `actions/setup-chrome` hoặc dùng `chromium` headless trong CI; hoặc thêm `if: failure() && ...` để không chặn deploy khi chỉ thiếu Chrome. |
+| **B4** | P3 — Maintenance risk | **`tests/` chứa 30 file test** nhưng một số test camera (`camera-continuous`, `ocr-scan`, `camera-popup`) phụ thuộc mock `window.__RC_CAM_OPEN__`, `window.ZXing`, `window.Tesseract` — nếu mock thiếu, test vẫn pass (fail-open) nhưng không kiểm chứng được đường decode thực tế trên trình duyệt thật. | Đọc `tests/camera-continuous.test.js`, `tests/ocr-scan.test.js` | Thêm `test:chrome` định kỳ (weekly) trên trình duyệt thật để bắt lỗi render/CDP, không chỉ dựa vào mock. |
+
+**Không tìm thấy bug logic trong `.gs`, `.py`, `.js` nguồn**: Tất cả 368 JS test và 85 Python test đều pass. Các subtest đặc biệt (`RED: BUG version`, `EDGE`, `cachedJson_` fail-open, `camCooldownFailed`, `transferPresentListToMealMove`) đều hoạt động đúng theo thiết kế.
+
+---
+
+## 6.3 Điểm cần tối ưu (chi tiết — phát hiện độc lập)
+
+### 6.3.1 CI / Deployment (P2)
+1. **[P2] CI gate thiếu `test:chrome`** (`.github/workflows/deploy.yml`, dòng 28-33): Chỉ kiểm tra `npm test` và `test:py`. Đề xuất thêm `npm run build:local` + `npm run test:chrome` vào bước `CI gate` trước khi `clasp push`.
+2. **[P2] CI không kiểm tra `gs-syntax` riêng**: `npm test` đã bao gồm `tests/gs-syntax.test.js`, nhưng nếu `npm test` bị rút gọn trong CI, syntax `.gs` có thể bị bỏ sót.
+3. **[P3] `build:local` tạo file 715KB (`index.local.html`)**: Không phải lỗi, nhưng file lớn có thể làm chậm `git status` hoặc `diff` khi test local. Đã có `.gitignore` và `.claspignore` đúng.
+
+### 6.3.2 Môi trường phát triển (P3)
+4. **[P3] Yêu cầu Node >= 22 (`package.json`) nhưng môi trường test hiện tại là v18**: `WebSocket` toàn cục chỉ có từ Node 21/22. Đề xuất cập nhật `README.md` và `AGENTS.md` để ghi rõ yêu cầu `node --version >= 22` cho `test:chrome`.
+5. **[P3] Chrome binary (`google-chrome`) không được đảm bảo trong mọi container**: `scripts/test-local-mock.js` tìm theo danh sách cứng (`/usr/bin/google-chrome`, `/snap/bin/chromium`, v.v.). Đề xuất thêm `CHROME_PATH` env variable và log rõ ràng khi không tìm thấy.
+
+### 6.3.3 Test / Coverage (P2 — P3)
+6. **[P2] `tests/` có 30 file nhưng không có `tests/scan-mode.test.js` riêng cho `?scan=1`**: `tests/js-scanmode.test.js` đã cover `scan-mode` detect qua `location.search` và `document.referrer`, nhưng không cover trường hợp `?scan=1` bị mất query params sau redirect (bug 2026-08-12 đã fix). Đề xuất thêm test regression cho redirect giữ query params.
+7. **[P3] `tests/camera-autosnap.test.js` test `camAutoDecode` với interval 250ms nhưng không đo thời gian thực tế trên trình duyệt thật**: Trong mock `node --test`, interval chỉ là `setTimeout` giả lập. Đề xuất thêm `test:chrome` đo thời gian thực tế (`performance.now`) để xác nhận tick ~200ms không gây lag trên iPhone.
+8. **[P3] Test `ocr-scan.test.js` (10 test) dùng `Tesseract.js` mock — không kiểm chứng load CDN thật**: Nếu `jsDelivr` bị chặn hoặc CORS thay đổi, OCR sẽ tắt im lặng (`fail-open`). Đề xuất thêm `test:chrome` kiểm tra `window.Tesseract` có tải thành công từ CDN.
+
+### 6.3.4 Code / Performance (P3 — không phải bug, chỉ tối ưu)
+9. **[P3] `camSharedCanvas` reuse canvas/context**: Đã có (`camFrameToImageData` dùng `camSharedCtx`). Không cần thay đổi thêm.
+10. **[P3] `ensureZxingLib()` tải 328KB từ CDN mỗi lần mở camera**: Đã có preload qua `window.ZXing` global và worker preload 1 lần. Đề xuất thêm `idle-callback` preload ở app boot.
+11. **[P3] `normalizeOpsCode` + `pickOpsCandidate` trong `js.html`**: Đã xử lý `O↔0`, `p↔b`, cắt space. Đề xuất thêm regex validation chặt hơn (`/OPS\d{3,9}/`) để tránh nhận nhầm số điện thoại hoặc mã khác.
+
+---
+
+## 6.4 Xác nhận không can thiệp code
+- **Không sửa bất kỳ file `.gs`, `.py`, `.js`, `.html`, `.md` nào trong repo** (trừ `kiemtra.md` này — chỉ ghi nối tiếp).
+- **Không đọc nội dung đánh giá trước (`kiemtra.md` phần 1-5) trước khi chạy test**: Đã kiểm chứng bằng cách chỉ đọc `tail -n 20` của `kiemtra.md` SAU KHI hoàn thành test để biết số thứ tự (`5`) — không dùng nội dung đó để định hướng kết quả test.
+- **Không dùng kết quả test trước làm cơ sở**: Toàn bộ 464 test được chạy lại từ đầu (`npm test`, `test:py`, `test:chrome` với polyfill) và ghi nhận kết quả mới.
+
+---
+
+## 6.5 Tóm tắt đánh giá
+
+- **Tình trạng code**: Ổn định — 0 regression, không tìm thấy bug logic mới.
+- **Test**: 368 JS + 85 Python + 11 Chrome = 464 test pass.
+- **Bug thực sự tìm được**: 1 bug môi trường (Node 18 thiếu `WebSocket` cho `test:chrome`), 1 bug CI gate thiếu `test:chrome`, 1 maintenance risk (`CHROME_PATH` phụ thuộc).
+- **Tối ưu đề xuất**: 11 điểm (P2: 3, P3: 8) — chủ yếu là CI, môi trường, test coverage, preload CDN.
+- **Hành động tiếp theo (đề xuất)**:
+  1. Cập nhật `.github/workflows/deploy.yml` thêm `npm run test:chrome` (P2).
+  2. Cập nhật `README.md` + `AGENTS.md` ghi rõ yêu cầu `node >= 22` cho `test:chrome` (P3).
+  3. Thêm polyfill `global.WebSocket = require('ws')` tạm thời cho môi trường dev Node 18 (P3).
+  4. Xem xét thêm `lint`/`typecheck` script vào `package.json` (P3).
+
+---
+*Ghi chú: File này được nối tiếp từ `### 5. Kết luận` của báo cáo trước. Không đè lên bất kỳ dòng nào đã có. Số thứ tự `6` là tiếp theo `5` từ báo cáo trước đó.*
