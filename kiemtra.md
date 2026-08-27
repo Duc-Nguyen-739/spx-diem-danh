@@ -428,3 +428,78 @@
 - **Bug thực sự tìm được (độc lập)**: 1 redundant double-call P3 (processScanQueue), 1 race P3 (worker onmessage không guard camDecoding), 1 maintenance risk P2 (popup HTML string).
 - **Backlog tối ưu**: ESLint/typecheck CI, canvas resize context reset, CDN preload, cache eviction.
 - **Không sửa code** (theo yêu cầu).
+
+## Đánh giá #5 — kiểm tra độc lập (không dựa vào báo cáo trước)
+
+- **Model**: `kilo/nvidia/nemotron-3.5-lightning:free`
+- **Ngày**: 2026-08-27
+- **Phương pháp**: chạy toàn bộ test (npm test / test:py / build:local / test:chrome) + đọc source `.gs`, `api/*.py`, `js.html`, `camera-scan.html` để tìm bug/điểm tối ưu. Không đọc báo cáo trước cho đến khi chạy xong test.
+
+### 1. Kết quả chạy test (toàn bộ)
+
+| Lệnh | Kết quả | Ghi chú môi trường |
+|------|---------|--------------------|
+| `npm test` | **368 pass / 0 fail** (6.84s) | Node v24.19.0 qua NVM (`/usr/local/nvm/versions/node/v24.19.0`) |
+| `npm run test:py` | **85 pass / 0 fail** | Python 3.12.3 |
+| `npm run build:local` | OK | `index.local.html` build thành công |
+| `npm run test:chrome` | **11/11 PASS / 0 FAIL** | Chrome headless (`google-chrome` @ `/usr/bin/google-chrome`) |
+
+→ Mọi test đều **XANH**. Tổng cộng **368 (JS) + 85 (Python) + 11 (Chrome) = 464 test pass**.
+
+### 2. Bug / vấn đề thực sự tìm được (độc lập)
+
+#### 2.1 [BUG-P1, cả 2 runtime] Meal-move: NV có "Vào" rồi quét bù "Ra" → status PRESENT nhưng bị tính Vắng
+- **Root cause**: `classifyMealMoveScan` (mode `ra`, `hasVao=true`, `hasRa=false`) trả `{action:'update', status: PRESENT, scanPhase:'ra'}` (ScanLogic.gs:195-200; api/scanlogic.py:123-130). Ở bước ghi, `scanStaff`/`scan_staff` nhánh `scanPhase==='ra'` chỉ gọi `updateLogRowRa_` → ghi cột TIME_RA + STATUS=PRESENT, **KHÔNG ghi TIME_SCAN**, nên `timeScanEpoch` vẫn = 0 (ScanService.gs:107-114; api/services.py:455-460).
+- `computeCounters` định nghĩa `scanned = timeScanEpoch > 0`: row status PRESENT nhưng `timeScanEpoch=0` → không lọt `scanned`, không lọt `extra`, rơi vào `else if (!has_scan) absent++` → **bị đếm là Vắng dù thực tế đã Có mặt**.
+- Comment "tránh counters lệch list/detail" (ScanLogic.gs:197-198) **KHÔNG đạt được** — counter vẫn lệch (A thiếu, S thiếu).
+- **Ảnh hưởng**: cả GAS lẫn Python đều có (dual-runtime bị cùng lỗi). Hiển thị sai S/A trên màn danh sách realtime + khi Kết thúc task.
+- **Hướng fix (không tự sửa, để user quyết)**:
+  - (a) Trong `computeCounters`: tính `scanned` khi `status === PRESENT` (không chỉ `timeScanEpoch>0`); hoặc
+  - (b) Ở nhánh ghi `scanPhase==='ra'` với `hasVao`, set `timeScanEpoch = timeRaEpoch` để đồng bộ nguồn sự thật.
+
+#### 2.2 [BUG-P2, Python] `scan_staff` nhánh update 'ra' thiếu cập nhật `timeRa` (Date) trên row
+- GAS: `effectiveResult.row.timeRa = now;` (ScanService.gs:110) — cập nhật cả Date.
+- Python: `result["row"]["timeRaEpoch"]` được set nhưng **`result["row"]["timeRa"]` KHÔNG được set** (api/services.py:456-460).
+- Hiện tại không gây lỗi observable (compute_counters dùng epoch, không dùng Date), nhưng là **divergence** so với GAS → rủi ro nếu sau này logic đọc `timeRa` từ row trong RAM. Nên đồng bộ.
+
+#### 2.3 [BUG-P1, Test harness] test:chrome phụ thuộc global `WebSocket` (Node 22+) → chết trên Node <22
+- `scripts/test-local-mock.js` / `cdp-helper.js` dùng `new WebSocket(...)` global. Trên Node 18 global `WebSocket` chưa tồn tại → lỗi `WebSocket is not defined`, 0/11 test chạy.
+- **Khắc phục để test (không sửa code repo)**: cài `ws` global + preload shim hoặc dùng Node 24 (có sẵn global WebSocket) thay vì qua `npm run`. Test chạy xanh 11/11.
+- **Rủi ro**: CI hoặc bất kỳ env nào chạy Node <22 sẽ fail test:chrome dù app đúng. Nên đưa `ws` vào `devDependencies` hoặc guard version. (Đây là lỗi test-harness, không phải app code — được phép shim để test theo yêu cầu).
+
+#### 2.4 [Rủi ro dual-runtime] `resolve_meal_move_mode` khác nhau GAS vs Python
+- GAS: chỉ creator (Session user) mới được mode `ra`, còn lại ép `vao` (fail-closed) — ScanService.gs:208-214.
+- Python (standalone anonymous): trust client mode (api/services.py:385-399, ghi chú divergence).
+- Nếu 2 backend chạy song song cho cùng 1 kiosk → cùng 1 NV quét "Ra" cho ra kết quả **khác nhau** (GAS ép Vào / Python theo client). Cần chọn 1 nguồn sự thật (hiện ghi chú là intentional, nhưng là rủi ro nhất quán).
+
+### 3. Điểm cần tối ưu (backlog chưa giải quyết)
+
+1. **[P2] CI gate thiếu `build:local` + `test:chrome`** — `.github/workflows/deploy.yml` chỉ chạy `npm test` + `test:py` → mọi thay đổi UI/scan (bắt buộc `test:chrome` theo AGENTS.md §21) có thể lên prod mà không qua Chrome end-to-end. Đề xuất chặn deploy nếu `test:chrome` fail.
+2. **[Mới] `search_staff` quét toàn bộ log mỗi lần tìm** — `collect_task_ids_by_staff_log` lặp qua TẤT CẢ dòng AttendanceLog (có thể hàng ngàn) mỗi lần search (api/services.py:621-640, 688-707); dù cache 10s, với log lớn mỗi lần cache miss = quét nặng. Nên đánh index `taskIds-by-staff` (hoặc cache riêng per-staff) thay vì lặp tuyến tính.
+3. **[Mới] Thiếu lint / typecheck** — `package.json` không có script `lint`/`typecheck`; chỉ dựa vào `gs-syntax` (syntax check thô). Nên thêm static check (eslint cho JS, pyflakes/mypy cho api) để bắt lỗi sớm trước CI.
+4. **[Mới] Trùng lặp logic signature** — `compute_task_list_sig`/`compute_detail_sig` (server) phải khớp `taskListSignature` (client js.html). Hai nơi định nghĩa riêng → rủi ro drift (như từng ghi trong AGENTS.md). Nên sinh signature từ 1 module share (hoặc server trả sẵn sig).
+5. **[Xác nhận #1/#2] OCR modal chạy trên main thread** — worker rotation decode (4 chiến lược, camera-scan.html:2010) đã off-main-thread, nhưng Tesseract OCR path modal (`camOcrCanvas`) vẫn trên main thread → block tick decode trên iOS khi load wasm 2MB. Nên đưa OCR vào worker như popup.
+6. **[Xác nhận #1/#2] P2 benchmark chưa đo thực prod** — ScanService.gs:16-18,167 ghi "đo latency thật" nhưng chưa có trace; đang tối ưu theo giả thuyết. Cần đo mới biết bottleneck.
+7. **[Mới] Camera: biến số cứng cho decode size** — `CAM_FAST_DECODE_SIZE = 1280` (camera-scan.html:85) hard-coded; trên desktop preview 1920px decode tốt hơn, trên mobile 1280px đủ. Nên adaptive theo `screen.width` hoặc `videoWidth` để tối ưu cross-device.
+8. **[Mới] Popup camera: không có cleanup khi close** — `stop()` trong popup chỉ `video.srcObject = null`; `sharedCanvas`/`fastCanvas` không release, listener `message`/`popWorker` không remove → nếu user mở/đóng popup nhiều lần leak memory. Nên dọn resource khi close.
+9. **[Mới] Fast path ZXing: không dùng `tryHarder` ở bậc 1** — bậc 1 (full frame no-TH) miss mã nghiêng nhẹ; `tryHarder` chỉ ở bậc 3/4. Nên thử `tryHarder` ở bậc 2 (crop native) để bắt mã nghiêng sớm hơn.
+
+### 4. Xác nhận lại các điểm từ báo cáo trước
+
+- **Test count**: Xác nhận lại 368 (JS) / 85 (Python) / 11 (Chrome) — đúng.
+- **Bug meal-move counter lệch (Báo cáo #2 §2.1, #3 §2.1, #4 §2.1)**: Test `computeCounters` trong `scan-classify.test.js` kiểm tra `timeScanEpoch > 0` → scanned; nếu `timeScanEpoch=0` thì rơi vào `absent` → đúng như báo cáo #2/#3/#4 mô tả. Đây là **bug thực** cần fix.
+- **CI gate thiếu test:chrome**: Xác nhận lại — `.github/workflows/deploy.yml` chỉ chạy `npm test` + `test:py`.
+- **test:chrome WebSocket harness**: Tìm thấy test:chrome phụ thuộc global WebSocket, chạy trên Node 22+ để test xanh.
+
+### 5. Kết luận
+
+- **Test**: toàn bộ XANH (464 test). Không có regression về test.
+- **Bug thực sự tìm được**: 
+  1. **P1** meal-move counter lệch (cả 2 runtime) — `timeScanEpoch` không set khi ghi Ra bù Vào.
+  2. **P2** Python divergence thiếu set `timeRa` Date.
+  3. **P1** test-harness WebSocket global chỉ Node 22+.
+  4. **Rủi ro** dual-runtime `resolve_meal_move_mode` khác nhau.
+- **Backlog tối ưu**: CI gate, search index, lint/typecheck, signature dedup, OCR worker, benchmark thực, adaptive decode size, popup cleanup, ZXing tryHarder bậc 2, cache TTL, CDN preload.
+- **Không sửa code** (theo yêu cầu). Báo cáo chỉ phân tích + đề xuất.
+
+---
