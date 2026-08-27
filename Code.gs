@@ -242,15 +242,14 @@ function searchStaffApi(code) {
     if (lastRow < 2) return [];
     const n = lastRow - 1;
     const ab = sheet.getRange(2, 1, n, 2).getValues(); // A2:B taskId+staffId liền nhau
-    const scanCol = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, n, 1).getValues();
-    const raCol = sheet.getRange(2, LOG_COLS.TIME_RA + 1, n, 1).getValues();
+    const timeCols = sheet.getRange(2, LOG_COLS.TIME_SCAN + 1, n, 4).getValues(); // I2:L = TIME_SCAN, STATUS, DATE, TIME_RA (4 cột liền nhau, 1 RPC thay 2)
     const out = [];
     for (let i = 0; i < n; i++) {
       const row = [];
       row[LOG_COLS.TASK_ID] = ab[i][0];
       row[LOG_COLS.STAFF_ID] = ab[i][1];
-      row[LOG_COLS.TIME_SCAN] = scanCol[i][0];
-      row[LOG_COLS.TIME_RA] = raCol[i][0];
+      row[LOG_COLS.TIME_SCAN] = timeCols[i][0];
+      row[LOG_COLS.TIME_RA] = timeCols[i][3];
       out.push(row);
     }
     return out;

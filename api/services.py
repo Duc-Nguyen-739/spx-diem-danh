@@ -694,8 +694,7 @@ def _sheets_log_values_g1():
     from api import config as cfg
     from api import sheets
     id_staff = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="A2:B", unformatted=True) or []
-    scan_col = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="I2:I", unformatted=True) or []
-    ra_col = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="L2:L", unformatted=True) or []
+    time_cols = sheets.get_values(cfg.SHEETS["ATTENDANCE_LOG"], range_="I2:L", unformatted=True) or []
     n = len(id_staff)
     out = []
     for i in range(n):
@@ -703,10 +702,9 @@ def _sheets_log_values_g1():
         ab = id_staff[i] if i < len(id_staff) else []
         row[cfg.LOG_COLS["TASK_ID"]] = ab[0] if len(ab) > 0 else ""
         row[cfg.LOG_COLS["STAFF_ID"]] = ab[1] if len(ab) > 1 else ""
-        sc = scan_col[i] if i < len(scan_col) else []
-        row[cfg.LOG_COLS["TIME_SCAN"]] = sc[0] if sc else ""
-        rc = ra_col[i] if i < len(ra_col) else []
-        row[cfg.LOG_COLS["TIME_RA"]] = rc[0] if rc else ""
+        tc = time_cols[i] if i < len(time_cols) else []
+        row[cfg.LOG_COLS["TIME_SCAN"]] = tc[0] if len(tc) > 0 else ""
+        row[cfg.LOG_COLS["TIME_RA"]] = tc[3] if len(tc) > 3 else ""
         out.append(row)
     return out
 
