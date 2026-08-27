@@ -19,6 +19,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+
       - name: CI gate — chặn regression (dual runtime)
         run: |
           npm ci

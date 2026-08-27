@@ -53,6 +53,8 @@ async function ensureCdp() {
     '--disable-gpu',
     // Container/CI cần --no-sandbox; máy thường no-op an toàn
     '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-setuid-sandbox',
     'about:blank',
   ], { stdio: 'ignore' });
   for (let i = 0; i < 20; i++) {
