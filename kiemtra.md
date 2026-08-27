@@ -224,3 +224,66 @@
 - **Bug thực sự tìm được**: 1 bug logic P1 (meal-move counter lệch — cả 2 runtime), 1 divergence P2 (Python thiếu set timeRa), 1 harness P1 (test:chrome chỉ chạy Node 22+).
 - **Tối ưu**: CI gate, search index, lint, signature dedup, OCR worker, benchmark thực.
 - **Không sửa code** (theo yêu cầu). Báo cáo chỉ phân tích + đề xuất.
+
+---
+
+## Đánh giá #3 — kiểm tra độc lập (không dựa vào báo cáo trước)
+
+- **Model**: `stepfun/step-3.7-flash:free`
+- **Ngày**: 2026-08-27
+- **Phương pháp**: chạy toàn bộ test (npm test / test:py / test:chrome) + đọc source `.gs`, `api/*.py`, `camera-scan.html`, `js.html` để tìm bug/điểm tối ưu. Không đọc báo cáo trước cho đến khi đã chạy xong toàn bộ test.
+
+### 1. Kết quả chạy test (toàn bộ)
+
+| Lệnh | Kết quả | Ghi chú môi trường |
+|------|---------|--------------------|
+| `npm test` | **368 pass / 0 fail** (7.42s) | Node v24.19.0 qua NVM (`/usr/local/nvm/versions/node/v24.19.0/bin/node`) |
+| `npm run test:py` | **85 pass / 0 fail** | 1 dòng `RuntimeError` là test cố tình assert bad-request |
+| `npm run build:local` | OK | `index.local.html` build thành công |
+| `npm run test:chrome` | **11/11 PASS / 0 FAIL** | `google-chrome` tại `/usr/bin/google-chrome` |
+
+→ Mọi test đều XANH. Tổng cộng **368 (JS) + 85 (Python) + 11 (Chrome) = 464 test pass**.
+
+### 2. Bug / vấn đề thực sự tìm được
+
+#### 2.1 [BUG-P2, security] So sánh API token không an toàn về timing (timing attack)
+- **Vị trí**: `api/main.py:131` — `if required and token != required:`
+- **Vấn đề**: So sánh chuỗi bằng `!=` có thể bị timing side-channel attack (đo thời gian phản hồi từng ký tự để đoán token).
+- **Ảnh hưởng**: Khi `ROLLCALL_API_TOKEN` được set, attacker có thể đoán token qua nhiều request.
+- **Hướng fix**: Dùng `hmac.compare_digest(token, required)` thay vì `!=`.
+- **Tần suất**: Chỉ ảnh hưởng khi admin set `ROLLCALL_API_TOKEN` (mặc định rỗng → không bắt buộc).
+
+#### 2.2 [BUG-P3, minor waste] `classifyScan` gọi thừa cho meal-move task
+- **Vị trí**: `ScanService.gs:54-59` — `classifyScan()` được gọi cho mọi task, kể cả `MEAL_MOVE`, nhưng kết quả bị bỏ qua (`effectiveResult = resultMM`).
+- **Vấn đề**: `classifyMealMoveScan` gọi lại sau đó (line 66), nên `classifyScan` tốn ~0.1ms thừa cho mỗi scan meal-move.
+- **Ảnh hưởng**: Thấp — không phải bug logic, chỉ là waste nhỏ.
+- **Hướng fix**: Điều kiện `if (!isMealMove) classifyScan(...)`.
+
+#### 2.3 [RỦI RO-P2] Worker `camWorkerOnMessage` có thể xử lý message từ camera đã đóng
+- **Vị trí**: `camera-scan.html:2147-2150` — guard kiểm tra `!camScanMode && !camOpen` + `cameraModal.style.display !== 'flex'`.
+- **Vấn đề**: Nếu camera modal đóng nhưng `camScanMode`/`camOpen` chưa reset kịp (race giữa close và worker onmessage), worker message vẫn được xử lý → `onCameraDecoded` có thể fire thêm 1 lần sau khi đóng camera.
+- **Ảnh hưởng**: Thấp — chỉ thêm 1-2 dòng kết quả thừa vào danh sách dưới camera (nếu đang mở).
+- **Hướng fix**: Thêm guard `camWorkerIdle` hoặc flag `cameraClosed` để bỏ qua message sau khi đóng.
+
+### 3. Điểm cần tối ưu (backlog)
+
+1. **[P2] Cache TTL `readTaskCached_` 15s** — `ScanService.gs:46` đọc task qua cache 15s; quét liên tiếp (mỗi 2-3s) có thể miss cache mỗi lần → đọc sheet. Có thể tăng lên 30s (khớp `LOG_ROWS`/`TASK_LIST`) vì scan path chỉ cần status/type/createdBy (ít đổi).
+
+2. **[P2] `searchStaffApi` quét toàn bộ AttendanceLog mỗi cache miss** — `Code.gs:239-257` đọc 4 cột × N dòng (log lớn = 10k+) mỗi lần cache miss (10s). TTL ngắn nên cache miss thường xuyên → có thể cân nhắc cache per-staff hoặc index.
+
+3. **[P3] Tesseract OCR chạy trên main thread (modal path)** — `camera-scan.html` OCR worker chỉ cho popup path; modal path chạy Tesseract wasm trên main thread → có thể block decode tick 200ms trên iOS. Nên mirror popup (đưa OCR sang worker).
+
+4. **[P3] Runtime CDN load ZXing/Tesseract mỗi lần mở camera** — Worker path đã importScripts 1 lần, nhưng modal path tải ZXing CDN mỗi lần mở camera (`ensureZxingLib`). Có thể preload/cache ở app init.
+
+### 4. Xác nhận lại các điểm từ báo cáo trước
+
+- **Test count**: Xác nhận lại 368 (JS) / 85 (Python) / 11 (Chrome) — đúng.
+- **Bug meal-move counter lệch (Báo cáo #2 §2.2)**: Test `computeCounters` trong `scan-classify.test.js` kiểm tra `timeScanEpoch > 0` → scanned; nếu `timeScanEpoch=0` thì rơi vào `absent` → đúng như báo cáo #2 mô tả. Đây là **bug thực** cần fix.
+- **CI gate thiếu test:chrome**: Xác nhận lại — `.github/workflows/deploy.yml` chỉ chạy `npm test` + `test:py`.
+
+### 5. Kết luận
+
+- **Test**: toàn bộ XANH (464 test). Không có regression.
+- **Bug thực sự**: 1 timing-attack P2 (api/main.py token compare), 1 waste P3 (classifyScan thừa cho meal-move), 1 race P3 (worker message sau đóng camera).
+- **Backlog tối ưu**: cache TTL, search log scan, OCR worker, CDN preload.
+- **Không sửa code** (theo yêu cầu).
