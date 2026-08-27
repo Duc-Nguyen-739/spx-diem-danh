@@ -29,7 +29,7 @@
 | Backend (GAS) | Google Apps Script (V8 runtime) — `Code.gs` + `.gs` services |
 | Backend (Python) | `api/` — FastAPI-style handler, đọc Google Sheets qua `google-api-python-client` (hosting top-level, JSONP/POST) |
 | Database | Google Sheets (4 sheets, standalone) |
-| Test | Node `node:test` (26 file, ~337 tests) + Python `unittest` (`api/test_*.py`) |
+| Test | Node `node:test` (27 file, 368 tests) + Python `unittest` (85 tests) + Chrome headless (11 checks) |
 | Deploy | clasp (`@google/clasp`) cho GAS · `node scripts/build-static.js` cho hosting tĩnh |
 
 ## Cấu trúc dự án
@@ -57,8 +57,8 @@ spx-diem-danh/
 ├── mobile.html            # variant mobile
 ├── api/                   # backend Python (port cùng logic GAS) — main.py handler JSONP/POST + scanlogic.py + services.py + database.py + sheets.py
 ├── mock/mock-google.js    # mock GAS API cho test local + demo mode (?demo=1)
-├── tests/                 # unit tests Node (26 file, ~337 tests)
-├── api/test_*.py          # unit tests Python (unittest: test_logic/test_database/test_main/test_services)
+├── tests/                 # unit tests Node (27 file, 368 tests)
+├── api/test_*.py          # unit tests Python (85 tests: test_logic/test_database/test_main/test_services)
 └── scripts/               # serve.js (?demo=1 preview) · build-static.js (hosting tĩnh) · inline-html.js (transform) · cdp-helper.js (CDP geometry)
 ```
 
@@ -89,8 +89,9 @@ spx-diem-danh/
 ### Test local
 
 ```bash
-npm test          # ~337 tests — node --test (26 file)
-npm run test:py   # python unittest api/ (4 file: test_logic/test_database/test_main/test_services)
+npm test          # 368 tests — node --test tests/*.test.js (27 file, glob tránh sót)
+npm run test:py   # 85 tests — python3 -m unittest discover -s api -p 'test_*.py'
+npm run build:local && npm run test:chrome  # 11 Chrome checks (yêu cầu Node >=22, google-chrome)
 ```
 
 ### Mock UI local
@@ -149,5 +150,5 @@ git push origin main
 - ✅ Simplify pass (4 reviewer): gộp helper trùng (scanBusy/scanCardHTML/statusRank/isEditor_), xoá duplicate counter bump, guard response scan theo task
 - ✅ Config trỏ script `18TTG5d0…` + spreadsheet `1kL4J…` (HR tự đồng bộ vào StaffData)
 - ✅ Review pass (2026-08-03, reviewer độc lập + verify): P0 `updateTaskStatus_` ghi nhầm cột CREATED_AT → ghi đúng STATUS+COMPLETED_AT · P1 `debugState()` gate editor-only · P1 dedupe staffId trong cùng tổ hợp (Att.csv thật có NV 2 dòng cùng ca) · P2 a11y, format ngày, xóa CSS chết
-- ✅ Test: 337/337 Node + 4 file Python pass
+- ✅ Test: 368/368 Node + 85 Python + 11 Chrome pass (tổng 464)
 - ⏳ P2 phase: QA prod quét NV thật

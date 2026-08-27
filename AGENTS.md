@@ -160,16 +160,16 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 354 test JS (Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file .gs + contract mock↔server) | Mọi commit |
-| `npm run test:py` | 78 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
+| `npm test` | 368 test JS (27 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file .gs + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
+| `npm run test:py` | 85 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run build:local` | `scripts/build-local.js` gộp GAS template `index.html` (`<?!= include() ?>` → `css/js/mobile/lib/camera`) → `index.local.html` cho `file://` | Trước `test:chrome` |
-| `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 11 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList | Đổi UI/scan/mock |
+| `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 11 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
 
 **Workflow chuẩn trước push** (§19): `build:local` → `npm test` → `test:py` → `test:chrome` (nếu đổi UI) → commit → push. Không claim pass khi chưa có số liệu (Constraint #8). `index.local.html` đã `.gitignore`/`.claspignore`.
 
 **Công cụ CDP:** `node scripts/cdp-helper.js list|open <url>|eval <expr>|shot <png>|evalframe|evaliframe|click <x> <y>` — dùng `WebSocket` global (Node 22+), timeout 10-15s, không treo. Chrome path: `CHROME_PATH` env hoặc tự tìm `google-chrome`/`chromium`.
 
-**Khớp attendance-portal §7:** `npm run test` 219 tests bên portal tương đương `npm test` 354 + `audit-css`/`audit-gs` bên này; `build-local.js` + `test-local-mock.js` port nguyên văn, adapt DOM IDs `viewList/viewScan` + counters `S:3`.
+**Khớp attendance-portal §7:** `npm run test` 219 tests bên portal tương đương `npm test` 368 + `audit-css`/`audit-gs` bên này; `build-local.js` + `test-local-mock.js` port nguyên văn, adapt DOM IDs `viewList/viewScan` + counters `S:3`. CI gate `.github/workflows/deploy.yml` chạy đủ `npm test` + `test:py` + `build:local` + `test:chrome`.
 
 ## 22. Định dạng output (Freebuff)
 
