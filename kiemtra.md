@@ -778,3 +778,247 @@ node scripts/test-local-mock.js
 ---
 
 *Báo cáo #5 được tạo khép kín bởi bynara/agnes-2.5-flash từ việc chạy test độc lập + đọc source trực tiếp, không dựa vào báo cáo trước trong file này. Nối tiếp sau báo cáo #1-#4.*
+
+---
+
+# BÁO CÁO KIỂM TRA #6 — Điểm Danh HN2 SOC
+**Model:** bynara/qwen-3.8-max-free  
+**Ngày kiểm tra:** 2026-08-27  
+**Phương pháp:** Chạy độc lập toàn bộ test suite (JS + Python + build:local + Chrome CDP) TRƯỚC, sau đó rà soát code độc lập (10 file `.gs` + 8 file `api/*.py` + `js.html`/`index.html`/`mock` + `camera-scan.html`/`camera-css.html`/`mobile.html` + `scripts/` + CI) bởi 4 luồng review song song; mọi phát hiện Critical/Important quan trọng đã được tôi tự đọc lại code xác minh lần hai với file:line. KHÔNG sửa code. KHÔNG dùng nội dung các báo cáo trước để định hướng test (chỉ mở file này ở bước cuối để lấy số thứ tự nối tiếp).
+
+---
+
+## 1. KẾT QUẢ TEST (CHẠY ĐỘC LẬP)
+
+| Suite | Lệnh | Kết quả | Chi tiết |
+|-------|------|---------|----------|
+| JS (Node) | `npm test` | **368/368 PASS** | 27 file test, duration ~11.06s, 0 fail/0 skip |
+| Python | `npm run test:py` | **85/85 PASS** | `Ran 85 tests ... OK` ~0.98s (traceback `RuntimeError: secret path /home/abc` trong log là output CỐ Ý của test probe `_bad_request`, không phải lỗi) |
+| Build local | `npm run build:local` | **OK** | `index.local.html built (templates resolved)` |
+| Chrome | `npm run test:chrome` | **11/11 PASS** | Headless CDP port 9222, `PASS: 11 / 11  FAIL: 0` |
+
+**Test chrome không cần khắc phục** — chạy pass ngay lần đầu trong môi trường này (Chrome tự spawn, `ws` polyfill có sẵn, mock load đúng). Chi tiết 11 check: app load + mock nạp · meta LOCAL MOCK · DOM đủ (viewList/scanTable/taskListTable) · task list 30 rows · openScan R20260802-0900 · scanTable 6 rows · counter S:3 A:3 E:1 · quét Ops229444 → S:4 A:2 · quét trùng Ops237511 → S không tăng (toast "Đã điểm danh✕") · NV lạ Ops777777 → E:2 S:4 · backToList OK.
+
+**Kết luận test:** 464/464 test pass ở cả 3 runtime — không có regression.
+
+---
+
+## 2. BUG / VẤN ĐỀ TÌM THẤY (danh sách chi tiết, có file:line)
+
+Tổng cộng: **2 Critical · 18 Important · 43 Suggestion** (bảng mục 3). Các mục đánh dấu ✅ đã được tôi tự đọc code xác minh độc lập lần hai.
+
+### 2.1 Nhóm CRITICAL
+
+**C1 ✅ [Python] `scan_staff` tiêm object `datetime` vào cache LOG_ROWS dùng chung → `getTaskDetailApi` crash serialize, JSONP treo**
+- File: `api/services.py:457` và `:464` (kết hợp `api/cache.py:82-94` + `api/main.py:157`)
+- Cơ chế: `log_rows = list(database.read_log_rows_cached(task_id))` (`services.py:421`) chỉ copy NÔNG danh sách — mỗi row dict vẫn là tham chiếu sống của cache (`cache.cached` trả `hit["v"]` nguyên bản, `api/cache.py:90-93`). Sau đó `result["row"]["timeRa"] = now_dt` / `result["row"]["timeScan"] = now_dt` tiêm `datetime` vào row cache. `get_task_detail` copy row nguyên key thừa → response chứa `datetime` → `json.dumps(out, ensure_ascii=False)` tại `api/main.py:157` ném `TypeError` KHÔNG được try/except bọc → unhandled 500 → script JSONP load fail → kiosk treo màn detail. Cache nhiễm tới TTL 30s và mỗi scan kế tái nhiễm.
+- Vì sao test không bắt được: `api/test_main.py` gọi `getTaskDetailApi` TRƯỚC `scanStaffApi`, không có trình tự detail-sau-scan qua handler; `test_services.py` gọi service trực tiếp không qua `json.dumps`.
+- Khác GAS: GAS `readLogRowsCached_` trả object mới mỗi lần (JSON.parse) nên mutate row không ô nhiễm cache — Python mất tính chất này.
+- Hướng fix: không inject datetime vào row chung (chỉ cập nhật text/epoch như `_mutate_scan_cache`), hoặc deep-copy row trước mutate; phòng thủ thêm ở `_read_task_detail` chỉ giữ field whitelist.
+
+**C2 ✅ [Camera] Đóng modal trong lúc chờ cấp quyền camera → camera "ma" chạy ngầm, vẫn submit scan sau khi đã đóng, mở lại kẹt nút**
+- File: `camera-scan.html:800` (`if (camStream) return;`), `:812-843` (`.then` của getUserMedia), `:1060-1095` (`closeCameraModal`)
+- Cơ chế: `startCameraLive` hiện modal ngay ("Đang mở camera..."), user có thể bấm ✕ khi prompt quyền đang hiện (vài giây trên iOS). `closeCameraModal` chạy khi `camStream === null` nên không stop track nào, không có cờ hủy. Khi `.then` về: `camStream = stream; ... startCameraDecodeLoop()` KHÔNG check modal còn mở → (1) MediaStream leak, đèn camera bật trong modal ẩn; (2) loop decode tiếp → `onCameraDecoded` → `submitScan()` ghi điểm danh dù user đã đóng; (3) lần mở sau dính `if (camStream) return` nhưng modal không hiện → nút chết đến khi F5.
+- Hướng fix: seq token phiên camera — capture trước getUserMedia, trong `.then` so seq + check modal display, lệch thì `stream.getTracks().forEach(stop)` và return.
+
+### 2.2 Nhóm IMPORTANT
+
+#### Backend GAS (3)
+
+**G1 ✅ [GAS] Read path crash nếu cell giờ không phải Date (chủ sheet sửa tay thành text)**
+- File: `CacheLayer.gs:80-91` (`formatTime_`/`formatDateTime_`), `Database.gs:414, 417, 420` (`logFromRow_` gọi `.getTime()` trực tiếp)
+- `Utilities.formatDate` throw khi tham số là string/number; `.getTime()` throw TypeError. Chỉ cần 1 cell `timeScan`/`timeRa`/`createdAt` bị gõ tay thành text (kịch bản project thừa nhận tại `Config.gs:112-116`) → `readLogRows_`/`readTaskList_` throw → toàn bộ task list/detail/search của mọi thiết bị chết.
+- Hướng fix: helper coerce `toEpoch_(v)` — không phải Date thì thử `new Date(v)`, fail → trả `''`/`0` + log, không throw.
+
+**G2 ✅ [GAS] `overwriteStaffData_` không sanitize text từ CSV — lỗ hổng formula injection vào sheet StaffData**
+- File: `Database.gs:803-817`
+- Chính sách sanitize A1 đã áp cho log rows copy từ StaffData (`batchInsertLogRows_:514-519`, `appendLogRow_:791-796`) nhưng bản thân StaffData ghi từ CSV external (`syncFromCsv` → `overwriteStaffData_`) thì ghi THÔ, không qua `sanitizeCellText_`. Cell CSV bắt đầu `= + - @` (vd `=HYPERLINK(...)` trong cột remark/department) sẽ thành formula thực thi trong sheet.
+- Hướng fix: áp `sanitizeCellText_` cho các cột text trong `overwriteStaffData_` + thêm test vào `tests/formula-injection.test.js`.
+
+**G3 [GAS] `batchMealMoveLogUpdates_` đọc cột TASK_ID nhưng không bao giờ đối chiếu taskId**
+- File: `Database.gs:862-871`
+- Docstring hứa "chỉ đọc/ghi dòng khớp task, idempotent" nhưng vòng lặp chỉ check `byRow[rowIndex] !== undefined`, không so `idCol[i][0]` với taskId. An toàn hiện tại phụ thuộc hoàn toàn `_rowIndex` fresh từ caller (đang đúng); nếu caller tương lai truyền `_rowIndex` stale → ghi nhầm timeRa/status vào dòng task khác mà không có chốt chặn. Lần đọc `idCol` cũng thành lãng phí.
+- Hướng fix: thêm `String(idCol[i][0]||'').trim() === taskId` vào điều kiện match (đã trả tiền RPC rồi).
+
+#### Backend Python (3)
+
+**P1 ✅ [Python] `main.handler`: `json.dumps` không bọc try/except — biến mọi lỗi serialize thành 500 + treo JSONP**
+- File: `api/main.py:150-162`
+- GAS đã fix đúng điểm này (`JsonpApi.gs:99-104` bọc `JSON.stringify` trong try/catch). Python thiếu → đây chính là cơ chế khiến bug C1 thành unhandled exception thay vì lỗi JSON có cấu trúc.
+- Hướng fix: bọc try/except, fallback `{"ok": false, "error": "Lỗi hệ thống — thử lại sau (serialize)"}` y hệt GAS.
+
+**P2 [Python] `create_meal_move_task_core`: `int()` crash trên input `timeRaByStaff` rác — GAS bao dung, Python chết cả request**
+- File: `api/services.py:185` — `ra_epoch = int(time_ra_by_staff.get(id_) or 0) or 0`
+- `timeRaByStaff={'OPS001':'abc'}` → ValueError; `timeRaByStaff=['OPS001']` → AttributeError → toàn bộ create fail. GAS `Number(timeRaByStaff[id]) || 0` (`TaskService.gs:314`) → NaN→0, vẫn tạo task bình thường → divergence dual-runtime.
+- Hướng fix: helper `to_epoch_ms(v)` try/catch → 0; validate `timeRaByStaff` là dict.
+
+**P3 [Python] `sheets.py`: lazy khởi tạo lock có race — 2 thread đầu tiên có thể cầm 2 lock khác nhau**
+- File: `api/sheets.py:19-26`
+- `_service_lock = None` + check-then-set không atomic → 2 request đầu song song thấy None → 2 object Lock riêng → `req.execute()` chạy song song trên cùng `httplib2.Http` (chính docstring ghi httplib2 không thread-safe). Xác suất thấp nhưng hậu quả là request Google API hỏng/lẫn lộn.
+- Hướng fix: tạo `_service_lock = threading.Lock()` ngay module level.
+
+#### Client js.html (5)
+
+**J1 ✅ [Client] Header search: filter task list bị "kẹt" khi kết quả tìm mới có NV nhưng không có task**
+- File: `js.html:583` — `if (tasks.length) applyTaskFilter(...)` không có nhánh else
+- Nhánh `!res.ok` (js.html:557-560) có xóa `_taskFilterStaff`, nhưng nhánh "ok + tasks rỗng" thì không. Kịch bản: tìm Ops111 (có task) → list lọc theo Ops111; tìm tiếp Ops999 (có trong StaffData, chưa từng quét) → card hiện Ops999 nhưng danh sách VẪN lọc theo Ops111, và poll bị chặn vĩnh viễn bởi `if (_taskFilterStaff) return;` (js.html:1722) tới khi bấm ✕.
+- Hướng fix: thêm else xóa `_taskFilterStaff` + `loadTaskList()` khi tasks rỗng.
+
+**J2 ✅ [Client + GAS] Delta-poll detail thiếu `task.note` trong signature — ghi chú không đồng bộ giữa 2 thiết bị**
+- File: `js.html:1583-1594` (`scanDetailSignature`) và `Code.gs:315-326` (`computeDetailSig`)
+- Cả 2 chỉ gồm `task.status` + counters + (`staffId|status|timeScanEpoch|timeRaEpoch`) từng dòng, KHÔNG có `task.note` (trong khi `taskListSignature`/`computeTaskListSig` có `t.note`). Thiết bị A lưu ghi chú → thiết bị B poll → sig khớp → server trả `{ok:true, unchanged:true}` → B không bao giờ thấy ghi chú mới cho tới khi reload tay hoặc có scan mới.
+- Hướng fix: thêm `task.note` vào CẢ 2 hàm mirror + static test khớp 2 phía.
+
+**J3 [Client] Poll re-render giật focus khỏi textarea ghi chú → gõ nhầm vào ô quét**
+- File: `js.html:1496-1501` (`renderScanView` focus `#scanInput` vô điều kiện khi task OPEN), `:1665-1671` (`applyPolledScanDetail` chỉ restore focus cho `scanSearch`/`scanStatusFilter`, không cho `taskNoteEdit`)
+- Đang gõ ghi chú mà thiết bị khác quét → mỗi ~3-4s focus nhảy sang `#scanInput` → phím gõ tiếp theo vào ô quét → có thể tạo lượt quét nhầm. Auto-focus loop biết trừ TEXTAREA nhưng đường poll thì không.
+- Hướng fix: skip focus khi `document.activeElement` là INPUT/TEXTAREA/SELECT; thêm `taskNoteEdit` vào danh sách restore.
+
+**J4 ✅ [Client] Default sort meal-move lệch intent ghi trong code (Giờ Ra vs Giờ Vào)**
+- File: `js.html:1931` (`SCAN_SORT = { col: 6, asc: false }` + comment "meal-move col 6 = Giờ Vào") nhưng mapping thật `js.html:1969` `col === 6 → Number(a.timeRaEpoch)` (Giờ RA), `col === 7 → timeScanEpoch` (Giờ Vào); header `data-sort="6"` = "Giờ Ra"
+- Mở task meal-move mặc định sort theo Giờ Ra desc, indicator sáng cột Giờ Ra; dòng vừa quét Vào không nhảy lên đầu như intent ghi trong comment.
+- Hướng fix: chốt 1 phía — nếu intent là Giờ Vào thì default `col: 7` cho meal-move; không thì sửa comment.
+
+**J5 [Client] Dán batch reconcile: mã vượt queue đầy bị mất thầm**
+- File: `js.html:2918-2923` — `input.value = ''` chạy TRƯỚC vòng lặp submit; `submitScanSingle` trả false khi `SCAN_QUEUE.length >= SCAN_QUEUE_MAX` → `break`
+- Các mã còn lại trong loạt dán (đã xóa khỏi input) mất hẳn, chỉ 1 toast "Hàng đợi đang đầy".
+- Hướng fix: enqueue phần còn lại vào buffer chờ, hoặc giữ lại input + báo rõ số mã bị chặn.
+
+#### Camera / scripts / CI (7)
+
+**M1 [Camera] Popup OCR đọc frame từ canvas dùng chung bị ghi đè mỗi tick → có thể OCR sai khung hình, nhận nhầm mã NV khác**
+- File: `camera-scan.html:431-438` (popup `ocrTick`) + `:339-352` (`frameToImageData` reuse `sharedCanvas`) + `:1679-1708` (`camOcrFrame` queue)
+- Popup chụp frame 800 vào sharedCanvas rồi truyền tham chiếu canvas cho opener; ngay sau đó trong cùng tick `loop()` gọi `frameToImageData(1920)` vẽ lại chính canvas đó. Nếu OCR busy, canvas bị push queue và chỉ đọc khi drain → đọc frame tương lai, không phải frame đã chụp. `pickOpsCandidate` nhận NV khớp STAFF_INFO ở confidence thấp → khung hình chứa thẻ NV khác có thể thành lượt chấm công sai. Modal không lỗi này (dùng `camOcrCanvas` riêng).
+- Hướng fix: popup chụp snapshot riêng (canvas copy hoặc truyền ImageData) trước khi gọi OCR.
+
+**M2 ✅ [Camera] Cửa sổ merge 2.5s > cooldown 1.5s → quét Ra→Vào hợp lệ của cùng NV bị gộp thành 1 dòng trong danh sách camera**
+- File: `camera-scan.html:74-77` (`CAM_CODE_COOLDOWN_MS=1500` vs `CAM_RESULT_MERGE_MS=2500`) + `:2176-2183` (`camShouldMergeAny`)
+- Lượt Ra t=0 ghi pending; lượt Vào hợp lệ t=2.0s (server `DUPLICATE_WINDOW_MS=1500` chấp nhận) → merge theo mã+thời gian trả true → cập nhật dòng Ra thay vì thêm dòng Vào → sự kiện thứ hai biến mất khỏi UI kết quả (bảng log chính vẫn đúng).
+- Hướng fix: merge theo `scanSeq` (js.html đã có `SCAN_CARD_SEQ`) thay vì mã+thời gian.
+
+**M3 [Camera] Popup không hiển thị lỗi khi server reject — badge giữ trạng thái optimistic**
+- File: `camera-scan.html:632-647` (popup `addResultRow` nhánh update)
+- Server reject → `rcScanInfo {isError:true, update:true}` → popup nhánh update luôn kế thừa badge cũ (`d.status = ob.textContent`) → badge class đỏ nhưng text vẫn "Có mặt", không flash/beep lỗi → user tưởng quét thành công. Đường modal không lỗi.
+- Hướng fix: khi `isError` không kế thừa badge/time cũ.
+
+**M4 [Camera] Kẹt cờ `camOpen`/`__RC_CAM_OPEN__` khi popup bị chặn và user hủy chụp ảnh fallback**
+- File: `camera-scan.html:108` (set cờ trước khi biết đường nào) + `:692-698` (window.open null → fallback `<input capture>` không reset cờ)
+- User hủy picker ảnh → không có change event → cờ kẹt vĩnh viễn → `anyModalOpen` (js.html) coi như modal mở → poll danh sách task ngừng, `input.focus()` bị guard → bàn phím không bật. Chỉ hồi phục khi bấm Quét Camera lần nữa.
+- Hướng fix: chỉ set cờ khi phiên camera thật sự bắt đầu, hoặc reset trước khi vào fallback native.
+
+**M5 [Camera/Security] Script CDN không có integrity — Tesseract thả nổi `@5`, worker importScripts CDN (risk supply-chain)**
+- File: `camera-scan.html:1547-1550` (OCR `tesseract.js@5` floating), `:1826` (ZXing pin 0.20.0 nhưng không SRI), `:2011` (worker `importScripts` CDN)
+- Đây là code thực thi trong trang chấm công production; fail-open đúng nhưng integrity chưa có.
+- Hướng fix: pin exact version + `integrity`/`crossorigin`; với worker, fetch source kiểm tra integrity trước khi tạo blob.
+
+**M6 [Scripts/Security] `RC_API_TOKEN` được nhúng thẳng vào HTML serve cho mọi client**
+- File: `scripts/inline-html.js:85-93`, `scripts/serve.js:99`, `scripts/build-static.js:49`
+- serve.js bind `0.0.0.0`, build-static ghi `dist/index.html` công khai → ai tải trang cũng lấy được token. Token trong HTML client chỉ là obfuscation, không phải bảo vệ.
+- Hướng fix: coi token là public config (ghi chú rõ) hoặc phát token ngắn hạn theo phiên.
+
+**M7 [CI] `continue-on-error: true` che thất bại deploy — production có thể lặng lẽ chạy bản cũ**
+- File: `.github/workflows/deploy.yml:53-58` (bước "Deploy new version to production (/exec)")
+- `clasp version`/`clasp redeploy` lỗi → workflow vẫn xanh, không cảnh báo — đúng kịch bản "/exec vẫn chạy bản cũ" từng gặp 2026-08-11.
+- Hướng fix: bỏ continue-on-error hoặc tách job + notification.
+
+### 2.3 Dual-runtime divergence đáng chú ý (đã xác minh)
+
+- **D1 ✅ TaskId meal-move lệch format:** Python `api/services.py:199` `"M" + make_task_id(now)[1:]` → `M20260827-...` (cắt mất chữ R); GAS `TaskService.gs:332` `'M' + makeTaskId_(now)` → `MR20260827-...`. Hiện chưa có code nào parse prefix nên vô hại, nhưng 2 runtime tạo ID khác format trên cùng spreadsheet — sau này có logic dựa prefix sẽ vỡ.
+- **D2 `now` tính TRƯỚC khi chờ lock (Python `api/services.py:406-416`)** trong khi GAS tính trong lock (`ScanService.gs`) → chờ lock vài giây có thể làm `diff` âm lọt cửa duplicate rule.
+- **D3 `isValidBarcodeId` quá lỏng (GAS `CsvUtil.gs:108-111`):** `/^ops/i` chấp nhận `OPS` trần/`OPSXYZ` bất kỳ, trong khi chuẩn mã NV là `OPS + 3..9 số` (client OCR đã dùng `OPS\d{3,9}`) → mã rác `opsabc` lọt vào log thành dòng Dư. Nếu siết phải đồng bộ `api/scanlogic.py` + test cả 2 runtime.
+
+---
+
+## 3. DANH SÁCH TỐI ƯU / CẢI TIẾN (Suggestion — không phải bug)
+
+### 3.1 Backend GAS (11)
+
+| # | File:line | Nội dung | Đề xuất |
+|---|-----------|----------|---------|
+| GS1 | `Database.gs:791-796` | `appendLogRow_` thiếu `setNumberFormat('HH:mm:ss')` (mọi đường ghi khác đều có) → dòng Dư append đơn hiển thị datetime đầy đủ trong sheet | Set format 2 cột TIME_SCAN/TIME_RA sau append |
+| GS2 | `TaskService.gs:53, 306, 376` | Note không giới hạn độ dài (Sheets cho 50k ký tự) → note vài chục KB phá cache task list 100KB/key, poll 3s rebuild full sheet | Cap ~200-500 ký tự |
+| GS3 | `CacheLayer.gs:55-70` | Race version-stamp: rev đọc SAU `load()` → dữ liệu stale bị đóng dấu rev mới; `bumpCacheRev_` khi rev key bị evict đặt rev='1' trùng rev value cũ | Đọc rev trước load; dùng `String(Date.now())` làm rev |
+| GS4 | `JsonpApi.gs:105-106` | JSONP output không escape `</script>` → note chứa `</script>` cắt đôi script element phía client, callback chết cho mọi thiết bị đang poll | Thay `<` bằng `\u003c` trong json trước khi ghép |
+| GS5 | `CsvUtil.gs:108-111` | `isValidBarcodeId` lỏng (xem D3 mục 2.3) | `/^OPS\d{3,9}$/i` + đồng bộ Python |
+| GS6 | `Database.gs:363-366, 436-440, 630-634, 863` + `Code.gs:241-245` | AttendanceLog tăng vô hạn — mọi read path quét toàn bộ cột TASK_ID O(tổng dòng); vài tháng (50-100k dòng) mỗi miss cache tốn 1-3s, dễ chạm timeout 6 phút | Archive log task DONE sang sheet khác, hoặc index `taskId → [startRow, endRow]` |
+| GS7 | `Code.gs:33-38` | `ensureSheets_()` chạy mọi page load (~6-10 RPC, 0.5-2s trước render) dù sheet chắc chắn tồn tại sau lần đầu | Cờ init trong Script Properties |
+| GS8 | `TaskService.gs:59-114, 249-361` | Việc nặng trong LockService khi tạo task (đọc StaffData, filter, setValues 1000 dòng, warm cache 130KB) → scan đồng thời chờ tới 10s | Chuyển phần đọc/filter ra trước `waitLock` |
+| GS9 | `Database.gs:314-315` | `updateTaskStatus_` ghi 2 `setValue` rời (2 RPC, không atomic) | 1 `setValues` khoảng liền như `updateLogRowRa_` |
+| GS10 | `CsvUtil.gs:118-166` | `parseCsvToStaff`/`splitCsvLine` không còn được gọi trong GAS runtime (chỉ tồn tại cho Node test) | Xóa + bỏ export, hoặc ghi chú "chỉ dùng test" |
+| GS11 | `TaskService.gs:284, 314-315` | `timeRaByStaff` epoch từ client không validate khoảng → epoch âm/khổng lồ tạo giờ vô nghĩa trong sheet | Chỉ chấp nhận epoch ±24h quanh `Date.now()` |
+
+### 3.2 Backend Python (8 mục còn lại sau C1/P1-P3/D1-D2)
+
+| # | File:line | Nội dung | Đề xuất |
+|---|-----------|----------|---------|
+| PS1 | `api/sheets.py:57-63` | `num_retries=3` chỉ áp dụng cho discovery document, KHÔNG phải Sheets API call — comment gây hiểu nhầm, request thật không retry | `req.execute(num_retries=3)` tại các điểm execute |
+| PS2 | `api/sheets.py:87-191` | Toàn bộ Google RPC nối đuôi qua 1 lock + 1 `httplib2.Http` → nút thắt throughput khi poll 3s × N thiết bị | `threading.local()` mỗi thread 1 Http (khuyến cáo chính thức) |
+| PS3 | `api/cache.py:117-127` | `cache_get_or_put_rev` còn lỗ TOCTOU khi `rev_before is None` (rev key hết hạn → bump chen giữa → value stale gắn rev mới) | Khi rev_before None cũng không put, hoặc sentinel riêng |
+| PS4 | `api/cache.py:56-67` | Eviction FIFO theo thứ tự chèn, không LRU → key nóng toàn cục (STAFF_INDEX/FILTER_OPTIONS) có thể bị đuổi đầu tiên | `move_to_end` khi hit |
+| PS5 | `api/database.py:84, 282, 431, 557, 605` | Hardcode chữ cái cột (`A:J`, `A:M`, `K`) thay vì suy ra từ config — đổi số cột sẽ lệch âm thầm | Dùng `_col_letter(config.TASK_COL_COUNT)` có sẵn ở sheets.py |
+| PS6 | `api/database.py:155-161` | `_find_task_row` đọc cả sheet task (10 cột × mọi dòng) trong khi `read_task` chỉ đọc cột A | Đọc `A2:A` nhất quán |
+| PS7 | `api/main.py:54-62` | Thiếu tham số → TypeError → lỗi chung chung "Lỗi hệ thống", GAS trả message có nghĩa | Pad args None đến arity hoặc validate trước dispatch |
+| PS8 | `api/main.py:128` | Token trong query string (JSONP GET) lộ qua access log/proxy/Referer | Document + cân nhắc token ngắn hạn; POST nên dùng body |
+
+### 3.3 Client js.html / mock (10)
+
+| # | File:line | Nội dung | Đề xuất |
+|---|-----------|----------|---------|
+| JS-S1 | `js.html:807-811` | `refreshAll`: timeout 5s của lần refresh trước không cancel → phá lock của lần sau, refresh chồng | Lưu timer id + cancel khi pending về 0 |
+| JS-S2 | `js.html` ~9 failure handler | `markServerFail()` thiếu ở loadStaffIndex/createTask/saveTaskNote/loadMealOptions/updateMealPreview/createMealMoveTask/transferPresentList/submitPasteMealMoveBatch/processScanQueueMealMove → netDot không phản ánh đúng | Thêm đồng loạt hoặc wrap failure handler chung |
+| JS-S3 | `js.html:2731-2748` | Meal-move không sync `res.timeScanEpoch` từ server (reconcile có) → sort cột Giờ Vào lệch vài giây; mock cũng đang trả sai contract (`mock/mock-google.js:314` trả nowMs cho mode 'ra', server thật trả 0) | Thêm sync + sửa mock khớp ScanLogic.gs:256 |
+| JS-S4 | `js.html:1420-1434, 1532, 1650-1676, 3263` | Callback RPC "đi lạc" sau khi rời màn quét: render vào view ẩn, toast giữa màn list, `startScanPolling` sống lại | Capture taskId + guard viewScan còn hiện trong success handler |
+| JS-S5 | `js.html:1731` | `taskListPollTick` fallback `(res || [])` có thể truyền object không-array vào `.map` → TypeError | Fallback `[]` + check `res.ok` |
+| JS-S6 | `js.html:554-555, 817, 1527, 3261` | Truy cập `res.message`/`res.ok` không guard null ở vài handler (loadTaskDetail throw trước hideLoadingOverlay → spinner treo) | Guard `res &&` thống nhất |
+| JS-S7 | `js.html:1318, 1362-1365, 2419-2421, 2468-2472` | Poll danh sách task vẫn chạy khi đang ở màn quét (loadTaskList success gọi startTaskListPolling sau khi openScan đã stop) | Chỉ start poll khi viewList đang hiện |
+| JS-S8 | `js.html:1005-1007, 1071-1073, 1126, 1143, 2085, 2132` | Nội suy số không `esc()` trong innerHTML — hiện an toàn vì server trả number, nhưng thành lỗ XSS nếu upstream trả string | `esc()`/`Number()` mọi giá trị ghép innerHTML |
+| JS-S9 | `js.html:656-677` | Modal tạo task reconcile không reset `#noteInput` → ghi chú task trước sót sang task kế (modal meal-move có reset) | `noteEl.value = ''` trong openCreateModal |
+| JS-S10 | `mock/mock-google.js:139-143` | Dòng Dư mẫu thiếu `timeScanEpoch` → `recountFromLog` đếm dòng Dư cả absent lẫn extra trong demo/test chrome | Thêm `timeScanEpoch` khớp ScanLogic.gs:119-121 |
+
+### 3.4 Camera / scripts / CI (11)
+
+| # | File:line | Nội dung | Đề xuất |
+|---|-----------|----------|---------|
+| MS1 | `camera-scan.html:764` | postMessage parent dùng cổng OR (`source !== ref && origin !== ...` mới chặn) → cửa sổ cùng origin bất kỳ inject được mã vào submitScan | Yêu cầu CẢ source VÀ origin |
+| MS2 | `camera-scan.html:730-754` | `camLegacyPollTimer._hint = hintTimer` là no-op (gán thuộc tính lên number) → hint timeout không bao giờ clear; cả cặp start/stopScanResultPolling là dead code | Xóa hoặc sửa |
+| MS3 | `camera-scan.html:370-372` | Popup tạo `new BarcodeDetector()` mỗi tick (~400ms/lần); modal tạo 1 lần đúng | Tạo 1 lần reuse |
+| MS4 | `camera-scan.html:866-884` | Modal rAF BarcodeDetector loop không throttle, không nghỉ khi `camSnapping` → chạy song song nút Chụp tốn CPU | Gate thời gian tối thiểu + skip khi snapping |
+| MS5 | `camera-scan.html:2116-2135` | Worker nhận bản copy RGBA ~8MB mỗi frame (slice + không transfer list → clone 2 lần ~16MB churn/tick trên iPhone); comment mâu thuẫn với code | Transfer list `[copy]` hoặc downscale frame cho worker; sửa comment |
+| MS6 | `camera-scan.html:2284` | Fallback `body.children.shift()` không tồn tại (HTMLCollection không có shift) — catch trong catch che lỗi | Bỏ fallback chết |
+| MS7 | `camera-scan.html:1674, 1786-1795` | `initOcrWorker` fail nhưng `camOcrEnabled` vẫn true → ocrTick crop+grayscale vô ích mỗi 4s | Set `camOcrLoadFailed = true` khi createWorker fail |
+| MS8 | `scripts/serve.js:104` | 500 trả kèm `e.message` (lộ đường dẫn nội bộ), serve bind 0.0.0.0 | Trả message chung |
+| MS9 | `scripts/inline-html.js:69-70` | Hardcode URL deployment (`RC_API_BASE_DEFAULT`) trong script transform | Chuyển toàn bộ sang env/config |
+| MS10 | `.github/workflows/deploy.yml:67-86` | Chọn deployment theo heuristic versionNumber lớn nhất — dev deployment version `"HEAD"` (string) làm phép trừ ra NaN, thứ tự sort không ổn định | Lấy DEPLOY_ID từ secret/env tường minh |
+| MS11 | `camera-scan.html:1955-2000, 1001-1021` | Fail path ZXing cấp phát tới 4-5 ImageData lớn/tick (GC pressure iPhone khi mã chưa nhận) | Reuse buffer theo kích thước như `camZxingGray`, hoặc giảm bậc khi pin CPU |
+
+---
+
+## 4. ĐÁNH GIÁ TỔNG QUAN
+
+| Hạng mục | Điểm (1-10) | Nhận xét |
+|----------|-------------|----------|
+| Correctness | 8.5 | 464/464 test pass; logic scan/classify chuẩn, dedup/rollback/optimistic cover tốt. Trừ điểm: C1 (Python cache nhiễm datetime → crash detail), J1/J2 (filter kẹt + note không sync), M2 (merge nuốt sự kiện) |
+| Security | 7.5 | XSS escape đồng bộ, JSONP whitelist + sanitize callback, hmac.compare_digest, editor gate fail-closed. Trừ điểm: G2 (formula injection StaffData từ CSV), M5 (CDN không SRI), M6 (token bake vào HTML), D3 (barcode validate lỏng) |
+| Performance | 8 | Batch read/write nhất quán, cache version-key có fallback, canvas reuse + willReadFrequently. Trừ điểm: GS6 (log tăng vô hạn — vách scaling kế tiếp), PS2 (1 lock + 1 Http cho mọi RPC), MS5 (worker double-copy 16MB/tick) |
+| Robustness | 7.5 | Fail-open CDN/Worker/CSP đúng, fallback chain đầy đủ. Trừ điểm: C2 (camera ma khi đóng sớm), M4 (kẹt cờ fallback), G1 (1 cell text giết toàn read path), M7 (deploy fail im lặng) |
+| Test coverage | 8.5 | 368 JS + 85 Py + 11 Chrome, dual-runtime mirror, contract mock↔server, smoke .gs. Thiếu: trình tự detail-sau-scan qua JSON handler (để lọt C1), test camera close-sớm, test note-sync đa thiết bị |
+| Maintainability | 7 | Comment rationale rất tốt, tách Pure/GAS wrapper, marker block testable. js.html 3371 dòng + camera-scan.html 2420 dòng là gánh nặng review |
+
+**Tổng: ~7.9/10** — hệ thống production-ready ở mức khá, test gate 3 runtime đầy đủ. Ưu tiên fix đề xuất theo thứ tự: **C1 → P1 (cặp bài trùng Python JSONP) → C2 (camera ma) → G2 (formula injection) → J1/J2 (UX đa thiết bị) → M7 (CI deploy im lặng)**.
+
+---
+
+## 5. LỆNH ĐÃ CHẠY (verify)
+
+```bash
+npm test                 # → # tests 368, # pass 368, # fail 0, duration_ms 11058
+npm run test:py          # → Ran 85 tests in 0.976s — OK
+npm run build:local      # → index.local.html built (templates resolved)
+npm run test:chrome      # → Boot Chrome headless (CDP 9222) → PASS: 11 / 11  FAIL: 0
+```
+
+Xác minh độc lập lần hai (đọc code trực tiếp, không sửa): `api/services.py:415-470` + `api/cache.py:82-94` + `api/main.py:140-163` (C1/P1) · `camera-scan.html:795-845, 1055-1095` (C2) · `CacheLayer.gs:75-95` + `Database.gs:405-425, 800-820` (G1/G2) · `js.html:550-590, 1580-1600` + `Code.gs:305-330` (J1/J2) · `api/services.py:75-81, 199-202` + `TaskService.gs:12-18, 332-335` (D1) · `CsvUtil.gs:108-111` (D3).
+
+---
+
+*Báo cáo #6 được tạo bởi bynara/qwen-3.8-max-free: chạy test độc lập toàn bộ trước, rà soát code bởi 4 luồng review song song + tự xác minh lại các phát hiện quan trọng từ source. Không sửa code. Nối tiếp báo cáo #1-#5 — không ghi đè dòng cũ.*
