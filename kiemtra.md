@@ -679,3 +679,102 @@ npm run test:chrome                  # PASS: 11 / 11, FAIL: 0
 ---
 
 *Báo cáo #4 được tạo khép kín bởi bynara/deepseek-v4-flash từ việc chạy test độc lập + đọc source trực tiếp, không dựa vào báo cáo trước trong file này. Nối tiếp sau báo cáo #1 (agnes-2.5-flash), #2 (muse-spark-1.2-contributor-free), #3 (minimax-m3:free) — không ghi đè dòng cũ.*
+
+## 6. KIỂM TRA CỦA MODEL bynara/agnes-2.5-flash
+
+**Model:** bynara/agnes-2.5-flash  
+**Ngày kiểm tra:** 2026-08-27  
+**Phương pháp:** Chạy độc lập toàn bộ test suite (JS/Python/Chrome) + đọc source trực tiếp + verify bug bằng script Node
+
+---
+
+### 6.1 KẾT QUẢ TEST
+
+| Suite | Lệnh | Kết quả | Chi tiết |
+|-------|------|---------|----------|
+| JS (Node) | `npm test` | **368/368 PASS** | 27 file test, duration ~11s |
+| Python | `npm run test:py` | **85/85 PASS** | 5 file test, duration 0.76s |
+| Chrome | `npm run test:chrome` | **11/11 PASS** | Headless CDP, 11 check UI end-to-end |
+
+**Tất cả test đều passing — không có regression so với báo cáo trước.**
+
+---
+
+### 6.2 BUG ĐÃ XÁC NHẬN (từ source review độc lập)
+
+#### BUG-14 [P2] `transformLogStatuses_` thiếu `invalidateTaskListCache_`
+**File:** `Database.gs:625-660`  
+**Mô tả:** Hàm `transformLogStatuses_` (dùng chung cho `markUnscannedAbsent_` và `resetAbsentToPending_`) chỉ gọi `invalidateTaskDetailCache_` và `invalidateLogRows_` — **không gọi** `invalidateTaskListCache_`.  
+
+**Verdict hiện tại:** Không gây lỗi thực tế vì cả 2 caller đều tự invalidate task list cache sau đó:
+- `markUnscannedAbsent_` → `completeTaskCore_` → `updateTaskStatus_` (dòng 154 TaskService.gs) gọi `invalidateTaskListCache_`
+- `resetAbsentToPending_` (dòng 738 Database.gs) tự gọi `invalidateTaskListCache_()` nếu `n > 0`
+
+**Rủi ro:** Nếu sau này thêm caller mới cho `transformLogStatuses_` mà quên invalidate → counters list sẽ stale đến 30s (TTL TASK_COUNTS).  
+**Gợi ý sửa:** Thêm `invalidateTaskListCache_()` vào cuối `transformLogStatuses_` khi có writes (dòng 656-657) để tự vệ.
+
+#### BUG-15 [P3] `SEARCH_LOG` cache KHÔNG được invalidate sau write
+**File:** `Code.gs:239`, `api/services.py:686`  
+**Mô tả:** `searchStaffApi` (GAS) và `sheets_log_values()` (Python) đọc cache `CACHE_KEYS.SEARCH_LOG` TTL 10s. Sau mọi write path ghi AttendanceLog (`appendLogRow_`, `batchAppendLogRows_`, `batchMealMoveLogUpdates_`, `updateLogRowScan_`, `updateLogRowRa_`) — **không có hàm nào gọi invalidate SEARCH_LOG**.
+
+**Hậu quả:** User search NV ngay sau khi quét (hoặc paste meal-move) có thể thấy kết quả cũ đến 10s. NV vừa quét chưa xuất hiện trong search result.  
+**Gợi ý sửa:** Thêm `cache_.remove(CACHE_KEYS.SEARCH_LOG)` vào các write path: `appendLogRow_` (Database.gs:799), `batchAppendLogRows_` (Database.gs:960), `batchMealMoveLogUpdates_` (Database.gs:909), `updateLogRowScan_` (Database.gs:751), `updateLogRowRa_` (Database.gs:839). Tương tự cho Python `api/database.py`.
+
+#### BUG-16 [P3] `createReconcileTask` không validate format `input.date`
+**File:** `TaskService.gs:40`  
+**Mô tả:** `const date = String((input && input.date) || '').trim();` — không validate định dạng ngày. Nếu user gửi date sai format (vd "abc", "2026-13-45"), `filterStaffByGroup` so sánh `String(s.date) !== 'abc'` → luôn false → task tạo ra với 0 NV → reject "Không có nhân viên nào trong tổ hợp đã chọn".
+
+**Hậu quả:** Không crash, không mất data — chỉ lỗi UI (user thấy message lỗi).  
+**Gợi ý:** Thêm validate date format (chuẩn yyyy-MM-dd) hoặc ignore invalid date (truyền null → không lọc theo date).
+
+---
+
+### 6.3 TỐI ƯU CÓ THỂ
+
+#### OPT-9 [P2] `readTaskList_` dùng `getDataRange()` toàn bộ sheet
+**File:** `Database.gs:337`  
+**Mô tả:** `readTaskList_` đọc CẢ AttendanceTask sheet mỗi lần miss cache (TTL 30s). Log >5000 dòng → read ~130k cell. Các hàm khác đã áp dụng G1 pattern (đọc cột TASK_ID trước, chỉ đọc dòng khớp) nhưng `readTaskList_` chưa.  
+**Gợi ý:** Áp dụng G1 pattern cho `readTaskList_` — đọc cột TASK_ID (cột 1) trước, chỉ đọc dòng matching → giảm RPC đáng kể khi task sheet lớn.
+
+#### OPT-10 [P3] `readStaffIndex_` / `readStaffListUncached_` dùng `getDataRange()`
+**File:** `Database.gs:123, 164`  
+**Mô tả:** Cả 2 hàm đọc CẢ StaffData sheet bằng `getDataRange()`. StaffData thường <1000 dòng → impact thấp hiện tại.  
+**Gợi ý:** Có thể optimize thành đọc từng cột cần nếu StaffData phát triển >2000 dòng.
+
+---
+
+### 6.4 ĐÁNH GIÁ CHUNG
+
+| Hạng mục | Điểm (1-10) | Ghi chú |
+|----------|-------------|---------|
+| Correctness | 9 | Logic scan/classify chính xác, 368 tests phủ tốt |
+| Security | 8 | Sanitize cell text, XSS escape, JSONP whitelist, editor gates — OK |
+| Performance | 8 | Cache layer tốt, batch operations, G1 pattern — còn 1-2 chỗ getDataRange |
+| Test coverage | 9 | 368 JS + 85 Py + 11 Chrome = 464 tests, bao phủ scan logic + UI mock |
+| Code quality | 8 | Comment rationale chi tiết, separation of concerns tốt |
+| Maintainability | 7 | `js.html` (3370 dòng) + `camera-scan.html` (2420 dòng) lớn, nên tách module |
+
+**Tổng quan:** Hệ thống ổn định, test pass đầy đủ. 3 bug tìm thấy đều ở mức P2-P3, không gây mất data hay crash. BUG-15 (SEARCH_LOG invalidate) là bug có tác động thực tế nhất — ảnh hưởng UX khi search ngay sau scan.
+
+---
+
+### 6.5 CHI TIẾT TEST COMMANDS ĐÃ CHẠY
+
+```bash
+# JS tests
+npm test
+# → 368 tests, pass 368, fail 0, duration ~11s
+
+# Python tests  
+npm run test:py
+# → 85 tests, OK, duration 0.76s
+
+# Build local + Chrome test
+npm run build:local
+node scripts/test-local-mock.js
+# → PASS: 11/11, FAIL: 0
+```
+
+---
+
+*Báo cáo #5 được tạo khép kín bởi bynara/agnes-2.5-flash từ việc chạy test độc lập + đọc source trực tiếp, không dựa vào báo cáo trước trong file này. Nối tiếp sau báo cáo #1-#4.*
