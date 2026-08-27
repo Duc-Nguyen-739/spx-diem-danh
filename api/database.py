@@ -520,7 +520,8 @@ def update_log_row_cache(task_id, row_index, mutate):
                 break
         cache.cache_put(key, {"v": rows} if wrapped else rows, config.CACHE_TTL["LOG_ROWS"])
     except Exception:
-        pass
+        import traceback
+        traceback.print_exc()
 
 
 def append_log_row(row):
