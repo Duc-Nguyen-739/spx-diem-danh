@@ -13,6 +13,7 @@ AWS-style cũng chấp nhận event["query"]) — Freebuff hosting đọc api/*.
 bằng freebuff-deploy check khi CLI hồi phục. `probe` action test kết nối sheet.
 """
 
+import hmac
 import json
 import os
 import re
@@ -128,7 +129,7 @@ def handler(event, context=None):
     if not token and isinstance(parsed_body, dict) and parsed_body.get("token"):
         token = str(parsed_body["token"]).strip()
     required = api_token()
-    if required and token != required:
+    if required and not hmac.compare_digest(token, required):
         out = {"ok": False, "error": "Unauthorized"}
         # P1-3 (2026-08-25): khi có cb= thì phải wrap 401 thành cb({...}); — nếu trả
         # JSON thuần, script JSONP SyntaxError và withFailureHandler không bao giờ fire → kiosk treo
