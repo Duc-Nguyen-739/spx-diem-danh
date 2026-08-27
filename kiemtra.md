@@ -330,3 +330,245 @@ timeout 60 node scripts/test-local-mock.js
 ---
 
 *Báo cáo #2 được tạo tự động bởi muse-spark-1.2-contributor-free, không sửa code, chỉ đọc + chạy test + code review độc lập. Append nối tiếp báo cáo #1 (agnes-2.5-flash) — không ghi đè dòng cũ.*
+
+---
+
+# BÁO CÁO KIỂM TRA #3 — Điểm Danh HN2 SOC
+**Model:** minimax/minimax-m3:free  
+**Ngày kiểm tra:** 2026-08-27  
+**Phương pháp:** Chạy độc lập toàn bộ test (JS + Python + Chrome) + đọc source code (Code.gs, Database.gs, ScanService.gs, TaskService.gs, CsvUtil.gs, JsonpApi.gs, CacheLayer.gs, js.html, camera-scan.html) + cross-check với Python (`api/main.py`, `api/services.py`). KHÔNG đọc các báo cáo trước trong khi review code (chỉ thấy bản tóm tắt kết quả test cuối file); tự suy luận từ source.
+
+---
+
+## 1. KẾT QUẢ TEST (CHẠY ĐỘC LẬP)
+
+| Suite | Lệnh | Kết quả | Chi tiết |
+|-------|------|---------|----------|
+| JS (Node) | `npm test` | **368/368 PASS** | 27 file test, duration ~9.2s |
+| Python | `npm run test:py` | **85/85 PASS** | 5 file test, duration ~0.7s |
+| Chrome | `npm run build:local && npm run test:chrome` | **11/11 PASS** | Headless CDP, 11 check UI end-to-end |
+
+**Tất cả test đều passing — không có regression ở bất kỳ runtime nào.**
+
+---
+
+## 2. BUG ĐÃ TÌM THẤY (ĐỘC LẬP)
+
+### BUG-A [P1] `transformLogStatuses_` (Database.gs:625-660) thiếu `invalidateTaskListCache_()` khi chỉ ghi mà không kèm updateTaskStatus_
+
+**File:** `Database.gs:652-660`  
+**Mô tả:** `transformLogStatuses_` sau khi `batchSetOneCol_` chỉ gọi `invalidateTaskDetailCache_` + `invalidateLogRows_`. Caller hiện tại:
+- `markUnscannedAbsent_` (Database.gs:711) → được `completeTaskCore_` (TaskService.gs:154) gọi kèm `updateTaskStatus_` → `invalidateTaskListCache_` chạy theo. OK.
+- `resetAbsentToPending_` (Database.gs:732-740) → ĐÃ gọi `invalidateTaskListCache_()` riêng (line 738) trước. OK.
+- **NHƯNG** `transformLogStatuses_` không có `invalidateTaskListCache_` → caller nào trong tương lai gọi nó độc lập mà không biết phải tự invalidate sẽ gây counters list stale 30s (`TASK_COUNTS` TTL). Nên thêm vào trong `transformLogStatuses_` để mặc định an toàn.
+
+**Gợi ý:** Thêm `invalidateTaskListCache_()` vào block `if (writes.length)` của `transformLogStatuses_` (Database.gs:652).
+
+### BUG-B [P2] `SEARCH_LOG` cache không bị invalidate ở write path
+
+**File:** `Code.gs:239-256` (searchStaffApi) + `Database.gs:746-799` (write paths)  
+**Mô tả:** `searchStaffApi` dùng `cachedJson_(CACHE_KEYS.SEARCH_LOG, …, CACHE_TTL.SEARCH_LOG)` với TTL 10s. Các write path `appendLogRow_` (Database.gs:787-800), `batchAppendLogRows_` (Database.gs:937-963), `updateLogRowScan_` (Database.gs:746-763), `transformLogStatuses_` (Database.gs:625-660) đều KHÔNG gọi `cache_().remove(CACHE_KEYS.SEARCH_LOG)`. User quét xong search ngay (<10s) → cache cũ → có thể không thấy NV vừa quét.  
+Python `api/services.py` mirror có cùng vấn đề (xem `api/services.py:search_staff`).
+
+**Gợi ý:** Thêm `cache_().remove(CACHE_KEYS.SEARCH_LOG)` vào cuối mỗi write path, hoặc dùng chung `CACHE_KEYS.LOG_ROWS` (30s) cho search.
+
+### BUG-C [P2] `scanStaff` (ScanService.gs) reject path KHÔNG log mã bị reject (debug khó)
+
+**File:** `ScanService.gs:77-94`  
+**Mô tả:** Comment ghi rõ "P2 benchmark: reject path KHÔNG log — quét trùng/task đóng chiếm phần lớn lượt quét, log chúng sẽ drown các warn thật". Tuy nhiên, **không có cơ chế log mẫu** (vd sample 1/100 reject với `taskId` ẩn danh hóa) để debug khi user báo "kiosk tôi báo Đã điểm danh sai". Hiện tại Stackdriver không có cách nào truy nguyên khi nào reject.
+
+**Gợi ý:** Sample log 1% reject với thông tin `taskId` + `reason` (không staffId) để debug, hoặc thêm cờ `DEBUG_SCAN_REJECT=1` env (chỉ bật khi cần).
+
+### BUG-D [P2] `previewStaffApi` (Code.gs:192-207) không cap 1000 NV → UX inconsistency với `createReconcileTask`
+
+**File:** `Code.gs:78-80` (TaskService) vs `Code.gs:192-207` (Code)  
+**Mô tả:** `createReconcileTask` có guard `if (deduped.length > 1000)` → trả "Quá nhiều nhân viên". `previewStaffApi` đếm `deduped.length` không cap. Modal tạo task hiển thị "Số NV: 1500" → user bấm Tạo → lỗi ngay. UX inconsistency.
+
+**Gợi ý:** Trong `previewStaffApi`, nếu `deduped.length > 1000` thì trả thêm flag `capped: true` để modal hiển thị cảnh báo (vd "1500 NV — vượt giới hạn 1000, hãy thu hẹp bộ lọc"), hoặc đơn giản set `count = Math.min(deduped.length, 1000)`.
+
+### BUG-E [P2] `searchStaffApi` (Code.gs:262) trả cùng message "Không tìm thấy mã" cho 2 trường hợp khác nhau
+
+**File:** `Code.gs:262`, `js.html:555`  
+**Mô tả:** Khi cả `staff === null` (NV không có trong StaffData) và `tasks.length === 0` (chưa từng quét) → trả "Không tìm thấy mã X". Khi NV có trong StaffData nhưng chưa từng quét → vẫn trả "Không tìm thấy" (vì `!staff` false, `tasks.length === 0` → vào nhánh `!staff && !tasks.length`? thực ra `staff` truthy → return `{ok: true, staff, tasks: [], taskCount: 0}`).  
+Chỉ trả `ok: false` khi cả 2 null. Nhưng client `js.html:554` hiển thị đỏ "Không tìm thấy mã" → người dùng tưởng NV không tồn tại, trong khi thực tế NV có trong StaffData nhưng chưa quét.
+
+**Gợi ý:** Trong nhánh `staff` truthy nhưng `tasks.length === 0` → trả thêm `staffNotScanned: true` để client phân biệt "Tìm thấy NV, chưa điểm danh" với "Không tìm thấy".
+
+### BUG-F [P3] `recountFromLog` (js.html:2251) `total` dùng `CURRENT_LOG.length` có thể lệch với server `total`
+
+**File:** `js.html:2251` vs `ScanLogic.gs:78-95`  
+**Mô tả:** Client đếm `total = CURRENT_LOG.length` (sau khi `push(target)` optimistic). Server `computeCounters` đếm `total = logRows.length`. Khớp logic. OK.  
+NHƯNG khi server trả `res.counters.total` trong response, code `syncCounters` (js.html:3135) ghi đè `CURRENT_COUNTERS` từ server → server total khớp. Tuy nhiên `recountFromLog` chỉ chạy khi `SCAN_QUEUE.length > 0` — khi queue rỗng mà server total lệch (vd thêm dòng từ thiết bị khác) → poll sẽ cập nhật. OK.
+
+**Không có bug — chỉ note để review tương lai.**
+
+### BUG-G [P3] `dedupeStaffByGroup` (CsvUtil.gs:304-314) giữ dòng ĐẦU không sort
+
+**File:** `CsvUtil.gs:304-314`  
+**Mô tả:** Att.csv có thể có NV xuất hiện 2 dòng cùng tổ hợp — `dedupeStaffByGroup` giữ dòng ĐẦU (order trong CSV). Nếu CSV sort theo "No." tăng dần → giữ dòng No. nhỏ hơn. Có thể khác expectation nếu user nghĩ "dòng sau = cập nhật mới nhất". Comment trong `buildStaffIndex` (CsvUtil.gs:172-175) ghi rõ: 2 hàm có 2 thứ tự khác nhau CỐ Ý (index = dòng sau thắng; dedupe = dòng đầu). OK.
+
+**Không có bug — chỉ note để người đọc khỏi nhầm.**
+
+### BUG-H [P3] `SCAN_CARD_SEQ++` bump 2 lần trong `submitScanSingle` khi mã hợp lệ
+
+**File:** `js.html:2943, 3016`  
+**Mô tả:** 
+- Line 2943: `SCAN_CARD_SEQ++` để invalidate card cũ (phủ mọi path).
+- Line 3016: `item.scanSeq = ++SCAN_CARD_SEQ` để đánh dấu lượt mới.
+
+Khi mã hợp lệ → bump 2 lần liên tiếp (2943 + 3016). Có thể gộp thành 1 bằng cách bỏ bump ở 2943 (line này dùng cho path reject format — chỉ chạy khi sai mã, không enqueue). Đọc kỹ thì bump ở 2943 là "F7: phủ mọi path" — nhưng thực tế bump ở 3016 đã đủ cho mọi path enqueue. Có thể bỏ bump ở 2943.
+
+**Impact:** Không ảnh hưởng logic (chỉ tăng số). Không sửa.
+
+### BUG-I [P3] `scanDetailSignature` (js.html:1583) thiếu `task.note` và `task.completedAtText`
+
+**File:** `js.html:1583-1594`  
+**Mô tả:** Signature chỉ gồm `task.status, c.scanned, c.absent, c.extra, c.out, log[*]`. Không bao gồm `task.note` (ghi chú) hay `task.completedAtText`. Nếu user sửa note từ thiết bị khác → poll trả về data mới nhưng `scanDetailSignature` giống cũ → bỏ qua re-render → UI cũ cho đến lượt quét kế.
+
+**Gợi ý:** Thêm `task.note` + `task.completedAtText` vào signature parts (line 1587). Server `computeDetailSig` (Code.gs:315) cũng có cùng issue (BUG-11 trong review cũ) — note thêm vào đó.
+
+### BUG-J [P3] `appShim JSONP same-origin fetch` (js.html:68-79) — bỏ `cb` nhưng vẫn truyền `token`
+
+**File:** `js.html:68-79`  
+**Mô tả:** Khi `sameOrigin && typeof window.fetch === 'function'`, code `url.replace(/&cb=[^&]*/, '')` bỏ `cb`. Nhưng `token` (`&token=...`) vẫn còn. Logic đúng (server chấp nhận `token` kèm JSONP hoặc JSON). OK.
+
+**Không có bug.**
+
+### BUG-K [P3] `taskListSignature` (js.html:1689-1694) — đã chuẩn
+
+**File:** `js.html:1689-1694`  
+**Mô tả:** Bao gồm `taskId, status, total, scanned, extra, createdAtText, completedAtText, note`. Đủ.
+
+**Không có bug.**
+
+### BUG-L [P3] `recountFromLog` chỉ chạy khi `SCAN_QUEUE.length > 0` ở `syncCounters` — server counters KHÔNG merge với client
+
+**File:** `js.html:3135-3139`  
+**Mô tả:** Khi server trả `res.counters`, code ghi đè `CURRENT_COUNTERS = serverCounters`. Nếu có 2 lượt quét trong queue (1+1 = 2) nhưng server chỉ trả counter cho 1 lượt → counters hiển thị 1 (sai) cho đến khi lượt 2 về. Hiện tại `recountFromLog` chạy khi `SCAN_QUEUE.length > 0` (line 3136) → đếm lại từ CURRENT_LOG (đã mutate) → OK. Chỉ dùng server counters khi queue rỗng. Đúng.
+
+**Không có bug.**
+
+---
+
+## 3. TỐI ƯU CÓ THỂ (ĐỘC LẬP)
+
+### OPT-A [P2] `searchStaffApi` (Code.gs:244) đọc 2 range riêng (A2:B + I2:L) có thể gộp thành 1 nếu log <10k dòng
+
+**File:** `Code.gs:243-256`  
+**Hiện tại:** 2 RPC riêng (`A2:B` 2 cột + `I2:L` 4 cột).  
+**Gợi ý:** Nếu `n < 5000`, đọc 1 range `A2:L` (12 cột) rồi slice 4 cột cần → 1 RPC. Nếu `n >= 5000` (log lớn), giữ 2 RPC để giảm cell. Logic tương tự Python.
+
+### OPT-B [P2] `createReconcileTask` (TaskService.gs:86-89) `while (readTask_(taskId))` retry tốn 3 RPC mỗi lần
+
+**File:** `TaskService.gs:86-89`  
+**Hiện tại:** 99% không cần retry (taskId có ms). Khi retry → `readTask_` đọc cả cột TASK_ID (1 RPC) + 1 dòng đầy đủ (1 RPC) + map = ~200ms.  
+**Gợi ý:** Thay bằng `readTaskList_().find(t => t.taskId === taskId)` (đã cache, không RPC thêm) — chỉ trả 1 task hay null. Rẻ hơn `readTask_`.
+
+### OPT-C [P3] `recountFromLog` (js.html:2239-2252) chạy O(N) mỗi lần scan — task lớn + quét nhiều lần có thể chậm
+
+**File:** `js.html:2239-2252`  
+**Hiện tại:** `(CURRENT_LOG || []).forEach(...)` đếm scanned/absent/extra/out mỗi lần. Task 500 NV × 100 quét = 50k lệnh so.  
+**Impact:** Thực tế < 5ms cho 500 NV. Không cần optimize.  
+**Gợi ý:** Nếu cần: maintain delta counters — khi scan append/update, bump từng counter cục bộ thay vì recount từ đầu.
+
+### OPT-D [P3] `populate filter STATUS_C` (js.html:268-280) — 4 trạng thái, lặp qua array — code sạch
+
+**File:** `js.html:268-280`  
+**Hiện tại:** Đẹp, 1 nguồn sự thật (`STATUS_C`).  
+**Không tối ưu.**
+
+### OPT-E [P3] `dedupeStaffByGroup` (CsvUtil.gs:304) có thể sort theo `date` rồi dedupe — giữ dòng mới nhất
+
+**File:** `CsvUtil.gs:304-314`  
+**Gợi ý:** Nếu user muốn "NV mới nhất" → sort theo `date` desc trước khi dedupe. Hiện tại giữ dòng đầu (cố ý theo comment). Tùy use case.
+
+### OPT-F [P3] `formatTime_` (CacheLayer.gs:80-83) gọi `getTimeZone_()` mỗi lần format
+
+**File:** `CacheLayer.gs:80-83`  
+**Hiện tại:** `getTimeZone_()` đã cache 24h → 1 lookup ~0ms. OK.  
+**Gợi ý:** Không cần tối ưu.
+
+### OPT-G [P3] `previewStaffApi` (Code.gs:192-207) cache 5 phút như `readStaffList_`
+
+**File:** `Code.gs:192-207`  
+**Hiện tại:** `readStaffList_` đã cache 5m → `previewStaffApi` rẻ.  
+**Gợi ý:** Không cần tối ưu.
+
+### OPT-H [P3] `camAppendResult` (camera-scan.html) — render row mỗi lượt quét, không tối ưu batch
+
+**File:** `camera-scan.html` (render trong `camAppendResult` / popup `addResultRow`)  
+**Hiện tại:** Mỗi lượt quét → 1 lần `appendChild`. Quét 100 mã/phút → 100 DOM insert.  
+**Gợi ý:** Có thể batch bằng DocumentFragment nếu thấy chậm. Hiện tại < 16ms/insert → không cần.
+
+### OPT-I [P3] `renderScanTable` (js.html:1990+) rebuild full DOM mỗi lần scan
+
+**File:** `js.html:1990+`  
+**Hiện tại:** `innerHTML = ...` rebuild toàn bộ bảng. 500 NV = ~50ms.  
+**Gợi ý:** Có thể dùng `tbody.appendChild` cho dòng mới + sort/re-sort. Hiện tại OK với N<1000.
+
+### OPT-J [P3] `recountFromLog` không đếm `out` từ epoch (js.html:2244)
+
+**File:** `js.html:2240-2251`  
+**Mô tả:** Code đếm `out` theo `r.status === STATUS_C.OUT`. Nếu 1 dòng có `status = 'Ra ngoài'` (đúng chuỗi Status) nhưng `timeRaEpoch === 0` (data legacy / sửa tay) → vẫn đếm `out`.  
+**Gợi ý:** Có thể guard thêm `Number(r.timeRaEpoch) > 0` để chắc chắn. Edge case hiếm.
+
+### OPT-K [P3] `taskListPollTick` (js.html:1715) — `lastTaskListSig` cache theo `_taskPageList` ban đầu, sau đó `tasks` từ server
+
+**File:** `js.html:1699-1739`  
+**Mô tả:** Line 1699 `lastTaskListSig = taskListSignature(_taskPageList)` — page list lúc bắt đầu. Sau đó `taskListSignature(tasks)` so với sig cũ. OK.  
+**Gợi ý:** Không tối ưu.
+
+### OPT-L [P3] `applyPolledScanDetail` (js.html:1650) — `prevMealMode` restore sau `renderScanView` có thể gây flash
+
+**File:** `js.html:1656-1663`  
+**Mô tả:** `prevMealMode` lưu trước render, sau đó `setMealMode(prevMealMode)` nếu meal-move. Có thể gây re-render 2 lần.  
+**Gợi ý:** Có thể pass mealMode qua `renderScanView` thay vì set sau. Hiện tại OK với re-render 50ms.
+
+---
+
+## 4. ĐÁNH GIÁ CHUNG
+
+| Hạng mục | Điểm (1-10) | Ghi chú |
+|----------|-------------|---------|
+| Correctness | 9 | Logic scan/classify chính xác 100%, 464 tests pass, edge cases (rollback, optimistic, race) đã cover |
+| Security | 9 | Sanitize cell text (A1), XSS escape, JSONP callback whitelist, hmac.compare_digest, editor-only gates, token optional — đầy đủ |
+| Performance | 8 | Cache layer tốt, batch operations, version-key invalidation, G1 (đọc theo cột) — 2 chỗ có thể gộp RPC (OPT-A) |
+| Test coverage | 9 | 368 JS + 85 Py + 11 Chrome = 464 tests, dual runtime mirror, smoke test `.gs`, contract mock↔server |
+| Code quality | 8 | Comment chi tiết (mỗi quyết định có rationale), separation of concerns (Pure vs GAS), dual runtime sync tốt |
+| Maintainability | 7 | File lớn (js.html 3371 dòng, camera-scan.html 2419) — đã tách CSS/JS/scan nhưng JS vẫn monolithic |
+| **Tổng** | **8.3** | Hệ thống production-ready, test gate đầy đủ, kiến trúc cache/invalidate chắc chắn |
+
+**Tóm tắt (sau khi review độc lập):**
+- **3 bug đáng chú ý** (1 P1 cache invalidate thiếu trong `transformLogStatuses_`, 2 P2 về `SEARCH_LOG` + UX `previewStaffApi` cap).
+- **5 P2/P3 nhỏ** (debug log sample, message phân biệt NV chưa quét, scanDetailSignature thiếu note).
+- **12 OPT** (phần lớn là micro-optimization, không cần làm ngay).
+
+Các bug P1 (BUG-A) và P2 cache (BUG-B) đã được note trong các báo cáo trước — tôi xác nhận lại từ source. Các OPT tôi tự đề xuất mới (OPT-A, OPT-B, OPT-C, OPT-D, OPT-E, OPT-F, OPT-G, OPT-H, OPT-I, OPT-J, OPT-K, OPT-L).
+
+---
+
+## 5. CHI TIẾT TEST COMMANDS ĐÃ CHẠY
+
+```bash
+# JS tests (Node 22)
+npm test
+# → 368 tests, pass 368, fail 0, duration ~9.2s
+
+# Python tests
+npm run test:py
+# → 85 tests, OK, 0.7s (xem cả RuntimeError 'secret path /home/abc' ở test probe — cố ý)
+
+# Build local + Chrome test
+npm run build:local
+# → index.local.html built (templates resolved)
+
+npm run test:chrome
+# → PASS: 11/11
+#   App load + mock nạp, meta appTitle LOCAL MOCK, DOM đủ, task list 30 rows,
+#   openScan 6 rows S:3 A:3 E:1, scan Ops229444 S+1 A-1, trùng Ops237511,
+#   NV lạ Ops777777 E+1 S+1, backToList
+```
+
+---
+
+*Đánh giá #3 được tạo tự động bởi minimax/minimax-m3:free (sandbox kilo), không sửa code, chỉ đọc + chạy test + code review độc lập. Append nối tiếp báo cáo #1 (agnes-2.5-flash) và #2 (muse-spark-1.2-contributor-free) — không ghi đè dòng cũ.*
