@@ -20,6 +20,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
+try { if (typeof WebSocket === 'undefined') globalThis.WebSocket = require('ws'); } catch (e) {}
 const { build } = require('./build-local.js');
 
 build();

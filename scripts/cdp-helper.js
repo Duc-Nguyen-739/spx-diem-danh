@@ -11,6 +11,7 @@
  */
 const http = require('node:http');
 const fs = require('node:fs');
+try { if (typeof WebSocket === 'undefined') globalThis.WebSocket = require('ws'); } catch (e) {}
 
 const CDP_HTTP = 'http://127.0.0.1:9222';
 const WS_CONNECT_TIMEOUT_MS = 10000;  // connect WS không treo vĩnh viễn (bug 2026-08-18)
