@@ -454,12 +454,15 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
         if result["action"] == "update":
             if is_meal and result.get("scanPhase") == "ra":
                 database.update_log_row_ra(result["row"], now_dt, result["status"])
+                result["row"]["timeRa"] = now_dt
                 result["row"]["timeRaEpoch"] = cache.epoch_ms(now_dt)
                 result["row"]["status"] = result["status"]
                 time_ra_text = cache.format_time(now_dt)
                 time_ra_epoch = cache.epoch_ms(now_dt)
             else:
                 database.update_log_row_scan(result["row"], now_dt, result["status"])
+                result["row"]["timeScan"] = now_dt
+                result["row"]["timeScanEpoch"] = cache.epoch_ms(now_dt)
                 result["row"]["status"] = result["status"]
                 time_scan_text = cache.format_time(now_dt)
                 time_scan_epoch = cache.epoch_ms(now_dt)
@@ -470,6 +473,7 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
                     # lệch GAS Math.round + read path floor(x+0.5) (half-up: 2.5→3) → response
                     # hiện khác reload. Dùng floor(x+0.5) khớp cả 2.
                     duration_minutes = max(0, math.floor((time_scan_epoch - result["row"]["timeRaEpoch"]) / 60000 + 0.5))
+                    result["row"]["durationMinutes"] = duration_minutes
             scanned_name = result["row"].get("staffName") or None
             scanned_info = {
                 "agency": result["row"].get("agency") or None,
