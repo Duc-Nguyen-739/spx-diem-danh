@@ -106,18 +106,18 @@
 
 ```mermaid
 graph TD
-    A["🖥️ GAS WebApp<br/>kiosk chính<br/><i>Code.gs doGet + isEditor_</i>"] <--> C[("🗄️ Google Sheets<br/>4 sheets<br/>SPREADSHEET_ID via Properties")]
-    B["🐍 Python Backend<br/>hosting top-level<br/><i>api/main.py JSONP/POST</i>"] <--> C
+    A["GAS WebApp<br>kiosk chinh<br>Code.gs doGet + isEditor_"] <--> C[("Google Sheets<br>4 sheets<br>SPREADSHEET_ID via Properties")]
+    B["Python Backend<br>hosting top-level<br>api/main.py JSONP/POST"] <--> C
 
-    A --> A1["ScanService.gs ─► ScanLogic.gs<br/><i>pure classify</i>"]
-    A --> A2["Database.gs + CacheLayer.gs<br/><i>rc2_*_v1/v2</i>"]
-    A --> A3["TaskService / TaskSearch<br/>index.html + css/js/camera"]
-    B --> B1["services.py ─► scanlogic.py<br/><i>port y hệt .gs</i>"]
+    A --> A1["ScanService.gs -> ScanLogic.gs<br>pure classify"]
+    A --> A2["Database.gs + CacheLayer.gs<br>rc2 v1/v2"]
+    A --> A3["TaskService / TaskSearch<br>index.html + css/js/camera"]
+    B --> B1["services.py -> scanlogic.py<br>port y het .gs"]
     B --> B2["database.py + cache.py"]
-    B --> B3["sheets.py / config / csvutil<br/>dist/index.html inline"]
+    B --> B3["sheets.py / config / csvutil<br>dist/index.html inline"]
 
-    A -. "google.script.run" .-> C
-    B -. "JSONP ?action&args&cb<br/>cb /^[A-Za-z0-9_$.]+$/" .-> C
+    A -. google.script.run .-> C
+    B -. JSONP cb sanitize .-> C
 
     style A fill:#EE4D2D,stroke:#0d111a,color:#fff
     style B fill:#3776AB,stroke:#0d111a,color:#fff
@@ -331,12 +331,12 @@ Push `main` → `.github/workflows/deploy.yml`:
 
 ```mermaid
 flowchart LR
-    A[push main] --> B[CI gate<br/>npm ci → npm test → pip → unittest<br/>build:local → test:chrome]
-    B -->|fail ✕ chặn| Z[❌ không deploy]
-    B -->|pass ✓| C[install clasp]
-    C --> D[create .clasp.json<br/>from GAS_SCRIPT_ID]
+    A[push main] --> B[CI gate<br>npm ci - npm test - pip - unittest<br>build local - test chrome]
+    B -->|fail chan| Z[khong deploy]
+    B -->|pass| C[install clasp]
+    C --> D[create .clasp.json<br>from GAS_SCRIPT_ID]
     D --> E[clasp push -f]
-    E --> F[clasp version → deployments --json<br/>→ redeploy versioned]
+    E --> F[clasp version -> deployments --json<br>redeploy versioned]
     F --> G[curl verify /exec 200 + marker]
     style B fill:#188038,color:#fff
     style Z fill:#D93025,color:#fff
