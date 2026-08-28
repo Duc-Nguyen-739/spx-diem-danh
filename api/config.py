@@ -12,8 +12,10 @@ SHEETS = {
     "ATTENDANCE_LOG": "AttendanceLog",
 }
 
-# Spreadsheet chứa dữ liệu (user cung cấp 2026-08-04) — phải share cho service account.
-DEFAULT_SPREADSHEET_ID = "1kL4Jr3E70NzU3l7wAr3oLve5rBAZ9AqdbvcvmABuVi0"
+# Spreadsheet chứa dữ liệu — FIX-25: không commit ID thật (public).
+# Set ID thật qua env `RC_SPREADSHEET_ID` (hosting) hoặc giữ rỗng cho test/local.
+# sheets.spreadsheet_id() ưu tiên env trước fallback này.
+DEFAULT_SPREADSHEET_ID = ""
 
 # ===== Header StaffData (giữ đúng header Att.csv — index theo thứ tự cột) =====
 STAFF_DATA_COLS = {

@@ -54,8 +54,7 @@ jobs:
         # /exec (deployment versioned) KHONG tu cap nhat theo push — can tao version moi
         # + redeploy vao deployment production hien co (bug 2026-08-11: user thay /exec
         # van chay ban cu, khong thay nut quet camera).
-        # continue-on-error: push da xong — deploy loi khong chan workflow.
-        continue-on-error: true
+        # FIX-26: bỏ continue-on-error — deploy fail phải đỏ workflow để phát hiện ngay
         run: |
           set -e
           VERSION=$(clasp version "auto $(git rev-parse --short HEAD)" | grep -oE '[0-9]+' | tail -1)

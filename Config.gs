@@ -13,10 +13,15 @@ const SHEETS = {
 };
 
 /**
- * Spreadsheet chứa dữ liệu (sheet mới user cung cấp 2026-08-04).
- * Nếu để rỗng: Database tự tạo 'Điểm Danh HN2 SOC DB' khi chạy lần đầu.
+ * Spreadsheet chứa dữ liệu.
+ * FIX-25: KHÔNG commit ID thật vào repo (public) — để rỗng, set ID thật vào
+ * Script Properties `SPREADSHEET_ID` (GAS: Project Settings → Properties) hoặc
+ * `DEFAULT_SPREADSHEET_ID` chỉ dùng fallback local/test.
+ * getSpreadsheet_() ưu tiên: DEFAULT → Properties → active → throw (không tự tạo DB rỗng ở webapp).
+ * Nếu deployment là `Anyone` thì ID + RC_API_TOKEN bake trong HTML sẽ public hoàn toàn
+ * (trade-off đã ghi AGENTS.md §20: token là public config cho JSONP anonymous).
  */
-const DEFAULT_SPREADSHEET_ID = '1kL4Jr3E70NzU3l7wAr3oLve5rBAZ9AqdbvcvmABuVi0';
+const DEFAULT_SPREADSHEET_ID = '';
 
 // ===== Header StaffData (giữ đúng header Att.csv — index theo thứ tự cột) =====
 // Sheet StaffData lưu nguyên cấu trúc csv hệ thống (1 dòng = 1 NV–1 ca–1 station).
