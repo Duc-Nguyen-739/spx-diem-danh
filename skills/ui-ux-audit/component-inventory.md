@@ -1,6 +1,6 @@
 # Component inventory — SPX Điểm Danh (2026-08-19)
 
-Kiểm kê toàn bộ thành phần UI của app Điểm Danh HN2 SOC (kiosk barcode kho SPX), gom 8 nhóm. Mỗi nhóm có **audit đúng cho nó** — dùng làm checklist khi audit UI/UX (Phase 1 của skill) và khi thêm tính năng mới phải đối chiếu.
+Kiểm kê toàn bộ thành phần UI của app Điểm Danh HN2 SOC (kiosk barcode kho Shopee Express), gom 8 nhóm. Mỗi nhóm có **audit đúng cho nó** — dùng làm checklist khi audit UI/UX (Phase 1 của skill) và khi thêm tính năng mới phải đối chiếu.
 
 Nguồn sự thật: `index.html` (shell + danh sách task + modal scan + 5 modal) · `css.html` (toàn bộ CSS) · `js.html` (client JS, marker blocks) · `camera-scan.html` (decode chain) · `camera-css.html` · `lib-jsqr.html` · `lib-quagga.html` · `mobile.html`.
 
@@ -8,7 +8,7 @@ Nguồn sự thật: `index.html` (shell + danh sách task + modal scan + 5 moda
 
 | Thành phần | Vị trí | Chú ý |
 |---|---|---|
-| Brand / Title | `.brand` (logo SPX + "Điểm Danh HN2 SOC") | 1 hàng mọi viewport; `--header-h: 59px` |
+| Brand / Title | `.brand` (logo Shopee Express + "Điểm Danh HN2 SOC") | 1 hàng mọi viewport; `--header-h: 59px` |
 | User email | `#userEmail` `.header-user` | aria-label |
 | Trạng thái mạng | `.net-dot` + `#netText` | dot màu offline/online |
 | Task nền | `#bgTaskIndicator` (`.bg-spinner` + `.bg-task-count`) | role=status aria-live |

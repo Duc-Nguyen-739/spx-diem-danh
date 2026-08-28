@@ -26,7 +26,7 @@ description: SPX Điểm Danh (Điểm Danh HN2 SOC) — project skill. Use for 
 
 ## 2. Shell (giao diện)
 
-Kiosk điểm danh kho chuyển phát nhanh SPX bằng barcode. Layout 1 màn hình (không sidebar): header controls (title · 🔊 · ⟳) > thân = danh sách Task (filter Station/Slot/Team/Date/Contract) + modal Task detail (bảng log, counters, nút Quét / Kết thúc / Ghi chú) + modal tạo Task + modal Quét Camera + header search (tìm mã Ops → NV + task đã điểm danh). Không có viewAdmin/viewReports/viewStats như bản project-skill cũ.
+Kiosk điểm danh kho chuyển phát nhanh Shopee Express bằng barcode. Layout 1 màn hình (không sidebar): header controls (title · 🔊 · ⟳) > thân = danh sách Task (filter Station/Slot/Team/Date/Contract) + modal Task detail (bảng log, counters, nút Quét / Kết thúc / Ghi chú) + modal tạo Task + modal Quét Camera + header search (tìm mã Ops → NV + task đã điểm danh). Không có viewAdmin/viewReports/viewStats như bản project-skill cũ.
 
 ## 3. Architecture mental model (đọc TRƯỚC mọi fix)
 

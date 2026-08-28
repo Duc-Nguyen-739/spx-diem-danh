@@ -89,7 +89,7 @@
 
 #### ♿ A11y & polish
 - Skip-link · `prefers-contrast` · badge nền đặc
-- Chip filter · HUD dark industrial · Neon SPX `#EE4D2D`
+- Chip filter · HUD dark industrial · Neon Shopee Express `#EE4D2D`
 - Gradient `scanLine` + `stampIn` + glass overlay
 
 </td>
@@ -410,5 +410,5 @@ Private — repo `Duc-Nguyen-739/spx-diem-danh`. Không commit `Att.csv` thật;
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=120&section=footer&text=&fontSize=0" width="100%" />
 
 <p align="center">
-  <sub>Cập nhật README hot 2026-08-28 — đồng bộ <code>AGENTS.md §21</code> · <code>Config.gs</code> TTL 15s/30s · <code>package.json v0.1.0</code> · <code>appsscript.json Asia/Ho_Chi_Minh/DOMAIN</code> · workflow <code>deploy.yml version+redeploy</code> &nbsp;•&nbsp; Spec: <a href="docs/spec/2026-08-02-phase0-spec.md">Phase 0</a> &nbsp;•&nbsp; Phong cách: <b>aurora gradient + bento + glassmorphism + neon SPX #EE4D2D</b></sub>
+  <sub>Cập nhật README hot 2026-08-28 — đồng bộ <code>AGENTS.md §21</code> · <code>Config.gs</code> TTL 15s/30s · <code>package.json v0.1.0</code> · <code>appsscript.json Asia/Ho_Chi_Minh/DOMAIN</code> · workflow <code>deploy.yml version+redeploy</code> &nbsp;•&nbsp; Spec: <a href="docs/spec/2026-08-02-phase0-spec.md">Phase 0</a> &nbsp;•&nbsp; Phong cách: <b>aurora gradient + bento + glassmorphism + neon Shopee Express #EE4D2D</b></sub>
 </p>

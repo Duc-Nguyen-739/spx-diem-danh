@@ -158,7 +158,7 @@ User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, 
 
 ## 17. Dự án
 
-**Điểm Danh HN2 SOC** — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho SPX: Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS 3 file (`index.html` + `css.html` + `js.html`, xem §20).
+**Điểm Danh HN2 SOC** — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho Shopee Express: Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS 3 file (`index.html` + `css.html` + `js.html`, xem §20).
 
 **Dual runtime — cùng domain logic**: GAS (`*.gs`) là webapp chính + backend Python song song (`api/*.py`, hosting top-level). Đổi logic quét/classify → sửa CẢ `.gs` LẪN `api/*.py` + chạy cả `npm test` (`tests/*.test.js`) lẫn `npm test:py` (`python3 -m unittest discover -s api -p 'test_*.py'`).
 
