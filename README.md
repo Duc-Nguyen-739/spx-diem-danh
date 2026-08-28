@@ -1,4 +1,4 @@
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=220&section=header&text=%C4%90I%E1%BB%82M%20DANH%20HN2%20SOC&fontSize=42&fontColor=fff&animation=fadeIn&fontAlignY=38&desc=SPX%20Warehouse%20%E2%80%A2%20Kiosk%20Barcode%20%2B%20Camera%20%2B%20Dual%20Runtime&descAlignY=58&descAlign=50" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=220&section=header&text=Shopee%20Express&fontSize=42&fontColor=fff&animation=fadeIn&fontAlignY=38&desc=Kiosk%20Barcode%20%2B%20Camera%20%2B%20Dual%20Runtime&descAlignY=58&descAlign=50" width="100%" />
 
 <p align="center">
   <a href="https://github.com/Duc-Nguyen-739/spx-diem-danh"><img src="https://img.shields.io/badge/Repo-Duc--Nguyen--739%2Fspx--diem--danh-EE4D2D?style=for-the-badge&logo=github&logoColor=white" alt="repo" /></a>
