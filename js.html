@@ -2615,14 +2615,37 @@
         return;
       }
     }
-    // Đã đủ Ra+Vào → reject
-    if (target && target.timeRaText && target.timeScanText) {
-      showToast('Đã điểm danh — đủ Ra + Vào', true);
-      playBeep('error');
-      showScanCard('Đã điểm danh', target, true);
-      input.value = '';
-      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
-      return;
+    // Học reconcile: chặn NGAY ở client, không optimistic — mirror ScanLogic.gs classifyMealMoveScan
+    // Đã đủ Ra+Vào (hasRa && hasVao) → đủ cả 2 mốc
+    // Ra mode mà đã có Ra (hasRa) → đã Ra
+    // Vao mode mà đã có Vao (hasVao) → đã Vào/Dư (khớp reconcile EXTRA là đã điểm danh)
+    if (target) {
+      var __hasRa = Number(target.timeRaEpoch) > 0;
+      var __hasVao = Number(target.timeScanEpoch) > 0;
+      if (__hasRa && __hasVao) {
+        showToast('Đã điểm danh — đủ Ra + Vào', true);
+        playBeep('error');
+        showScanCard('Đã điểm danh', target, true);
+        input.value = '';
+        if (!window.__RC_CAM_OPEN__) input.focus();
+        return;
+      }
+      if (MEAL_MODE === 'ra' && __hasRa) {
+        showToast('Đã điểm danh', true);
+        playBeep('error');
+        showScanCard('Đã điểm danh', target, true);
+        input.value = '';
+        if (!window.__RC_CAM_OPEN__) input.focus();
+        return;
+      }
+      if (MEAL_MODE === 'vao' && __hasVao) {
+        showToast('Đã điểm danh', true);
+        playBeep('error');
+        showScanCard('Đã điểm danh', target, true);
+        input.value = '';
+        if (!window.__RC_CAM_OPEN__) input.focus();
+        return;
+      }
     }
 
     input.value = '';
