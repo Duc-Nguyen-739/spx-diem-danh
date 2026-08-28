@@ -116,8 +116,8 @@ graph TD
     B --> B2["database.py + cache.py"]
     B --> B3["sheets.py / config / csvutil<br>dist/index.html inline"]
 
-    A -. google.script.run .-> C
-    B -. JSONP cb sanitize .-> C
+    A -.-> C
+    B -.-> C
 
     style A fill:#EE4D2D,stroke:#0d111a,color:#fff
     style B fill:#3776AB,stroke:#0d111a,color:#fff
