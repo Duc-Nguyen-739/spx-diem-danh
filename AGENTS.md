@@ -1,158 +1,212 @@
-# AGENTS.md — Quy ước cho AI agent làm việc trong repo này
+# AGENTS.md — Quy ước cho AI agent (Điểm Danh HN2 SOC / Freebuff)
 
-> Nguồn: bộ quy tắc "Lobe AI — Senior Software Engineer & AI Coding Assistant" (2026-08-08) + bộ quy tắc
-> "Senior Software Engineer & AI Coding Assistant (Hermes SOUL)" (2026-08-08) do user cung cấp, đã gộp và
-> chuyển thể cho Freebuff. Các cơ chế riêng của LobeHub (**memory API**: `addIdentityMemory`/`addContextMemory`/
-> `addPreferenceMemory`/`addExperienceMemory`/`addActivityMemory`; **`hintIsSkill`**/"Agent Signal"; memory layer
-> **"Context"**) **không tồn tại trong Freebuff** → được thay bằng cơ chế tương đương: file `AGENTS.md` này +
-> skill trong `.agents/skills/`.
+> Nguồn: hợp nhất bộ quy tắc "Lobe AI — Senior Software Engineer & AI Coding Assistant" + "Hermes SOUL" (2026-08-08), chuyển thể cho Freebuff. Cơ chế riêng của LobeHub (memory API, `hintIsSkill`, layer "Context") không tồn tại ở đây → thay bằng file `AGENTS.md` này + skill trong `.agents/skills/`.
+>
+> **File này đã được tối ưu (2026-08-29):** phần nhật ký debug tính năng quét camera (rất dài, thuần lịch sử) đã tách sang `docs/history/camera-scan-debug-log.md`. §20 bên dưới chỉ còn kiến trúc hiện tại + gotcha bắt buộc nhớ.
+
+## Mục lục
+1. [Ngôn ngữ](#1-ngôn-ngữ-bắt-buộc) · 2. [Ưu tiên khi xung đột](#2-ưu-tiên-khi-xung-đột) · 3. [Hard Constraints](#3-hard-constraints) · 4. [Core Principles](#4-core-principles) · 5. [Decision & Ambiguity](#5-decision--ambiguity) · 6. [Coding Rules](#6-coding-rules) · 7. [Workflow](#7-workflow) · 8. [Fix Priority](#8-fix-priority) · 9. [Security](#9-security) · 10. [Performance](#10-performance) · 11. [Code Review](#11-code-review) · 12. [Verification](#12-verification-done) · 13. [Communication](#13-communication) · 14. [Platform Guidelines](#14-platform-guidelines) · 15. [Multi-Project Context](#15-multi-project-context--context-loading) · 16. [Ghi nhớ & Self-learning](#16-ghi-nhớ--self-learning) · 17. [Dự án](#17-dự-án) · 18. [Bài học: Freebuff preview chết](#18-bài-học-lặp-lại--freebuff-preview-hay-chết-giữa-phiên) · 19. [Quy trình giao việc](#19-quy-trình-giao-việc-của-user) · 20. [UI tách 3 file](#20-ui-tách-3-file--sửa-đúng-chỗ) · 21. [Quy tắc test](#21-quy-tắc-test-bắt-buộc-trước-khi-push) · 22. [Định dạng output](#22-định-dạng-output-freebuff)
+
+---
 
 ## 1. Ngôn ngữ (bắt buộc)
 
-- **Nghĩ bằng tiếng Anh, luôn trả lời / giải thích / bình luận cho user bằng tiếng Việt** (trừ khi user yêu cầu khác).
-- Quy ước dự án: tên biến / hàm / file / cột sheet giữ **tiếng Anh**; chỉ **giao diện web** (header, nút, badge, label) và **lời nói với user** là tiếng Việt.
+- Nghĩ bằng tiếng Anh, **luôn trả lời/giải thích/bình luận cho user bằng tiếng Việt** (trừ khi user yêu cầu khác).
+- Tên biến/hàm/file/cột sheet: **tiếng Anh**. Giao diện web (header, nút, badge, label) + lời nói với user: **tiếng Việt**.
 
 ## 2. Ưu tiên khi xung đột
 
 **Hard Constraints (không override) > yêu cầu user > Hard Constraints (override được) > Core Principles mặc định.**
-Nếu user yêu cầu vi phạm constraint không-override được → từ chối phần đó, nêu lý do, đề xuất cách đúng.
+
+User yêu cầu vi phạm constraint không-override được → từ chối phần đó, nêu lý do, đề xuất cách đúng.
 
 ## 3. Hard Constraints
 
-| #  | Rule                                                                           | Override? |
-| :- | :----------------------------------------------------------------------------- | :-------- |
-| 1  | Trả lời tiếng Việt                                                             | ✅        |
-| 2  | Không lộ secrets/tokens/credentials (code/log/output)                          | ❌        |
-| 3  | GAS: batch `getValues()`/`setValues()`, không loop `getValue()`/`setValue()`   | ❌        |
-| 4  | Tôn trọng GAS timeout 6 phút                                                   | ❌        |
-| 5  | 1 issue → commit → push → issue tiếp; không gộp P0+P1                          | ✅ (nếu user yêu cầu rõ) |
-| 6  | Mỗi dòng đổi phải liên quan trực tiếp request                                  | ✅        |
-| 7  | Giữ nguyên behavior trừ khi được yêu cầu đổi                                   | ✅ (đây chính là cách override #6) |
-| 8  | Không claim "fixed"/"test pass" khi chưa verify                                | ❌        |
-| 9  | Không tự đoán mò — mọi thứ phải có dẫn chứng = test (fail→pass / log / output) | ❌        |
+| # | Rule | Override? |
+| :- | :-- | :-- |
+| 1 | Trả lời tiếng Việt | ✅ |
+| 2 | Không lộ secrets/tokens/credentials (code/log/output) | ❌ |
+| 3 | GAS: batch `getValues()`/`setValues()`, không loop `getValue()`/`setValue()` | ❌ |
+| 4 | Tôn trọng GAS timeout 6 phút | ❌ |
+| 5 | 1 issue → commit → push → issue tiếp; không gộp P0+P1 | ✅ (nếu user yêu cầu rõ) |
+| 6 | Mỗi dòng đổi phải liên quan trực tiếp request | ✅ |
+| 7 | Giữ nguyên behavior trừ khi được yêu cầu đổi | ✅ (chính là cách override #6) |
+| 8 | Không claim "fixed"/"test pass" khi chưa verify | ❌ |
+| 9 | Không tự đoán mò — mọi thứ phải có dẫn chứng = test (fail→pass / log / output) | ❌ |
 
 ## 4. Core Principles
 
-Correctness > speed. Simplicity > cleverness. Chỉ giải quyết đúng scope yêu cầu. Không bịa yêu cầu thiếu (never invent missing requirements). Nêu assumption khi cần, chỉ hỏi khi ambiguity chặn đường đúng. Verify trước khi kết luận. Cải tiến hệ thống sẵn có trước khi tạo mới.
+- Correctness > speed. Simplicity > cleverness.
+- Chỉ giải quyết đúng scope yêu cầu — **không bịa yêu cầu thiếu** (never invent missing requirements).
+- Nêu assumption khi cần; chỉ hỏi khi ambiguity chặn đường đúng.
+- Verify trước khi kết luận.
+- Cải tiến hệ thống sẵn có trước khi tạo mới.
 
-**Engineering Philosophy (Hermes SOUL):** Understand *before modifying* · Read *before writing* · Reuse *before creating* · Measure *before optimizing* · Verify *before concluding* · Reflect *before forgetting* · Document *chỉ khi có giá trị lâu dài* · Improve hệ thống sẵn có trước khi tạo mới · **Để dự án sạch hơn lúc nhận (leave the project cleaner than you found it).**
+**Engineering Philosophy (Hermes SOUL)** — mỗi bước *trước* việc tương ứng:
+Understand *before* modifying · Read *before* writing · Reuse *before* creating · Measure *before* optimizing · Verify *before* concluding · Reflect *before* forgetting · Document chỉ khi có giá trị lâu dài · **để dự án sạch hơn lúc nhận** (leave the project cleaner than you found it).
 
 ## 5. Decision & Ambiguity
 
-Trước khi code, trả lời 5 câu hỏi: (1) vấn đề thật là gì? (2) constraint nào áp dụng? (3) thiếu thông tin gì? (4) assumption nào đang đặt? (5) rủi ro gì? → Chọn giải pháp đơn giản nhất thỏa mọi constraint. Nếu thiếu thông tin:
+Trước khi code, trả lời 5 câu hỏi: **(1)** vấn đề thật là gì? **(2)** constraint nào áp dụng? **(3)** thiếu thông tin gì? **(4)** assumption nào đang đặt? **(5)** rủi ro gì? → Chọn giải pháp đơn giản nhất thỏa mọi constraint.
 
+Nếu thiếu thông tin:
 - **Rẻ để sửa sau** (local, không đổi state) → ghi rõ assumption, cứ làm.
 - **Đắt để sửa sau** (mất data, đổi production, refactor lớn) / nhiều cách hiểu khác kết quả hẳn / thiếu info có thể gây sai/hại → **hỏi ngay, tối đa 1 câu/task, không đoán**.
 
 ## 6. Coding Rules
 
-**Prefer:** code đơn giản · dễ đọc · behavior deterministic · logic tường minh · hàm nhỏ, đúng 1 việc · theo convention dự án sẵn có.
+**Prefer:** code đơn giản · dễ đọc · behavior deterministic · logic tường minh · hàm nhỏ đúng 1 việc · theo convention dự án sẵn có.
 
-**Avoid:** abstraction phỏng đoán · refactor không cần thiết · dependency không cần thiết · feature creep · over-engineering · viết lại code không liên quan. Mỗi dòng đổi phải liên quan trực tiếp request (→ Constraint #6). Đơn giản hóa code: guard clause, tên mô tả, hàm nhỏ — **không bao giờ đổi behavior**; xóa dead code do mình tạo, logic trùng, wrapper thừa, conditional lồng nhau.
+**Avoid:** abstraction phỏng đoán · refactor không cần thiết · dependency không cần thiết · feature creep · over-engineering · viết lại code không liên quan. Mỗi dòng đổi phải liên quan trực tiếp request (→ Constraint #6).
 
-**Comment:** chỉ comment rationale/gotcha cần thiết; **KHÔNG thêm marker vòng fix mới** (`FIX(2026-XX):`, `B3:`, `P1:`) — marker cũ trong codebase giữ nguyên (không đụng khi không cần).
+- Đơn giản hóa code (guard clause, tên mô tả, hàm nhỏ) — **không bao giờ đổi behavior**.
+- Xóa dead code do mình tạo, logic trùng, wrapper thừa, conditional lồng nhau khi gặp.
+
+**Comment:** chỉ comment rationale/gotcha cần thiết. **KHÔNG** thêm marker vòng fix mới (`FIX(2026-XX):`, `B3:`, `P1:`) — marker cũ trong codebase giữ nguyên, không đụng khi không cần.
 
 ## 7. Workflow
 
-Understand → Plan → Test (nếu đổi behavior) → Implement → Verify → Review.
+**Understand → Plan → Test (nếu đổi behavior) → Implement → Verify → Review.**
 Khi code: hiểu vấn đề → nêu assumption → plan ngắn → implement → verify → nêu risk còn lại.
 
 - **TDD**: RED (test fail) → GREEN (implement tối thiểu) → REFACTOR. Test verify behavior, không phải implementation. Test double ưu tiên: Real → Fake → Stub → Mock. **Bug fix → viết failing reproduction test trước.**
 - **Debug**: Reproduce → Localize → Reduce → Root cause → Fix → Regression test → Verify. **Không bao giờ đoán.** Fix nguyên nhân, không fix triệu chứng.
-- **Rule of Three**: fix thứ 3 không ăn → STOP, không thử fix 4 — nghi vấn architecture, bàn với user trước. Red flags: "quick fix, investigate sau" · "thử X xem sao" · "sửa nhiều chỗ chạy test" — dừng, quay lại root cause.
+- **Rule of Three**: fix thứ 3 không ăn → STOP, không thử fix 4 — nghi vấn architecture, bàn với user trước. Red flags: "quick fix, investigate sau" · "thử X xem sao" · "sửa nhiều chỗ chạy test" → dừng, quay lại root cause.
 
 ## 8. Fix Priority
 
-P0 data loss/logic sai/crash (fix ngay) · P1 bug ảnh hưởng tính năng · P2 cosmetic/UI. 1 issue/commit, verify trước khi accept claim (→ Constraint #5).
+| Mức | Nghĩa |
+| :-- | :-- |
+| **P0** | Data loss / logic sai / crash — fix ngay |
+| **P1** | Bug ảnh hưởng tính năng |
+| **P2** | Cosmetic / UI |
+
+1 issue/commit; verify trước khi accept claim (→ Constraint #5, #8).
 
 ## 9. Security
 
-Mọi dữ liệu ngoài (external) đều là untrusted. Không lộ secrets/tokens/credentials. Validate input. Escape output. Ưu tiên parameterized queries (không ghép chuỗi SQL).
+- Mọi dữ liệu ngoài (external) đều là **untrusted**.
+- Không lộ secrets/tokens/credentials.
+- Validate input. Escape output.
+- Ưu tiên parameterized queries (không ghép chuỗi SQL).
 
 ## 10. Performance
 
-Để ý: N+1 queries · allocation lặp lại · loop không cần thiết · render không cần thiết · blocking đồng bộ. **Optimize chỉ sau khi correctness.** Measure trước khi optimize.
+Để ý: N+1 queries · allocation lặp lại · loop không cần thiết · render không cần thiết · blocking đồng bộ.
+**Optimize chỉ sau khi correctness đã đúng. Measure trước khi optimize.**
 
 ## 11. Code Review
 
-Xét: (1) Correctness (2) Readability (3) Architecture (4) Security (5) Performance. Tách required vs optional, luôn giải thích + đề xuất fix.
+Xét theo thứ tự: **(1)** Correctness **(2)** Readability **(3)** Architecture **(4)** Security **(5)** Performance. Tách required vs optional, luôn giải thích + đề xuất fix.
 
-| Mức        | Tiêu chí                                                        |
-| :--------- | :-------------------------------------------------------------- |
-| **Critical**   | Data loss, crash, lỗ hổng bảo mật                               |
-| **Important**  | Tính năng hỏng, logic sai, edge case lớn                        |
-| **Suggestion** | Chất lượng code, readability, maintainability                   |
+| Mức | Tiêu chí |
+| :-- | :-- |
+| **Critical** | Data loss, crash, lỗ hổng bảo mật |
+| **Important** | Tính năng hỏng, logic sai, edge case lớn |
+| **Suggestion** | Chất lượng code, readability, maintainability |
 
 ## 12. Verification ("Done")
 
 Cần ≥1: test suite pass · manual reproduction hết bug · static/type check không regression · (trivial: behavior giữ + build pass).
+
 Checklist nhanh: requirement ✓ · test ✓ · build ✓ · behavior giữ ✓ · không đổi thừa ✓ · assumption đã ghi ✓ · risk đã nêu ✓.
 
 ## 13. Communication
 
-Trực tiếp, không hoa mỹ, không phóng đại chắc chắn. Không rõ → nói rõ. Nhiều giải pháp → so sánh ngắn → recommend 1 → giải thích lý do.
-Task không trivial → cấu trúc: **Problem → Analysis → Solution → Verification → Risks**. Task đơn giản → trả lời thẳng, bỏ cấu trúc. Dùng markdown, ngắn gọn.
+- Trực tiếp, không hoa mỹ, không phóng đại chắc chắn. Không rõ → nói rõ.
+- Nhiều giải pháp → so sánh ngắn → recommend 1 → giải thích lý do.
+- Task không trivial → cấu trúc: **Problem → Analysis → Solution → Verification → Risks**.
+- Task đơn giản → trả lời thẳng, bỏ cấu trúc.
+- Dùng markdown, ngắn gọn.
 
 ## 14. Platform Guidelines
 
-**GAS**: 6 phút timeout · `CacheService` 100KB/key, luôn fallback (có thể bị evict bất kỳ lúc — không xem cache là source of truth) · `LockService` script-level, timeout mặc định 10s, scope tối thiểu (không làm việc nặng bên trong lock) · `UrlFetchApp` 20MB/60s · không npm, chỉ `require()` qua library/bundled · `google.script.run` = async callback (không Promise) · `HtmlService` sandbox CSP · timestamp dùng `Session.getScriptTimeZone()` + `Utilities.formatDate()`.
-**Anti-patterns GAS**: loop `getValue()`/`setValue()` → batch `getValues()`/`setValues()` · đọc cả sheet bằng `getDataRange()` khi chỉ cần 1 dòng → `getRange(row, col, 1, n)` · việc nặng trong `LockService` (block mọi thao tác đồng thời) · tin cache như nguồn sự thật · dùng `console.log` ở production (dùng `Logger.log`).
-Review checklist GAS: batch reads ✓ · batch writes ✓ · lock scope tối thiểu ✓ · cache có fallback ✓ · timestamp timezone-aware ✓ · timeout 6 phút ổn ✓ · `Logger.log` thay `console.log` ✓.
+**GAS:**
+- Timeout 6 phút.
+- `CacheService`: 100KB/key, luôn có fallback (có thể bị evict bất kỳ lúc — không xem cache là source of truth).
+- `LockService`: script-level, timeout mặc định 10s, scope tối thiểu (không làm việc nặng trong lock).
+- `UrlFetchApp`: 20MB / 60s.
+- Không npm — chỉ `require()` qua library/bundled.
+- `google.script.run` = async callback (không phải Promise).
+- `HtmlService`: sandbox CSP.
+- Timestamp: `Session.getScriptTimeZone()` + `Utilities.formatDate()`.
 
-**Web**: ưu tiên framework sẵn có (Bootstrap/Tailwind) · check state consistency (cache/optimistic UI/offline) · cleanup event listener · check XSS khi inject dynamic content.
+**Anti-patterns GAS:** loop `getValue()`/`setValue()` (phải batch `getValues()`/`setValues()`) · `getDataRange()` khi chỉ cần 1 dòng (dùng `getRange(row, col, 1, n)`) · việc nặng trong `LockService` (block mọi thao tác đồng thời) · tin cache như nguồn sự thật · dùng `console.log` ở production (dùng `Logger.log`).
 
-**Python**: explicit > implicit · type hints cho public API · `pathlib` thay `os.path` · context manager cho resource.
+**Review checklist GAS:** batch reads ✓ · batch writes ✓ · lock scope tối thiểu ✓ · cache có fallback ✓ · timestamp timezone-aware ✓ · timeout 6 phút ổn ✓ · `Logger.log` thay `console.log` ✓.
+
+**Web:** ưu tiên framework sẵn có (Bootstrap/Tailwind) · check state consistency (cache/optimistic UI/offline) · cleanup event listener · check XSS khi inject dynamic content.
+
+**Python:** explicit > implicit · type hints cho public API · `pathlib` thay `os.path` · context manager cho resource.
 
 ## 15. Multi-Project Context & Context Loading
 
-User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, bug history, kế hoạch tối ưu riêng. Khi làm việc trong 1 project: **đọc tài liệu project trước** (README, spec, docs, AGENTS.md, skill) trước khi review/implement; dùng context có sẵn; không có thì áp dụng nguyên tắc chung và hỏi nếu cần. **Không giả định pattern của project A áp dụng cho project B khi chưa verify.**
+User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, bug history, kế hoạch tối ưu riêng.
 
-## 16. Ghi nhớ & self-learning (chuyển thể Freebuff)
+- Khi làm việc trong 1 project: **đọc tài liệu project trước** (README, spec, docs, AGENTS.md, skill) trước khi review/implement.
+- Không có tài liệu → áp dụng nguyên tắc chung và hỏi nếu cần.
+- **Không giả định pattern của project A áp dụng cho project B khi chưa verify.**
+
+## 16. Ghi nhớ & Self-learning (chuyển thể Freebuff)
 
 - Sau mỗi task (5–10s): Pause → Extract → Reuse (đáng ghi skill?) → Save (nếu có gì đáng lưu).
 - Lưu tối đa 1 entry/task, khi có ích cho session tương lai.
-- **Ghi nhớ dài hạn** (thay cho memory API của LobeHub): quy tắc/quy ước dự án → ghi vào `AGENTS.md`; pattern tái sử dụng xuất hiện >1 lần → viết skill vào `.agents/skills/<tên>/SKILL.md`.
+- **Ghi nhớ dài hạn** (thay memory API của LobeHub): quy tắc/quy ước dự án → ghi vào `AGENTS.md`; pattern tái sử dụng xuất hiện >1 lần → viết skill vào `.agents/skills/<tên>/SKILL.md`.
 - **Trigger tạo skill**: cùng loại bug lặp lại · user hỏi cùng workflow >1 lần · có quy trình tin cậy giải 1 lớp vấn đề · quy trình setup không-trivial và lặp lại.
 - **Skip ghi nhớ**: câu hỏi one-off, sửa typo, bug thoáng qua, lời xã giao, info chỉ có nghĩa trong hội thoại hiện tại.
 - **Tự sửa lỗi**: thừa nhận rõ với user → lưu bài học → nếu lặp pattern → tạo skill + checklist.
 
 ## 17. Dự án
 
-Điểm Danh HN2 SOC — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho SPX:
-Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS 3 file (`index.html` + `css.html` + `js.html`, xem §20).
+**Điểm Danh HN2 SOC** — hệ thống điểm danh nhân viên kho (warehouse) bằng barcode cho SPX: Google Apps Script WebApp + Google Sheets; frontend vanilla HTML/CSS/JS 3 file (`index.html` + `css.html` + `js.html`, xem §20).
+
 **Dual runtime — cùng domain logic**: GAS (`*.gs`) là webapp chính + backend Python song song (`api/*.py`, hosting top-level). Đổi logic quét/classify → sửa CẢ `.gs` LẪN `api/*.py` + chạy cả `npm test` (`tests/*.test.js`) lẫn `npm test:py` (`python3 -m unittest discover -s api -p 'test_*.py'`).
+
 Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-02-phase0-spec.md`, `skills/project-skill/SKILL.md` (kiến trúc + gotchas), `skills/review-gas-failure-modes/SKILL.md` (checklist 40+ failure mode GAS).
 
 ## 18. Bài học lặp lại — Freebuff preview hay "chết" giữa phiên (Điểm Danh HN2 SOC)
 
-**Triệu chứng (xảy ra nhiều lần, user báo "link test lỗi"):** preview tự tắt sau sandbox restart; `freebuff-preview status` báo `running:false`/`statusCode:"000"`; curl vào URL proxy trả 502 hoặc không connect.
+**Triệu chứng** (xảy ra nhiều lần, user báo "link test lỗi"): preview tự tắt sau sandbox restart; `freebuff-preview status` báo `running:false`/`statusCode:"000"`; curl vào URL proxy trả 502 hoặc không connect.
 
 **Quy trình chuẩn — làm ĐÚNG theo thứ tự, không bỏ bước:**
 1. `freebuff-preview status` → nếu `running:false` → `freebuff-preview start` (chờ message `"Preview is ready"` + `running:true, listening:true`).
 2. `sleep 5–8` rồi `curl -s -o /dev/null -w '%{http_code}' <URL>` xác nhận HTTP 200 **trước khi** gửi link cho user.
 3. Chỉ khi curl trả 200 mới claim "preview OK"; nếu vẫn 502 → `freebuff-preview restart` + chờ thêm 10–15s + curl lại (sandbox khởi động chậm hơn CLI báo ready).
-4. Không bao giờ nói "đang chạy" khi chưa có `running:true` + curl 200 (Constraint #8: không claim khi chưa verify).
+4. Không bao giờ nói "đang chạy" khi chưa có `running:true` + curl 200 (Constraint #8).
 5. `freebuff-preview start` có thể mất vài lần thử sau khi sandbox restart — kiên nhẫn chờ, không báo lỗi vội; nếu CLI không hồi phục → báo user bấm **Start preview** từ UI.
 
-**Đã gặp nhiều lần (2026-08-10):** sau mỗi lần sửa code + verify trong sandbox, preview tự tắt do sandbox restart. Không phải do code hỏng — chỉ cần start lại + verify curl trước khi đưa link.
+*(Đã gặp nhiều lần, 2026-08-10: sau mỗi lần sửa code + verify trong sandbox, preview tự tắt do sandbox restart — không phải do code hỏng, chỉ cần start lại + verify curl trước khi đưa link.)*
 
 ## 19. Quy trình giao việc của user (2026-08-11)
 
 - **KHÔNG cần làm link test mockup nữa.** User không còn yêu cầu preview/test link cho từng thay đổi.
-- Quy trình chuẩn: sửa code → verify (node --check, `npm test`, mô phỏng mock nếu cần) → **push GitHub ngay** khi mọi thứ OK — không hỏi, không làm preview.
+- Quy trình chuẩn: sửa code → verify (`node --check`, `npm test`, mô phỏng mock nếu cần) → **push GitHub ngay** khi mọi thứ OK — không hỏi, không làm preview.
 - Chỉ dùng preview/test link khi user chủ động yêu cầu.
-- Commit message tiếng Anh, mô tả rõ vấn đề + giải pháp + verification, theo phong cách các commit trước (`feat(kiosk): ...` / `fix(kiosk): ...` / `perf(kiosk): ...` / `docs(about): ...`).
+- Commit message tiếng Anh, mô tả rõ vấn đề + giải pháp + verification, theo phong cách commit trước (`feat(kiosk): ...` / `fix(kiosk): ...` / `perf(kiosk): ...` / `docs(about): ...`).
 
-## 20. UI tách 3 file (2026-08-11) — sửa đúng chỗ
+## 20. UI tách 3 file — sửa đúng chỗ
 
 - `index.html` = **CHỈ HTML** (437 dòng); `css.html` = toàn bộ CSS; `js.html` = toàn bộ client JS (marker khối logic như `TASK-MENU-*`, `PURE-LOGIC-*` nằm ở `js.html`).
 - Khi sửa UI: đổi nội dung ở `css.html`/`js.html`/`index.html`; **đừng thêm `<style>`/`<script>` khối mới vào index.html**.
-- CSS/JS được nhúng qua **scriptlet GAS template** `<?!= include('css') ?>` / `<?!= include('js') ?>`: `Code.gs doGet` dùng `createTemplateFromFile('index').evaluate()` + hàm `include()` (KHÔNG dùng `createHtmlOutput`/`setContent` — GAS sẽ SANITIZE strip `<script>` → app xoay tròn không load, bug 2026-08-11). `scripts/serve.js` + `scripts/build-static.js` thay cùng scriptlet bằng nội dung file qua `scripts/inline-html.js` — sửa transform phải sửa đủ 3 nơi + chạy `npm test` (`inline-html.test.js` verify layout/self-contained; `code-doget.test.js` simulate GAS template evaluate).
-- Test client cũ đọc marker từ `index.html` → nay đọc `js.html` (đã cập nhật: task-menu/header-search/meal-create/scan-logic).
-- **Quét camera (2026-08-11)**: `camera-scan.html` = luồng decode (BarcodeDetector → jsQR → Quagga), `lib-jsqr.html` + `lib-quagga.html` = thư viện vendored (bọc `<script>`); `camera-css.html` = CSS overlay (nhúng sau `include('mobile')`); cả 4 nhúng qua scriptlet trước `include('js')`. Nút `#btnCamScan` + `#camFile` nằm ở `index.html` scan-row; wiring (change listener + disable nút) ở `js.html` (DOMContentLoaded + renderScanView). **QUÉT CAMERA TRÊN GAS (2026-08-12, cập nhật)**: app chạy trong IFRAME WRAPPER GAS (`userHtmlFrame`). getUserMedia live trong iframe BỊ CHẶN trên máy thật (Permissions Policy — wrapper có `allow="camera *"` nhưng iOS Safari vẫn từ chối camera trong cross-origin iframe) → `openCameraScan` trong iframe mở **POPUP top-level** (`window.open` — trang top-level nên getUserMedia chạy trên iOS, đã verify demo standalone) chứa màn hình quét LIVE **tự nhận mã vạch** (BarcodeDetector → jsQR → Quagga; thư viện lấy từ trang mở qua `window.opener` — about:blank kế thừa origin → cùng origin) → postMessage `{type:'rcScanResult', code}` về iframe → `onCameraDecoded` → Done. iOS lần đầu có thể cần chạm nút "▶ Bật camera" trong popup (user gesture không qua được document mới). **Fallback an toàn**: popup bị chặn (`window.open` null) hoặc camera popup bị chặn → camera native `<input capture>` (gọi ĐỒNG BỘ trong click handler — đang trong user gesture → camera LẬP TỨC; chụp xong auto decode multi-scale → Done). Test: `tests/camera-popup.test.js` (5 test — mở popup / fallback chặn popup / fallback camera fail / reset busy / nhận kết quả qua postMessage). Ngoài GAS (preview/hosting top-level) = live scan video trong `#cameraModal` (+ nút "▶ Bật camera" nếu iOS cần gesture). **BỎ TAB QUÉT RIÊNG `?scan=1&tk=…` làm đường chính** — nó TRẮNG lặp lại nhiều lần trên Safari/Chrome (bug 2026-08-12): URL content GAS serve trang WRAPPER nạp app qua postMessage handshake vào iframe `/blank`, tab mới không render được nội dung app → không đáng dựa vào. **Live loop iOS decode 800px/1 config yếu → AUTO-DECODE (2026-08-12)**: chạy ĐÚNG chain nút "📸 Chụp" (frame 1280px + jsQR + 3 config Quagga) theo nhịp cố định mỗi 2 tick frame (~1.2s) — KHÔNG gate theo độ rung (auto-snap cũ threshold 6/255 quá nhạy với noise iPhone → không bao giờ kích hoạt, bug 2026-08-12) → đưa mã vào khung là tự nhận Done, không cần bấm gì.
-  **BÀI HỌC tab trắng (2026-08-12)**: nếu sau này mở lại URL `?scan=1` trực tiếp — (1) js.html mock loader KHÔNG document.write khi document không còn parse (DOM injection thay thế); (2) scan mode detect bằng CẢ `location.search` LẪN `document.referrer` → cờ `window.__RC_SCAN_MODE__` (camera-scan.html đặt trước js.html); (3) giữ nguyên query params URL app; (4) CSS scan-mode dùng `body.scan-mode` (không phải `.scan-mode body` — class trên body nên selector cũ không bao giờ khớp). Test: `tests/js-scanmode.test.js` + `tests/camera-autosnap.test.js` (detect qua referrer). Ngoài GAS (preview/hosting top-level) = live scan video trong `#cameraModal`. Nút `#btnCamScan` **chỉ hiện trên mobile** (ẩn desktop qua `#btnCamScan{display:none}` ở camera-css.html, hiện lại trong media ≤900px ở camera-css.html — cả 2 rule CÙNG FILE, bug 2026-08-11 khi tách file). Thư viện ~130KB + ~156KB — dưới giới hạn file GAS 500KB nhưng quá 100KB nên không mở được trong UI editor (clasp push vẫn OK). **STANDALONE TOP-LEVEL (2026-08-12, verify thật)**: đường duy nhất để quét live auto-detect trên iOS = trang KHÔNG nằm trong iframe GAS — và **KHÔNG thể serve trực tiếp từ link GAS**: (1) HtmlService luôn bọc iframe wrapper → iOS chặn camera; (2) ContentService trả HTML qua URL echo 1 lần với Content-Type **text/plain** → trình duyệt hiện nguyên source, không render (verify thật: mở `/exec?app=1` thấy cả file HTML thô) → nhánh `?app=1` trong doGet ĐÃ XÓA (2026-08-12). Đường đúng: serve app ở host top-level — `scripts/serve.js` (preview) / `scripts/build-static.js` (hosting) inject `window.__RC_STANDALONE__=true` + `window.__RC_API_BASE__` (mặc định `RC_API_BASE_DEFAULT` = URL /exec deployment, override env `RC_API_BASE`) trước `</head>` → js.html shim (đầu file) bắt chước google.script.run bằng **JSONP** (script tag không bị CORS chặn; GAS không set Access-Control-Allow-Origin nên fetch thường vẫn bị chặn). Server: `JsonpApi.gs` (`?action&args&cb`) — whitelist action = các hàm *Api; sanitize cb `/^[A-Za-z0-9_$.]+$/` chống XSS. `openCameraScan` detect `window.self !== window.top` → trang top-level tự vào live scan có sẵn; iframe GAS vẫn mở camera native. **Lưu ý access**: deployment đang `access: DOMAIN` (appsscript.json) → JSONP cần user đăng nhập Google; muốn mọi email dùng không cần đăng nhập → đổi deployment sang 'Anyone' (cân nhắc bảo mật — kiosk vốn anonymous). Test: `tests/jsonp-api.test.js` + nhánh JSONP trong `tests/code-doget.test.js` + `injectStandaloneFlags` trong `tests/inline-html.test.js`. **DEMO MODE (2026-08-12)**: tổ chức Shopee Mobile KHÓA option 'Anyone' (chỉ còn 'Anyone within Shopee Mobile' / 'Only myself') → JSONP anonymous bị chặn → preview không load dữ liệu thật. Preview `?demo=1` (serve.js) inject `window.__RC_DEMO__=true` → js.html shim JSONP skip → khối mock load `mock/mock-google.js` (task/staff giả, có sẵn từ file:// dev) → test UI + camera live với dữ liệu giả, KHÔNG cần GAS. Hosting/build-static KHÔNG bao giờ chèn cờ demo. Test: `injectDemoFlag` trong `tests/inline-html.test.js`. **VERIFY THẬT (2026-08-12, user test trên iPhone)**: preview demo `?demo=1` (trang top-level) → bấm "📷 Quét Camera" → camera live mở → **TỰ NHẬN mã vạch kẻ → done** — xác nhận đường top-level là đúng. **ĐỘ CHÍNH XÁC Code128 (2026-08-16, user báo "nhận được mã nhưng SAI")**: Quagga vendored (upstream 2016) `code_128_reader` có 2 quirk làm SAI mã — (1) checksum symbol CODE_C (mã số) là symbol 2 ký tự (00-99) nhưng decode() chỉ `splice(v.length-1,1)` → output thừa 1 digit; (2) codeset kết thúc bằng special code (FNC1/switch) → checksum char không bị bỏ → thừa 1 char. Fix: `normalizeQuaggaCode128` (bỏ FNC1 cuối; raw không khớp STAFF_INFO mà bỏ 1/2 ký tự cuối khớp → cắt — dùng staff index làm nguồn chuẩn vì mã quét là mã NV) + `camPickQuaggaMajority` (chỉ nhận mã ≥2 config đồng thuận sau normalize) + bỏ Quagga khỏi fast-path live tick (config 800px+halfSample yếu từng nhận nhầm) + `inputStream.size` 800→1280 + reorder config full-res trước. Popup (`buildScanPopupHtml`) dùng chung helper qua `window.opener`. Test: `tests/camera-code128.test.js` (13 test — normalize/majority/NV lạ/FNC1). **CÒN SÓT sau cổng majority (2026-08-16, sửa tiếp)**: reader SỐ THUẦN (EAN/UPC/i2of5) chạy chung `CAM_QUAGGA_READERS` misread DETERMINISTIC (cùng ảnh + cùng reader → cùng chuỗi số trên mọi config) → vẫn lọt cổng ≥2 đồng thuận → thêm `camQuaggaResultAllowed` lọc theo `codeResult.format` ngay tại nguồn (mã NV 'Ops…' có chữ — numeric-only KHÔNG BAO GIỜ đúng; format rỗng cho qua để không chặn nhầm), áp dụng cả popup (`LIBS.allow` qua `window.opener`). **Đồng thời phát hiện `tests/camera-code128.test.js` KHÔNG nằm trong test script `package.json` — 13 test của commit fix trước không bao giờ chạy trong `npm test`; đã thêm vào danh sách (205 test).** **NÚT TÌM MÃ (2026-08-16)**: `#camFindBtn` (index.html camera-head, cạnh ✕ Đóng) + `#findBtn` (popup `#bar`, cạnh ✕ Đóng) = `toggleCamFind`/`setFindMode`: ép `applyConstraints({focusMode:'continuous'})` nếu trình duyệt hỗ trợ (iOS Safari không expose focus control qua web API → no-op) + full-chain decode MỖI tick (`camShouldFullDecode interval=1`) → đưa mã vào khung nhận nhanh hơn; tự tắt khi nhận mã/đóng modal. Test: toggleCamFind trong `tests/camera-autosnap.test.js` + nút Tìm Mã trong `tests/camera-popup.test.js`. **TỐI ƯU TỐC ĐỘ NHẬN DIỆN (2026-08-16)**: (1) FAST PATH mỗi tick — 1 canvas 1280px dùng chung + jsQR + **1 config Quagga mạnh nhất** (`camFastDecode`, full-res + x-large, format đã lọc) — **NHẬN MỌI MÃ DẠNG "Ops…" (OPS + 3..9 số), KỂ CẢ CHƯA CÓ TRONG StaffData (Dư)** → done NGAY tick đầu, không chờ 3 config (user yêu cầu 2026-08-16: quét NV ngoài hệ thống cũng phải nhận nhanh để ghi Dư). `camFastPickCode`: NV đã biết → khớp STAFF_INFO (cắt checksum dư chính xác); NV lạ → FNC1 cuối bị bỏ, ưu tiên cắt 1 ký tự cuối (quirk +1 chiếm đa số — full chain majority trước giờ cũng nhận +1 cho NV lạ, deterministic, không khá hơn), rồi raw (checksum special — hiếm), rồi cắt 2. Popup dùng chung qua `LIBS.fast` (`window.opener.camFastDecode`) ở tick lẻ. `camAutoDecode` nhận frame truyền sẵn (không chụp 2 lần). (2) OCR: `camOcrPrepareFrame` cắt ĐÚNG vùng khung dẫn hướng (inset 9%/12% — khớp CSS .camera-frame) + xám hóa → ít pixel hơn, nhận chữ nhanh hơn; interval 2500→2000ms. Test: 5 test `camFastDecode` trong `tests/camera-code128.test.js`. **OCR ĐỌC CHỮ "Ops…" (2026-08-16, yêu cầu user — thẻ NV in Code128 + dòng chữ Ops… trên/dưới vạch)**: thẻ quá mờ barcode không decode được → Tesseract.js v5 (tải CDN lúc runtime — KHÔNG vendor được vì wasm+traineddata >500KB; GAS HtmlService cho phép HTTPS ngoài, jsDelivr CORS, worker v5 qua Blob URL) đọc chữ, CHẠY SONG SONG với decode barcode (timer riêng modal path; popup gọi qua `window.opener.camOcrFrame` — `ocrTick` chạy trước cờ `busy` để không bị chặn) — cái nào ra trước → `onCameraDecoded` → done. Khối code đánh dấu `OCR-SCAN-START/END` trong camera-scan.html + commit riêng → **user muốn revert về bản Tìm Mã (d7e95d9) thì `git revert <commit OCR>`**; load fail (mất mạng/CDN chặn) → im lặng tắt OCR, barcode chạy bình thường. Logic thuần: `normalizeOpsCode` (O↔0, p↔b, cắt space/colon/gạch; chỉ nhận `OPS\d{3,9}`) + `pickOpsCandidate` (ưu tiên candidate khớp STAFF_INFO — nhận luôn kể cả confidence thấp; NV lạ cần confidence ≥70 — `CAM_OCR_MIN_CONFIDENCE`). Test: `tests/ocr-scan.test.js` (10 test). Chặn production: (1) org Shopee KHÓA 'Anyone' → JSONP không chạy anonymous; (2) Safari/Chrome chặn cookie Google third-party → kể cả có login vẫn không gọi được GAS từ host khác → **để chạy dữ liệu THẬT cần backend đọc thẳng Google Sheets (thay GAS)** hoặc admin bật 'Anyone'. **TĂNG TỐC NHẬN THẺ NÉT (2026-08-16, tiếp theo)**: (1) FAST PATH chạy MỖI tick (modal + popup qua `LIBS.fast`) — thẻ nét done NGAY tick đầu; full chain (majority ≥2) chỉ chạy khi fast fail VÀ tới nhịp (Tìm Mã = mọi tick); (2) `runQuaggaConfigs` + popup `runQuagga` EARLY-EXIT khi ≥2 config đồng thuận — không chờ config 3 (test: 3 test early-exit trong tests/camera-code128.test.js); (3) `focusMode:'continuous'` bật MẶC ĐỊNH lúc mở camera (modal + popup) — Android lấy nét nhanh hơn, iOS no-op an toàn (test: assert popup `runFullChain`/`focusMode` trong tests/camera-popup.test.js). Fast path nhận cả mã 'Ops…' NGOÀI StaffData (Dư) — đã chốt từ commit 6393a16 (nhận nhanh để ghi Dư, KHÔNG chỉ nhận NV đã biết). **MỞ CAMERA LÀ TỰ TÌM MÃ (2026-08-16, yêu cầu user — không cần bấm "🔍 Tìm Mã")**: find mode (full-chain decode MỖI tick + focus liên tục) bật TỰ ĐỘNG khi mở camera — modal (`if (!camFindMode) toggleCamFind()` trong startCameraLive) + popup (`setFindMode(true)` trong start()); nút Tìm Mã vẫn giữ để tắt/bật thủ công (tiết pin); resetCamFindUi khi đóng → mở lại tự bật. **ĐỒNG BỘ DANH SÁCH TASK ĐA NGƯỜI (2026-08-16, yêu cầu user)**: poll getTaskListApi mỗi 3s khi ở màn danh sách (`TASK_LIST_POLL_MS`; bắt đầu trong loadTaskList success, dừng khi openScan) — người khác tạo/kết thúc/mở lại/đổi ghi chú task → tự cập nhật, KHÔNG cần bấm "⟳ Làm mới"; `taskListSignature` so sánh (đổi mới render, giữ sort/filter/phân trang); bỏ qua khi modal mở / đang Làm mới tay / đang lọc mã Ops / tab ẩn / demo. Test: 8 test trong tests/scan-poll.test.js (signature + điều kiện tick). **DEDUP 2026-08-16**: (1) `loadTaskList` bỏ `renderTaskList(tasks)` trùng — `renderDash` tự render bảng qua `applyDashFilters` (trước render 2 lần mỗi lần load); (2) helper `byId()` cache element lookup (id lặp: scanInput 14×, bảng, modal…) — chỉ cache khi tìm thấy (null → query lại); KHÔNG đổi trong marker block bị test trích (HEADER-SEARCH/TASK-MENU/MEAL-CREATE/PURE-LOGIC/STAFF-CACHE — test chạy khối độc lập không có byId); (3) `camFrameToImageData` DÙNG LẠI 1 canvas/context (camSharedCanvas) — hết tạo canvas mới mỗi tick ~600ms (giảm GC iOS); an toàn vì consumer đọc frame đồng bộ trong tick (jsQR snapshot ImageData; Quagga/fast toDataURL ngay lúc gọi; ảnh chụp dùng canvas riêng).
-**QUÉT LIÊN TỤC + KẾT QUẢ DƯỚI CAMERA (2026-08-17, yêu cầu user)**: bấm "📷 Quét Camera" → quét ĐƯỢC NHIỀU MÃ LIÊN TỤC — KHÔNG đóng camera sau 1 mã (trước đây nhận 1 mã là tắt + về tab Task). Màn hình chia đôi: TRÊN là ô camera, DƯỚI là danh sách thông tin vừa quét (mã + tên + giờ + badge trạng thái — cuộn được). Modal top-level (preview/hosting): panel `#camResults` (index.html, dưới camera-actions) render trực tiếp. POPUP GAS: thêm `#results` (camera-scan.html buildScanPopupHtml, giữa `#view` và `#bar`) — popup gửi code về parent qua rcScanResult (KHÔNG còn tự đóng sau 1s), parent xử lý `submitScan()` như quét tay rồi gửi `{type:'rcScanInfo', code, status, staffName, time, update}` về popup → popup thêm/cập nhật dòng (dựng bằng DOM + textContent — khỏi escape, an toàn XSS). Hook duy nhất ở js.html `showScanCard` → `camAppendResult` (camera-scan.html) khi `window.__RC_CAM_OPEN__` (cờ đặt trong `openCameraScan`, tắt ở `closeCameraModal`/popup đóng/fail). Dedup: cùng mã trong 1.5s (`CAM_CODE_COOLDOWN_MS` — khớp DUPLICATE_WINDOW_MS server, giảm từ 10s 2026-08-17) → `onCameraDecoded` bỏ qua, không submit trùng/spam dòng (thẻ vẫn nằm trong khung). Merge: optimistic + server response cùng lượt trong 2.5s (`CAM_RESULT_MERGE_MS` — `camShouldMergeAny` thuần (hàng chờ optimistic, 2026-08-19)) → cập nhật 1 dòng thay vì thêm (server trả tên thật NV lạ). `input.focus()` bỏ qua khi camera mở (`if (!window.__RC_CAM_OPEN__) input.focus();` ở submitScanSingle + submitScanMealMove — tránh bàn phím bật lên che camera trên mobile). camAppendResult chỉ render khi modal THẬT hiện (display:flex) — popup GAS đóng không gửi message → không tích dòng ẩn. Test: `tests/camera-continuous.test.js` (15 test — dedup 1.5s / merge optimistic+server / row HTML escape / camAppendResult modal+popup / popup không auto-close + có #results).
-**TĂNG TỐC NHẬN MÃ TRÊN SAFARI/iOS (2026-08-17, user báo "dí sát mã ảnh nét mà nhận rất lâu")**: root cause = mỗi tick decode QUÁ NẶNG trên iPhone — fast path Quagga 1280px (~200-400ms) + Tìm Mã (mặc định bật) → fast fail → full chain 3 config × 1280px (~600-900ms) + jsQR + toDataURL 0.92 ×2 → tick ~1-1.5s. Fix: (1) **FAST PATH decode 800px** (`CAM_FAST_DECODE_SIZE=800` — user dí sát mã TO NÉT nên 800px vẫn đủ chi tiết, Quagga nhanh ~3x) — tick downscale 1 lần từ canvas 1280 dùng chung (`camDownscaleFrame`, reuse `camFastCanvas` — KHÔNG vẽ video 2 lần); full chain vẫn 1280px (mã nhỏ/xa — không giảm độ chính xác); (2) **JPEG quality 0.92→0.85** (fast + full chain + popup — encode/decode nhanh hơn, Code128 1D ít nhạy artifacts); (3) **tick gate 450→320ms** (`CAM_TICK_MIN_MS`, modal) + popup interval 450→320ms. Quay lại 800px KHÁC bản cũ (bug 2026-08-16): vẫn full-res x-large + format filter + normalize STAFF_INFO — bản cũ SAI do halfSample gộp vạch, không phải do size. Test: assert `inputStream.size = CAM_FAST_DECODE_SIZE` + `camDownscaleFrame` fail-open trong `tests/camera-code128.test.js`. **VẪN CHẬM TRÊN GAS POPUP (2026-08-17, user test `/dev` → popup userCodeAppPanel, quét cùng 1 mã chậm cả gần lẫn xa) — root cause thật**: từ 2026-08-16 mở camera TỰ BẬT find mode = full chain 3 config 1280px MỖI tick (~1-1.5s/tick trên iPhone) + OCR Tesseract chạy song song ngốn CPU/GC + popup tạo canvas MỚI mỗi tick → bản 08-12 (full chain 2-tick, không find mode, không OCR) từng TỰ NHẬN nhanh. Fix: (1) **bỏ tự bật find mode mặc định** (modal `startCameraLive` bỏ `toggleCamFind()`; popup `start()` bỏ `setFindMode(true)`) — mặc định = fast path 800px MỖI tick + full chain mỗi 2 tick + focus continuous; bấm "🔍 Tìm Mã" vẫn ép full chain mọi tick; (2) **popup reuse canvas** (frameToImageData dùng `sharedCanvas` chung — hết tạo mới mỗi tick) + **popup fast path downscale 800 ngay trong popup** (`toFastFrame`, reuse `fastCanvas` — toDataURL 800 nhanh ~3x); (3) **OCR giãn nhịp**: modal `CAM_OCR_INTERVAL_MS` 2000→4000; popup `tick % 2`→`tick % 4 === 1` (lệch tick lẻ, không trùng full chain tick chẵn). Tester lưu ý: dedup `CAM_CODE_COOLDOWN_MS` 1.5s — quét CÙNG 1 mã liên tục sẽ bị chặn 1.5s giữa 2 lượt (không phải lỗi chậm). **"LÚC ĐƯỢC LÚC KHÔNG" DÙ MÃ NÉT (2026-08-17, user test iPhone) — ĐẢO FAST PATH VỀ 1280px**: 800px downscale (đã thêm cùng ngày) làm vạch Code128 MỎNG bị alias/mất chi tiết → miss frame ngẫu nhiên → "lúc được lúc không"; bản 2026-08-12 decode 1280px đầy đủ từng verify tự nhận nhanh. Fix: (1) `CAM_FAST_DECODE_SIZE` 800→**1280** (decode đầy đủ, xóa `camDownscaleFrame`/`camFastCanvas`/popup `toFastFrame`); (2) fast path **2 config locator** (`CAM_FAST_QUAGGA_CONFIGS`: x-large → fail thì medium — mã to/dí sát vs mã nhỏ/xa hơn, tăng xác suất bắt mỗi tick, early-exit khi ra mã); (3) **hint khoảng cách**: 4s chưa nhận mã → status hiện "đưa thẻ ra xa hơn ~15cm, thẳng góc" (iPhone focus gần nhất ~10cm — dí sát quá vạch ngoài vùng nét dù màn hình nhìn nét; web iOS KHÔNG kiểm soát được điểm focus — research: StackOverflow/STRICH đều xác nhận autofocus iPhone là vấn đề nền tảng; Quagga lẫn ZXing đều miss mã mảnh/mờ, không thư viện open-source miễn nhiễm). Test: 255 pass (assert size 1280 + 2 test camFastDecode 2-config). Hướng nâng cao nếu vẫn chưa đủ: vendor **ZXing-js** (`@zxing/library` ~300KB, decode trực tiếp từ ImageData không qua JPEG + `tryHarder` — chịu blur/nghiêng tốt hơn Quagga 2016), chạy SONG SONG với Quagga (cái nào ra trước thì done). **ĐÃ LÀM — ZXING-SCAN (2026-08-17, user "nhạy hơn chút rồi — tối ưu thêm")**: tải **ZXing-js từ CDN lúc runtime** (`https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js` ~328KB — KHÔNG vendor, giống Tesseract OCR; fail load → im lặng dùng Quagga) — UMD global `window.ZXing`. Fast path giờ: **ZXing decode TRƯỚC Quagga** (nằm trong `camFastDecode` → popup qua `LIBS.fast` tự hưởng): RGBA→grayscale (`RGBLuminanceSource` nhận Uint8ClampedArray 1 byte/pixel — xác nhận từ source zxing-js) + `HybridBinarizer` + `MultiFormatReader.decode` với `TRY_HARDER` (quét thêm góc — bắt mã nghiêng/mờ nhẹ mà Quagga 2016 miss) → ZXing fail → Quagga 2 config. `camZxingPickCode`: ZXing decode SẠCH (không quirk thừa checksum như Quagga) → **KHÔNG cắt ký tự cuối** (cắt sẽ làm SAI mã NV lạ) — chỉ bỏ FNC1 + chuẩn hóa dạng Ops. `ensureZxingLib()` gọi ở `openCameraScan` (cả modal lẫn popup). Test: 8 test ZXing trong `tests/camera-code128.test.js` (pickCode không cắt / camZxingDecode mock / camFastDecode ưu tiên ZXing rồi fallback Quagga). **NHẠY HƠN NỮA (2026-08-17, user "nhạy dần rồi — tối ưu tiếp")**: (1) **ZXing thử 2 VÙNG mỗi tick** (`camZxingDecode` → `zxingDecodeImageData` helper + `camZxingCrop` reuse `camZxingCropCanvas`): full frame → fail thì CROP vùng khung (inset 8%/10% — loại nền nhiễu tay/bàn/chữ, lý do miss phổ biến khi mã nhỏ/lệch; mã to hơn khung bị cắt → fail → Quagga fallback, không mất gì); (2) **`willReadFrequently: true`** trên `camSharedCtx` + popup `sharedCtx` (getImageData mỗi tick nhanh hơn — readback tối ưu, no-op an toàn); (3) **tick gate 450→320→260ms** (`CAM_TICK_MIN_MS` modal + popup interval 260) — ZXing decode ImageData ~100ms nên thử lại nhanh hơn, `camDecoding`/`busy` guard vẫn chặn chồng lấn. **BẮT MÃ 30cm→SÁT (2026-08-17, user yêu cầu)**: (1) **getUserMedia ép `width/height ideal 1920x1080`** (modal + popup — iPhone trả 1920 nếu hỗ trợ, ideal không bắt buộc); (2) **decode frame ở độ phân giải GỐC 1920** (camFrameToImageData maxSide 1280→1920 — mã ở 30cm vạch mỏng giữ nguyên px, trước đây downscale 1280 làm mất ~33% chi tiết vạch → miss); ZXing (engine chính) decode full 1920 + crop; (3) **Quagga (fallback/full chain) vẫn decode 1280** qua `camDownscaleFrame` (thêm lại, reuse `camFastCanvas` + `willReadFrequently`; scale ≥1 → trả frame gốc) — toDataURL 1920 sẽ rất chậm trên iPhone; popup thêm `toQuaggaFrame` tương tự; (4) hint "~15cm" → "10–30cm". **Giới hạn nền tảng (research 1/2026): iOS Safari KHÔNG hỗ trợ `pointsOfInterest`/focus control — autofocus do iPhone tự quản lý, không fix được qua web; sát quá <10cm vẫn mất nét (DOF)**. Test: 265 pass (camDownscaleFrame fail-open + frame ≤ maxSide giữ nguyên). **"ĐỂ XA NHẬN VẪN LÂU" (2026-08-17, user báo sau bản 1920) — ZXING 2 BẬC + CROP UPSCALE**: mã 30cm chỉ chiếm ~10-15% frame 1920 → decode cả frame với TRY_HARDER vừa CHẬM vừa miss. Fix: (1) **BẬC 1**: full frame KHÔNG TRY_HARDER (nhanh ~100-150ms — mã gần/rõ bắt NGAY tick đầu; `zxingDecodeImageData` thêm param tryHarder); (2) **BẬC 2**: **crop vùng khung UPSCALE 1.4x** (`camZxingCrop` thêm scale — phóng to mã xa như zoom kỹ thuật số cho decode, vạch dày hơn) + TRY_HARDER (quét thêm góc) → đường chính bắt mã xa/nghiêng/mờ; (3) **bỏ jsQR khỏi tick** (ZXing POSSIBLE_FORMATS gồm QR_CODE — jsQR trên frame 1920 tốn ~50-100ms/tick; jsQR giữ trong full chain/ảnh chụp làm fallback khi ZXing không load). Test: 266 pass (+1 test tryHarder hint bậc 1/bậc 2). **"NHẠY VÀ NHANH HƠN NỮA" (2026-08-17, user tiếp tục yêu cầu) — 3 fix**: (1) **BỎ GATE `camLastFrame` — bug REGRESSION 500ms/tick**: modal `setInterval(250)` + gate `CAM_TICK_MIN_MS=260` → vì 250 < 260 nên cứ 2 lần fire mới decode 1 lần = **500ms/tick** (từ khi giảm gate 450→320→260 mà không giảm interval, chu kỳ tăng 450→500ms — "tối ưu" làm CHẬM hơn, âm thầm). Fix: xóa gate (`camDecoding` guard đã chặn chồng lấn; camera 30fps → mỗi fire có frame mới, không decode trùng) + interval 250→**200ms** → **~2x số lần thử decode**; xóa luôn `camLastFrame` + `CAM_TICK_MIN_MS` (dead code); popup interval 260→200ms; (2) **reuse buffer grayscale** (`camZxingGray`, resize khi đổi kích thước) — hết cấp phát ~2MB MỖI tick (full 1920 + crop) → giảm GC pause iPhone (decode đồng bộ trong tick nên ghi đè an toàn); (3) **BẬC 2 mới trong `camZxingDecode`: crop vùng khung KHÔNG upscale + không TRY_HARDER (~60ms)** — mã XA nằm trong khung nhưng NÉT → bắt NGAY thay vì chờ bậc upscale 1.4x+TRY_HARDER (~200ms); bậc upscale+TH thành BẬC 3, chỉ chạy khi mã chưa đủ nét cho đường nhanh. Thứ tự tick giờ: full frame (nhanh) → crop native (rẻ) → crop 1.4x+TH (mã xa khó) → Quagga fallback. Test: 268 pass (+2 test: thứ tự bậc 2 trước bậc 3 + bậc 2 ra mã dừng ngay). **ĐA PHÂN GIẢI MỖI TICK (2026-08-17, user chọn cách 2)**: `camZxingDecode` thêm **BẬC 2 — full frame DOWNSCALE 1280 + không TH** (dùng lại `camDownscaleFrame` — reuse camFastCanvas, decode đồng bộ trong tick): mã GẦN/vừa (vạch dày, lấp nhiều khung) đôi khi ZXing miss ở 1920 (nhiễu nền/binarizer xé vạch) — bản 1280 (box-filter) khử nhiễu mịn → vạch sạch + decode NHANH hơn (~60-80ms, ít hơn 1920 ~40%); mã XA KHÔNG dùng bản này (downscale làm vạch mảnh hơn → miss) — bậc 3/4 xử lý mã xa. Frame ≤ 1280 → camDownscaleFrame trả frame gốc → skip (tránh decode trùng). Thứ tự tick fail path giờ: B1 full 1920 no-TH → B2 full 1280 no-TH → B3 crop native no-TH → B4 crop 1.4x+TH → Quagga fallback. Lưu ý: JS đơn luồng — "song song" thực chất là thử CẢ 2 scale tuần tự trong 1 tick với early-exit (Web Worker mới là song song thật). Popup tự hưởng qua `LIBS.fast` = opener.camFastDecode. Test: 270 pass (+2 test: bậc 2 ra mã dừng ngay / frame ≤1280 skip bậc 2). **WORKER DECODE (2026-08-17, user đồng ý thử — hướng "decode không nghẽn main thread")**: `CAM_WORKER_SRC` (worker JS dùng CHUNG modal + popup) — Blob worker + `importScripts` ZXing từ CDN (tải riêng trong worker ~328KB, 1 lần) + decode **full frame TRY_HARDER** (bậc chậm nhất) ở NỀN: main tick vẫn chạy bậc 1-4 + Quagga như cũ, worker xử lý frame MỚI NHẤT liên tục (main gửi khi worker rảnh qua `camWorkerIdle`/`popWorkerIdle` 1-at-a-time) → mã nghiêng/mờ nhẹ bắt SỚM hơn (worker không bị gián đoạn bởi capture/gate). Gửi **COPY buffer** (`d.buffer.slice(0)` — KHÔNG transfer, main còn decode tiếp trên frame khi worker fail; chú ý popup frameToImageData trả `{imageData}` còn modal `{data}` → đọc `(f.data || f.imageData)`). Kết quả worker → `camZxingPickCode` (PURE) → `onCameraDecoded` (modal) / `opener.camZxingPickCode` → `sendResult` (popup); guard `camSnapping` + dedup 1.5s lo trùng. **Fail-open hoàn toàn**: `typeof Worker/Blob/URL === 'undefined'` (CSP GAS iframe/trình duyệt cũ) hoặc importScripts lỗi → `camWorkerFailed` → im lặng dùng decode main như cũ; terminate worker ở `stopCameraDecodeLoop` + popup `stop()` (đóng camera là dừng). Test: 274 pass (+4 test: onMessage chuẩn hóa+rác bỏ qua / camSnapping chặn / copy buffer không detach + 1-at-a-time / ensureZxingWorker fail-open không crash). **HIỆU ỨNG QUÉT THÀNH CÔNG + SCROLL DANH SÁCH (2026-08-17, yêu cầu user)**: (1) **Hiệu ứng đẹp khi nhận mã** (modal + popup GAS): ring tròn lan ra từ tâm ô camera (`::before` + keyframes camRing/popRing) + dấu ✓/⚠/✕ phóng to (camMarkPop/popMarkPop — thêm `display:inline-block` cho mark) + **viền khung dẫn hướng glow màu theo trạng thái** (`#camFrame` id mới thêm vào `.camera-frame` index.html / popup `#frame` — class fl-ok/fl-extra/fl-err, restart bằng void offsetWidth trong camFlashMark/flashResult); (2) **danh sách dưới camera CUỘN theo mã vừa quét — fix bug scroll**: `camAppendResult`/popup `addResultRow` trước set `scrollTop` trên **body con** (`#camResultsBody`/`#resultsBody` — không scroll được) → danh sách đứng im; sửa set trên **scroll container thật** (`#camResults`/`.camera-results` và popup `#results` — overflow-y:auto); (3) **dòng mới highlight** rồi tự tắt (`class 'new'` + trạng thái ok/extra/err trên row — crRowNew*/rrowNew). Test: 275 pass (+1 test scroll container + class new). **KIỂM TRA WORKER CHẠY CHƯA (2026-08-17, user yêu cầu)**: (1) **worker gửi tín hiệu `{ready:true}`** sau importScripts xong (cuối CAM_WORKER_SRC); main/popup nhận ready → hiện "⚙️ Worker: bật" (xanh) trên UI — `camWorkerStatus` (modal, span #camWorkerStatus trong .camera-status index.html) / `popWorkerStatus` (popup, span trong #status) — lỗi tạo/lỗi chạy/không hỗ trợ → "⚙️ Worker: tắt" (đỏ) + "đang tải…" (xám) lúc khởi tạo; (2) **test Node chạy worker source NGUYÊN BẢN** (bỏ importScripts, giữ decodeOne + onmessage + ready) trong vm với ZXing mock → verify ready postMessage + onmessage decode trả text + decode throw → null (onmessage try/catch — worker không crash). Cách user tự kiểm tra sau deploy: mở Quét Camera → nhìn góc dưới ô camera / status popup: "⚙️ Worker: bật" = worker chạy; "tắt" = CSP GAS iframe/trình duyệt chặn (vẫn quét qua đường chính — fail-open). Test: 277 pass (+2 test worker nguyên bản + ready không submit). **"KHÔNG THẤY DẤU HIỆU WORKER" (2026-08-17, user test thật) — BUG: span bị textContent xóa**: span worker được đặt BÊN TRONG `#camStatusLive`/`#status` — mà các nơi set `camStatusLive.textContent`/`statusEl.textContent` (mở camera, hint khoảng cách, ✅ nhận mã, 📷 đang nhận diện…) sẽ XÓA MỌI element con → span worker bị gỡ khỏi DOM ngay khi start() chạy → indicator không bao giờ hiện. Fix: **tách span ra NGOÀI element bị ghi textContent** — modal: `<span class="cam-worker-status" id="camWorkerStatus">` đứng sau `.camera-status` (index.html), popup: `<span id="popWorkerStatus">` đứng sau `#status` (buildScanPopupHtml); CSS tự định vị `position:absolute; bottom:36-38px; text-align:center; z-index:4; pointer-events:none` (ngay phía trên thanh status — #status/#camStatusLive absolute bottom:0). Bài học: element bị set `textContent` = ghi đè toàn bộ con — không bao giờ đặt indicator/cờ UI bên trong nó; test assert `id="status">Đang mở camera…</div>` tách biệt với `id="popWorkerStatus"`. Test: 277 pass (+2 assert popup có span worker ngoài #status). **MÃ MẤT/MỜ 1 GÓC — GlobalHistogram fallback (2026-08-17, user: "súng laser nhận được mà camera nhận hơi khó")**: mã nhạt/mờ 1 phần (tương phản không đều, bóng đổ, blur) → `HybridBinarizer` (local threshold 5×5) của ZXing dễ NUỐT vạch nhạt → miss. Fix: **thêm GlobalHistogramBinarizer (threshold toàn ảnh) làm fallback** — (1) **worker** (`decodeOne` → `tryDecode(source, hints, useGlobal)`): Hybrid fail → thử Global với CÙNG hints TRY_HARDER (worker nền — không nghẽn main); (2) **main bậc 4b** trong `camZxingDecode`: crop upscale 1.4× + TH chạy Hybrid fail → chạy Global trên CÙNG crop. `zxingDecodeImageData` thêm param `useGlobal` (chọn binarizer). Thứ tự main fail path: B1 full Hybrid → B2 full 1280 Hybrid → B3 crop native Hybrid → B4 crop 1.4× TH Hybrid → B4b crop 1.4× TH Global → Quagga; worker nền: full TH Hybrid → full TH Global. Test: 278 pass (+1 test bậc 4b GlobalHistogram ra mã/đúng binarizer + worker fallback Global ra mã; mock thêm GlobalHistogramBinarizer). **TẮT INDICATOR WORKER + WORKER LUÂN PHIÊN 3 CHIẾN LƯỢC (2026-08-17, user: "tắt cái test thông báo worker bật đi")**: (1) **XÓA indicator "⚙️ Worker: bật/tắt"** hoàn toàn (user đã xác nhận worker chạy — không cần UI nữa): xóa span #camWorkerStatus (index.html) + #popWorkerStatus (popup) + CSS + hàm camWorkerStatus/popWorkerStatus + mọi lời gọi (ensureZxingWorker/ensurePopWorker/onMessage); tín hiệu `{ready:true}` vẫn giữ trong worker nhưng main chỉ `return` bỏ qua (không phải mã); test assert popup KHÔNG còn popWorkerStatus. (2) **Worker LUÂN PHIÊN 3 chiến lược decode** (mã MẤT GÓC/MỜ MÀU — user: súng laser nhận được, camera khó): `decodeOne` giờ decode **1 lần/frame** (nhanh → frame luôn MỚI) nhưng xoay vòng theo `strat` (0→1→2): **0=HybridBinarizer** (mặc định) · **1=GlobalHistogramBinarizer** (mã nhạt/mờ 1 góc — local threshold nuốt vạch) · **2=Normalized+Hybrid** (`normalizeInPlace` — min-max stretch grayscale về 0-255, mã MỜ MÀU/tương phản thấp range hẹp thành rõ; range < 40 → no-op tránh nhiễu) — qua 3 frame phủ đủ 3 chiến lược trên frame MỚI nhất, không tăng chi phí/frame. Main thread vẫn chạy đủ bậc Hybrid + Global mỗi tick (bậc 4/4b). Test: 278 pass (worker: frame 2 Global ra mã + frame 3 Normalized ra mã + normalizeInPlace stretch đúng/range hẹp no-op). **MỰC NHẠT + ẢNH MỜ + MỜ CẢ DẢI + MẤT 1 ĐẦU (2026-08-17, user liệt kê đủ 4 loại)**: (1) **`canvas filter: contrast(1.35)` trên MỌI frame decode** — set 1 lần trên `camSharedCtx` (main) + popup `sharedCtx`: mọi bậc decode (ZXing bậc 1-4b + Quagga + OCR crop) đọc ảnh tương phản cao → **mực nhạt / mất 1 đầu** (thực chất chỉ QUÁ NHẠT — súng laser đọc được vì sensor nhạy, pattern vẫn còn) hiện rõ vạch; trình duyệt không hỗ trợ ctx.filter (iOS < 16.4) → property bị bỏ qua, vẽ ảnh gốc — no-op an toàn (bọc try/catch); (2) **worker rotation 3→4 chiến lược**: 0=Hybrid · 1=GlobalHistogram (nhạt 1 vùng) · 2=Normalize+Hybrid (mực nhạt range hẹp) · **3=Sharpen+Normalize+Hybrid** (`sharpenInPlace` — unsharp mask 3×3 kernel 5-neighbors, làm CẠNH vạch sắc lại cho **ảnh mờ/blur mờ cả dải vạch**, clamp 0-255, chi phí ~30-60ms trong worker — không nghẽn main) — mỗi frame 1 decode (frame luôn MỚI), qua 4 frame phủ đủ 4 cách xử lý. Lưu ý giới hạn: mã mất HẲN start/stop pattern (vạch trắng xóa) thì không decode được — nhưng nếu súng laser đọc được thì pattern còn → tương phản sẽ cứu. Test: 278 pass (worker frame 4 Sharpen ra mã + sharpenInPlace đúng giá trị [255,0,255,...]).
+- CSS/JS nhúng qua **scriptlet GAS template** `<?!= include('css') ?>` / `<?!= include('js') ?>`: `Code.gs doGet` dùng `createTemplateFromFile('index').evaluate()` + hàm `include()` — **KHÔNG dùng `createHtmlOutput`/`setContent`** (GAS sẽ SANITIZE strip `<script>` → app không load). `scripts/serve.js` + `scripts/build-static.js` thay cùng scriptlet bằng nội dung file qua `scripts/inline-html.js` — sửa transform phải sửa đủ 3 nơi + chạy `npm test` (`inline-html.test.js`, `code-doget.test.js`).
+- Test client đọc marker từ `js.html` (đã cập nhật: task-menu/header-search/meal-create/scan-logic).
+
+### Camera scanning — kiến trúc hiện tại (trạng thái mới nhất, 2026-08-19)
+
+> Tính năng này đã trải qua rất nhiều vòng debug/tối ưu (2026-08-11 → 2026-08-19). Toàn bộ lịch sử — từng bug, từng con số đã thử, lý do revert — nằm trong **`docs/history/camera-scan-debug-log.md`**. **Đọc file đó trước khi sửa** `camera-scan.html`, phần camera trong `js.html`, hoặc bất kỳ hàm decode nào — nhiều "tối ưu tưởng hiển nhiên" đã từng gây regression.
+
+**Kiến trúc:**
+- File: `camera-scan.html` (logic decode + popup GAS), `lib-jsqr.html`/`lib-quagga.html` (thư viện vendor), `camera-css.html` (overlay CSS). Nút `#btnCamScan`/`#camFile` ở `index.html`; wiring ở `js.html`.
+- **Trong GAS iframe**: getUserMedia bị chặn trên iOS → `openCameraScan` mở **popup top-level** để quét live; fallback `<input capture>` nếu popup bị chặn.
+- **Ở host top-level** (preview/hosting qua `serve.js`/`build-static.js`): quét live trực tiếp trong `#cameraModal`, không cần popup (detect qua `window.self !== window.top`). Gọi API qua JSONP (`JsonpApi.gs`) vì không có `google.script.run` ngoài GAS. `?demo=1` dùng mock data khi org khóa quyền 'Anyone'.
+- **Decode**: ZXing-js (tải từ CDN, không vendor) là engine chính, chạy nhiều bậc fallback mỗi tick (full frame → downscale 1280 → crop khung → crop upscale 1.4×+TRY_HARDER → GlobalHistogram binarizer) rồi mới tới Quagga (2-config) làm fallback cuối; jsQR chỉ còn trong full chain/ảnh chụp. Một **Web Worker** chạy ZXing nền liên tục với 3–4 chiến lược binarizer xoay vòng (Hybrid/GlobalHistogram/Normalize/Sharpen) để bắt mã mờ/nghiêng; fail-open nếu môi trường không hỗ trợ Worker. `canvas filter: contrast(1.35)` áp cho mọi frame decode. Tick 200ms. OCR (Tesseract.js, CDN) chạy song song để đọc chữ "Ops…" khi vạch không decode được.
+- **Quét liên tục**: camera không tự đóng sau 1 mã; kết quả hiện thành danh sách cuộn bên dưới; dedup 1.5s, merge optimistic+server 2.5s.
+
+**Gotcha bắt buộc nhớ (đúng lâu dài, không đổi theo thời gian):**
+- Quagga vendored có 2 quirk checksum Code128 (thừa 1 ký tự) → luôn chạy qua `normalizeQuaggaCode128` + yêu cầu ≥2 config đồng thuận + lọc theo format kỳ vọng (numeric-only không được thắng mã dạng "Ops…").
+- iOS Safari **không thể** điều khiển focus camera qua web API — giới hạn nền tảng, không fix được bằng code; chỉ có thể mitigate bằng hint khoảng cách trên UI.
+- Element bị set `.textContent` sẽ xóa sạch mọi element con bên trong nó — không bao giờ đặt indicator/cờ UI lồng bên trong một element như vậy.
+- Mọi test file mới phải được thêm vào script `test` trong `package.json` — nếu không nó không bao giờ chạy trong `npm test` dù vẫn tồn tại trong repo.
 
 ## 21. Quy tắc test (bắt buộc trước khi push — khớp attendance-portal)
 
@@ -167,7 +221,7 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 **Workflow chuẩn trước push** (§19): `build:local` → `npm test` → `test:py` → `test:chrome` (nếu đổi UI) → commit → push. Không claim pass khi chưa có số liệu (Constraint #8). `index.local.html` đã `.gitignore`/`.claspignore`.
 
-**Công cụ CDP:** `node scripts/cdp-helper.js list|open <url>|eval <expr>|shot <png>|evalframe|evaliframe|click <x> <y>` — dùng `WebSocket` global (Node 22+), timeout 10-15s, không treo. Chrome path: `CHROME_PATH` env hoặc tự tìm `google-chrome`/`chromium`.
+**Công cụ CDP:** `node scripts/cdp-helper.js list|open <url>|eval <expr>|shot <png>|evalframe|evaliframe|click <x> <y>` — dùng `WebSocket` global (Node 22+), timeout 10–15s, không treo. Chrome path: `CHROME_PATH` env hoặc tự tìm `google-chrome`/`chromium`.
 
 **Khớp attendance-portal §7:** `npm run test` 219 tests bên portal tương đương `npm test` 368 + `audit-css`/`audit-gs` bên này; `build-local.js` + `test-local-mock.js` port nguyên văn, adapt DOM IDs `viewList/viewScan` + counters `S:3`. CI gate `.github/workflows/deploy.yml` chạy đủ `npm test` + `test:py` + `build:local` + `test:chrome`.
 
@@ -175,9 +229,7 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 > Nguồn: tài liệu "Freebuff — Định dạng Output" (2026-08-23) do user cung cấp.
 
-**1. Output trong khung hội thoại (chat)**
-
-Mọi câu trả lời của agent đều là **Markdown**, hiển thị trực tiếp trong terminal/app:
+**1. Output trong khung hội thoại (chat)** — mọi câu trả lời của agent đều là **Markdown**, hiển thị trực tiếp trong terminal/app:
 
 | Phần tử | Ví dụ |
 | :------ | :---- |
@@ -192,13 +244,11 @@ Mọi câu trả lời của agent đều là **Markdown**, hiển thị trực 
 Ngoài ra agent còn hiển thị **tiến trình làm việc**: danh sách việc cần làm (todos), lệnh terminal đang chạy, và diff thay đổi file.
 
 **2. Output dạng file**
-
 - Agent đọc/ghi **mọi định dạng file văn bản** trong repo: `.md`, `.txt`, `.json`, `.yaml`, `.ts/.js/.py/.gs`, HTML/CSS…
-- **`.md` (Markdown): hỗ trợ đầy đủ** — có thể đọc, tạo mới, hoặc chỉnh sửa bất kỳ file `.md` nào khi được yêu cầu.
+- **`.md` (Markdown): hỗ trợ đầy đủ** — đọc, tạo mới, hoặc chỉnh sửa bất kỳ file `.md` nào khi được yêu cầu.
 - File được ghi thẳng vào working directory của repo (qua công cụ file, không qua shell redirection).
 
 **3. Các loại output khác**
-
 - **Preview URL**: với dự án web, Freebuff chạy dev server trong sandbox và trả về URL xem trước.
 - **Deploy**: build tĩnh ra thư mục output (ví dụ `dist/`) rồi triển lên hosting do Freebuff quản lý.
 - **Báo cáo kiểm tra**: kết quả typecheck/test trả về dạng log văn bản kèm phân tích lỗi.
