@@ -2,6 +2,7 @@
  * Config.gs — Hằng số toàn cục Điểm Danh HN2 SOC
  * Cột sheet/file: tiếng Anh · Hiển thị web: tiếng Việt (UI_LABELS)
  * KHÔNG hardcode string rải rác — mọi hằng số tập trung tại đây.
+ * test workflows 2026-08-28 — trigger CI
  */
 
 // ===== Sheet names =====
