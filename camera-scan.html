@@ -48,6 +48,7 @@
   var camStartedAt = 0;      // thời điểm mở camera thành công (2026-08-17: tính hint khoảng cách)
   var camHintShown = false;  // đã hiện gợi ý khoảng cách chưa (hiện 1 lần/phiên)
   var camStream = null;      // MediaStream đang mở
+  var camSeq = 0;            // FIX-3 seq token chống ghost: tăng mỗi lần mở/đóng, .then check stale
   var camTimer = null;       // interval decode khi không có BarcodeDetector
   var camRaf = null;         // requestAnimationFrame khi có BarcodeDetector
   var camDetector = null;    // BarcodeDetector instance
@@ -102,11 +103,6 @@
     // decode chính xác hơn (ImageData + TRY_HARDER) khi lib sẵn sàng; fail load → im lặng
     // dùng Quagga. Chạy ở đây để CẢ modal (top-level) lẫn popup GAS đều có ZXing.
     ensureZxingLib();
-    // QUÉT LIÊN TỤC (2026-08-17): đánh dấu phiên quét đang hoạt động — js.html
-    // showScanCard đẩy kết quả xuống danh sách dưới camera; bỏ input.focus() khi
-    // camera mở (tránh bàn phím bật lên che camera trên mobile).
-    camOpen = true;
-    try { window.__RC_CAM_OPEN__ = true; } catch (e) {}
     var inFrame = false;
     try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
     if (inFrame) {
@@ -121,6 +117,9 @@
       return;
     }
     // Ngoài GAS (preview/hosting top-level): quét LIVE ngay trong trang
+    // FIX-19: chỉ set cờ khi phiên camera thực sự bắt đầu — modal/top-level live sắp mở
+    camOpen = true;
+    try { window.__RC_CAM_OPEN__ = true; } catch (e) {}
     startCameraLive();
   }
 
@@ -264,6 +263,7 @@
       '    if (findMode) statusEl.textContent = "🔍 Đang tìm mã — giữ yên camera";',
       '  }',
       '  var FORMATS = ["qr_code","code_128","code_39","code_93","codabar","ean_13","ean_8","itf","upc_a","upc_e"];',
+      '  var popDetector = null; // FIX-22 reuse',
       '  function getLibs() {',
       '    try {',
       '      var o = window.opener;',
@@ -298,6 +298,7 @@
       '  // duyệt cũ/mất mạng) → vẫn dùng opener.camFastDecode như cũ, không mất gì.',
       '  var popWorkerSrc = ' + JSON.stringify(CAM_WORKER_SRC) + ';',
       '  var popWorker = null, popWorkerIdle = true, popWorkerFailed = false, popWorkerUrl = null;',
+      '  var popWorkerWatchdog = null, popWorkerStall = 0;',
       '  function ensurePopWorker() {',
       '    if (popWorker || popWorkerFailed) return;',
       '    try {',
@@ -322,10 +323,15 @@
       '      var n = f.w * f.h;',
       '      var buf = (d.length === n) ? d : d.subarray(0, n * 4);',
       '      popWorkerIdle = false;',
-      '      popWorker.postMessage({ buf: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), w: f.w, h: f.h });',
+      '      var copy = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);',
+      '      popWorker.postMessage({ buf: copy, w: f.w, h: f.h }, [copy]);',
+      '      if (popWorkerWatchdog) clearTimeout(popWorkerWatchdog);',
+      '      popWorkerWatchdog = setTimeout(function(){ if(!popWorkerIdle){ popWorkerIdle=true; popWorkerStall++; if(popWorkerStall>=3 && popWorker){ try{popWorker.terminate();}catch(e){} popWorker=null; if(popWorkerUrl){try{URL.revokeObjectURL(popWorkerUrl);}catch(e2){} popWorkerUrl=null;} popWorkerFailed=false; ensurePopWorker(); } } },1500);',
       '    } catch (e) { popWorkerIdle = true; }',
       '  }',
       '  function popWorkerOnMessage(data) {',
+      '    if (popWorkerWatchdog){ clearTimeout(popWorkerWatchdog); popWorkerWatchdog=null; }',
+      '    popWorkerStall=0;',
       '    popWorkerIdle = true;',
       '    if (!data) return;',
       '    if (data.ready) return; // tín hiệu load xong worker — không phải mã',
@@ -369,7 +375,8 @@
       '  function decodeChain(f, onDone) {',
       '    if (window.BarcodeDetector) {',
       '      try {',
-      '        var d = new window.BarcodeDetector({ formats: FORMATS });',
+      '        if (!popDetector) { try { popDetector = new window.BarcodeDetector({ formats: FORMATS }); } catch(e2){} }',
+      '        var d = popDetector || new window.BarcodeDetector({ formats: FORMATS });',
       '        d.detect(f.canvas).then(function (res) {',
       '          if (res && res.length && res[0].rawValue) { busy = false; sendResult(res[0].rawValue); }',
       '          else decodeFallback(f, onDone);',
@@ -434,7 +441,8 @@
       '    ocrBusy = true;',
       '    var f = frameToImageData(800);',
       '    if (!f) { ocrBusy = false; return; }',
-      '    LIBS.ocr(f.canvas, function (code) { ocrBusy = false; if (code) sendResult(code); });',
+      '    var snap = document.createElement(\'canvas\'); snap.width = f.w; snap.height = f.h; try { snap.getContext(\'2d\').drawImage(f.canvas, 0, 0); } catch(e){ snap = f.canvas; }',
+      '    LIBS.ocr(snap, function (code) { ocrBusy = false; if (code) sendResult(code); });',
       '  }',
       '  // AUTO-DECODE theo nhịp cố định (không gate độ rung — bug 2026-08-12): chạy',
       '  // full chain 1280px + jsQR + 3 config Quagga mỗi 2 tick (~1.2s) — đưa mã vào',
@@ -521,6 +529,8 @@
       '  }',
       '  function stop() {',
       '    if (timer) { clearInterval(timer); timer = null; }',
+      '    if (popWorkerWatchdog){ clearTimeout(popWorkerWatchdog); popWorkerWatchdog=null; }',
+      '    popWorkerStall=0;',
       '    if (popWorker) { try { popWorker.terminate(); } catch (e) {} popWorker = null; }',
       '    if (popWorkerUrl) { try { URL.revokeObjectURL(popWorkerUrl); } catch (e) {} popWorkerUrl = null; }',
       '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
@@ -692,6 +702,9 @@
     try { popup = window.open('', CAM_POPUP_NAME); } catch (e) { popup = null; }
     if (!popup) {
       // Popup bị chặn (trình duyệt không cho mở) → fallback camera native
+      // FIX-19: reset cờ trước khi vào fallback native (tránh kẹt __RC_CAM_OPEN__ khi user hủy picker)
+      camOpen = false;
+      try { window.__RC_CAM_OPEN__ = false; } catch (e2) {}
       camStatus('📷 Trình duyệt chặn popup — dùng camera chụp ảnh thay thế', true);
       pickCameraImage();
       return;
@@ -706,6 +719,9 @@
     // cũ cùng tên đã đóng — nếu bỏ qua không viết nội dung → TAB TRẮNG (bug 2026-08-13).
     camPopupBusy = true;
     camPopupRef = popup;
+    // FIX-19: phiên popup quét live thực sự bắt đầu → set cờ
+    camOpen = true;
+    try { window.__RC_CAM_OPEN__ = true; } catch (e2) {}
     startCamPopupWatch();
     var html = buildScanPopupHtml();
     try {
@@ -807,10 +823,14 @@
       if (sb0) sb0.style.display = 'inline-flex';
       return;
     }
+    var mySeq = ++camSeq; // FIX-3 token — đóng modal khi prompt đang hiện sẽ bump camSeq
     // ideal 1920x1080 (2026-08-17): mã ở 30cm → vạch mỏng cần chi tiết cao; iPhone trả 1920
     // nếu hỗ trợ, thiết bị yếu → trả độ phân giải gần nhất (ideal, không bắt buộc)
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then(function (stream) {
+        if (mySeq !== camSeq) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
+        var curModal = document.getElementById('cameraModal');
+        if (!curModal || curModal.style.display !== 'flex') { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
         camStream = stream;
         video.srcObject = stream;
         video.muted = true;
@@ -845,6 +865,9 @@
         if (force) {
           // Đã có user gesture mà getUserMedia VẪN fail → trình duyệt/iframe chặn
           // camera trực tiếp → dùng camera native (chạy 100% trong iframe GAS).
+          // FIX-19: reset cờ trước fallback
+          camOpen = false;
+          try { window.__RC_CAM_OPEN__ = false; } catch (e2) {}
           camStatus('📷 Trình duyệt chặn camera trực tiếp — dùng camera chụp ảnh thay thế', true);
           setTimeout(pickCameraImage, 250);
           return;
@@ -1058,6 +1081,7 @@
   }
 
   function closeCameraModal() {
+    camSeq++; // FIX-3 bump seq để .then stale của getUserMedia đang pending sẽ hủy
     stopCameraDecodeLoop();
     stopOcrLoop();
     camOcrQueue = [];
@@ -2089,6 +2113,8 @@
   var camWorkerFailed = false;
   var camWorkerIdle = true;   // worker đang rảnh → được gửi frame mới (1-at-a-time)
   var camWorkerUrl = null;    // (2026-08-24) Blob URL — revoke khi terminate (tránh rò rỉ URL mỗi lần mở camera)
+  var camWorkerWatchdog = null; // FIX-16 watchdog 1500ms
+  var camWorkerStallCount = 0;
 
   function ensureZxingWorker() {
     if (camWorker || camWorkerFailed) return;
@@ -2130,14 +2156,26 @@
       // Nếu RGBA → gửi thẳng, worker tự convert (offload CPU khỏi main — B1 2026-08-23).
       var buf = (d.length === n) ? d : d.subarray(0, n * 4);
       camWorkerIdle = false;
-      camWorker.postMessage({ buf: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), w: frame.w, h: frame.h });
+      var copy = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      camWorker.postMessage({ buf: copy, w: frame.w, h: frame.h }, [copy]);
+      // FIX-16 watchdog 1500ms — frame treo không onmessage thì reset idle, 3 lần liên tiếp thì terminate+tạo lại
+      if (camWorkerWatchdog) clearTimeout(camWorkerWatchdog);
+      camWorkerWatchdog = setTimeout(function () {
+        if (!camWorkerIdle) {
+          camWorkerIdle = true;
+          camWorkerStallCount++;
+          if (camWorkerStallCount >= 3 && camWorker) { try { camWorker.terminate(); } catch (e2) {} camWorker = null; if (camWorkerUrl) { try { URL.revokeObjectURL(camWorkerUrl); } catch (e3) {} camWorkerUrl = null; } camWorkerFailed = false; ensureZxingWorker(); }
+        }
+      }, 1500);
     } catch (e) { camWorkerIdle = true; }
   }
 
   // Kết quả worker → chuẩn hóa như decode main (camZxingPickCode — PURE, test được).
   // Guard camSnapping: đang full-chain/chụp → bỏ qua; dedup 1.5s trong onCameraDecoded lo trùng.
   function camWorkerOnMessage(data) {
+    if (camWorkerWatchdog) { clearTimeout(camWorkerWatchdog); camWorkerWatchdog = null; }
     camWorkerIdle = true;
+    camWorkerStallCount = 0;
     if (!data) return;
     if (data.ready) return; // tín hiệu load xong worker — không phải mã
     if (!data.text) return;
@@ -2155,6 +2193,8 @@
   }
 
   function stopZxingWorker() {
+    if (camWorkerWatchdog) { clearTimeout(camWorkerWatchdog); camWorkerWatchdog = null; }
+    camWorkerStallCount = 0;
     if (camWorker) { try { camWorker.terminate(); } catch (e) {} camWorker = null; }
     // (2026-08-24) revoke Blob URL khi dừng worker — trước đây chỉ terminate, URL rò rỉ mỗi lần mở camera
     if (camWorkerUrl) { try { URL.revokeObjectURL(camWorkerUrl); } catch (e) {} camWorkerUrl = null; }
@@ -2173,18 +2213,32 @@
   // PURE (test được trong Node): có nên merge vào dòng kết quả của lượt cũ không?
   // So với HÀNG CHỜ optimistic (không chỉ lượt cuối — bug 2026-08-19: queue backlog làm
   // response của lượt mới nhất trễ >2.5s → single slot hết hạn → thêm dòng TRÙNG).
-  function camShouldMergeAny(pending, code, now, mergeMs) {
-    if (!code || !pending) return false;
-    for (var i = 0; i < pending.length; i++) {
-      var e = pending[i];
-      if (e.code === code && e.ts > 0 && now - e.ts < mergeMs) return true;
+  // FIX-18: merge theo scanSeq thay vì code+time — Ra t=0 và Vào t=2.0s cùng mã trong 2.5s (DUPLICATE_WINDOW_MS=1500 chấp nhận) trước bị gộp nhầm.
+  // Hỗ trợ cả 2 signature: (pending, code, scanSeq) mới và (pending, code, now, mergeMs) cũ (test legacy).
+  function camShouldMergeAny(pending, code, nowOrSeq, mergeMs) {
+    if (!code || !pending || !pending.length) return false;
+    if (mergeMs != null) { // legacy time-based: nowOrSeq=now, mergeMs=2500
+      for (var i = 0; i < pending.length; i++) {
+        var e = pending[i];
+        if (e.code === code && e.ts > 0 && nowOrSeq - e.ts < mergeMs) return true;
+      }
+      return false;
+    }
+    if (nowOrSeq != null) {
+      for (var i = 0; i < pending.length; i++) {
+        if (pending[i].code === code && pending[i].seq === nowOrSeq) return true;
+      }
+      return false;
     }
     return false;
   }
 
-  function camRecordOptimistic(code, now) {
+  function camRecordOptimistic(code, nowOrSeq) {
     if (!code) return;
-    camResultPending.push({ code: code, ts: now });
+    // legacy caller truyền timestamp (lớn), mới truyền scanSeq (nhỏ) — phân biệt theo độ lớn
+    var isTs = typeof nowOrSeq === 'number' && nowOrSeq > 100000000000; // timestamp ms
+    if (isTs) camResultPending.push({ code: code, ts: nowOrSeq });
+    else camResultPending.push({ code: code, seq: nowOrSeq, ts: Date.now() });
     if (camResultPending.length > 8) camResultPending.shift();  // chặn tăng vô hạn (scan liên tục)
   }
 
@@ -2235,8 +2289,11 @@
     var code = String(target.staffId || '').trim();
     if (!code) return;
     var now = Date.now();
-    var isUpdate = camShouldMergeAny(camResultPending, code, now, CAM_RESULT_MERGE_MS);
-    if (!isUpdate) camRecordOptimistic(code, now);
+    var seq = (target && target._camSeq != null) ? target._camSeq : (typeof window !== 'undefined' && typeof window.SCAN_CARD_SEQ !== 'undefined' ? window.SCAN_CARD_SEQ : null);
+    var isUpdate = false;
+    if (seq != null) isUpdate = camShouldMergeAny(camResultPending, code, seq);
+    else isUpdate = camShouldMergeAny(camResultPending, code, now, CAM_RESULT_MERGE_MS);
+    if (!isUpdate) camRecordOptimistic(code, seq != null ? seq : now);
     var payload = {
       type: 'rcScanInfo',
       code: code,

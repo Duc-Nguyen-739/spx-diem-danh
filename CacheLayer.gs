@@ -79,15 +79,23 @@ function getTimeZone_() {
 /** Format Date theo timezone script — dùng cho hiển thị/ghi cột giờ. */
 function formatTime_(date) {
   if (!date) return '';
-  return Utilities.formatDate(date, getTimeZone_(), 'HH:mm:ss');
+  try {
+    var d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return Utilities.formatDate(d, getTimeZone_(), 'HH:mm:ss');
+  } catch (e) { try { Logger.log('formatTime_ fail: ' + String(date).slice(0,50) + ' — ' + e.message); } catch(e2) {} return ''; }
 }
 
 /** P2: format có ngày (dd/MM HH:mm:ss) — danh sách task nhiều ngày phân biệt được. */
 function formatDateTime_(date) {
   if (!date) return '';
-  // yyyy-MM-dd HH:mm:ss (đủ năm — task list Tạo lúc/Kết thúc); trước là dd/MM thiếu
-  // năm → "30/12 12:48" gây nhầm (bug 2026-07-29). Giờ quét (formatTime_) vẫn HH:mm:ss.
-  return Utilities.formatDate(date, getTimeZone_(), 'yyyy-MM-dd HH:mm:ss');
+  try {
+    var d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    // yyyy-MM-dd HH:mm:ss (đủ năm — task list Tạo lúc/Kết thúc); trước là dd/MM thiếu
+    // năm → "30/12 12:48" gây nhầm (bug 2026-07-29). Giờ quét (formatTime_) vẫn HH:mm:ss.
+    return Utilities.formatDate(d, getTimeZone_(), 'yyyy-MM-dd HH:mm:ss');
+  } catch (e) { try { Logger.log('formatDateTime_ fail: ' + String(date).slice(0,50) + ' — ' + e.message); } catch(e2) {} return ''; }
 }
 
 /** Date = ngày vào làm (StaffData) — format yyyy-MM-dd (ISO — sort string đúng thứ tự). */

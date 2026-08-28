@@ -581,6 +581,9 @@
     }
     box.innerHTML = html;
     if (tasks.length) applyTaskFilter(s ? s.staffId : q, tasks);
+    else { // FIX-11: tìm NV có trong StaffData nhưng chưa từng quét → tasks rỗng → xóa lọc cũ, tránh kẹt poll
+      if (_taskFilterStaff) { _taskFilterStaff = null; loadTaskList(); }
+    }
   }
   function renderSearchMessage(msg, isErr) {
     var box = document.getElementById('headerSearchResult');
@@ -875,8 +878,8 @@
             updateHud(station, '—', slotCode.length, team.length);
             return;
           }
-          box.setAttribute('data-state', 'ok');
-          cntEl.textContent = 'Số NV khớp: ' + res.count + ' người';
+          box.setAttribute('data-state', res.capped ? 'err' : 'ok');
+          cntEl.textContent = res.capped ? 'Số NV khớp: ' + res.count + ' người — vượt giới hạn 1000, hãy thu hẹp bộ lọc' : 'Số NV khớp: ' + res.count + ' người';
           var scope = station;
           if (date) scope += ' · ' + date;
           scope += ' · ' + slotCode.length + ' ca · ' + team.length + ' team';
@@ -1584,7 +1587,7 @@
     var task = (data && data.task) || {};
     var c = (data && data.counters) || {};
     var log = (data && data.log) || [];
-    var parts = [task.status, c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
+    var parts = [task.status, task.note || '', c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
     for (var i = 0; i < log.length; i++) {
       var r = log[i] || {};
       parts.push(String(r.staffId || '') + '|' + String(r.status || '') + '|'
@@ -1926,9 +1929,9 @@
 
   // C3: state lọc + sort bảng scan. Mặc định sort col 6: reconcile = Trạng Thái desc
   // (Dư→Vắng→Có mặt→Chưa điểm danh — nhóm chưa quét xuống cuối; giữ CỐ Ý theo user
-  // 2026-08-19, không phải bug), meal-move = Giờ Vào desc (mới nhất lên đầu).
+  // 2026-08-19, không phải bug), meal-move col 6 = Giờ Ra desc (mới nhất lên đầu) — FIX-12 sửa comment khớp mapping thật (col 6 = timeRaEpoch, col 7 = Giờ Vào).
   var SCAN_FILTER = { q: '', status: '' };
-  var SCAN_SORT = { col: 6, asc: false };  // reconcile col 6 = Trạng Thái; meal-move col 6 = Giờ Vào
+  var SCAN_SORT = { col: 6, asc: false };  // reconcile col 6 = Trạng Thái; meal-move col 6 = Giờ Ra (col 7 = Giờ Vào)
   var STATUS_ORDER = {};  // P3: dựng từ STATUS_C — tránh hardcode label
   STATUS_ORDER[STATUS_C.PENDING] = 0;
   STATUS_ORDER[''] = 0;
@@ -2916,11 +2919,18 @@
         playBeep('error');
       }
       input.value = '';
-      if (!window.__RC_CAM_OPEN__) input.focus();  // camera mở → không bật bàn phím
+      if (!window.__RC_CAM_OPEN__) input.focus();
       if (!plan.validCodes.length) return;
+      // FIX-23: giữ input cho đến khi enqueue xong — queue đầy thì khôi phục phần chưa xử lý thay vì mất hẳn (pre-clear ở trên sẽ được khôi phục nếu break)
+      var batchDone = true;
       for (var bi = 0; bi < plan.validCodes.length; bi++) {
-        if (!submitScanSingle(input, plan.validCodes[bi])) break;  // queue đầy → dừng loạt
+        if (!submitScanSingle(input, plan.validCodes[bi])) { // queue đầy → dừng loạt
+          input.value = plan.validCodes.slice(bi).join('\n');
+          batchDone = false;
+          break;
+        }
       }
+      // batchDone true → đã clear sẵn, không cần làm gì; false → đã khôi phục phần còn lại
       return;
     }
     if (plan.mode === 'empty') return;  // lý thuyết: raw đã trim non-empty → luôn ≥1 mã
@@ -2935,8 +2945,8 @@
   function submitScanSingle(input, staffId) {
     // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
     if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
-      input.value = '';  // I8: không giữ backlog — xoá ngay
-      showToast('Hàng đợi đang đầy — chờ giây lát', true);
+      // FIX-24: báo rõ hàng đợi bao nhiêu mã và thời gian chờ ~2.5s/item (50*2.5=125s worst-case)
+      showToast('Hàng đợi đang đầy (' + SCAN_QUEUE.length + ' mã — chờ ~' + Math.ceil(SCAN_QUEUE.length*2.5) + 's)', true);
       playBeep('error');
       return false;
     }
@@ -3297,7 +3307,9 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
     // QUÉT LIÊN TỤC (2026-08-17): camera đang mở → đẩy kết quả vào danh sách NGAY DƯỚI
     // CAMERA (camera-scan.html camAppendResult — render #camResultsBody / postMessage cho
     // popup GAS). Không bật camera → bỏ qua im lặng (hành vi cũ giữ nguyên).
+    // FIX-18: gán scanSeq để merge đúng lượt (Ra/Vào cùng mã trong 2.5s không gộp nhầm)
     if (typeof camAppendResult === 'function' && window.__RC_CAM_OPEN__) {
+      try { target._camSeq = (typeof SCAN_CARD_SEQ !== 'undefined' ? SCAN_CARD_SEQ : null); } catch(e) {}
       camAppendResult(status, target, isError);
     }
     scheduleScanCardHide();

@@ -136,28 +136,44 @@ def handler(event, context=None):
         cb401 = str(params.get("cb") or "").strip()
         if cb401:
             safe401 = sanitize_callback(cb401)
+            try:
+                body401 = json.dumps(out, ensure_ascii=False)
+            except Exception:
+                body401 = json.dumps({"ok": False, "error": "Lỗi hệ thống — thử lại sau (serialize)"}, ensure_ascii=False)
             return {
                 "statusCode": 200,
                 "headers": {"Content-Type": "text/javascript; charset=utf-8"},
-                "body": f"{safe401}({json.dumps(out, ensure_ascii=False)});",
+                "body": f"{safe401}({body401});",
             }
+        try:
+            body401 = json.dumps(out, ensure_ascii=False)
+        except Exception:
+            body401 = json.dumps({"ok": False, "error": "Lỗi hệ thống — thử lại sau (serialize)"}, ensure_ascii=False)
         return {
             "statusCode": 401,
             "headers": {"Content-Type": "application/json; charset=utf-8"},
-            "body": json.dumps(out, ensure_ascii=False),
+            "body": body401,
         }
 
     out = dispatch(action, args)
     cb = str(params.get("cb") or "").strip()
     if cb:
         safe_cb = sanitize_callback(cb)
+        try:
+            body = json.dumps(out, ensure_ascii=False)
+        except Exception:
+            body = json.dumps({"ok": False, "error": "Lỗi hệ thống — thử lại sau (serialize)"}, ensure_ascii=False)
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "text/javascript; charset=utf-8"},
-            "body": f"{safe_cb}({json.dumps(out, ensure_ascii=False)});",
+            "body": f"{safe_cb}({body});",
         }
+    try:
+        body = json.dumps(out, ensure_ascii=False)
+    except Exception:
+        body = json.dumps({"ok": False, "error": "Lỗi hệ thống — thử lại sau (serialize)"}, ensure_ascii=False)
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json; charset=utf-8"},
-        "body": json.dumps(out, ensure_ascii=False),
+        "body": body,
     }

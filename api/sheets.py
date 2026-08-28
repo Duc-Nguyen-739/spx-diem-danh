@@ -13,16 +13,14 @@ import re
 
 from api import config
 
+import threading
+
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 _service = None
-_service_lock = None  # lazy init threading.Lock cho execute (P2-8 thread-safety)
+_service_lock = threading.Lock()  # FIX-21: init ngay tại import — tránh race check-then-set 2 thread tạo 2 Lock khác nhau
 
 def _get_lock():
-    global _service_lock
-    if _service_lock is None:
-        import threading
-        _service_lock = threading.Lock()
     return _service_lock
 
 # google-api-python-client / google-auth chỉ import trong hàm (lazy) — module

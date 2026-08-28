@@ -203,6 +203,7 @@ function previewStaffApi(input) {
   return {
     ok: true,
     count: deduped.length,  // chi tra count — khong gui sample (user bo hien thi 10 NV dau)
+    capped: deduped.length > 1000, // FIX-8: báo client khi vượt cap 1000 của createReconcileTask
   };
 }
 
@@ -316,7 +317,7 @@ function computeDetailSig(detail) {
   const task = (detail && detail.task) || {};
   const c = (detail && detail.counters) || {};
   const log = (detail && detail.log) || [];
-  const parts = [task.status, c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
+  const parts = [task.status, task.note || '', c.scanned || 0, c.absent || 0, c.extra || 0, c.out || 0];
   for (let i = 0; i < log.length; i++) {
     const r = log[i] || {};
     parts.push(String(r.staffId || '') + '|' + String(r.status || '') + '|'

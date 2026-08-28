@@ -272,6 +272,16 @@ function sanitizeCellText_(value) {
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
 }
 
+/** FIX-14 helper: 1 cell bị sửa tay thành text → .getTime() throw → crash toàn sheet. */
+function toEpochSafe_(v) {
+  try {
+    if (!v) return 0;
+    if (v instanceof Date) return v.getTime();
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  } catch (e) { try { Logger.log('toEpochSafe_ fail: ' + String(v).slice(0,50)); } catch(e2) {} return 0; }
+}
+
 /** Ghi task mới (append — tần suất thấp, chấp nhận appendRow). */
 function insertTask_(task) {
   getSheet_(SHEETS.ATTENDANCE_TASK).appendRow([
@@ -411,13 +421,14 @@ function logFromRow_(taskId, row) {
     timeScanText: formatTime_(timeScan),
     // Sort key số (epoch ms) — text "HH:mm:ss" mất ngày → sort chuỗi sai khi task
     // xuyên nửa đêm. Client sort theo con số này (chính xác tuyệt đối).
-    timeScanEpoch: timeScan ? timeScan.getTime() : 0,
+    timeScanEpoch: toEpochSafe_(timeScan),
     // meal-move: giờ Ra + epoch (sort/counter cho Ra)
     timeRaText: formatTime_(timeRa),
-    timeRaEpoch: timeRa ? timeRa.getTime() : 0,
+    timeRaEpoch: toEpochSafe_(timeRa),
     // meal-move: số phút giữa Ra→Vào (chỉ khi có cả 2). B1 (2026-08-19): quét Vào
     // trước Ra (bù) → timeScan < timeRa → clamp 0 (trước hiển thị số ÂM sau reload).
-    durationMinutes: (timeRa && timeScan) ? Math.max(0, Math.round((timeScan.getTime() - timeRa.getTime()) / 60000)) : 0,
+    // FIX-14: dùng toEpochSafe_ — 1 cell text → .getTime() throw toàn sheet crash
+    durationMinutes: (timeRa && timeScan) ? Math.max(0, Math.round((toEpochSafe_(timeScan) - toEpochSafe_(timeRa)) / 60000)) : 0,
     status: String(row[LOG_COLS.STATUS] || ''),
     // Date = ngay vao lam (copy tu StaffData) — format yyyy-MM-dd (ISO) cho hien thi
     dateText: formatDateShort_(row[LOG_COLS.DATE]),
@@ -530,6 +541,7 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
   // (kể cả _rowIndex khớp sheet) nên updateLogRowCache_ (quét tiếp theo) vẫn hoạt động.
   // Task quá lớn (cache >100KB) → warm fail → invalidate như cũ (cold lần đầu, an toàn).
   if (!warmLogRowsCache_(taskId, staffList, startRow)) invalidateLogRows_(taskId);
+  try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   return rows.length;
 }
 
@@ -655,6 +667,8 @@ function transformLogStatuses_(taskId, mutate) {
     batchSetOneCol_(sheet, LOG_COLS.STATUS + 1, writes);
     invalidateTaskDetailCache_(taskId);
     invalidateLogRows_(taskId); // U2: status hàng loạt đổi → cache log rows cũ lệch, xoá
+    invalidateTaskListCache_(); // FIX-6: complete/reopen đổi counters → list phải tươi
+    try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   }
   return done;
 }
@@ -748,6 +762,7 @@ function updateLogRowScan_(row, timeScan, status) {
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_SCAN + 1, 1, 2).setValues([[timeScan, status]]);
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: scan đổi counter → danh sách task (thiết bị khác) phải thấy ngay
+  try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   // U2: cập nhật row trong LOG_ROWS cache (incremental) — scan kế không chạm sheet.
   // KHÔNG nhét Date timeScan vào cache: JSON→string; schema slim chỉ có text+epoch.
   updateLogRowCache_(row.taskId, row._rowIndex, function (r) {
@@ -797,6 +812,7 @@ function appendLogRow_(row) {
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: dòng Dư mới → counter list đổi
   invalidateLogRows_(row.taskId); // U2: dòng mới append cuối — cache cũ thiếu dòng → xoá (tần suất thấp)
+  try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
 }
 
 /** Ghi đè toàn bộ StaffData từ dữ liệu csv đã parse (syncFromCsv). */
@@ -807,9 +823,9 @@ function overwriteStaffData_(staffList) {
   if (!staffList || !staffList.length) return 0;
   const rows = staffList.map(function (s) {
     return [
-      s.no, s.date, s.staffId, s.staffName, s.staffEmail, s.agency, s.contractType, s.eventId,
-      s.matchingType, s.gender, s.department, s.cardIn, s.cardOut, s.actualHours,
-      s.cardInRemark, s.cardOutRemark, s.slotCode, s.workstation, s.team, s.station,
+      s.no, s.date, sanitizeCellText_(s.staffId), sanitizeCellText_(s.staffName), sanitizeCellText_(s.staffEmail), sanitizeCellText_(s.agency), sanitizeCellText_(s.contractType), sanitizeCellText_(s.eventId),
+      sanitizeCellText_(s.matchingType), sanitizeCellText_(s.gender), sanitizeCellText_(s.department), s.cardIn, s.cardOut, s.actualHours,
+      sanitizeCellText_(s.cardInRemark), sanitizeCellText_(s.cardOutRemark), sanitizeCellText_(s.slotCode), sanitizeCellText_(s.workstation), sanitizeCellText_(s.team), sanitizeCellText_(s.station),
     ];
   });
   sheet.getRange(2, 1, rows.length, STAFF_DATA_COL_COUNT).setValues(rows);
@@ -836,6 +852,7 @@ function updateLogRowRa_(row, timeRa, status) {
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setNumberFormat('HH:mm:ss');
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: Ra đổi status/counter → danh sách task thiết bị khác thấy ngay
+  try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   updateLogRowCache_(row.taskId, row._rowIndex, function (r) {
     r.status = status;
     r.timeRaText = formatTime_(timeRa);
@@ -866,7 +883,7 @@ function batchMealMoveLogUpdates_(taskId, updates) {
   const matches = [];
   for (let i = 0; i < idCol.length; i++) {
     const rowIndex = i + 2;
-    if (byRow[rowIndex] !== undefined) matches.push(rowIndex);
+    if (byRow[rowIndex] !== undefined && String(idCol[i][0] || '').trim() === taskId) matches.push(rowIndex);
   }
   if (!matches.length) return 0;
   // Đọc chỉ các dòng khớp update (không phải cả sheet).
@@ -907,6 +924,7 @@ function batchMealMoveLogUpdates_(taskId, updates) {
     invalidateTaskDetailCache_(taskId);
     invalidateTaskListCache_();  // U3: batch meal-move đổi counter → list thiết bị khác thấy ngay
     invalidateLogRows_(taskId);
+    try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   }
   return anyChanged ? updates.length : 0;
 }
@@ -960,5 +978,6 @@ function batchAppendLogRows_(rows) {
     if (!seen[r.taskId]) { seen[r.taskId] = true; invalidateTaskDetailCache_(r.taskId); invalidateLogRows_(r.taskId); }
   });
   invalidateTaskListCache_();  // U3: batch append đổi counter → list thiết bị khác thấy ngay
+  try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
   return rows.length;
 }

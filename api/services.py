@@ -67,7 +67,7 @@ def preview_staff(input_):
         "contractType": (input_ or {}).get("contractType"),
     })
     deduped = csvutil.dedupe_staff_by_group(filtered)
-    return {"ok": True, "count": len(deduped)}
+    return {"ok": True, "count": len(deduped), "capped": len(deduped) > 1000}
 
 
 # ===== TaskId =====
@@ -178,12 +178,24 @@ def create_meal_move_task_core(input_):
     # "Giờ Ra" (khớp GAS createMealMoveTaskCore_) — NV Có mặt coi như đã Ra, status OUT.
     time_ra_by_staff = inp.get("timeRaByStaff") or {}
 
+    # FIX-20: validate dict + to_epoch_ms an toàn — GAS Number(...)||0 bao dung
+    if not isinstance(time_ra_by_staff, dict):
+        time_ra_by_staff = {}
+    def _to_epoch_ms(v):
+        try:
+            return int(v or 0) or 0
+        except Exception:
+            return 0
     index = database.read_staff_index()
     staff_list = []
     for id_ in ids:
         info = index.get(id_) or {}
-        ra_epoch = int(time_ra_by_staff.get(id_) or 0) or 0
-        time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
+        ra_epoch = _to_epoch_ms(time_ra_by_staff.get(id_))
+        try:
+            time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
+        except Exception:
+            time_ra = None
+            ra_epoch = 0
         # date luôn "" — staff index SLIM không giữ date (khớp GAS readStaffIndex_:
         # cache <100KB; pre-fill dùng read_staff_list riêng, không qua index)
         staff_list.append({
@@ -196,10 +208,10 @@ def create_meal_move_task_core(input_):
         })
 
     now = datetime.datetime.now(cache._TZ)
-    task_id = "M" + make_task_id(now)[1:]
+    task_id = "M" + make_task_id(now)
     suffix = 2
     while database.read_task(task_id):
-        task_id = f"M{make_task_id(now)[1:]}-{suffix}"
+        task_id = f"M{make_task_id(now)}-{suffix}"
         suffix += 1
 
     task = {
@@ -345,6 +357,7 @@ def compute_detail_sig(detail):
     c = (detail or {}).get("counters") or {}
     parts = [
         str(task.get("status") or ""),
+        str(task.get("note") or ""),
         str(c.get("scanned") or 0),
         str(c.get("absent") or 0),
         str(c.get("extra") or 0),
@@ -403,9 +416,6 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
     """now_override: hook test — datetime thay đồng hồ thật (classify + ghi).
     GAS không có param này (dùng Date.now()); thêm để test rule 1.5s không chờ thật.
     """
-    now_dt = now_override or datetime.datetime.now(cache._TZ)
-    now_ms = cache.epoch_ms(now_dt)
-
     staff_id = csvutil.normalize_staff_id(raw_staff_id)
     if not csvutil.is_valid_barcode_id(staff_id):
         return {
@@ -416,9 +426,12 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
     if not _lock.acquire(timeout=10):
         return {"ok": False, "message": _BUSY_MSG, "status": None, "scanPhase": None, "counters": {"scanned": 0, "absent": 0, "extra": 0, "total": 0}}
     try:
+        # D2 fix: tính now SAU khi acquire lock — tránh timestamp cũ khi chờ lock 10s
+        now_dt = now_override or datetime.datetime.now(cache._TZ)
+        now_ms = cache.epoch_ms(now_dt)
         task = database.read_task_cached(task_id)
-        # copy để không mutate cached list trực tiếp (fragile nếu bỏ lock)
-        log_rows = list(database.read_log_rows_cached(task_id))
+        # FIX-1 cache poison: deep copy từng row để không nhiễm cache khi mutate timeRa/timeScan
+        log_rows = [dict(r) for r in database.read_log_rows_cached(task_id)]
         is_meal = bool(task and task.get("taskType") == config.TASK_TYPE["MEAL_MOVE"])
 
         if is_meal:
@@ -531,9 +544,6 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
 
 def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
     """now_override: hook test (như scan_staff) — không ảnh hưởng production."""
-    now = now_override or datetime.datetime.now(cache._TZ)
-    now_ms = cache.epoch_ms(now)
-
     lst = list(codes) if isinstance(codes, (list, tuple)) else []
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId", "summary": None, "counters": None}
@@ -554,6 +564,9 @@ def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
     if not _lock.acquire(timeout=10):
         return {"ok": False, "message": _BUSY_MSG, "summary": None, "counters": None}
     try:
+        # D2 fix: tính now SAU khi acquire lock
+        now = now_override or datetime.datetime.now(cache._TZ)
+        now_ms = cache.epoch_ms(now)
         task = database.read_task_cached(task_id)
         if not task:
             return {"ok": False, "message": "Không tìm thấy task", "summary": None, "counters": None}

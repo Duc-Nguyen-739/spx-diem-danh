@@ -397,6 +397,7 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         rows.append(row)
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
     invalidate_log_rows(task_id)  # scan đầu sẽ đọc tươi (cold 1 lần, an toàn)
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7: pre-fill cũng tạo log mới
     _format_time_columns(start, len(rows))
     return len(rows)
 
@@ -456,6 +457,8 @@ def transform_log_statuses(task_id, mutate):
         i = j + 1
     invalidate_task_detail_cache(task_id)
     invalidate_log_rows(task_id)
+    invalidate_task_list_cache()  # FIX-6
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
     return done
 
 
@@ -489,6 +492,7 @@ def update_log_row_scan(row, time_scan, status):
     sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_scan_cache(r, time_scan, status))
     return True
 
@@ -547,6 +551,7 @@ def append_log_row(row):
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row.get("taskId", ""))
     invalidate_log_rows(row.get("taskId", ""))
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
 
 
 def update_log_row_ra(row, time_ra, status):
@@ -561,6 +566,7 @@ def update_log_row_ra(row, time_ra, status):
     sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
     update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_ra_cache(r, time_ra, status))
     return True
 
@@ -658,6 +664,7 @@ def batch_meal_move_log_updates(task_id, updates):
     invalidate_task_list_cache()
     invalidate_task_detail_cache(task_id)
     invalidate_log_rows(task_id)
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
     return len(updates)
 
 
@@ -687,6 +694,7 @@ def batch_append_log_rows(rows):
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], payload)
     _format_time_columns(start, len(payload))
     invalidate_task_list_cache()
+    cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
     seen = set()
     for r in rows:
         if r.get("taskId") not in seen:
