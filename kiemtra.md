@@ -969,3 +969,77 @@ node scripts/test-local-mock.js           # 11/11 pass
 **Lưu ý:** Không claim fix — toàn bộ đề xuất chưa thực hiện, chỉ nêu để user quyết định.
 
 *Báo cáo do model **meituan/longcat-2.0-free** (ID: kilo/meituan/longcat-2.0-free) tạo ra — chỉ rà soát, không thay đổi mã nguồn.*
+
+---
+
+# Báo cáo kiểm tra độc lập — Model: bynara/deepseek-v4-flash (2026-08-29, nối tiếp)
+
+> Báo cáo này được agent tự chạy test độc lập hoàn toàn (KHÔNG đọc báo cáo trước để test), KHÔNG tự sửa code. Kết quả ghi nối tiếp, không đè dòng đã có.
+
+## 1. Môi trường
+
+```bash
+node --version          # v24.19.0
+python3 --version       # 3.12.3
+Google Chrome path      # /usr/bin/chromium-browser (auto-detect, test:chrome PASS)
+```
+
+## 2. Kết quả chạy test tự động (tự chạy độc lập)
+
+| Lệnh | Kết quả | Chi tiết |
+| :--- | :------ | :------- |
+| `npm test` | **368/368 PASS** | 0 fail, 0 skip, duration ~8.9s |
+| `npm run test:py` | **85/85 PASS** | Ran 85 tests, OK, duration 0.397s |
+| `npm run build:local` | **PASS** | `index.local.html` built (templates resolved) |
+| `npm run test:chrome` | **11/11 PASS** | Chrome headless (chromium-browser): load mock, task list 30 rows, openScan 6 rows S:3 A:3 E:1, quét Ops229444 S+1 A-1, trùng, Dư+1, backToList |
+
+**Tổng: 464/464 tests PASS across all 4 suites. Không có lỗi nào cần khắc phục.**
+
+- Test:chrome **không lỗi** — script tự phát hiện `/usr/bin/chromium-browser` (node `scripts/test-local-mock.js:41-46`). Với máy không có Chrome theo các path liệt kê, dùng `CHROME_PATH` env.
+- Trong lần chạy này test:chrome pass ngay, không cần can thiệp khắc phục.
+
+## 3. Rà soát độc lập — vấn đề phát hiện (KHÔNG sửa code)
+
+### 3.1. BUG (có cơ sở mã nguồn cụ thể)
+
+| # | Mức | File:line | Vấn đề | Tác động |
+|:--|:----|:----------|:-------|:---------|
+| BUG-001 | Important | `js.html:1659-1663` (`applyPolledScanDetail`) | Không re-check `scanBusy()`/`SCAN_PROCESSING` trước khi `renderScanView(data)` ghi đè `CURRENT_LOG`/`CURRENT_COUNTERS`. Hiện chỉ dựa `scanPollBehind` + `scanDetailSignature`. Nếu poll response là data cũ trước scan vừa confirm mà counters bằng nhau (vd vừa confirm scan cùng mức scanned), poll có thể re-render xóa scan vừa hiển thị tới chu kỳ kế tiếp. Cửa sổ hẹp nhưng có thật, và `lastScanPollSig` không được cập nhật sau scan local (xem BUG-002) làm tăng khả năng chạm. | Race UI — mất tạm thời dòng quét vừa confirm, reset focus/sort. |
+| BUG-002 | Important | `js.html:1626` vs `processScanQueue` (submit local) | `lastScanPollSig` chỉ set trong `startScanPolling`; sau một scan local confirm, `CURRENT_LOG`/`CURRENT_COUNTERS` đổi nhưng `lastScanPollSig` không cập nhật → poll kế gửi sig cũ → server trả full detail → re-render toàn view 1 lần vô ích (reset focus/sort), và chồng với BUG-001. | Re-render thừa mỗi sau scan; khó nhận biết nhưng tốn RPC + mất trạng thái UI. |
+| BUG-003 | Important | `camera-scan.html:2424` | Dedup `camLastCode` (1.5s) **không phân biệt mode Ra/Vào**. Trong meal-move, nếu quét Ra mã A rồi trong vòng 1.5s chuyển mode Vào và quét lại cùng mã A (thẻ/barcode gắn cố định trên NV), mã bị bỏ qua dù là lượt Vào hợp lệ. | Edge case UX — bỏ sót lượt Vào nhanh qua camera. (Quét tay không bị, vì `submitScanMealMove` có guard riêng.) |
+| BUG-004 | Important | `api/main.py:90-98,127-156` | Khi env `ROLLCALL_API_TOKEN` **rỗng** (mặc định backward-compat), mọi action ghi (`scanStaffApi`, `completeTaskApi`, `createReconcileTaskApi`, `createMealMoveTaskApi`, `transferPresentListToMealMoveApi`, `pasteMealMoveScanApi`, `updateTaskNoteApi`) có thể gọi anonymous qua POST/GET — bất kỳ ai có URL đều ghi được sheet. GAS dựa vào deployment domain làm lá chắn; Python backend chỉ được bảo vệ khi token được set. | Security — nên bật token trong production hosting. |
+| BUG-005 | Important | `Database.gs:850-861` (`updateLogRowRa_`) | Comment nói "atomic" nhưng thực tế 2 RPC rời: `getRange(DATE).getValue()` rồi `setValues([[status, dateVal, timeRa]])`. Nếu exception/quota giữa 2 lệnh, hoặc nếu cell DATE lưu dưới dạng **Date object** thay vì string, `dateVal` ghi lại có thể đổi định dạng cell. An toàn nhờ LockService bao ngoài, nhưng không atomic như comment. | Rủi ro định dạng/phụ thuộc lock; không mất dữ liệu thực tế. |
+| BUG-006 | Suggestion | `JsonpApi.gs:82` vs `main.py:62` | GAS truyền **toàn bộ** args cho hàm (`globalThis[fnName].apply(null, args)`), Python cắt `[:max_args]`. Bề mặt dispatch không thống nhất — GAS không chặn tham số thừa từ client. | Bất đồng hình thức bảo mật giữa 2 runtime. |
+| BUG-007 | Suggestion | `UpdateLogRowScan_`/`updateLogRowRa_` D4 | `note`/`station`/`team` từ client chỉ sanitize chống **formula** (prefix `'`), không sanitize HTML. An toàn hiện tại vì client render bằng `esc()`/`textContent`, nhưng nếu sau này render `note` bằng `innerHTML` không esc → XSS. | Rủi ro XSS tương lai (điểm phụ thuộc render client). |
+
+### 3.2. Điểm đã xác minh KHÔNG phải bug (tránh báo nhầm)
+
+- `recountFromLog` (`js.html:2248`) đếm EXTRA (`hasScan`) vừa vào `scanned` vừa vào `extra` — **khớp chính xác** `ScanLogic.gs computeCounters` (`scanned++` nếu hasScan, rồi `extra++`). Không lệch client↔server.
+- `computeCounters` bỏ dòng `OUT` khỏi `scanned` (continue trước) — cả GAS và Python, và cả list/detail đều **khớp** nhau. Không phải bug.
+- Sanitize GAS phủ đủ mọi write boundary dữ liệu client-controlled (`insertTask_`, `batchInsertLogRows_`, `appendLogRow_`, `batchAppendLogRows_`, `overwriteStaffData_`). `batchMealMoveLogUpdates_` ghi dữ liệu từ classify/Config (không phải client raw) → an toàn.
+- JSONP `sanitizeCallback_`/`sanitize_callback` chặn proto pollution + phản chiếu script tùy ý — đã đúng cả 2 runtime.
+
+## 4. Đề xuất tối ưu (không tự thực hiện — để user quyết định)
+
+| # | File:line | Tối ưu | Lợi ích | Độ phức tạp |
+|---|-----------|--------|---------|-------------|
+| O-01 | `js.html:1659` | Thêm `if (scanBusy()) return;` đầu `applyPolledScanDetail` + cập nhật `lastScanPollSig` trong success handler `processScanQueue`/`processScanQueueMealMove` | Chống race poll ghi đè scan vừa confirm; hết re-render thừa | Thấp |
+| O-02 | `camera-scan.html:2424` | Dedup camera theo `(mode, code)` thay vì chỉ `code` | Quét Ra→Vào nhanh cùng mã không bị bỏ | Thấp |
+| O-03 | `api/main.py:98` | Document + bắt buộc `ROLLCALL_API_TOKEN` khi deploy production (kèm CI check) | Đóng đường ghi anonymous | Thấp |
+| O-04 | `Database.gs:850` | Gộp 1 RPC đọc DATE + setValues trong lock, hoặc chấp nhận tách — bỏ keyword "atomic" gây hiểu nhầm | Rõ ràng hơn | Thấp |
+| O-05 | `scripts/test-local-mock.js` | Thay `sleep` magic-number (`LOAD_WAIT_MS`) bằng `waitUntil` poll 100ms | Hết flaky khi máy chậm | Thấp |
+| O-06 | `js.html` + `camera-scan.html` | `esc()` luôn escape thêm `'` (attribute single-quote) + không dùng `innerHTML` không esc cho `note` | Giảm xác suất XSS tương lai | Thấp |
+| O-07 | `Database.gs` | Thay các `getDataRange()` còn sót bằng `getRange(2,1,lastRow-1,n)` | Giảm cell đọc 50-70% | TB |
+
+## 5. Đánh giá tổng thể (theo hướng dẫn AGENTS.md §8, §12)
+
+- **Correctness:** ✅ 464/464 PASS. Dual runtime GAS↔Python mirror rất khớp. Không P0 bug mất dữ liệu trong các luồng scan/paste/task lifecycle/counters.
+- **Security:** ✅ `sanitizeCellText_` + `esc`/`escAttr`/`textContent` phủ kín, không lộ secret. ⚠️ Điểm cần chú ý: Python backend khi `ROLLCALL_API_TOKEN` rỗng là anonymous-write (BUG-004).
+- **Performance:** ⚠️ Đã tối ưu nhiều (batch read/write, cache slim, incremental LOG_ROWS, version-gated poll). Còn sót 1 vài `getDataRange` toàn sheet.
+- **Reliability:** ⚠️ Poll race hẹp (BUG-001/002), Chrome test có thể flaky trên máy chậm do `sleep` (O-05).
+- **Maintainability:** ⚠️ `js.html` 233K + `camera-scan.html` 210K khó review; drift GAS↔Python là rủi ro duy trì.
+- **Test quality:** ✅ Đầy đủ: 368 JS + 85 py + 11 chrome, cover được nhiều edge (meal-move Ra/Vào, Dư, duplicate 1.5s, OCR, popup, submit-scan guard).
+
+**Kết luận:** Không có lỗi test nào cần khắc phục (4 suite đều PASS tự chạy độc lập). Bug chủ yếu là Important-race/edge-case ở scan camera và poll, không phải P0. Không tự sửa code theo yêu cầu.
+
+*Báo cáo do model **bynara/deepseek-v4-flash** tạo ra — chỉ rà soát + chạy test độc lập, không thay đổi mã nguồn.*
