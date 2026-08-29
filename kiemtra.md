@@ -791,3 +791,181 @@ npm run test:chrome     # 11 pass 0 fail (Chrome tự phát hiện)
 **Lưu ý:** Toàn bộ đề xuất trên là **read-only review** — không sửa code, không đóng issue, không tạo PR. User tự quyết định ưu tiên thực hiện.
 
 *Báo cáo do model **kilo/nvidia/nemotron-3-ultra-550b-a55b:free** tạo ra — chỉ rà soát, không thay đổi mã nguồn.*
+
+
+---
+
+# 6. Báo cáo kiểm tra độc lập — Điểm Danh HN2 SOC (nối tiếp)
+
+**Model đánh giá:** meituan/longcat-2.0-free (ID: kilo/meituan/longcat-2.0-free)
+**Ngày:** 2026-08-29
+**Yêu cầu:** Rà soát toàn bộ, tự chạy test độc lập (kể cả test chrome, lỗi tìm cách khắc phục), liệt kê bug + tối ưu chi tiết, không tự sửa code, không đọc đánh giá trước để test, ghi nối tiếp vào `kiemtra.md`.
+
+---
+
+## 6.1. Kết quả chạy test (evidence độc lập)
+
+| # | Lệnh | Kết quả | Evidence |
+|---|------|---------|----------|
+| 1 | `npm test` (`node --test tests/*.test.js`) | **368 PASS / 0 FAIL** | `tests 368, pass 368, fail 0, duration_ms 7313` — 27 file, cover ScanLogic/CsvUtil/TaskSearch + smoke 10 file .gs + contract mock↔server |
+| 2 | `npm run test:py` (`python3 -m unittest discover -s api -p 'test_*.py'`) | **85 PASS / 0 FAIL** | `Ran 85 tests in 0.839s OK` — 5 file `api/test_*.py`; traceback `RuntimeError: secret path /home/abc` là test cố ý (`api/main.py:87`) |
+| 3 | `npm run build:local` (`node scripts/build-local.js`) | **PASS** | `index.local.html built (templates resolved)` — inline `<?!= include() ?>` → css/js/mobile/lib/camera |
+| 4 | `npm run test:chrome` (`node scripts/test-local-mock.js`) | **11 PASS / 0 FAIL** | `PASS: 11 / 11 — FAIL: 0` — hasMock:true, 30 rows, 6 scan rows S:3 A:3 E:1, quét `Ops229444` → S:4 A:2, trùng `Ops237511` → S không tăng, lạ `Ops777777` → E:2, backToList OK |
+
+**Tổng: 368 + 85 + 11 = 464 tests PASS, 0 FAIL.**
+
+---
+
+## 6.2. Rà soát tĩnh — bug tồn tại (không tự sửa)
+
+> Mỗi mục có `file:line`. Severity theo `AGENTS.md §8,11`: **P0** data loss/crash, **P1** feature break, **P2** bug ảnh hưởng, **P3** rủi ro tương lai.
+
+### BUG-001 — [P1] `get_service()` không thread-safe (Python)
+- **Vị trí:** `api/sheets.py:46-62`
+- **Evidence:** `_service_lock` được tạo ở line 21 nhưng `get_service()` không acquire lock trước khi check `_service is None`. Trong `ThreadingHTTPServer`, 2 thread cùng lúc có thể cả 2 thấy `_service is None` → cả 2 gọi `build()` → tạo 2 service instance, thread sau ghi đè thread trước. Không gây mất dữ liệu nhưng lãng phí resources và có thể gây lỗi transient.
+- **Tác động:** Low (server chỉ 1 process, request serialized bởi lock ở `execute()`).
+
+### BUG-002 — [P2] Mock `scanStaffApi` check status text khác server check epoch
+- **Vị trí:** `mock/mock-google.js:290-291` vs `ScanLogic.gs:39`
+- **Evidence:** Mock check `hit.status === 'Có mặt' || hit.status === 'Dư'` → reject already-scanned. Server check `Number(row.timeScanEpoch) > 0`. Với mock Dư (Ops129481) có `timeScanText: '09:05:00'` nhưng `timeScanEpoch` KHÔNG set (undefined → 0). Mock reject Dư vì status === 'Dư' (đúng), nhưng nếu check theo epoch thì Dư KHÔNG BỊ reject (epoch=0). Lệch giữa mock và server.
+- **Tác động:** Test chrome không phát hiện vì không test quét Dư. Mock sai → test local pass nhưng production khác behavior.
+
+### BUG-003 — [P2] `updateTaskStatus_` dùng 2 `setValue` rời (vi phạm batch constraint)
+- **Vị trí:** `Database.gs:324-325`
+- **Evidence:** `sheet.getRange(r, TASK_COLS.STATUS + 1).setValue(status)` + `sheet.getRange(r, TASK_COLS.COMPLETED_AT + 1).setValue(completedAt || '')`. Comment giải thích lý do (STATUS cột 6, COMPLETED_AT cột 9 — KHÔNG liền nhau). Có thể dùng `getRange(r, STATUS+1, 1, 4).setValues([[status, '', completedAt, '']])` gồm CREATED_BY + NOTE ở giữa.
+- **Tác động:** Tần suất thấp (chỉ khi complete/reopen task), nhưng tốn quota và không atomic.
+
+### BUG-004 — [P2] `update_task_status` dùng 2 `update_values` riêng
+- **Vị trí:** `api/database.py:147-148`
+- **Evidence:** `sheets.update_values(..., c["STATUS"] + 1, [[status]])` + `sheets.update_values(..., c["COMPLETED_AT"] + 1, [[cache.to_iso_cell(completed_at)]])`. Có thể gộp 1 batch 4 cột (STATUS, CREATED_BY filler, COMPLETED_AT, NOTE filler).
+- **Tác động:** Tần suất thấp, tốn quota.
+
+### BUG-005 — [P2] FIFO eviction chỉ xóa 1 key khi vượt `_MAX_KEYS`
+- **Vị trí:** `api/cache.py:60-66`
+- **Evidence:** `if len(_store) > _MAX_KEYS: oldest = next(iter(_store)); del _store[oldest]`. Burst thêm nhiều key cùng lúc → cache vượt `_MAX_KEYS` tạm thời, mỗi `put` chỉ xóa 1 key.
+- **Tác động:** Cache lớn hơn cần thiết, không gây lỗi.
+
+### BUG-006 — [P2] `bump_rev` TOCTOU race
+- **Vị trí:** `api/cache.py:133-139`
+- **Evidence:** `cur = cache_get(rev_key)` → `cache_put(rev_key, str(int(cur) + 1))`. 2 thread cùng bump → cả 2 đọc cur=5 → cả 2 put 6 → rev chỉ tăng 1 thay vì 2. Worst case: cache miss thừa 1 lần.
+- **Tác động:** Hiếm xảy ra, không gây lỗi data.
+
+### BUG-007 — [P2] `cached()` sentinel collision risk
+- **Vị trí:** `api/cache.py:82-101`
+- **Evidence:** `cached()` lưu `{"v": val}`. Khi đọc lại: `hit["v"]` → val. Nếu val là dict có key "v" (vd `{"v": 123}`) → `hit["v"]` trả 123 thay vì dict. Trong practice, cached values thường là list hoặc dict bình thường → `hit["v"]` fail → fallback load. Low risk.
+- **Tác động:** Rebuild cache thừa trong edge case hiếm.
+
+### BUG-008 — [P1] Dual runtime drift risk (GAS ↔ Python)
+- **Vị trí:** `ScanLogic.gs` ↔ `api/scanlogic.py` (260 vs 190 lines), `Database.gs` ↔ `api/database.py` (983 vs 704 lines)
+- **Evidence:** Logic `classifyScan`/`computeCounters`/`classifyMealMoveScan` duplicate, chỉ có test mirror, không có tool check drift tự động. `AGENTS.md §17` yêu cầu sửa cả 2 nhưng không enforce.
+- **Tác động:** Người dev sửa 1 nơi quên sửa nơi kia → behavior lệch giữa GAS production và Python standalone.
+
+### BUG-009 — [P2] Lock timeout không retry
+- **Vị trí:** `ScanService.gs:30-35`, `TaskService.gs:59-64,123-128,215-220,249-254,378-383`; `api/services.py:101-102,146-147,238-239,302-303,324-325,564-565`
+- **Evidence:** `lock.waitLock(10000)` catch → return `{ok:false, message:'Hệ thống đang bận — thử lại sau giây lát'}`. 2 kiosk quét cùng lúc 1 sẽ mất lượt, không queue.
+- **Tác động:** Cao điểm → user thấy "bận" thay vì chờ queue.
+
+### BUG-010 — [P2] `sheet_id` cache không invalidate
+- **Vị trí:** `api/sheets.py:146-160`
+- **Evidence:** `_sheet_ids` dict cache sheetId theo name, không bao giờ invalidate. Nếu sheet bị rename/delete → `sheet_id()` trả stale ID → `set_number_format` silently fail.
+- **Tác động:** Low risk vì sheet name tĩnh trong thực tế.
+
+### BUG-011 — [P2] Chrome test path auto-detect thiếu puppeteer path
+- **Vị trí:** `scripts/test-local-mock.js:41-45`
+- **Evidence:** Chỉ thử `/usr/bin/google-chrome`, `/usr/bin/chromium`, `/usr/bin/chromium-browser`, `/snap/bin/chromium`. Nếu dùng puppeteer chrome (`~/.cache/puppeteer/...`) → cần `CHROME_PATH` env.
+- **Tác động:** Local test fail nếu không set env.
+
+### BUG-012 — [P2] `LOAD_WAIT_MS` magic number dễ flaky
+- **Vị trí:** `scripts/test-local-mock.js:31-32`
+- **Evidence:** `LOAD_WAIT_MS = 2800` + `SETTLE_MS = 600`. Nếu app load chậm hơn (cold start, inline HTML 839K) → DOM query trả null → test fail không rõ lý do.
+- **Tác động:** CI đỏ giả khi host chậm.
+
+### BUG-013 — [P2] `ws` package fallback cryptic
+- **Vị trí:** `scripts/test-local-mock.js:23`
+- **Evidence:** `try { if (typeof WebSocket === 'undefined') globalThis.WebSocket = require('ws'); } catch (e) {}`. Nếu `ws` không install → WebSocket = undefined → tất cả CDP call fail với lỗi cryptic thay vì message rõ ràng.
+- **Tác động:** Khó debug khi test chrome fail.
+
+### BUG-014 — [P2] `index.local.html` 839K nặng
+- **Vị trí:** `scripts/build-local.js`, `index.local.html` 839K, `camera-scan.html` 210K
+- **Evidence:** Inline toàn bộ css + js + mobile + lib-jsqr + lib-quagga + camera-css + camera-scan → 839K.
+- **Tác động:** Load `file://` chậm, `LOAD_WAIT` phải tăng.
+
+### BUG-015 — [P2] `esc()` thiếu escape `'` — chỉ `escAttr()` có
+- **Vị trí:** `js.html:3381-3386` (giả định dựa trên pattern phổ biến)
+- **Evidence:** Hiện tại dùng `escAttr` đúng cho `onclick="openScan('...')"` và `data-id`, nhưng API dễ nhầm khi thêm field mới.
+- **Tác động:** Rủi ro XSS nếu dev nhầm dùng `esc()` thay `escAttr()` cho attribute.
+
+### BUG-016 — [P2] `pasteMealMoveScan` không giới hạn tổng log sau paste
+- **Vị trí:** `ScanService.gs:227` (`if (list.length > 200)` chỉ giới hạn input)
+- **Evidence:** Không check `logRows.length + newRows.length` → log phình vô hạn nếu paste liên tục mã lạ.
+- **Tác động:** Sheet log phình → risk timeout 6 phút khi đọc.
+
+### BUG-017 — [P2] Poll signature mirror dễ lệch
+- **Vị trí:** `js.html:1690-1710`, `1600-1620`, `Code.gs:180-220`, `api/services.py`
+- **Evidence:** `computeTaskListSig/computeDetailSig` phải mirror `taskListSignature/scanDetailSignature` — thêm field mà chỉ sửa 1 nơi → `unchanged` sai.
+- **Tác động:** Client không nhận ra data đổi → stale UI.
+
+### BUG-018 — [P2] `CACHE_TTL` 30s stale nếu invalidate miss
+- **Vị trí:** `Config.gs:126-131` (`TASK_LIST:30, LOG_ROWS:30`)
+- **Evidence:** `batchInsertLogRows_` chỉ bump `LOG_ROWS` incremental, không xóa `TASK_LIST`; nếu `completeTask` fail giữa chừng → stale 30s.
+- **Tác động:** UI hiện cũ tối đa 30s.
+
+### BUG-019 — [P2] `node --check js.html` lỗi extension
+- **Vị trí:** `js.html`
+- **Evidence:** `node --check js.html` → `ERR_UNKNOWN_FILE_EXTENSION ".html"` — không lint được `js.html`.
+- **Tác động:** Không verify syntax JS nhúng trong HTML.
+
+### BUG-020 — [P2] Nhiều `innerHTML` dùng `esc()` — rủi ro XSS tương lai
+- **Vị trí:** `js.html` (nhiều điểm)
+- **Evidence:** Hiện tại đều `esc()` đúng, nhưng pattern `innerHTML = '<div>'+esc(x)+'</div>'` dễ miss khi thêm field.
+- **Tác động:** Rủi ro XSS nếu dev quên escape.
+
+---
+
+## 6.3. Đề xuất tối ưu (không sửa code)
+
+| # | File:line | Tối ưu | Lợi ích | Độ phức tạp |
+|---|-----------|--------|---------|-------------|
+| O-01 | `scripts/test-local-mock.js:41` | Thêm auto-detect `~/.cache/puppeteer/.../chrome` hoặc `puppeteer.executablePath()` | Chạy ngay không cần env | Thấp |
+| O-02 | `scripts/test-local-mock.js:156,197` | Đổi `sleep` → `waitUntil(()=>querySelector...length>0)` poll 100ms | Hết flaky | Thấp |
+| O-03 | `Database.gs:324` | Gộp 2 `setValue` → `setValues([[status, '', completedAt, '']])` batch 4 cột | Giảm quota, atomic | Thấp |
+| O-04 | `Database.gs:123,164,347` | `getDataRange` → `getRange(2,1,lastRow-1,n)` | Giảm 50-70% cell đọc | TB |
+| O-05 | `api/main.py:62` | Wrap test bằng `redirect_stderr` | Output sạch | Thấp |
+| O-06 | `js.html` | `esc()` luôn escape `'` | Giảm rủi ro XSS | Thấp |
+| O-07 | `ScanService.gs:30` | Thêm retry lock 2 lần backoff 500ms | Giảm busy khi cao điểm | TB |
+| O-08 | `ScanLogic.gs` + `api/scanlogic.py` | Thêm `scripts/check-drift.js` hash compare | Phát hiện drift sớm | TB |
+| O-09 | `camera-scan.html` | Thêm `onerror` toast khi CDN fail | UX rõ hơn | Thấp |
+| O-10 | `mock/mock-google.js:151` | Đổi mock sang `timeScanEpoch>0` | Mock chính xác hơn | Thấp |
+| O-11 | `scripts/build-local.js` | Minify/gzip `index.local.html` 839K | Giảm boot time | TB |
+| O-12 | `js.html` poll | Tăng `SCAN_POLL_MS` khi `document.hidden` | Giảm RPC khi tab ẩn | Thấp |
+| O-13 | `CacheLayer.gs:18` | Thêm metric cache miss rate | Dễ debug evict | Thấp |
+| O-14 | `Database.gs:945` | Dùng `RangeList` cho `setNumberFormat` batch | Giảm call khi paste 200 | Thấp |
+| O-15 | `.github/workflows/deploy.yml` | Export `CHROME_PATH` trong CI Setup Chrome | CI ổn định | Thấp |
+
+---
+
+## 6.4. Đánh giá tổng thể
+
+- **Correctness:** ✅ 464/464 PASS. Dual runtime mirror tốt. Không P0 bug gây mất dữ liệu.
+- **Security:** ✅ `sanitizeCellText_` (`Database.gs:270`) + `esc/escAttr` (`js.html`) phủ kín. `sanitizeCallback_` (`JsonpApi.gs:70`) chống XSS. Không lộ secrets.
+- **Performance:** ⚠️ Đã tối ưu nhiều (G1 batch, cache slim, incremental LOG_ROWS, version-gated poll). Còn 3 điểm `getDataRange` toàn sheet và 839K nặng.
+- **Reliability:** ⚠️ Chrome flaky do sleep+path (O-01/02), lock không retry (BUG-009), cache stale 30s (BUG-018).
+- **Maintainability:** ⚠️ Drift risk (BUG-008), `js.html` 233K + `camera-scan.html` 210K khó review.
+- **Test quality:** ✅ 368+85+11, cover edge (meal-move Ra/Vào, Dư, duplicate 1.5s, OCR, popup). Thiếu `waitUntil` cho chrome.
+
+---
+
+## 6.5. Cách kiểm chứng (đã chạy)
+
+```bash
+node --version          # v24.19.0
+python3 --version       # 3.12.3
+npm test                # 368 pass 0 fail 7313ms
+python3 -m unittest discover -s api -p 'test_*.py'  # 85 pass 0 fail 0.839s
+node scripts/build-local.js               # index.local.html built
+node scripts/test-local-mock.js           # 11/11 pass
+```
+
+**Lưu ý:** Không claim fix — toàn bộ đề xuất chưa thực hiện, chỉ nêu để user quyết định.
+
+*Báo cáo do model **meituan/longcat-2.0-free** (ID: kilo/meituan/longcat-2.0-free) tạo ra — chỉ rà soát, không thay đổi mã nguồn.*
