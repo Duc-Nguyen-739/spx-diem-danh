@@ -1,117 +1,122 @@
-# Báo cáo kiểm tra code — Điểm Danh HN2 SOC
+# Báo cáo rà soát & đánh giá mã nguồn — Điểm Danh HN2 SOC
 
-**Model đánh giá:** ling-3.0-flash-fin-free  
-**Ngày:** 2026-08-29
-
----
-
-## 1. Tổng kết
-
-| Lệnh | Test | Pass | Fail |
-| :--- | :--- | :--- | :--- |
-| `npm test` | JS (Node `node --test`) | 368 | 0 |
-| `npm run test:py` | Python (`unittest discover`) | 85 | 0 |
-| `npm run build:local` + `npm run test:chrome` | Chrome CDP headless | 11 | 0 |
-
-**Tổng cộng: 464 tests, 0 failures.**
+- **Ngày đánh giá:** 2026-08-29
+- **Model đánh giá:** hy3-free (opencode)
+- **Phạm vi:** Toàn bộ repo (10 file `.gs` + `api/*.py` + `tests/*` + UI 3 file `index.html`/`css.html`/`js.html` + camera + scripts)
+- **Quy tắc:** Chỉ rà soát + chạy test độc lập. **KHÔNG sửa code** (theo yêu cầu user).
 
 ---
 
-## 2. Chi tiết từng lệnh
+## 1. Kết quả chạy test (độc lập, toàn bộ)
 
-### 2.1. `npm test` — 368 tests JS
+| Bộ test | Lệnh | Kết quả |
+| :--- | :--- | :--- |
+| JS (`node --test`) | `npm test` | **368 pass / 0 fail** (27 file, 7.3s) |
+| Python (`unittest`) | `npm run test:py` | **85 pass / 0 fail** (0.5s) |
+| Chrome (CDP headless) | `npm run test:chrome` | **11 / 11 pass** |
+| Syntax check `.gs` | `node --check *.gs` | 10/10 file OK |
+| Syntax check `.py` | `python3 -m py_compile api/*.py` | OK (1 warning nhỏ, xem B4) |
 
-```
-node --test tests/*.test.js
-```
+**Ghi chú về test:chrome:** Môi trường sandbox không có Chrome (`spawn google-chrome ENOENT`),
+và `apt` chỉ cài được stub `chromium-browser` (snap) không chạy được. Để khắc phục và chạy được
+test (không sửa code), tôi đã tải **Chrome-for-Testing 152.0.7977.64 (linux64)** về `/tmp` và chạy
+với `CHROME_PATH=/tmp/chrome-linux64/chrome npm run test:chrome` → 11/11 pass.
 
-- 27 file test, tất cả pass.
-- Cover: ScanLogic, CsvUtil, TaskSearch, camera (autosnap/code128/continuous/popup), css/inline-html, scan-classify, submit-scan-guard, task-cards/task-menu/task-search, jsonp-api, header-search, meal-create, note-edit, ocr-scan, scan-cards/scan-update-epoch, gs-syntax, formula-injection, cache-layer, cdp-helper, code-doget, js-scanmode.
-- Duration: ~7521ms.
-- Không có test nào fail, không có lỗi runtime.
-
-### 2.2. `npm run test:py` — 85 tests Python
-
-```
-python3 -m unittest discover -s api -p 'test_*.py'
-```
-
-- 5 file test (`test_database.py`, `test_logic.py`, `test_main.py`, `test_services.py`, `test_sheets.py`).
-- Tất cả pass, duration ~446ms.
-- **Lưu ý:** output in ra 1 traceback từ `api/main.py:87` — `RuntimeError: secret path /home/abc`. Đây là lỗi được test cố ý kích hoạt để kiểm tra handling, nhưng traceback in ra stdout thay vì bị swallow. Xem mục bug bên dưới.
-
-### 2.3. `npm run build:local` + `npm run test:chrome` — 11 tests Chrome CDP
-
-```
-node scripts/build-local.js  →  index.local.html
-CHROME_PATH=<puppeteer-chrome> node scripts/test-local-mock.js
-```
-
-- 11 check pass: load mock, task list 30 rows, openScan 6 rows (S:3 A:3 E:1), quét Ops229444 (S+1 A-1), quét trùng (S không tăng), quét NV lạ (Dư+1), backToList.
-- Duration: vài giây.
-- **Lưu ý:** Chrome không tìm tự động — phải đặt `CHROME_PATH` thủ công. Xem mục bug/optimization bên dưới.
+**Kết luận test:** Không có test nào fail. Contract JS↔Python khớp (cả 2 runtime đều xanh).
 
 ---
 
-## 3. Bug & Vấn đề phát hiện
+## 2. Danh sách BUG / lỗi (chi tiết)
 
-### 3.1. [P2] Traceback in stdout trong test Python
+### [B1] Bảo mật — JSONP callback sanitize quá lỏng (reflected gadget)
+- **Vị trí:** `JsonpApi.gs:70-78` (`sanitizeCallback_`)
+- **Mô tả:** Regex cho phép member-expression dạng `a.b.c`
+  (`/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/`), chỉ chặn `__proto__`/`constructor`/`prototype`.
+  → Kẻ tấn công có thể truyền `?cb=window.alert` (hoặc `window.open`, `console.log`, `document.<x>`…).
+  Output phản chiếu thành `window.alert({...api response...});`. Dù argument là dữ liệu server (không
+  do attacker kiểm soát), cuộc gọi hàm phản chiếu vẫn có thể **lấy cắp response API chứa dữ liệu nội bộ**
+  (danh sách NV, task) hiển thị / chuyển tiếp cho nạn nhân qua một link độc.
+- **Bằng chứng:** `tests/jsonp-api.test.js:96-99` chỉ assert fallback với `__proto__`, `constructor`,
+  `$.ajax`, `a.b$c_1`… — **không** bắt `window.alert` hay `document.x.y`. Test xanh nhưng lỗ hổng còn.
+- **Mức độ:** Quan trọng (Security / P1)
+- **Gợi ý fix (chưa sửa):** chỉ cho phép identifier đơn `^[A-Za-z_$][A-Za-z0-9_$]*$`, không cho dấu chấm.
 
-- **Vị trí:** `api/main.py:87` — hàm `_bad_request` raise `RuntimeError("secret path /home/abc")`.
-- **Triệu chứng:** Khi chạy `npm run test:py`, output in ra `RuntimeError: secret path /home/abc` traceback dù tất cả test đều pass.
-- **Gốc:** Test mock đang gọi hàm raise error để verify error handling, nhưng traceback bị in ra stdout thay vì bị catch/supress.
-- **Ảnh hưởng:** Chỉ là noise trong log, không ảnh hưởng kết quả test.
-- **Ghi chú:** Đây là test đang verify behavior error path — không phải bug thực sự của ứng dụng.
+### [B2] Đúng đắn — Counter danh sách task không tính trạng thái "Ra ngoài" (OUT) cho meal-move
+- **Vị trí:** `Database.gs:367-389` (`taskCountersForList_`)
+- **Mô tả:** Hàm chỉ tính `total / scanned (có TIME_SCAN) / extra (status EXTRA)`. Một NV meal-move
+  đã quét **Ra** nhưng **chưa Vào** (status `OUT`) được tính vào `total` nhưng không nằm ở `scanned`,
+  `extra` hay `absent` → **S + A + E ≠ total** trên danh sách task. Trong khi `computeCounters`
+  (`ScanLogic.gs:78-96`) đã có trường `out` riêng và detail view dùng nó.
+- **Hậu quả:** Người dùng nhìn tổng task thấy số không khớp (thiếu nhóm "Ra ngoài" chưa Vào).
+- **Mức độ:** Quan trọng (Correctness / P1)
+- **Gợi ý fix (chưa sửa):** đưa trường `out` vào `taskCountersForList_` + đưa vào `computeTaskListSig`
+  và client hiển thị counter `out`.
 
-### 3.2. [P3] Chrome test không tự động tìm được Chrome trên hệ thống
+### [B3] Robustness — Meal-move quét thiếu `mode` → NV mới bị ghi "Dư" (EXTRA)
+- **Vị trí:** `ScanService.gs:208-214` (`resolveMealMoveMode_`) + `ScanLogic.gs:224-225`
+- **Mô tả:** Khi client gửi thiếu `mode`, `resolveMealMoveMode_` mặc định `'vao'`. Với mã NV **chưa có
+  trong log** (append), nhánh `mode === 'vao'` → `buildMealMoveExtraRow` status `EXTRA` (Dư). Tức là
+  lần quét đầu của 1 người hoàn toàn mới vào meal-move mà thiếu mode sẽ bị ghi **Dư** thay vì **Ra**.
+- **Hậu quả:** Dữ liệu sai (nhầm Dư) nếu UI/client lỡ gửi thiếu mode.
+- **Mức độ:** Trung bình (P2)
+- **Gợi ý fix (chưa sửa):** fail-closed bắt buộc `mode` hợp lệ cho meal-move, hoặc ưu tiên `'ra'`
+  khi task meal-move chưa có log Ra nào.
 
-- **Vị trí:** `scripts/test-local-mock.js:41-45` — danh sách path tìm Chrome.
-- **Triệu chứng:** Trên hệ thống này, `/usr/bin/chromium-browser` chỉ là script chuyển tiếp (transitional package) trỏ đến `/snap/bin/chromium` không tồn tại. Script tìm không được Chrome thật, fallback vào `google-chrome` → `ENOENT`.
-- **Cách khắc phục tạm:** Phải đặt `CHROME_PATH=/home/caigicungdc98/.cache/puppeteer/chrome/linux-152.0.7977.64/chrome-linux64/chrome`.
-- **Gợi ý fix:** Thêm path puppeteer Chrome cache vào danh sách auto-detect, hoặc dùng `puppeteer` package để tự tìm Chrome.
-
-### 3.3. [P3] Glob pattern `tests/*.test.js` có thể sót file trong subdirectory
-
-- **Vị trí:** `package.json:8` — `"test": "node --test tests/*.test.js"`.
-- **Ghi chú:** Bash expand glob trước khi truyền cho Node, nên không ảnh hưởng hiện tại. Nhưng nếu thêm test file trong subdirectory `tests/unit/` sẽ bị bỏ qua. `node --test tests/**/*.test.js` hoặc dùng `node --test 'tests/**/*.test.js'` sẽ an toàn hơn.
-
----
-
-## 4. Đề xuất tối ưu
-
-### 4.1. [P3] Nên suppress traceback trong test Python error path
-
-- Trong `api/main.py`, hàm `_bad_request` hoặc test mock nên wrap error trong try/catch hoặc dùng `warnings.catch_warnings` để không in traceback ra stdout khi test error handling.
-
-### 4.2. [P3] Nâng cấp auto-detection Chrome trong `test-local-mock.js`
-
-- Thêm các path thường gặp của puppeteer cache: `~/.cache/puppeteer/chrome/*/chrome-linux64/chrome`.
-- Hoặc cài `puppeteer` làm devDependency để dùng `puppeteer.executablePath()`.
-- Hoặc simplest: thêm `CHROME_PATH` vào `.env` hoặc script wrapper.
-
-### 4.3. [P2] Nên tách `npm test:py` output sạch hơn
-
-- Hiện tại output của Python test trộn traceback với kết quả pass/fail. Nên dùng `-v` flag hoặc redirect stderr riêng để user dễ đọc.
-
-### 4.4. [P3] Xem xét thêm `test:chrome` vào CI gate
-
-- Theo AGENTS.md §21, `test:chrome` nên chạy trong CI (`.github/workflows/deploy.yml`). Đã được đề cập nhưng cần verify script CI có đủ `CHROME_PATH` setup không.
-
----
-
-## 5. Tình trạng tổng thể
-
-- **Correctness:** ✅ Tất cả 464 tests pass.
-- **Readability:** ✅ Test naming rõ ràng, cover cả edge case.
-- **Security:** ✅ Không lộ secrets, test XSS/SQL injection paths.
-- **Performance:** ✅ JS test ~7.5s, Python ~0.5s — hợp lý.
-- **Reliability:** ⚠️ Chrome test cần setup thủ công CHROME_PATH.
+### [B4] Code quality (nhỏ) — Python `SyntaxWarning: invalid escape sequence` trong docstring
+- **Vị trí:** `api/main.py:1` (docstring chứa `\.` chưa phải raw string)
+- **Mô tả:** `python3 -m py_compile` báo `SyntaxWarning: invalid escape sequence '\.'`. Không ảnh
+  hưởng runtime, nhưng là warning rác và sẽ thành error ở Python 3.12+ strict.
+- **Mức độ:** Nhỏ (P3)
+- **Gợi ý fix (chưa sửa):** dùng raw string `r"..."` cho docstring chứa regex.
 
 ---
 
-## 6. Verification
+## 3. Đề xuất TỐI ƯU (performance / kiến trúc)
 
-1. `npm test` → 368 pass, 0 fail ✅
-2. `npm run test:py` → 85 pass, 0 fail ✅
-3. `npm run build:local` → `index.local.html` built ✅
-4. `CHROME_PATH=<path> npm run test:chrome` → 11 pass, 0 fail ✅
+### [O1] `searchStaffApi` đọc full StaffData (20 cột) chỉ để tìm 1 mã
+- **Vị trí:** `Code.gs:219` (`searchStaffApi` gọi `readStaffList_()`)
+- **Mô tả:** Hàm đọc toàn bộ StaffData (parse 20 cột) chỉ để tìm profile của mã đang tìm, trong khi
+  đã có `readStaffIndex_()` (slim, cached 5m) đủ dùng cho tra cứu. Lãng phí 1 lần đọc/parse sheet lớn
+  mỗi lần search.
+- **Gợi ý:** thay `readStaffList_()` bằng `readStaffIndex_()` cho phần tìm `staff`.
+
+### [O2] `getStaffIndexApi` trả TOÀN BỘ index mỗi lần (không delta/signature)
+- **Vị trí:** `Code.gs:272-287`
+- **Mô tả:** Không có signature như `getTaskListApi`/`getTaskDetailApi` → mỗi lần gọi truyền toàn bộ
+  index (lên tới ~100KB với 750 NV). Client có localStorage cache nhưng lần đầu (và mỗi khi cache hết)
+  tốn băng thông lớn.
+- **Gợi ý:** thêm `clientSig` + trả `{ok, unchanged:true}` khi không đổi (như O-A delta poll).
+
+### [O3] `createReconcileTask` đọc StaffData 2 lần trong lock
+- **Vị trí:** `TaskService.gs:66` (`readStaffList_()`) + `TaskService.gs:72` (`readStaffIndex_()`)
+- **Mô tả:** Trong cùng 1 lock, hàm đọc full StaffData (để lọc tổ hợp) rồi lại đọc staffIndex (slim).
+  Có thể dùng chung 1 lần đọc `readStaffList_` để vừa lọc vừa build index tạm, giảm 1 lần parse sheet.
+- **Gợi ý:** tái dùng kết quả `readStaffList_` đã có thay vì gọi `readStaffIndex_()` riêng.
+
+### [O4] `taskCountersForList_` đọc lại toàn bộ AttendanceLog mỗi lần miss cache
+- **Vị trí:** `Database.gs:367-389`
+- **Mô tả:** Với log rất lớn (10k+ dòng) chạy mỗi 30s (cache). Đã cached nên chấp nhận, nhưng có thể
+  chuyển sang incremental index theo taskId để tránh quét full sheet khi log phình.
+- **Mức độ:** Tùy chọn (P3) — chỉ can thiệp khi log thực tế >10k dòng.
+
+### [O5] `pasteMealMoveScan` không ghi `durationMinutes` (không phải bug)
+- **Vị trí:** `ScanService.gs:313-322`
+- **Mô tả:** Batch paste không set cột duration. Tuy nhiên `LOG_COLS` không có cột duration (tính lại
+  khi đọc ở `logFromRow_` — `Database.gs:431`), nên data hiển thị vẫn đúng. Chỉ là redundancy, không
+  cần sửa. Ghi nhận để tránh hiểu nhầm sau này.
+
+---
+
+## 4. Đánh giá tổng quan
+
+- **Chất lượng chung:** Rất tốt. Code tuân thủ chặt chẽ quy ước GAS (batch `getValues`/`setValues`,
+  cache có fallback, lock scope tối thiểu, timezone cache, sanitize formula injection A1, fail-closed
+  permission). Phủ test rộng (368 JS + 85 py + 11 chrome) và contract JS↔Python khớp.
+- **Bug nghiêm trọng (P0):** Không có.
+- **Cần ưu tiên fix:** **B1 (bảo mật JSONP)** > **B2 (counter meal-move)** > B3.
+- **Không tự sửa code** theo yêu cầu — các gợi ý trên chỉ để tham khảo, chưa áp dụng.
+- **Test:** Toàn bộ xanh sau khi khắc phục môi trường thiếu Chrome (cài Chrome-for-Testing).
+
+---
+
+*Báo cáo do model **hy3-free (opencode)** tạo ra — chỉ rà soát, không thay đổi mã nguồn.*
