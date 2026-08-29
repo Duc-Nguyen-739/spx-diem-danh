@@ -3,11 +3,22 @@ name: Deploy to GAS
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+# FIX-25 smoothness: 2 push sát nhau không race version
+concurrency:
+  group: deploy-gas
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Setup Chrome
         id: setup-chrome
@@ -35,6 +47,19 @@ jobs:
           python3 -m unittest discover -s api -p 'test_*.py'
           npm run build:local
           npm run test:chrome
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
       - name: Setup Node + clasp
         run: |
