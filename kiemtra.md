@@ -1493,3 +1493,121 @@ npm run test:chrome       # PASS 11/11 FAIL 0
 ---
 
 *Báo cáo do model **phi-1-codestral-22b** tạo ra — rà soát + chạy test độc lập, không thay đổi mã nguồn. Ghi nối tiếp vào `kiemtra.md` từ dòng 1361 (sau báo cáo agnes-2.5-flash), không đè bất kỳ dòng nào của 8 báo cáo trước.*
+
+---
+
+# Báo cáo kiểm tra độc lập lần 10 — Model: GLM (glm-5.3-flash-free) (2026-08-29)
+
+> Rà soát + chạy test độc lập toàn bộ repo. **Không đọc các đánh giá trước khi test** (chỉ mở `kiemtra.md` sau khi test xong để lấy số thứ tự). **Không sửa bất kỳ dòng code nào** (chỉ chạy lệnh test + curl CDN để kiểm chứng). Bug đánh số tiếp nối: BUG-029+; tối ưu: O-29+.
+
+## 26. Kết quả chạy test độc lập (evidence thực tế)
+
+Môi trường: Node v24.19.0 · Python 3.12.3 · Chrome headless có sẵn — **test:chrome chạy thành công ngay lần đầu, không cần khắc phục môi trường** (không có lỗi để khắc phục).
+
+| Lệnh | Kết quả | Chi tiết |
+| :--- | :------ | :------- |
+| `npm run build:local` | ✅ OK | `index.local.html built (templates resolved)` |
+| `npm test` | ✅ **368/368 PASS, 0 fail** | ~3.4s — 27 file test, node:test |
+| `npm run test:py` | ✅ **85/85 OK** | 0.165s — traceback trong log là case test lỗi **có chủ đích** (assert RuntimeError "secret path /home/abc"), dòng cuối `OK` |
+| `npm run test:chrome` | ✅ **PASS 11/11, FAIL 0** | CDP headless — load mock, task list 30 rows, openScan 6 rows S:3 A:3 E:1, quét Ops229444 S+1 A-1, trùng, Dư+1, backToList — tất cả PASS |
+
+Kiểm chứng độc lập ngoài test suite (do tôi tự chạy, không dựa vào test có sẵn):
+
+1. **Chạy thư viện ZXing thật** (`@zxing/library@0.20.0` UMD tải từ CDN mà repo dùng, chạy trong Node): gọi `MultiFormatReader.decode()` trên frame trắng → **THREW** `No MultiFormat Readers were able to detect the code.` (không trả `null`) → cơ sở cho BUG-029.
+2. **Chạy `hmac.compare_digest` với chuỗi non-ASCII** → `TypeError: comparing strings with non-ASCII characters is not supported` → cơ sở cho BUG-033.
+
+## 27. Bug / Vấn đề tìm được (rà soát độc lập)
+
+Mọi finding mức Important/Critical đều được tôi verify trực tiếp bằng đọc code + chạy thử (không báo suy đoán). Ghi rõ file:line.
+
+### Critical
+
+- **BUG-029 — camera-scan.html:1961 + 1998-2043: thang decode ZXing nhiều bậc (bậc 2→4b) CHẾT trên browser thật.**
+  - `zxingDecodeImageData` gọi `camZxingReader.decode(bitmap, hints)` **không có try/catch** (line 1961). ZXing thật **throw `NotFoundException`** khi không thấy mã (đã chạy thử lib 0.20.0 — xem mục 26), không trả `null`.
+  - `camZxingDecode` bọc **cả 5 bậc trong 1 try/catch duy nhất** (line 2000–2042): bậc 1 (full frame) throw trên gần như mọi frame không có mã → nhảy thẳng `catch → onCode(null)` → **bậc 2 (downscale 1280, line 2015), bậc 3 (crop native, 2024), bậc 4 (crop 1.4×+TRY_HARDER, 2032), bậc 4b (GlobalHistogram, 2038) KHÔNG BAO GIỜ chạy** — dù comment 2029–2031 gọi bậc 4 là "đường chính cho mã để xa".
+  - Web Worker không bị ảnh hưởng (bọc try/catch per-message) nên phần nào che hậu quả; nhưng ladder decode main-thread thực tế chỉ còn bậc 1 + Quagga fallback.
+  - **Vì sao test không bắt được:** mock trong `tests/camera-code128.test.js:476,525` cho `decode` **return null** (giả định sai của code), không throw như lib thật — test đếm số lần gọi (line 539) với mock không thể throw.
+  - **Hướng fix (khi được phép):** bọc try/catch quanh từng lần gọi `zxingDecodeImageData` (hoặc catch bên trong hàm, throw → return `null`) + sửa mock test cho throw để Regression test bắt đúng.
+
+### Important
+
+- **BUG-030 — js.html:1534–1542: `loadTaskDetail` success handler thiếu guard `scanBusy()`** → RPC nền (SWR silent path line 1422, hoặc reload sau paste 2587 khi `PASTE_BUSY` đã release trước khi RPC về) về giữa chừng user đang quét → `renderScanView(res)` **thay nguyên mảng `CURRENT_LOG`** → dòng optimistic trở thành object mồ côi, card quét revert "Chưa điểm danh" vài giây dù scan thành công (poll 3s tự sửa). `openScan` chỉ guard `scanBusy()` tại thời điểm gọi (1391), còn success handler của poll có guard (1643) — riêng path này thiếu.
+- **BUG-031 — js.html:3135–3143: `updateQueueFullState` ghi `inp.disabled = full` vô điều kiện** → `full=false` luôn bật lại input, phá disable có chủ đích ở: `renderScanView` line 1500 (task đã kết thúc → phải disabled), `loadTaskDetail` non-silent line 1529 (đang load), paste line 2574 (đang batch). Không sai data (submitScan tự guard) nhưng phá ý đồ UI. Fix: chỉ `if (full) inp.disabled = true;`.
+- **BUG-032 — js.html:2974: `submitScanSingle` không check `PASTE_BUSY`** (chỉ check ở 2560 và nhánh meal-move-batch 2931) + camera auto-submit gọi thẳng `submitScan()` (camera-scan.html ~2446–2451, không check `disabled`) → trong lúc RPC paste batch đang bay, 1 mã decode được → RPC `scanStaffApi` chạy song song với `pasteMealMoveScanApi` trên cùng task → khi paste xong gọi `loadTaskDetail` (2587) đẻ thêm race BUG-030.
+- **BUG-033 — api/main.py:132: `hmac.compare_digest(token, required)` văng TypeError với token non-ASCII** (đã chạy thử — xem mục 26). `token` là input user; khi `ROLLCALL_API_TOKEN` bật, chỉ cần gửi token chứa ký tự non-ASCII → exception không bắt → **500 thay vì 401**. Fix 1 dòng: `hmac.compare_digest(token.encode(), required.encode())`.
+- **BUG-034 — api/database.py:147–148 (mirror GAS Database.gs:324–325): `update_task_status` ghi STATUS và COMPLETED_AT bằng 2 RPC rời nhau, không atomic** → RPC 1 OK + RPC 2 fail → task DONE nhưng `completedAt` rỗng; retry bị chặn vĩnh viễn tại `api/services.py:254–255` (`if task["status"] != OPEN: return "Task đã kết thúc"`). File này đã có sẵn pattern ghi 1 RPC cho cột không liền kề (`update_log_row_ra`, database.py:560–565) — áp dụng cùng trick là xong.
+- **BUG-035 — CacheLayer.gs:46–62: `cachedJsonRev_` thiếu TOCTOU fix mà mirror Python đã có.** `api/cache.py:108–127` đọc rev TRƯỚC + SAU `load()`, lệch thì bỏ cache (fix P1-2 2026-08-25); GAS đọc rev **sau** load (line 57) rồi put `{v: rev, d: value}` — writer bump rev trong lúc reader đang load full-sheet (1–3s) → **stale data được gắn rev mới**, serve stale tới hết TTL 30s. Mirror divergence thật, cần port fix sang GAS.
+- **BUG-036 — Code.gs:392–415 + Database.gs:819–834: `syncFromCsv`/`overwriteStaffData_` vừa thiếu LockService vừa không atomic.** `clearContent()` (line 822) xong mới `setValues()` (line 831) — nếu `setValues` throw (quota/network) → **StaffData bị xoá trắng, dữ liệu gốc mất**; execution khác (scan NV lạ đọc `readStaffIndex_`) chạy giữa 2 RPC → đọc bảng rỗng/nửa chừng. Mọi write path khác đều có `waitLock` — đây là điểm lệch duy nhất.
+- **BUG-037 — Database.gs:760–762, 845–851: `updateLogRowScan_`/`updateLogRowRa_` tin `_rowIndex` từ cache 30s (`readLogRowsCached_`) mà không verify lại dòng đích.** Ai đó insert/delete/sort tay sheet AttendanceLog trong cửa sổ 30s → scan ghi giờ + status vào **dòng của NV khác** (silent corruption). Đối chứng: `batchMealMoveLogUpdates_` (Database.gs:864–887) CÓ verify taskId tại dòng đích (G1) — riêng 2 đường scan đơn không có. Python mirror cùng lỗi (`api/database.py:488–497` + `services.py:434` dùng row từ cache) → cần fix cả 2 phía.
+
+### Suggestion (bug nhỏ / dead feature)
+
+- **BUG-038 — camera-scan.html:439–445 + 271: OCR trong popup là dead feature nhưng vẫn tốn tick.** Popup `LIBS.ocr = o.camOcrFrame` là function reference **luôn truthy** → `ocrTick` không short-circuit; mỗi ~800ms popup resize canvas 1920→800 + tạo canvas mới + gọi opener `camOcrFrame` → `cb(null)` vĩnh viễn (P2-2 2026-08-23 làm OCR lazy-load theo streak fail của **modal** loop — popup mode modal không chạy → streak không bao giờ tăng → Tesseract không bao giờ load). Churn GC/CPU thật trên chính đường popup (GAS/iOS).
+- **BUG-039 — camera-scan.html:1272–1276 + 1841–1845: OCR fallback cho ẢNH CHỤP chết hoàn toàn.** `onCamFileChange` → `closeCameraModal()` (→ `stopOcrLoop()` terminate worker, line 1105/1821–1824) → `decodeCameraImage` → `ocrPhotoFallback` tới đâu `camOcrWorker` = null → guard 1845 fail NGAY, không bao giờ OCR được ảnh mờ. Session chưa mở modal cũng fail (worker chỉ init qua modal flow). Regression âm thầm của leak-fix 2026-08-24.
+- **BUG-040 — js.html:560–561: `renderSearchResult` guard `!res ||` nhưng dòng dưới vẫn truy cập `res.message`** → TypeError khi `res` null (guard có ý xử lý nhưng không đúng).
+- **BUG-041 — js.html:817–820: timeout 5s của `refreshAll` không lưu handle/clear** → refresh #1 xong sớm, timer cũ bắn ở giây 5 nhả lock của refresh #2 đang bay → phá invariant của `_refreshPending`.
+- **BUG-042 — js.html:2763–2779: meal-move success handler thiếu sync `res.timeScanEpoch`** (reconcile có ở 3194–3197 kèm comment B11) → mode 'vào' giữ epoch client (`Date.now()`) lệch clock tới khi reload → sort cột "Giờ Vào" sai thứ tự nếu đồng hồ kiosk lệch. Chính sự trùng lặp processScanQueue/processScanQueueMealMove (~85 dòng, xem O-34) là nguồn của loại lệch này.
+- **BUG-043 — camera-scan.html:2446–2455: `onCameraDecoded` return sớm (scanInput vắng) hoặc `submitScan()` throw đồng bộ → cờ `camDecoding`/`camSnapping` kẹt**, tick loop đứng tới khi đóng modal. Nên reset cờ trong try/finally.
+- **BUG-044 — camera-scan.html:2326–2329: postMessage vào popup vừa đóng throw → kết quả server của lượt cuối bị rơi** (watch interval ≤500ms mới reset `camPopupRef`); không render ở modal lẫn popup dù đã record.
+- **BUG-045 — api/main.py:114–120: handler không xử lý `isBase64Encoded`** dù docstring tuyên bố tương thích event Vercel/AWS (main.py:11–12) → body base64 → `json.loads` fail lặng lẽ → action/token trong body bị bỏ qua.
+- **BUG-046 — api/main.py:50, 26–29: action `probe` gọi ẩn danh khi chưa set token (mặc định)** → lộ số dòng StaffData cho bất kỳ ai. Nên gate probe sau token luôn.
+
+## 28. Điểm tối ưu / Cải thiện (không phải bug — khuyến nghị)
+
+- **O-29 — js.html:1031 + 1708: poll danh sách seed signature từ list ĐÃ LỌC.** `_taskPageList` là kết quả `applyDashFilters` (1265–1271) → `startTaskListPolling` seed `lastTaskListSig` từ list con → poll đầu tiên sau khi vào màn danh sách (filter đang bật) gửi sig không khớp server → nhận full list 1 lần thừa. Sau tick đầu, `lastTaskListSig` được sửa lại từ response (1743) nên tác động **bounded 1 response** (không phải mỗi tick như có thể hiểu nhầm). Vẫn nên giữ riêng sig của list đầy đủ cho poll.
+- **O-30 — camera-scan.html:1948: buffer `camZxingGray` reuse vô hiệu giữa các bậc** — 4 bậc ladder dùng 4 kích thước khác nhau (sau khi fix BUG-029 mỗi bậc đều realloc); đồng thời `closeCameraModal` (1130–1136) giải phóng 4 canvas nhưng quên buffer này (~2.7MB giữ vĩnh viễn module scope).
+- **O-31 — camera-scan.html:909–923: nhánh BarcodeDetector chạy rAF không throttle** (~30–60 lần/s) trong khi các nhánh khác 200ms/tick — tốn CPU/pin trên Android. Throttle 100–200ms cho khớp.
+- **O-32 — camera-scan.html:761–789 + 93–94: `startScanResultPolling`/`stopScanResultPolling` + `camLegacyPollTimer`/`Since` dead code** (zero caller toàn repo) — đường localStorage của tab `?scan=1` đã bỏ nhưng hàm còn nguyên.
+- **O-33 — js.html:1002, 1797, 3371 (pattern `onclick="fn('...')"` + `escAttr`): escape HTML-entity không đủ cho ngữ cảnh JS** (entity decode diễn ra TRƯỚC khi parse JS → `'` vẫn kết thúc chuỗi). Hiện an toàn vì taskId sinh server-side chỉ chữ+số+gạch (`TaskService.gs makeTaskId_`), nhưng là hardening gap — nên `addEventListener` + `dataset` như các chỗ keyed-diff đã làm.
+- **O-34 — js.html:3145–3250 vs 2730–2820: `processScanQueue` / `processScanQueueMealMove` trùng ~85 dòng** (rollback, syncCounters, 2 handler, cập nhật target) — gốc sinh BUG-042; gộp sẽ hết lệch sửa-1-quên-1.
+- **O-35 — js.html:1091 (`PAGIN_TRUCK`), 1791 (`canEdit` luôn true), 2898 (nhánh push không bao giờ chạy — caller duy nhất truyền giá trị đã có sẵn trong wantStatuses): dead code** — xóa khi dịp dọn dẹp.
+- **O-36 — js.html:2513–2523: `copyAllOpsCodes` double-click kẹt nhãn "✓ Đã copy"** (timer sau cùng trả lại nhãn sai). Guard theo class `copied` hoặc lưu nhãn gốc ở dataset.
+- **O-37 — js.html:1505–1510 + 1674–1680: focus `scanInput` không check `document.activeElement`** → poll có thay đổi (~3s) giật focus khỏi editor ghi chú `#taskNoteEdit` khi user đang gõ (restore list của `applyPolledScanDetail` thiếu taskNoteEdit). Guard INPUT/TEXTAREA như auto-focus loop line 345.
+- **O-38 — api/cache.py:24–42 `_ttl_of` dead code** (0 caller) — xóa để tránh ai sửa `CACHE_TTL` tưởng có tác dụng.
+- **O-39 — api/cache.py:21, 60–66: FIFO eviction 200 key có thể đuổi key nóng toàn cục** (`STAFF_INDEX`, `TASK_LIST_REV`) — ~100 task xem qua là chạm trần; đuôi `TASK_LIST_REV` bị đuổi kích hoạt đúng nhánh reset "1". Nên LRU hoặc miễn trừ key toàn cục.
+- **O-40 — api/sheets.py:47–62 + 85+: `get_service()` check-then-set không lock (cold-start benign)**; global lock bao mọi `execute()` tuần tự hoá mọi Google API call process-wide — có thể thread-local `Http` cho read song song khi scale.
+- **O-41 — TaskService.gs:109, 358: `task._rowIndex` không tồn tại ở nhánh cleanup** (object local tự build) → luôn rơi fallback `readTask_` tốn thêm 1 RPC + gây nhầm người đọc.
+- **O-42 — Database.gs:806–811: `appendLogRow_` thiếu `setNumberFormat('HH:mm:ss')`** (batch path 970–975 có) → dòng "Dư" append đơn hiển thị datetime đầy đủ trong sheet (data đúng, display lệch).
+- **O-43 — Database.gs:276–283: `toEpochSafe_` không xử lý serial number của Sheets** (Python `to_datetime` xử lý) — edge case khi cell bị sửa tay thành số.
+- **O-44 — api/services.py:401: docstring stale** ("GAS: chỉ creator (email session) được 'ra'") ≠ GAS thật (`ScanService.gs:200–214` ghi rõ KHÔNG check session — chỉ yêu cầu `createdBy` non-empty). Documentation intent ≠ behavior, nên sửa docstring.
+
+## 29. Đánh giá tổng thể
+
+| Mức | Số lượng | Ghi chú |
+| :-- | :-- | :-- |
+| Critical | **1** | BUG-029 (decode ladder main-thread chết — worker che một phần, ảnh hưởng tốc độ nhận mã xa/nghiêng) |
+| Important | **9** | 4 client race/state (BUG-030..032, 041) · 2 non-atomic/data-loss window (BUG-034, 036) · 1 auth crash 500 (BUG-033) · 1 cache TOCTOU mirror divergence (BUG-035) · 1 wrong-row write risk (BUG-037) |
+| Suggestion | ~18 | dead code, dead feature OCR, docstring stale, hardening, perf nhỏ |
+
+**Điểm mạnh đã verify (không phải lời khen suông):**
+- 464/464 test pass (368 JS + 85 PY) + 11/11 test:chrome — CI gate đủ.
+- XSS: sink `innerHTML` đều qua `esc()`/`escAttr()` hoặc chuỗi tĩnh; JSONP callback whitelist + chặn `__proto__`; formula injection sanitize đủ write boundary.
+- GAS: batch `getValues`/`setValues` đúng chuẩn, `Logger.log` (không `console.log`), lock đúng mọi read-modify-write (trừ BUG-036), cache có fallback.
+- Classification S/A/E + signature mirror khớp GAS↔Python tại mọi nhánh đối chiếu.
+- Timer/interval đều có cặp stop; keyed-diff render cho bảng lớn.
+
+**Không tìm thấy:** SQL/Sheets-range injection, lộ secret, crash path trong flow điểm danh bình thường.
+
+## 30. Cách kiểm chứng (đã chạy)
+
+```bash
+node --version             # v24.19.0
+npm run build:local        # index.local.html built (templates resolved)
+npm test                   # i tests 368 / i pass 368 / i fail 0 (~3.4s)
+npm run test:py            # Ran 85 tests in 0.165s — OK
+npm run test:chrome        # PASS: 11 / 11  FAIL: 0
+# Kiểm chứng BUG-029: chạy @zxing/library@0.20.0 (CDN repo dùng) trong Node:
+#   reader.decode(bitmap, hints) trên frame trắng
+#   → THREW: No MultiFormat Readers were able to detect the code.  (không trả null)
+# Kiểm chứng BUG-033: hmac.compare_digest('opsé','sekret')
+#   → TypeError: comparing strings with non-ASCII characters is not supported
+```
+
+Mỗi finding Important/Critical đều kèm file:line + trích code trong mục 27; các mục Suggestion cũng được trích code khi review.
+
+## 31. Kết luận & Việc tiếp theo
+
+- **P0 (fix ngay khi được phép):** BUG-029 — 1 thay đổi nhỏ (try/catch từng bậc decode) mở lại cả 4 bậc decode đang chết; kèm sửa mock test cho throw để regression bắt được.
+- **P1:** BUG-033 (1 dòng `.encode()`), BUG-036 (lock + đổi thứ tự ghi StaffData), BUG-037 (verify taskId tại dòng đích — cả 2 runtime), BUG-035 (port TOCTOU fix sang `cachedJsonRev_`), BUG-030/031/032 (guard client), BUG-034 (ghi 1 RPC).
+- **P2/P3:** dead feature OCR (BUG-038/039), dead code (O-32, O-35, O-38), hardening + perf còn lại.
+- **Không sửa code** trong phiên này (theo yêu cầu). Toàn bộ test đã chạy lại sạch trước khi ghi báo cáo.
