@@ -396,12 +396,12 @@ def get_task_detail(task_id, client_sig=None):
 # ===== Scan =====
 
 def resolve_meal_move_mode(task, mode):
-    """mode hiệu lực cho meal-move.
+    """mode hiệu lực cho meal-move — mirror resolveMealMoveMode_ (ScanService.gs).
 
-    GAS: chỉ creator (email session) được 'ra', còn lại ép 'vao' (fail-closed).
-    Standalone anonymous: KHÔNG có session → kiosk trust client's mode (cùng mức
-    tin cậy với phần còn lại của app anonymous). Ghi chú divergence 2026-08-12.
-    """
+    KHÔNG check session người quét (kiosk anonymous — cả 2 runtime cùng behavior):
+    ai quét cũng được 'ra', nhưng vẫn yêu cầu task CÓ createdBy (rỗng → ép 'vao'
+    fail-closed). Docstring cũ mô tả GAS check email session — đã stale từ khi
+    GAS đổi sang cùng logic fail-closed (ScanService.gs resolveMealMoveMode_)."""
     if mode != "ra":
         return "vao"
     if not task:
@@ -410,6 +410,18 @@ def resolve_meal_move_mode(task, mode):
     if not created_by:
         return "vao"
     return "ra"
+
+
+def _stale_row_result(log_rows):
+    """FIX-03: dòng đích không còn thuộc task (sheet bị sửa tay trong cửa sổ cache
+    30s) → trả lỗi để client rollback, không ghi đè dòng NV khác. Counters trả về
+    từ log_rows local (state chưa ghi gì)."""
+    return {
+        "ok": False,
+        "message": config.UI_LABELS["STALE_ROW"],
+        "status": None, "scanPhase": None,
+        "counters": scanlogic.compute_counters(CFG, log_rows),
+    }
 
 
 def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
@@ -466,14 +478,18 @@ def scan_staff(task_id, raw_staff_id, mode=None, now_override=None):
 
         if result["action"] == "update":
             if is_meal and result.get("scanPhase") == "ra":
-                database.update_log_row_ra(result["row"], now_dt, result["status"])
+                written = database.update_log_row_ra(result["row"], now_dt, result["status"])
+                if not written:
+                    return _stale_row_result(log_rows)
                 result["row"]["timeRa"] = now_dt
                 result["row"]["timeRaEpoch"] = cache.epoch_ms(now_dt)
                 result["row"]["status"] = result["status"]
                 time_ra_text = cache.format_time(now_dt)
                 time_ra_epoch = cache.epoch_ms(now_dt)
             else:
-                database.update_log_row_scan(result["row"], now_dt, result["status"])
+                written = database.update_log_row_scan(result["row"], now_dt, result["status"])
+                if not written:
+                    return _stale_row_result(log_rows)
                 result["row"]["timeScan"] = now_dt
                 result["row"]["timeScanEpoch"] = cache.epoch_ms(now_dt)
                 result["row"]["status"] = result["status"]
@@ -577,6 +593,10 @@ def paste_meal_move_scan(task_id, codes, mode=None, now_override=None):
 
         eff_mode = resolve_meal_move_mode(task, mode)
         log_rows = database.read_log_rows(task_id)  # tươi — cần _rowIndex cho batch write
+        # FIX-29: guard tổng số dòng log — paste 200 mã vào task gần trống có thể
+        # bùng nổ AttendanceLog (mỗi NV lạ = 1 dòng append vĩnh viễn). Chặn sớm.
+        if len(log_rows) + len(norm_codes) > config.PASTE_LOG_ROWS_MAX:
+            return {"ok": False, "message": config.UI_LABELS["PASTE_LOG_TOO_MANY"], "summary": None, "counters": None}
         updates = []
         new_rows = []
         summary = {"total": len(norm_codes), "ra": 0, "vao": 0, "extra": 0, "duplicate": 0, "already": 0}

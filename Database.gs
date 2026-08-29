@@ -90,10 +90,17 @@ function ensureSheets_() {
   // BUG 2026-08-20 (review): headers[nextCol-11] với nextCol=10 (sheet 9 cột) →
   // headers[-1]=undefined → header cột 10 ghi rỗng. Dùng map cột → header đúng.
   var LOG_HEADER_BY_COL = { 10: 'status', 11: 'date', 12: 'timeRa', 13: 'agency' };
+  var addedCols = [];
   while (logSheet.getLastColumn() < LOG_COL_COUNT) {
     var nextCol = logSheet.getLastColumn() + 1;
     logSheet.insertColumnAfter(logSheet.getLastColumn());
-    logSheet.getRange(1, nextCol).setValue(LOG_HEADER_BY_COL[nextCol] || '');
+    addedCols.push(nextCol);
+  }
+  // FIX-20: ghi header các cột mới 1 setValues (cột thêm luôn liền nhau) thay setValue
+  // trong loop — migration-only nhưng vẫn tránh N RPC.
+  if (addedCols.length) {
+    logSheet.getRange(1, addedCols[0], 1, addedCols.length)
+      .setValues([addedCols.map(function (c) { return LOG_HEADER_BY_COL[c] || ''; })]);
   }
   // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
   // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
@@ -120,7 +127,9 @@ function ensureSheets_() {
 function readStaffIndex_() {
   return cachedJson_(CACHE_KEYS.STAFF_INDEX, function () {
     const sheet = getSheet_(SHEETS.STAFF_DATA);
-    const values = sheet.getDataRange().getValues();
+    // FIX-21: chặn độ rộng theo STAFF_DATA_COL_COUNT — getDataRange() đọc tới
+    // lastColumn thật (cell dán lỡ tay ngoài cột T là đọc thừa cả khối).
+    const values = readStaffDataValues_(sheet);
     const index = buildStaffIndex(values);
     // 2026-08-20 (review): cache SLIM — chỉ giữ field đường quét cần (staffName/
     // slotCode/station/team/workstation/agency — buildExtraRow + getStaffIndexApi).
@@ -161,8 +170,9 @@ function readStaffList_() {
 /** Đọc StaffData trực tiếp từ sheet — bỏ qua cache (chỉ dùng khi cần data mới). */
 function readStaffListUncached_() {
   const sheet = getSheet_(SHEETS.STAFF_DATA);
-  const values = sheet.getDataRange().getValues();
-  const header = values[0].map(function (h) { return String(h || '').trim(); });
+  // FIX-21: chặn độ rộng STAFF_DATA_COL_COUNT (xem readStaffIndex_).
+  const values = readStaffDataValues_(sheet);
+  const header = (values[0] || []).map(function (h) { return String(h || '').trim(); });
   const fieldOf = {};
   for (let c = 0; c < header.length; c++) {
     const f = CSV_HEADER_FIELD[header[c]];
@@ -317,12 +327,14 @@ function updateTaskNote_(taskId, note, rowIndex) {
 function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
   const write = function (r) {
-    // P0 FIX: ghi 2 cột rời nhau (STATUS cột 6, COMPLETED_AT cột 9 — KHÔNG liền nhau,
-    // TASK_COLS: STATUS=5, CREATED_AT=6, CREATED_BY=7, COMPLETED_AT=8).
-    // Lỗi cũ: getRange(r, STATUS+1, 1, 2) ghi [status, completedAt] vào cột 6,7
-    // → completedAt ĐÈ LÊN CREATED_AT (phá hủy thời điểm tạo), COMPLETED_AT không bao giờ ghi.
-    sheet.getRange(r, TASK_COLS.STATUS + 1).setValue(status);
-    sheet.getRange(r, TASK_COLS.COMPLETED_AT + 1).setValue(completedAt || '');
+    // FIX-05 (P1): ghi 4 cột STATUS→COMPLETED_AT trong 1 setValues (atomic) — trước
+    // đây 2 setValue rời: RPC 1 (status) OK + RPC 2 (completedAt) fail (quota/network)
+    // → task DONE nhưng completedAt rỗng VĨNH VIỄN (retry bị chặn 'Task đã kết thúc').
+    // CREATED_AT/CREATED_BY đọc giữ nguyên làm filler — ghi đúng thứ tự cột nên không
+    // đè. (P0 cũ: getRange(r, STATUS+1, 1, 2) ghi [status, completedAt] lệch khối →
+    // completedAt ĐÈ CREATED_AT — đã khắc phục bằng ghi đúng khối STATUS..COMPLETED_AT.)
+    const mid = sheet.getRange(r, TASK_COLS.CREATED_AT + 1, 1, 2).getValues();
+    sheet.getRange(r, TASK_COLS.STATUS + 1, 1, 4).setValues([[status, mid[0][0], mid[0][1], completedAt || '']]);
     invalidateTaskListCache_();
     invalidateTaskCache_(taskId);
     invalidateTaskDetailCache_(taskId);
@@ -340,15 +352,29 @@ function updateTaskStatus_(taskId, status, completedAt, rowIndex) {
   return true;
 }
 
-/** Danh sách task (cache 10s — O4: version-check, scan bump rev thay vì remove). */
+/** FIX-21: đọc StaffData chặn độ rộng 20 cột (header + data) — không đọc cell lỡ tay ngoài cột T. */
+function readStaffDataValues_(sheet) {
+  const lastRow = Math.max(sheet.getLastRow(), 1);
+  const lastCol = Math.max(Math.min(sheet.getLastColumn(), STAFF_DATA_COL_COUNT), 1);
+  return sheet.getRange(1, 1, lastRow, lastCol).getValues();
+}
+
+/**
+ * Danh sách task (cache 10s — O4: version-check, scan bump rev thay vì remove). */
 function readTaskList_() {
   return cachedJsonRev_(CACHE_KEYS.TASK_LIST, CACHE_KEYS.TASK_LIST_REV, function () {
     const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
-    const values = sheet.getDataRange().getValues();
+    const lastRow = sheet.getLastRow();
     const out = [];
-    for (let i = 1; i < values.length; i++) {
-      const task = taskFromRow_(values[i]);
-      if (task.taskId) out.push(task);
+    if (lastRow >= 2) {
+      // FIX-21: đọc từ dòng 2 (bỏ header — taskFromRow_ không cần) + chặn độ rộng
+      // TASK_COL_COUNT thay getDataRange() toàn sheet.
+      const lastCol = Math.max(Math.min(sheet.getLastColumn(), TASK_COL_COUNT), 1);
+      const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      for (let i = 0; i < values.length; i++) {
+        const task = taskFromRow_(values[i]);
+        if (task.taskId) out.push(task);
+      }
     }
     // Merge counters (total/scanned/extra) từ AttendanceLog — 1 lần đọc log + group,
     // không N+1 đọc log riêng từng task. (User yêu cầu cột đếm ở danh sách task.)
@@ -379,7 +405,11 @@ function taskCountersForList_() {
       const taskId = String(idCol[i][0] || '').trim();
       if (!taskId) continue;
       const st = String(stCols[i][1] || '');
-      const hasScan = !!stCols[i][0];
+      // FIX-17: khớp read path logFromRow_ (timeScanEpoch = toEpochSafe_(cell)) —
+      // trước dùng truthy `!!stCols[i][0]`: Date luôn truthy, cell sửa tay thành
+      // text/số lạ cũng truthy → counter list tính scanned trong khi server (epoch=0)
+      // không → lệch list ↔ detail. toEpochSafe_ là cùng phép derive với server.
+      const hasScan = toEpochSafe_(stCols[i][0]) > 0;
       if (!out[taskId]) out[taskId] = { total: 0, scanned: 0, extra: 0 };
       out[taskId].total++;
       if (hasScan) out[taskId].scanned++;
@@ -756,10 +786,22 @@ function resetAbsentToPending_(taskId) {
 /**
  * Cập nhật timeScan + status cho 1 dòng (theo _rowIndex) — 1 setValues batch.
  * @param {Object} row — từ readLogRows_/readLogRowsCached_ (luôn có _rowIndex, taskId)
+ * @returns {boolean} false = dòng đích không còn thuộc task (FIX-03) — caller trả lỗi
  */
 function updateLogRowScan_(row, timeScan, status) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+  // FIX-03 (P0): _rowIndex từ cache 30s — ai insert/delete/sort tay AttendanceLog
+  // trong cửa sổ cache → ghi nhầm giờ + status vào dòng NV khác (silent corruption).
+  // Verify TASK_ID tại dòng đích khớp task mới ghi (mirror Python update_log_row_scan).
+  const lastRow = sheet.getLastRow();
+  if (row._rowIndex > lastRow || String(sheet.getRange(row._rowIndex, 1).getValue() || '').trim() !== row.taskId) {
+    Logger.log('updateLogRowScan_: STALE row — taskId=' + row.taskId + ' rowIndex=' + row._rowIndex);
+    return false;
+  }
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_SCAN + 1, 1, 2).setValues([[timeScan, status]]);
+  // FIX-10: append/batch paths đều set format HH:mm:ss — riêng path update (chạy MỖI
+  // lượt quét) thiếu → cell từng bị set format lạ sẽ hiển thị sai dù data đúng.
+  sheet.getRange(row._rowIndex, LOG_COLS.TIME_SCAN + 1).setNumberFormat('HH:mm:ss');
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: scan đổi counter → danh sách task (thiết bị khác) phải thấy ngay
   try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
@@ -819,36 +861,61 @@ function appendLogRow_(row) {
 function overwriteStaffData_(staffList) {
   const sheet = getSheet_(SHEETS.STAFF_DATA);
   const lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, STAFF_DATA_COL_COUNT).clearContent();
-  if (!staffList || !staffList.length) return 0;
-  const rows = staffList.map(function (s) {
-    return [
-      s.no, s.date, sanitizeCellText_(s.staffId), sanitizeCellText_(s.staffName), sanitizeCellText_(s.staffEmail), sanitizeCellText_(s.agency), sanitizeCellText_(s.contractType), sanitizeCellText_(s.eventId),
-      sanitizeCellText_(s.matchingType), sanitizeCellText_(s.gender), sanitizeCellText_(s.department), s.cardIn, s.cardOut, s.actualHours,
-      sanitizeCellText_(s.cardInRemark), sanitizeCellText_(s.cardOutRemark), sanitizeCellText_(s.slotCode), sanitizeCellText_(s.workstation), sanitizeCellText_(s.team), sanitizeCellText_(s.station),
-    ];
-  });
-  sheet.getRange(2, 1, rows.length, STAFF_DATA_COL_COUNT).setValues(rows);
-  invalidateStaffIndex_();
-  return rows.length;
+  if (!staffList || !staffList.length) {
+    // Giữ behavior cũ: list rỗng → xoá trắng (syncFromCsv đã chặn trước khi gọi).
+    if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, STAFF_DATA_COL_COUNT).clearContent();
+    return 0;
+  }
+  // FIX-02 (P0): mọi write path khác đều có lock — riêng sync thiếu → 2 sync chạy
+  // song song ghi chéo nhau. waitLock để tuần tự hoá (editor-only gate đã có).
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { throw new Error('Hệ thống đang bận — thử lại sync sau giây lát'); }
+  try {
+    const rows = staffList.map(function (s) {
+      return [
+        s.no, s.date, sanitizeCellText_(s.staffId), sanitizeCellText_(s.staffName), sanitizeCellText_(s.staffEmail), sanitizeCellText_(s.agency), sanitizeCellText_(s.contractType), sanitizeCellText_(s.eventId),
+        sanitizeCellText_(s.matchingType), sanitizeCellText_(s.gender), sanitizeCellText_(s.department), s.cardIn, s.cardOut, s.actualHours,
+        sanitizeCellText_(s.cardInRemark), sanitizeCellText_(s.cardOutRemark), sanitizeCellText_(s.slotCode), sanitizeCellText_(s.workstation), sanitizeCellText_(s.team), sanitizeCellText_(s.station),
+      ];
+    });
+    // FIX-02: đổi thứ tự ghi — GHI TRƯỚC, xoá phần thừa SAU. Trước đây clearContent()
+    // (821) rồi mới setValues(): setValues throw giữa chừng (quota/network) → StaffData
+    // rỗng trắng, execution khác đọc bảng rỗng. Giờ worst case = dữ liệu cũ sót phần
+    // đuôi (đọc được, sync lại là lành) thay vì mất trắng.
+    sheet.getRange(2, 1, rows.length, STAFF_DATA_COL_COUNT).setValues(rows);
+    const leftover = lastRow - 1 - rows.length;
+    if (leftover > 0) sheet.getRange(rows.length + 2, 1, leftover, STAFF_DATA_COL_COUNT).clearContent();
+    invalidateStaffIndex_();
+    return rows.length;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ===== Meal-move (2026-08-04) =====
 
 /**
- * Cập nhật timeRa + status cho 1 dòng (theo _rowIndex) — ghi 2 ô riêng lẻ.
- * TIME_RA (cột 12) và STATUS (cột 10) KHÔNG liền nhau → 2 setValue (tần suất thấp).
+ * Cập nhật timeRa + status cho 1 dòng (theo _rowIndex) — ghi 3 cột liền nhau.
+ * TIME_RA (cột 12) và STATUS (cột 10) KHÔNG liền nhau → đọc DATE giữ giữa (tần suất thấp).
  * @param {Object} row — từ readLogRows_/readLogRowsCached_ (có _rowIndex, taskId)
  * @param {Date} timeRa
  * @param {string} status — STATUS.OUT (Ra ngoài) hoặc STATUS.EXTRA
+ * @returns {boolean} false = dòng đích không còn thuộc task (FIX-03) — caller trả lỗi
  */
 function updateLogRowRa_(row, timeRa, status) {
   const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+  // FIX-03 (P0): verify TASK_ID tại dòng đích trước khi ghi (mirror updateLogRowScan_).
+  // Đọc chung 1 range A..K lấy cả TASK_ID lẫn DATE → không tốn thêm RPC so với trước
+  // (trước đọc riêng DATE cột K).
+  const head = sheet.getRange(row._rowIndex, 1, 1, LOG_COLS.DATE + 1).getValues()[0] || [];
+  if (String(head[LOG_COLS.TASK_ID] || '').trim() !== row.taskId) {
+    Logger.log('updateLogRowRa_: STALE row — taskId=' + row.taskId + ' rowIndex=' + row._rowIndex);
+    return false;
+  }
   // Atomic: STATUS (cột 10) và TIME_RA (cột 12) không liền nhau (cách DATE cột 11)
-  // → đọc DATE để không ghi đè, rồi ghi 3 cột liền nhau (STATUS→TIME_RA) trong 1 setValues
+  // → giữ DATE đọc ở trên, ghi 3 cột liền nhau (STATUS→TIME_RA) trong 1 setValues
   // (thay 2 setValue rời rạc — terminate giữa chừng = nửa chừng, fix P0 #2).
-  const dateVal = sheet.getRange(row._rowIndex, LOG_COLS.DATE + 1).getValue();
-  sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1, 1, 3).setValues([[status, dateVal, timeRa]]);
+  sheet.getRange(row._rowIndex, LOG_COLS.STATUS + 1, 1, 3).setValues([[status, head[LOG_COLS.DATE], timeRa]]);
   sheet.getRange(row._rowIndex, LOG_COLS.TIME_RA + 1).setNumberFormat('HH:mm:ss');
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: Ra đổi status/counter → danh sách task thiết bị khác thấy ngay

@@ -9,6 +9,7 @@
     "test:py": "python3 -m unittest discover -s api -p 'test_*.py'",
     "test:chrome": "node scripts/test-local-mock.js",
     "test:chrome:mock": "node scripts/test-local-mock.js",
+    "check:drift": "node scripts/check-drift.js",
     "dev": "node scripts/serve.js",
     "build": "node scripts/build-static.js",
     "build:local": "node scripts/build-local.js"

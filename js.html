@@ -243,6 +243,28 @@
         submitScan();
       }
     });
+    // FIX-27: dán mã (Ctrl+V) vào ô quét → tự submit — súng scanner tự gửi Enter qua
+    // keydown, paste tay không có → không tự quét. setTimeout 0: paste fire TRƯỚC khi
+    // value cập nhật. submitScan tự xử lý mọi path (batch/paste-busy/task đóng).
+    // Input type=text sanitize strip \\n → 'a\\nb' thành 'ab' (mất batch) — chèn
+    // clipboard raw trước khi sanitize để batch meal-move vẫn kích hoạt.
+    byId('scanInput').addEventListener('paste', function (e) {
+      try {
+        var clip = e.clipboardData && e.clipboardData.getData ? e.clipboardData.getData('text') : '';
+        if (clip && /[\r\n]/.test(clip)) {
+          e.preventDefault();
+          var text = clip.replace(/[\r\n]+/g, ', ');
+          var el = byId('scanInput');
+          var s = el.selectionStart != null ? el.selectionStart : el.value.length;
+          var end = el.selectionEnd != null ? el.selectionEnd : el.value.length;
+          el.value = el.value.slice(0, s) + text + el.value.slice(end);
+          try { el.selectionStart = el.selectionEnd = s + text.length; } catch (e2) {}
+        }
+      } catch (e2) {}
+      setTimeout(function () {
+        if (byId('scanInput').value.trim()) submitScan();
+      }, 0);
+    });
     var camFileEl = byId('camFile');
     if (camFileEl) camFileEl.addEventListener('change', onCamFileChange);
     // +Task: bấm ra ngoài menu (backdrop phủ toàn màn) → tự cuộn lại — không cần bấm
@@ -1088,7 +1110,6 @@
     });
     renderTaskPagin(list.length, pages);
   }
-  var PAGIN_TRUCK = '';
   function renderTaskPagin(total, pages) {
     var pagin = byId('taskPagin');
     if (!pagin) return;
@@ -1534,6 +1555,21 @@
     google.script.run
       .withSuccessHandler(function (res) {
         if (seq !== SCAN_LOAD_SEQ) return; // response của task cũ — bỏ qua
+        // FIX-08: RPC load về giữa chừng user đang quét/paste — render đè sẽ thay
+        // nguyên CURRENT_LOG làm mồ côi dòng optimistic. Path silent: bỏ (poll 3s
+        // tự đồng bộ). Path non-silent: đợi queue rảnh rồi tải lại (skeleton không kẹt).
+        if (scanBusy()) {
+          if (silent) return;
+          // Path non-silent: đợi queue/paste rảnh rồi tải lại (tối đa 10s) — skeleton không kẹt.
+          var waitedMs = 0;
+          var waitFree = setInterval(function () {
+            if (scanBusy() && waitedMs < 10000) { waitedMs += 300; return; }
+            clearInterval(waitFree);
+            var vs = byId('viewScan');
+            if (vs && !vs.classList.contains('hidden')) loadTaskDetail(taskId);
+          }, 300);
+          return;
+        }
         if (!res.ok) { if (!silent) { showToast(res.message, true); backToList(); } return; }
         renderScanView(res);
         LAST_SCAN_VIEW = { taskId: taskId, ts: Date.now() };
@@ -1586,6 +1622,17 @@
   var scanPollTimer = null;
   var scanPollInFlight = false;
   var lastScanPollSig = null;
+  // FIX-16: message lock-bận của server (GAS + Python trả cùng chuỗi) — client tự retry.
+  var LOCK_BUSY_MSG = 'Hệ thống đang bận — thử lại sau giây lát';
+
+  // FIX-08: cập nhật lastScanPollSig theo state local SAU khi scan confirm/rollback —
+  // trước đây sig chỉ set ở startScanPolling/applyPolledScanDetail → sau scan local
+  // sig cũ hơn state → poll kế gửi sig lệch → server trả full detail → re-render
+  // toàn view 1 lần vô ích mỗi lượt quét (reset sort/filter/focus).
+  function refreshScanPollSig() {
+    if (!scanPollTimer || !CURRENT_TASK) return;
+    lastScanPollSig = scanDetailSignature({ task: CURRENT_TASK, log: CURRENT_LOG, counters: CURRENT_COUNTERS });
+  }
 
   // PURE (test được): signature của task detail — so bằng nhau = không có gì đổi → bỏ
   // qua re-render (tránh renderScanView reset sort/filter/focus vô ích mỗi 4s).
@@ -1658,6 +1705,9 @@
   // Áp dữ liệu poll vào màn quét — chỉ re-render khi THỰC SỰ có thay đổi (signature guard).
   function applyPolledScanDetail(data) {
     if (!CURRENT_TASK) return;
+    // FIX-08: queue quét đang chạy — state local là mới nhất, render đè sẽ làm
+    // mồ côi dòng optimistic vừa optimistic (poll kế sẽ đồng bộ khi queue rảnh).
+    if (scanBusy()) return;
     if (scanPollBehind(data, CURRENT_TASK, CURRENT_COUNTERS)) return; // response cũ hơn local
     var sig = scanDetailSignature(data);
     if (sig === lastScanPollSig) return; // không đổi → không re-render (giữ sort/filter/focus)
@@ -2756,6 +2806,7 @@
     google.script.run
       .withSuccessHandler(function (res) {
         SCAN_PROCESSING = false;
+        var busyRetry = false;  // FIX-16: BUSY → re-enqueue thay rollback
         if (!CURRENT_TASK || CURRENT_TASK.taskId !== item.taskId) {
           processScanQueueMealMove();
           return;
@@ -2788,19 +2839,29 @@
           syncCounters(res.counters);
           renderScanTable(CURRENT_LOG);
         } else {
-          // Reject: rollback + toast
-          rollback();
-          if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
-          if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.message || 'Lỗi', item.target, true); }
-          showToast(res.message || 'Lỗi quét', true);
-          playBeep('error');
-          syncCounters(res.counters);
-          renderScanTable(CURRENT_LOG);
+          // FIX-16: lock server bận — retry tối đa 2 lần backoff 500ms (mirror
+          // processScanQueue). Re-enqueue TRƯỚC rollback → giữ optimistic state.
+          busyRetry = res.message === LOCK_BUSY_MSG && (item._retries || 0) < 2;
+          if (busyRetry) {
+            item._retries = (item._retries || 0) + 1;
+            SCAN_QUEUE.unshift(item);
+          } else {
+            // Reject: rollback + toast
+            rollback();
+            if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
+            if (item.scanSeq === SCAN_CARD_SEQ) { showScanCard(res.message || 'Lỗi', item.target, true); }
+            showToast(res.message || 'Lỗi quét', true);
+            playBeep('error');
+            syncCounters(res.counters);
+            renderScanTable(CURRENT_LOG);
+          }
         }
         // Bật lại nút Kết Thúc khi xong lượt quét (SCAN_PROCESSING đã = false) —
         // nếu không, nút kẹt disabled vĩnh viễn sau lượt quét cuối.
         updateFinishBtnState();
-        processScanQueueMealMove();
+        refreshScanPollSig();
+        if (busyRetry) setTimeout(processScanQueueMealMove, 500);
+        else processScanQueueMealMove();
       })
       .withFailureHandler(function (err) {
         SCAN_PROCESSING = false;
@@ -2812,6 +2873,7 @@
           playBeep('error');
           syncCounters(null);
           renderScanTable(CURRENT_LOG);
+          refreshScanPollSig();
         }
         updateFinishBtnState();
         processScanQueueMealMove();
@@ -2972,6 +3034,13 @@
   // từng mã trong loạt dán của task đối chiếu. Trả false khi phải DỪNG loạt
   // (queue đầy / mã sai); true khi xử lý xong (kể cả reject nhẹ như Đã điểm danh).
   function submitScanSingle(input, staffId) {
+    // FIX-11: paste batch meal-move đang chạy (PASTE_BUSY) — chặn RPC quét đơn chạy
+    // song song (camera auto-submit/quét tay trong cửa sổ paste).
+    if (PASTE_BUSY) {
+      showToast('Đang xử lý dán mã — chờ giây lát', true);
+      playBeep('error');
+      return false;
+    }
     // P2: chặn khi queue đầy — tránh backlog tăng mãi (2.5s/item)
     if (SCAN_QUEUE.length >= SCAN_QUEUE_MAX) {
       // FIX-24: báo rõ hàng đợi bao nhiêu mã và thời gian chờ ~2.5s/item (50*2.5=125s worst-case)
@@ -3139,7 +3208,13 @@
     wrap.classList.toggle('queue-full', full);
     // P2: queue đầy → disable input luôn (hết gõ vô ích + spam toast khi Enter)
     var inp = byId('scanInput');
-    if (inp) inp.disabled = full;
+    if (inp) {
+      // FIX-11: queue HẾT chỉ tự bật lại input khi KHÔNG bị disable có chủ đích
+      // (paste batch đang chạy — PASTE_BUSY). `inp.disabled = full` vô điều kiện
+      // cũ bật lại input giữa chừng paste → quét tay/RPC chạy song song batch.
+      if (full) inp.disabled = true;
+      else if (!PASTE_BUSY) inp.disabled = false;
+    }
   }
 
   function processScanQueue() {
@@ -3180,6 +3255,7 @@
     google.script.run
       .withSuccessHandler(function (res) {
         SCAN_PROCESSING = false;
+        var busyRetry = false;  // FIX-16: BUSY → re-enqueue thay rollback
         // F1: response của scan enqueue ở task khác (user đã thoát/đổi task giữa chừng —
         // thực tế bị chặn bởi scanBusy(), guard này là defense cho đường thoát tương lai:
         // browser back, tab mới). Scan đã ghi server-side — chỉ drain queue, không đụng UI.
@@ -3218,17 +3294,31 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
           // user đã quét NV khác khi response đang bay, không để card nhảy về cũ.
           if (res.status && item.scanSeq === SCAN_CARD_SEQ) showScanCard(res.status, item.target, false);
         } else {
-          rollback();
-          // P3 (2026-08-19): submit fail → xoá cooldown camera (quét lại cùng mã ngay,
-          // không đợi hết 1.5s dù server chưa nhận lượt nào).
-          if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
-          playBeep('error');
-          showToast(res.message, true);
+          // FIX-16: lock server bận (kiosk khác đang giữ lock 10s) — client tự retry
+          // tối đa 2 lần backoff 500ms thay vì mất lượt ngay. Server giữ nguyên
+          // waitLock (giới hạn GAS); queue tuần tự nên re-enqueue đầu hàng an toàn.
+          // Re-enqueue TRƯỚC rollback → giữ optimistic state (lượt chưa mất).
+          busyRetry = res.message === LOCK_BUSY_MSG && (item._retries || 0) < 2;
+          if (busyRetry) {
+            item._retries = (item._retries || 0) + 1;
+            SCAN_QUEUE.unshift(item);
+          } else {
+            rollback();
+            // P3 (2026-08-19): submit fail → xoá cooldown camera (quét lại cùng mã ngay,
+            // không đợi hết 1.5s dù server chưa nhận lượt nào).
+            if (typeof camCooldownFailed === 'function') camCooldownFailed(item.staffId);
+            playBeep('error');
+            showToast(res.message, true);
+          }
         }
+        // FIX-16: khi retry, queue đã có lại item → syncCounters tự recount từ log
+        // (không dùng counters-zeros của response BUSY) — optimistic giữ nguyên.
         syncCounters(res.counters);
         renderScanTable(CURRENT_LOG);
         updateFinishBtnState();
-        processScanQueue();
+        refreshScanPollSig();
+        if (busyRetry) setTimeout(processScanQueue, 500);
+        else processScanQueue();
       })
       .withFailureHandler(function (err) {
         markServerFail();  // P2: RPC fail → server offline
@@ -3380,7 +3470,9 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
 
   function esc(s) {
     if (s === null || s === undefined) return '';
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // FIX-14: thêm escape `'` — nơi dùng attr đã qua escAttr, nhưng esc để hở `'`
+    // là foot-gun khi field mới dùng esc cho attr single-quoted.
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function escAttr(s) {
     return esc(s).replace(/'/g, '&#39;');

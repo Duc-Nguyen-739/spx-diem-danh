@@ -29,7 +29,38 @@ const CDP_PORT = 9222;
 const CDP_HTTP = 'http://127.0.0.1:' + CDP_PORT;
 const INDEX_FILE = 'file:///' + path.resolve(__dirname, '..', 'index.local.html').replace(/\\/g, '/');
 const SETTLE_MS = 600;
-const LOAD_WAIT_MS = 2800;
+// FIX-13: bỏ magic sleep 2800ms khi load — thay bằng waitUntil poll 100ms (sau khi
+// CDP connected). SETTLE_MS giữ làm grace nhỏ sau mỗi action có waitUntil riêng.
+const LOAD_WAIT_MS = 2800; // fallback legacy (không dùng trong luồng chính nữa)
+
+// FIX-13: detect Chrome kể cả khi cài qua Puppeteer (~/.cache/puppeteer/chrome/<ver>/...)
+// — trước đây chỉ quét path hệ thống → FAIL 8/11 thật ở 1 phiên vì exe rơi vào 'google-chrome'
+// (không tồn tại) trong khi Chrome có sẵn trong puppeteer cache.
+function findChrome() {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const fixed = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium',
+  ];
+  for (const p of fixed) if (fs.existsSync(p)) return p;
+  try {
+    const root = path.join(os.homedir(), '.cache', 'puppeteer', 'chrome');
+    if (fs.existsSync(root)) {
+      const versions = fs.readdirSync(root)
+        .filter((v) => !v.startsWith('.'))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+        .reverse();
+      for (const v of versions) {
+        for (const sub of ['chrome-linux64/chrome', 'chrome-linux/chrome']) {
+          const p = path.join(root, v, sub);
+          if (fs.existsSync(p)) return p;
+        }
+      }
+    }
+  } catch (e) { /* không đọc được cache — bỏ qua */ }
+  return 'google-chrome';
+}
 
 let chromeProc = null;
 async function ensureCdp() {
@@ -38,12 +69,8 @@ async function ensureCdp() {
     return;
   } catch (e) { /* chưa mở */ }
   userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diem-danh-hn2-soc-mock-'));
-  const exe = process.env.CHROME_PATH || [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium',
-  ].find((p) => fs.existsSync(p)) || 'google-chrome';
-  console.log('Boot Chrome headless (CDP port ' + CDP_PORT + ')...');
+  const exe = findChrome();
+  console.log('Boot Chrome headless (CDP port ' + CDP_PORT + '): ' + exe);
   chromeProc = spawn(exe, [
     '--headless=new',
     '--remote-debugging-port=' + CDP_PORT,
@@ -128,6 +155,18 @@ function setupListener(ws) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// FIX-13: poll điều kiện qua CDP mỗi 100ms thay vì sleep cố định — page chậm/nhanh
+// đều ổn, hết timeout → false (check kế sẽ report FAIL với detail đúng).
+async function waitUntil(ws, expression, timeoutMs) {
+  const deadline = Date.now() + (timeoutMs || 5000);
+  while (Date.now() < deadline) {
+    const r = await evalIn(ws, '!!(' + expression + ')');
+    if (!r.err && r.value === true) return true;
+    await sleep(100);
+  }
+  return false;
+}
+
 const results = [];
 function check(name, cond, detail) {
   results.push({ name, pass: !!cond, detail });
@@ -153,11 +192,15 @@ async function main() {
 
   target = await httpGet('/json/new?' + encodeURIComponent(INDEX_FILE), 'PUT');
   console.log('Opened tab:', target.id);
-  await sleep(LOAD_WAIT_MS);
 
   ws = await connect(target.webSocketDebuggerUrl);
   setupListener(ws);
   await send(ws, 'Runtime.enable');
+  // FIX-13: poll chờ app + mock nạp (100ms) thay sleep 2800ms cứng — page chậm vẫn pass
+  const metaReady = await waitUntil(ws, "window.META && window.META.appTitle", 10000);
+  if (!metaReady) await sleep(LOAD_WAIT_MS);
+  // FIX-13: task list render là async (getTaskListApi 250ms) — chờ có dòng trước khi check
+  await waitUntil(ws, "document.querySelectorAll('#taskListBody tr').length > 0", 5000);
 
   const load = await evalIn(ws, `JSON.stringify({
     title: document.title,
@@ -194,6 +237,9 @@ async function main() {
     openScan(id);
     return 'opened:' + id;
   })()`);
+  // FIX-13: poll viewScan hiển thị + có dòng log thay sleep cứng
+  await waitUntil(ws, "document.getElementById('viewScan') && !document.getElementById('viewScan').classList.contains('hidden')"
+    + " && document.querySelectorAll('#scanTableBody tr').length > 0", 6000);
   await sleep(SETTLE_MS);
   const vs = await evalIn(ws, `JSON.stringify((function(){
     var view = document.getElementById('viewScan');
@@ -231,6 +277,8 @@ async function main() {
     if (typeof submitScan === 'function') submitScan();
     return 'submitted';
   })()`);
+  // FIX-13: poll tới khi counter S tăng đúng +1 (mock server 250ms delay) thay sleep cứng
+  await waitUntil(ws, `Number(document.getElementById('cScanned').innerText) === ${Number(S0.cScanned) + 1}`, 4000);
   await sleep(SETTLE_MS);
   const s1 = await evalIn(ws, `JSON.stringify({
     cScanned: document.getElementById('cScanned').innerText,
@@ -250,6 +298,8 @@ async function main() {
     submitScan();
     return 'submitted';
   })()`);
+  // FIX-13: poll toast reject hiện ('Đã điểm danh') thay sleep cứng
+  await waitUntil(ws, "document.getElementById('toast').innerText.length > 0", 4000);
   await sleep(SETTLE_MS);
   const s2 = await evalIn(ws, `JSON.stringify({
     cScanned: document.getElementById('cScanned').innerText,
@@ -266,6 +316,8 @@ async function main() {
     submitScan();
     return 'submitted';
   })()`);
+  // FIX-13: poll tới khi counter E tăng đúng +1 thay sleep cứng
+  await waitUntil(ws, `Number(document.getElementById('cExtra').innerText) === ${Number(S2b.cExtra) + 1}`, 4000);
   await sleep(SETTLE_MS);
   const s3 = await evalIn(ws, `JSON.stringify({
     cExtra: document.getElementById('cExtra').innerText,
@@ -275,11 +327,11 @@ async function main() {
   const extraOk = S3 && S2b && String(Number(S2b.cExtra) + 1) === S3.cExtra;
   check('Quét NV lạ Ops777777 → Dư +1 (E+1), S+1', extraOk, S3 ? 'before E:' + S2b.cExtra + ' → after E:' + S3.cExtra + ' S:' + S3.cScanned : s3.err);
 
-  // 8. Back về danh sách
-  const back = await evalIn(ws, `(function(){
+   const back = await evalIn(ws, `(function(){
     if (typeof backToList === 'function') { backToList(); return 'back'; }
     return 'no-back';
   })()`);
+  await waitUntil(ws, "document.getElementById('viewList') && !document.getElementById('viewList').classList.contains('hidden')", 4000);
   await sleep(SETTLE_MS);
   const bv = await evalIn(ws, `JSON.stringify({
     listVisible: !!(document.getElementById('viewList') && !document.getElementById('viewList').classList.contains('hidden')),
@@ -287,6 +339,45 @@ async function main() {
   })`);
   const BV = bv.err ? null : JSON.parse(bv.value);
   check('backToList → về danh sách task', !!(BV && BV.listVisible && BV.scanHidden), back.value || back.err);
+
+  // 9. FIX-28: paste batch meal-move qua UI (phi BUG-028: 11 check không có step paste)
+  // M20260802-0905 = task meal-move seed (open, createdBy = user mock hiện tại).
+  // Dán 2 mã (đủ ngưỡng meal-move-batch): 1 NV chưa quét + 1 đã quét.
+  const pasteOpen = await evalIn(ws, `(function(){
+    if (typeof openScan !== 'function') return 'no-openScan';
+    openScan('M20260802-0905');
+    return 'opened';
+  })()`);
+  await waitUntil(ws, "document.getElementById('viewScan') && !document.getElementById('viewScan').classList.contains('hidden')"
+    + " && document.querySelectorAll('#scanTableBody tr').length > 0", 6000);
+  await sleep(SETTLE_MS);
+  const s4 = await evalIn(ws, `JSON.stringify({
+    cScanned: document.getElementById('cScanned').innerText,
+    taskId: window.CURRENT_TASK ? window.CURRENT_TASK.taskId : null,
+    taskType: window.CURRENT_TASK ? window.CURRENT_TASK.taskType : null,
+  })`);
+  const S4 = s4.err ? null : JSON.parse(s4.value);
+  const pasteRun = await evalIn(ws, `(function(){
+    var input = document.getElementById('scanInput');
+    // Multiline paste qua <input type=text> bị sanitize strip \\n → concatenated.
+    // Dùng dấu phẩy/space (splitScanCodes chấp nhận \\s+,;|,) để kích hoạt meal-move-batch.
+    input.value = 'Ops229444, Ops237511';
+    if (typeof submitScan === 'function') submitScan();
+    return 'submitted';
+  })()`);
+  // FIX-13: poll toast summary paste (mock delay 250ms + reload task detail)
+  const pasteToastSeen = await waitUntil(ws, "document.getElementById('toast').innerText.indexOf('Paste:') >= 0", 6000);
+  await sleep(SETTLE_MS);
+  const s5 = await evalIn(ws, `JSON.stringify({
+    toast: document.getElementById('toast').innerText,
+    cScanned: document.getElementById('cScanned').innerText,
+  })`);
+  const S5 = s5.err ? null : JSON.parse(s5.value);
+  const pasteOk = pasteToastSeen && S4 && S5 && S4.taskType === 'meal-move'
+    && /Paste: \d+ Ra, \d+ Vào/.test(S5.toast);
+  check('Paste batch meal-move qua ô quét → toast summary Paste (Ra/Vào)', pasteOk,
+    S5 ? 'task=' + S4.taskId + ' type=' + S4.taskType + ' toast=' + S5.toast.slice(0, 60) : s5.err + ' / ' + pasteRun.value);
+  await evalIn(ws, `typeof backToList === 'function' ? backToList() : null`);
 
   const passed = results.filter((r) => r.pass).length;
   const failed = results.filter((r) => !r.pass).length;

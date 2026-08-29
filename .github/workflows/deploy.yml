@@ -14,13 +14,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Setup Chrome
+        id: setup-chrome
         uses: browser-actions/setup-chrome@latest
+
+      - name: Export CHROME_PATH for test:chrome (FIX-25)
+        run: echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> $GITHUB_ENV
 
       - name: CI gate — chặn regression (dual runtime)
         run: |
@@ -33,7 +38,7 @@ jobs:
 
       - name: Setup Node + clasp
         run: |
-          npm install -g @google/clasp
+          npm install -g @google/clasp@2.4.2
 
       - name: Create .clasp.json (from secrets)
         run: |

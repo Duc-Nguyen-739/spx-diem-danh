@@ -114,6 +114,10 @@ const CONTRACT_TYPES = ['FTE', 'BPO', 'OS'];
 // Meal-move: khoảng thời gian chống quét trùng (ms) — 2 lần quét cùng mã trong cửa này = 'Trùng mã'
 const DUPLICATE_WINDOW_MS = 1500;  // 2026-08-17: giảm 10s → 1.5s để khớp cooldown quét camera client
 
+// FIX-29: trần tổng dòng log của 1 task khi paste (log_rows + mã paste) — chặn
+// bùng nổ AttendanceLog khi paste danh sách lớn vào task lạ (mirror api/config.py).
+const PASTE_LOG_ROWS_MAX = 1000;
+
 // ===== Cache TTL (giây) =====
 // 2026-08-20: tăng lại TTL (2026-08-18 từng giảm sát chu kỳ poll 3-5s cho "sửa tay trên
 // gsheet phải thấy nhanh") — app là NGƯỜI GHI DUY NHẤT (chủ sheet tự sửa tay, không cần
@@ -159,6 +163,9 @@ const UI_LABELS = {
   DUPLICATE_SCAN: 'Trùng mã — chờ 1.5 giây',
   MEAL_NO_OPS: 'Không có mã Ops nào trong danh sách',
   PASTE_TOO_MANY: 'Danh sách quá dài — tối đa 200 mã/lần',
+  PASTE_LOG_TOO_MANY: 'Quá nhiều dòng log — chia nhỏ danh sách paste',
+  // FIX-03: dòng đích không còn thuộc task (sheet bị sửa tay trong cửa sổ cache)
+  STALE_ROW: 'Dữ liệu đã thay đổi — quét lại',
 };
 
 // ===== Cấu hình WebApp =====

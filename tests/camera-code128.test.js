@@ -454,9 +454,9 @@ test('zxingDecodeImageData: tryHarder=true set TRY_HARDER hint; false thì khôn
     const seen = [];
     const savedR = ctx.camZxingReader;
     ctx.camZxingReader = {
-      decode: function (bitmap, hints) {
+      decode: function (b, hints) {
         seen.push(hints.get('TH'));
-        return null;
+        return null; // zxingDecodeImageData phải tự nuốt throw/null — bậc kế vẫn chạy
       },
     };
     try {
@@ -473,7 +473,9 @@ test('camZxingDecode: full frame fail → BẬC 2 crop native (không TH) TRƯ�
     const thSeen = [];
     const scalesSeen = [];
     const savedR = ctx.camZxingReader;
-    ctx.camZxingReader = { decode: function (b, hints) { thSeen.push(hints.get('TH')); return null; } };
+    // FIX-01: mock decode THROW như ZXing thật (NotFoundException) — mock cũ `return null`
+    // không mô phỏng đúng → không bắt được bug ladder chết.
+    ctx.camZxingReader = { decode: function (b, hints) { thSeen.push(hints.get('TH')); throw new Error('NotFoundException'); } };
     const savedCrop = ctx.camZxingCrop;
     // Stub camZxingCrop: ghi nhận scale — trả img hợp lệ cho từng bậc (đều decode fail)
     ctx.camZxingCrop = function (frame, w, h, scale) {
@@ -500,7 +502,7 @@ test('camZxingDecode: full 1920 fail → BẬC 2 downscale 1280 decode (đa phâ
     ctx.camZxingReader = {
       decode: function (b, hints) {
         call++;
-        if (call === 1) return null; // bậc 1: full 1920 fail
+        if (call === 1) throw new Error('NotFoundException'); // bậc 1: full 1920 throw như ZXing thật
         return { getText: function () { return 'Ops777777'; } }; // bậc 2: bản 1280 ra mã
       },
     };
@@ -518,11 +520,36 @@ test('camZxingDecode: full 1920 fail → BẬC 2 downscale 1280 decode (đa phâ
   });
 });
 
+// FIX-01 regression: bậc 1 THROW (ZXing thật throw NotFoundException, không trả null)
+// → ladder KHÔNG được chết ở bậc 1; bậc 3/4/4b vẫn phải chạy.
+test('FIX-01: decode throw NotFoundException → camZxingDecode nuốt được, ladder vẫn đi hết các bậc', () => {
+  withZxing(() => {
+    const scalesSeen = [];
+    const savedR = ctx.camZxingReader;
+    ctx.camZxingReader = { decode: function () { throw new Error('NotFoundException'); } };
+    const savedCrop = ctx.camZxingCrop;
+    ctx.camZxingCrop = function (frame, w, h, scale) {
+      scalesSeen.push(scale);
+      const s = scale || 1;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      return { img: { data: new Uint8ClampedArray(cw * ch * 4), width: cw, height: ch }, w: cw, h: ch };
+    };
+    try {
+      let got = 'pending';
+      ctx.camZxingDecode(zxingFrame(4, 4), (code) => { got = code; });
+      assert.equal(got, null, 'tất cả bậc fail → null (không crash ra ngoài)');
+      assert.deepEqual(scalesSeen, [1, 1.4], 'bậc 3 (crop native) + bậc 4/4b (upscale) vẫn chạy dù bậc 1 throw — ladder không chết');
+    } finally { ctx.camZxingReader = savedR; ctx.camZxingCrop = savedCrop; }
+  });
+});
+
 test('camZxingDecode: frame ≤ 1280 → camDownscaleFrame trả frame gốc → SKIP bậc 2 (không decode trùng) (2026-08-17)', () => {
   withZxing(() => {
     let call = 0;
     const savedR = ctx.camZxingReader;
-    ctx.camZxingReader = { decode: function (b, hints) { call++; return null; } };
+    // FIX-01: mock THROW như ZXing thật
+    ctx.camZxingReader = { decode: function (b, hints) { call++; throw new Error('NotFoundException'); } };
     const savedCrop = ctx.camZxingCrop;
     // camZxingCrop stub hợp lệ — để bậc 3/4 chạy tới được (assert số decode)
     ctx.camZxingCrop = function (frame, w, h, scale) {
@@ -553,8 +580,9 @@ test('camZxingDecode: bậc 4 Hybrid fail → bậc 4b GlobalHistogram ra mã (m
     ctx.camZxingReader = {
       decode: function (b, hints) {
         call++;
+        // FIX-01: fail = THROW như ZXing thật; bậc 4b trả mã
         if (call === 4) return { getText: function () { return 'Ops777777'; } };
-        return null;
+        throw new Error('NotFoundException');
       },
     };
     const savedCrop = ctx.camZxingCrop;

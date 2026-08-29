@@ -106,7 +106,17 @@ function scanStaff(taskId, rawStaffId, mode) {
       const now = new Date();
       if (isMealMove && effectiveResult.scanPhase === 'ra') {
         // Meal-move: ghi Ra (cột TIME_RA) + status OUT
-        updateLogRowRa_(effectiveResult.row, now, effectiveResult.status);
+        if (!updateLogRowRa_(effectiveResult.row, now, effectiveResult.status)) {
+          // FIX-03: dòng đích không còn thuộc task (sheet sửa tay trong cửa sổ cache)
+          // → trả lỗi, client rollback + quét lại; KHÔNG ghi đè dòng NV khác.
+          return {
+            ok: false,
+            message: UI_LABELS.STALE_ROW,
+            status: null,
+            scanPhase: null,
+            counters: computeCounters({ STATUS: STATUS }, logRows),
+          };
+        }
         effectiveResult.row.timeRa = now;
         effectiveResult.row.timeRaEpoch = now.getTime();
         effectiveResult.row.status = effectiveResult.status;
@@ -115,7 +125,15 @@ function scanStaff(taskId, rawStaffId, mode) {
       } else {
         // Reconcile: ghi timeScan + status PRESENT
         // Meal-move Vào: ghi timeScan (cột TIME_SCAN) + status PRESENT/EXTRA
-        updateLogRowScan_(effectiveResult.row, now, effectiveResult.status);
+        if (!updateLogRowScan_(effectiveResult.row, now, effectiveResult.status)) {
+          return {
+            ok: false,
+            message: UI_LABELS.STALE_ROW,
+            status: null,
+            scanPhase: null,
+            counters: computeCounters({ STATUS: STATUS }, logRows),
+          };
+        }
         effectiveResult.row.timeScan = now;
         effectiveResult.row.timeScanEpoch = now.getTime();
         effectiveResult.row.status = effectiveResult.status;
@@ -257,6 +275,11 @@ function pasteMealMoveScan(taskId, codes, mode) {
     const effMode = resolveMealMoveMode_(task, mode);
     // Đọc TƯƠI từ sheet (cần _rowIndex cho batch write) — không qua cache
     const logRows = readLogRows_(taskId);
+    // FIX-29: guard tổng dòng log — paste ≤200 mã vào task gần trống có thể append
+    // cả trăm dòng Dư vĩnh viễn vào AttendanceLog. Chặn sớm (mirror Python).
+    if (logRows.length + normCodes.length > PASTE_LOG_ROWS_MAX) {
+      return { ok: false, message: UI_LABELS.PASTE_LOG_TOO_MANY, summary: null, counters: null };
+    }
     const now = new Date();
     const nowMs = now.getTime();
     const updates = [];   // dòng tồn tại cần cập nhật

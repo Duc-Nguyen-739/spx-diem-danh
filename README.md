@@ -345,6 +345,15 @@ flowchart LR
 
 `dist/` (từ `build-static.js`) dùng cho hosting tĩnh riêng (không qua GAS).
 
+### 🔐 Deploy backend Python (hosting riêng) — bắt buộc set token
+
+Backend Python (`api/*.py`) không có lá chắn deployment access như GAS — **khi deploy
+production hosting bắt buộc set env `ROLLCALL_API_TOKEN`** (đã ghi docstring `api/main.py`,
+FIX-18 2026-08-29). Token rỗng = **mọi action anonymous** (backward-compat cho
+preview/demo/test local) — bao gồm `probe` (lộ số dòng StaffData). Kiosk frontend đọc
+token từ `window.__RC_API_TOKEN__` (serve/hosting inject). GAS webapp không dùng cơ chế
+này — lá chắn của GAS là deployment access DOMAIN.
+
 ### 🛠️ Thủ công (local)
 
 ```bash

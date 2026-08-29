@@ -42,21 +42,27 @@ function cachedJson_(key, load, ttlSeconds) {
  * sống tiếp nên poll thiết bị khác vẫn HIT (bỏ rebuild full-sheet mỗi lượt khi
  * ≥3 thiết bị poll 3s). Value lưu {v: rev, d: data}; rev lệch/mất → rebuild.
  * Self-heal: rev key chưa tồn tại (deploy đầu tiên / hết hạn) → tạo '1'.
+ * FIX-06 (TOCTOU, mirror api/cache.py cache_get_or_put_rev): đọc rev TRƯỚC load(),
+ * sau load đọc lại — rev bump chen giữa load và put → value stale, KHÔNG gắn rev
+ * mới vào cache (trước đây put bừa → serve stale tới hết TTL).
  */
 function cachedJsonRev_(key, revKey, load, ttlSeconds) {
-  const cached = cache_().get(key);
+  const c = cache_();
+  const cached = c.get(key);
   if (cached !== null) {
     try {
       const parsed = JSON.parse(cached);
-      const rev = cache_().get(revKey);
+      const rev = c.get(revKey);
       if (rev !== null && String(parsed.v) === rev) return parsed.d;
     } catch (e) { Logger.log('cache parse fail: ' + key + ' — ' + e.message); }
   }
+  const revBefore = c.get(revKey);
   const value = load();
   try {
-    let rev = cache_().get(revKey);
-    if (rev === null) { rev = '1'; cache_().put(revKey, rev, ttlSeconds); }
-    cache_().put(key, JSON.stringify({ v: rev, d: value }), ttlSeconds);
+    let rev = c.get(revKey);
+    if (rev === null) { rev = '1'; c.put(revKey, rev, ttlSeconds); }
+    else if (revBefore !== null && rev !== revBefore) return value; // bump chen giữa → stale, không cache
+    c.put(key, JSON.stringify({ v: rev, d: value }), ttlSeconds);
   } catch (e) { Logger.log('cache put fail: ' + key + ' — ' + e.message); }
   return value;
 }

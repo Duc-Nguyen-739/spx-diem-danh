@@ -69,6 +69,7 @@
   var camOpen = false;        // phiên quét camera đang hoạt động (modal live HOẶC popup)
   var camLastCode = '';       // mã vừa nhận — dedup: thẻ vẫn nằm trong khung
   var camLastCodeTs = 0;
+  var camLastMode = '';       // FIX-15: dedup theo (mode, code) — Ra→Vào trong 1.5s cùng mã là lượt HỢP LỆ
   var camResultPending = []; // các lượt optimistic đang chờ server response (merge 2.5s) — 2026-08-19:
                              // thay single slot (camResultCode/Ts) — response trễ >2.5s do queue
                              // backlog từng tạo dòng TRÙNG (chỉ so được với lượt cuối)
@@ -90,8 +91,6 @@
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
-  var camLegacyPollTimer = null;  // P3-54: đổi tên tránh trùng scanPollTimer của js.html (dead code)
-  var camLegacyPollSince = 0;     // chỉ nhận kết quả mới hơn thời điểm mở tab
   var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
   var CAM_QUAGGA_READERS = ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader', 'codabar_reader'];
 
@@ -268,7 +267,7 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null, fast: o.camFastDecode || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null, ocrReady: o.camOcrReady || null, fast: o.camFastDecode || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
@@ -437,6 +436,10 @@
       '  // (trang app giữ worker Tesseract + STAFF_INFO) — cái nào ra trước thì sendResult.',
       '  function ocrTick() {',
       '    if (!LIBS.ocr || ocrBusy || !stream) return;',
+      '    // FIX-19: gate theo trạng thái THẬT của worker OCR ở trang cha — LIBS.ocr là',
+      '    // function ref hoisted nên luôn truthy; popup mode không bao giờ có worker',
+      '    // (modal đóng = worker terminate) → trước đây mỗi 4 tick vẫn vẽ canvas 800px vô ích.',
+      '    if (LIBS.ocrReady && !LIBS.ocrReady()) return;',
       '    if (!video.videoWidth) return;',
       '    ocrBusy = true;',
       '    var f = frameToImageData(800);',
@@ -758,35 +761,9 @@
     }
   }
 
-  // ===== NHẬN KẾT QUẢ TỪ TAB QUÉT RIÊNG =====
-  function startScanResultPolling(token) {
-    stopScanResultPolling();
-    camLegacyPollSince = Date.now();
-    var hintTimer = setTimeout(function () {
-      camStatus('Nếu camera chưa mở: bấm lại 📷 Quét Camera và chọn Mở/Open khi trình duyệt hỏi', true);
-    }, 8000);
-    camLegacyPollTimer = setInterval(function () {
-      var data = null;
-      try {
-        var raw = localStorage.getItem('rcScanResult');
-        if (raw) data = JSON.parse(raw);
-      } catch (e) { data = null; }
-      if (!data || !data.code) return;
-      if (data.token !== token || data.ts < camLegacyPollSince) return;
-      try { localStorage.removeItem('rcScanResult'); } catch (e) {}
-      stopScanResultPolling();
-      onCameraDecoded(data.code); // điền mã + submitScan() — Done
-    }, 400);
-    camLegacyPollTimer._hint = hintTimer;
-  }
-
-  function stopScanResultPolling() {
-    if (camLegacyPollTimer) {
-      if (camLegacyPollTimer._hint) clearTimeout(camLegacyPollTimer._hint);
-      clearInterval(camLegacyPollTimer);
-      camLegacyPollTimer = null;
-    }
-  }
+  // ===== NHẬN KẾT QUẢ TỪ POPUP QUÉT (postMessage) =====
+  // (FIX-19: startScanResultPolling/stopScanResultPolling + camLegacyPollTimer/Since
+  // ĐÃ XOÁ — dead code, 0 caller toàn repo; đường localStorage của tab ?scan=1 cũ.)
 
   // Nhận kết quả từ POPUP quét live / tab quét (postMessage về iframe này)
   if (typeof window.addEventListener === 'function') {
@@ -1117,6 +1094,7 @@
     try { window.__RC_CAM_OPEN__ = false; } catch (e) {}
     camLastCode = '';
     camLastCodeTs = 0;
+    camLastMode = '';
     camResultPending = [];
     camOcrFailStreak = 0;
     var resBody = document.getElementById('camResultsBody');
@@ -1272,7 +1250,11 @@
   function onCamFileChange(e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
-    closeCameraModal();
+    // FIX-19 (BUG-039, photo-OCR chết): KHÔNG đóng modal trước decode —
+    // closeCameraModal() terminate worker OCR (LEAK FIX 2026-08-24) → decode
+    // ảnh chạy ngay sau đó → ocrPhotoFallback luôn rơi guard !camOcrWorker →
+    // "đọc chữ Ops" cho ảnh chụp/chọn ảnh KHÔNG BAO GIỜ chạy. Giữ modal mở:
+    // worker sống, decode xong kết quả vẫn đi đúng luồng onCameraDecoded.
     decodeCameraImage(file);
   }
 
@@ -1683,16 +1665,23 @@
     s.onload = function () {
       camOcrLoading = false;
       if (typeof window.Tesseract !== 'undefined') { camOcrEnabled = true; initOcrWorker(); }
-      else camOcrLoadFailed = true;
+      else markOcrFailed();
       if (cb) cb();
     };
     s.onerror = function () {
       camOcrLoading = false;
-      camOcrLoadFailed = true;
+      markOcrFailed();
       if (cb) cb();
     };
     if (head) head.appendChild(s);
-    else { camOcrLoading = false; camOcrLoadFailed = true; if (cb) cb(); }
+    else { camOcrLoading = false; markOcrFailed(); if (cb) cb(); }
+  }
+
+  // FIX-24: CDN fail-open trước đây im lặng — user không biết OCR không tải được
+  // (mã mờ chỉ còn đường vạch mà không hiểu vì sao). Thông báo 1 lần qua camStatus.
+  function markOcrFailed() {
+    camOcrLoadFailed = true;
+    try { camStatus('⚠️ Không tải được nhận diện chữ (mạng/CDN) — quét vạch vẫn hoạt động', true); } catch (e) {}
   }
 
   // Khởi tạo worker (tải core wasm + eng.traineddata lần đầu) — tái dùng cho cả phiên
@@ -1754,6 +1743,12 @@
     if (camOcrBusy || !camOcrQueue.length) return;
     var next = camOcrQueue.shift();
     camOcrFrame(next.canvas, next.cb);
+  }
+
+  // FIX-19: trạng thái THẬT của OCR (worker sống hay không) — popup quét check qua
+  // ocrReady() trước khi vẽ canvas cho OCR tick (camOcrFrame hoisted luôn truthy).
+  function camOcrReady() {
+    return !!(camOcrEnabled && camOcrWorker);
   }
 
   // Timer song song: mỗi CAM_OCR_INTERVAL_MS chụp frame 800px → OCR chữ Ops…
@@ -1892,16 +1887,23 @@
       if (typeof window.ZXing !== 'undefined' && window.ZXing.MultiFormatReader) {
         camZxingEnabled = true;
         initZxingReader();
-      } else camZxingLoadFailed = true;
+      } else markZxingFailed();
       if (cb) cb();
     };
     s.onerror = function () {
       camZxingLoading = false;
-      camZxingLoadFailed = true;
+      markZxingFailed();
       if (cb) cb();
     };
     if (head) head.appendChild(s);
-    else { camZxingLoading = false; camZxingLoadFailed = true; if (cb) cb(); }
+    else { camZxingLoading = false; markZxingFailed(); if (cb) cb(); }
+  }
+
+  // FIX-24: CDN fail-open trước đây im lặng — engine chính (ZXing) không tải được
+  // thì quét chậm/hụt hơn hẳn mà user không biết lý do. Thông báo 1 lần qua camStatus.
+  function markZxingFailed() {
+    camZxingLoadFailed = true;
+    try { camStatus('⚠️ Không tải được engine quét ZXing (mạng/CDN) — dùng engine dự phòng', true); } catch (e) {}
   }
 
   function initZxingReader() {
@@ -1958,8 +1960,17 @@
     var source = new window.ZXing.RGBLuminanceSource(gray, w, h);
     var B = useGlobal ? window.ZXing.GlobalHistogramBinarizer : window.ZXing.HybridBinarizer;
     var bitmap = new window.ZXing.BinaryBitmap(new B(source));
-    var result = camZxingReader.decode(bitmap, hints);
-    return result && result.getText ? result.getText() : null;
+    // FIX-01 (P0): ZXing thật THROW NotFoundException khi không đọc được (không trả
+    // null — đã verify bằng chạy @zxing/library@0.20.0 trong Node). Trước đây throw
+    // bay lên catch chung của camZxingDecode → bậc 2/3/4/4b của ladder KHÔNG BAO GIỜ
+    // chạy (chỉ còn bậc 1 + Quagga) → mã xa/nghiêng nhận rất chậm. Catch tại đây:
+    // mỗi lần gọi decode fail độc lập → ladder đi hết các bậc như thiết kế.
+    try {
+      var result = camZxingReader.decode(bitmap, hints);
+      return result && result.getText ? result.getText() : null;
+    } catch (eDecode) {
+      return null;
+    }
   }
 
   var camZxingCropCanvas = null; // canvas reuse cho crop vùng khung
@@ -2409,7 +2420,14 @@
   // gọi hàm này khi rollback để quét lại được NGAY.
   function camCooldownFailed(code) {
     var clean = String(code || '').trim();
-    if (clean && clean === camLastCode) { camLastCode = ''; camLastCodeTs = 0; }
+    // FIX-15: so cả mode — cooldown chỉ xoá cho đúng lượt (mode, code) vừa fail.
+    if (clean && clean === camLastCode && camMealMode() === camLastMode) { camLastCode = ''; camLastCodeTs = 0; }
+  }
+
+  // FIX-15: mode meal-move hiện tại (js.html khai báo global MEAL_MODE sau file này —
+  // typeof-guard vì camera-scan load TRƯỚC js.html và sandbox test không có biến này).
+  function camMealMode() {
+    return (typeof MEAL_MODE !== 'undefined' && MEAL_MODE) ? String(MEAL_MODE) : '';
   }
 
   function onCameraDecoded(code) {
@@ -2421,9 +2439,13 @@
     // danh sách kết quả. Cooldown khớp DUPLICATE_WINDOW_MS server (1.5s, 2026-08-17 giảm
     // từ 10s) nên không làm mất lượt quét Ra→Vào hợp lệ.
     var now = Date.now();
-    if (clean === camLastCode && now - camLastCodeTs < CAM_CODE_COOLDOWN_MS) { camDecoding = false; camSnapping = false; return; }
+    // FIX-15: dedup theo (mode, code) — quét Ra mã A rồi trong 1.5s chuyển Vào quét
+    // lại A là lượt Vào HỢP LỆ, trước đây bị bỏ qua vì chỉ so code.
+    var curMode = camMealMode();
+    if (clean === camLastCode && curMode === camLastMode && now - camLastCodeTs < CAM_CODE_COOLDOWN_MS) { camDecoding = false; camSnapping = false; return; }
     camLastCode = clean;
     camLastCodeTs = now;
+    camLastMode = curMode;
     if (camScanMode) {
       // TAB QUÉT RIÊNG: gửi kết quả về trang gốc rồi đóng tab
       try {
@@ -2445,6 +2467,16 @@
     // popup). Nút ✕ Đóng mới kết thúc phiên quét.
     var input = document.getElementById('scanInput');
     if (!input) return;
+    // FIX-11: input bị disable có chủ đích (paste batch meal-move đang chạy) — KHÔNG
+    // submit song song với RPC paste (trước đây decode được mã là submit ồ ngay).
+    // Reset cờ decode để lượt quét sau (sau khi paste xong) bình thường.
+    if (input.disabled) {
+      var stBusy = document.getElementById('camStatusLive');
+      if (stBusy && camOpen) stBusy.textContent = '⏳ Đang xử lý dán mã — quét lại sau giây lát';
+      camDecoding = false;
+      camSnapping = false;
+      return;
+    }
     input.value = clean;
     var st = document.getElementById('camStatusLive');
     if (st && camOpen) st.textContent = '✅ ' + clean + ' — quét mã tiếp theo';

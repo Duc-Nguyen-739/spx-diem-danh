@@ -5,9 +5,10 @@ Các hằng số (STATUS/TASK_STATUS/DUPLICATE_WINDOW_MS) truyền qua `cfg` dic
 """
 
 import time
+from typing import Any, Dict, List, Optional
 
 
-def find_log_row(log_rows, staff_id):
+def find_log_row(log_rows: Optional[List[Dict[str, Any]]], staff_id: str) -> Optional[Dict[str, Any]]:
     """Tìm dòng NV trong log theo staffId (đã normalize trước)."""
     if not log_rows or not staff_id:
         return None
@@ -18,7 +19,7 @@ def find_log_row(log_rows, staff_id):
     return None
 
 
-def classify_scan(cfg, task, log_rows, staff_id):
+def classify_scan(cfg: Dict[str, Any], task: Optional[Dict[str, Any]], log_rows: Optional[List[Dict[str, Any]]], staff_id: str) -> Dict[str, Any]:
     """Phân loại 1 lần quét (reconcile).
 
     Returns dict(action, status, reason, row):
@@ -42,7 +43,7 @@ def classify_scan(cfg, task, log_rows, staff_id):
     return {"action": "append", "status": cfg["STATUS"]["EXTRA"], "reason": None, "row": None}
 
 
-def compute_counters(cfg, log_rows):
+def compute_counters(cfg: Dict[str, Any], log_rows: Optional[List[Dict[str, Any]]]) -> Dict[str, int]:
     """Counters: scanned/absent/extra/out/total.
 
     Đã quét = timeScanEpoch > 0 (PRESENT + EXTRA); Vắng = pre-fill chưa quét;
@@ -67,7 +68,7 @@ def compute_counters(cfg, log_rows):
     return {"scanned": scanned, "absent": absent, "extra": extra, "out": out, "total": total}
 
 
-def build_extra_row(cfg, task_id, staff_id, staff_info, now):
+def build_extra_row(cfg: Dict[str, Any], task_id: str, staff_id: str, staff_info: Optional[Dict[str, Any]], now: Any) -> Dict[str, Any]:
     """Dòng mới cho NV quét lạ (append reconcile) — dùng staffInfo nếu có."""
     return {
         "taskId": task_id,
@@ -86,7 +87,9 @@ def build_extra_row(cfg, task_id, staff_id, staff_info, now):
     }
 
 
-def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, staff_info=None):
+def classify_meal_move_scan(cfg: Dict[str, Any], task: Optional[Dict[str, Any]], log_rows: Optional[List[Dict[str, Any]]],
+                            staff_id: str, mode: str, now_ms: Optional[int] = None,
+                            staff_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Phân loại 1 lần quét meal-move (Ra/Vào).
 
     - Lần 1 (chưa có Ra) mode ra → ghi Ra, status OUT
@@ -146,7 +149,8 @@ def classify_meal_move_scan(cfg, task, log_rows, staff_id, mode, now_ms=None, st
             "scanPhase": "vao", "staffInfo": staff_info or None}
 
 
-def build_meal_move_extra_row(cfg, task_id, staff_id, staff_info, mode, now, status=None):
+def build_meal_move_extra_row(cfg: Dict[str, Any], task_id: str, staff_id: str, staff_info: Optional[Dict[str, Any]],
+                              mode: str, now: Any, status: Optional[str] = None) -> Dict[str, Any]:
     """Dòng mới cho NV quét lạ meal-move — ghi giờ theo mode (Ra hoặc Vào)."""
     now_ms = _now_ms(now)
     row_status = status or cfg["STATUS"]["EXTRA"]
@@ -170,14 +174,14 @@ def build_meal_move_extra_row(cfg, task_id, staff_id, staff_info, mode, now, sta
     }
 
 
-def _epoch(val):
+def _epoch(val: Any) -> int:
     try:
         return int(val or 0)
     except (TypeError, ValueError):
         return 0
 
 
-def _now_ms(now):
+def _now_ms(now: Any) -> int:
     if now is None:
         return int(time.time() * 1000)
     if isinstance(now, (int, float)):

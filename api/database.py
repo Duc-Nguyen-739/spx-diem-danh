@@ -139,13 +139,21 @@ def update_task_note(task_id, note, row_index=None):
 
 
 def update_task_status(task_id, status, completed_at, row_index=None):
-    """Ghi 2 cột rời nhau (STATUS, COMPLETED_AT) — P0 fix: không ghi đè CREATED_AT."""
+    """Ghi 4 cột STATUS→COMPLETED_AT trong 1 RPC (FIX-05).
+
+    Trước đây 2 update_values rời nhau: RPC 1 (status) OK + RPC 2 (completedAt) fail
+    (quota/network) → task DONE nhưng completedAt rỗng VĨNH VIỄN (retry bị chặn
+    'Task đã kết thúc'). CREATED_AT/CREATED_BY đọc giữ nguyên làm filler — ghi đúng
+    thứ tự cột nên không đè (bug cũ completedAt đè createdBy là do ghi lệch khối cột)."""
     c = config.TASK_COLS
     r = row_index if row_index is not None else _find_task_row(task_id)
     if not r:
         return False
-    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["STATUS"] + 1, [[status]])
-    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["COMPLETED_AT"] + 1, [[cache.to_iso_cell(completed_at)]])
+    mid = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"G{r}:H{r}", unformatted=True)
+    created_at = mid[0][0] if mid and len(mid[0]) > 0 else ""
+    created_by = mid[0][1] if mid and len(mid[0]) > 1 else ""
+    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["STATUS"] + 1,
+                         [[status, created_at, created_by, cache.to_iso_cell(completed_at)]])
     invalidate_task_list_cache()
     invalidate_task_cache(task_id)
     invalidate_task_detail_cache(task_id)
@@ -169,10 +177,12 @@ def read_task_list():
 
 
 def _read_task_list_uncached():
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], unformatted=True)
+    # FIX-21: đọc từ A2:J (bỏ header — taskFromRow_ không cần) + chặn độ rộng 10 cột
+    # thay getDataRange toàn sheet (mirror Database.gs readTaskList_).
+    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_="A2:J", unformatted=True)
     out = []
-    for i in range(1, len(values)):
-        task = task_from_row(values[i])
+    for row in values:
+        task = task_from_row(row)
         if task["taskId"]:
             out.append(task)
     counters = task_counters_for_list()
@@ -209,7 +219,10 @@ def _task_counters_uncached():
             continue
         st_row = st_values[i] if i < len(st_values) else []
         st = str(st_row[1] if len(st_row) > 1 else "")
-        has_scan = bool(st_row[0] if st_row else "")
+        # FIX-17: khớp read path — has_scan derive epoch từ cell (không truthy thô).
+        # Cell sửa tay thành text/số lạ → truthy nhưng epoch = 0 → server (cache path)
+        # không tính scanned mà counter list lại tính → lệch giữa list và detail.
+        has_scan = cache.epoch_ms(cache.to_datetime(st_row[0] if st_row else None)) > 0
         entry = out.setdefault(task_id, {"total": 0, "scanned": 0, "extra": 0})
         entry["total"] += 1
         if has_scan:
@@ -486,14 +499,23 @@ def reset_absent_to_pending(task_id):
 
 
 def update_log_row_scan(row, time_scan, status):
-    """Ghi timeScan + status cho 1 dòng (theo _rowIndex) — 1 batch."""
+    """Ghi timeScan + status cho 1 dòng (theo _rowIndex) — 1 batch.
+
+    FIX-03: verify dòng đích VẪN thuộc task trước khi ghi — _rowIndex đến từ cache
+    30s; ai insert/delete/sort tay AttendanceLog trong cửa sổ cache → ghi nhầm
+    giờ + status vào dòng NV khác (silent corruption). Lệch → trả False (caller
+    trả lỗi cho client, không ghi gì)."""
     lc = config.LOG_COLS
-    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, [[cache.to_iso_cell(time_scan), status]])
-    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_SCAN"] + 1, 1, 1, _TIME_FMT)
+    r = row["_rowIndex"]
+    dest = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"A{r}:A{r}", unformatted=True)
+    if not dest or str(dest[0][0] if dest[0] else "").strip() != row["taskId"]:
+        return False
+    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], r, lc["TIME_SCAN"] + 1, [[cache.to_iso_cell(time_scan), status]])
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], r, lc["TIME_SCAN"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7
-    update_log_row_cache(row["taskId"], row["_rowIndex"], lambda r: _mutate_scan_cache(r, time_scan, status))
+    update_log_row_cache(row["taskId"], r, lambda r: _mutate_scan_cache(r, time_scan, status))
     return True
 
 
@@ -555,15 +577,22 @@ def append_log_row(row):
 
 
 def update_log_row_ra(row, time_ra, status):
-    """Ghi timeRa + status — atomic 1 RPC (STATUS→TIME_RA 3 cột liền nhau, giữ DATE)."""
+    """Ghi timeRa + status — atomic 1 RPC (STATUS→TIME_RA 3 cột liền nhau, giữ DATE).
+
+    FIX-03: verify dòng đích thuộc task trước khi ghi (mirror update_log_row_scan —
+    _rowIndex từ cache 30s có thể stale). Đọc chung 1 range A..K lấy cả TASK_ID lẫn
+    DATE → không tốn thêm RPC so với trước (trước chỉ đọc DATE cột K)."""
     lc = config.LOG_COLS
-    # Atomic: STATUS (col 10) và TIME_RA (col 12) cách nhau DATE (col 11) → đọc DATE
-    # để không ghi đè, rồi ghi 3 cột STATUS→TIME_RA trong 1 update_values (thay 2 RPC rời).
-    date_vals = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"K{row['_rowIndex']}:K{row['_rowIndex']}", unformatted=True)
-    date_val = date_vals[0][0] if date_vals and date_vals[0] else ""
+    r = row["_rowIndex"]
+    head = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"A{r}:K{r}", unformatted=True)
+    if not head or str(head[0][0] if head[0] else "").strip() != row["taskId"]:
+        return False
     # DATE val có thể là serial number (unformatted) — giữ nguyên, update ghi USER_ENTERED sẽ hiển thị đúng
-    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["STATUS"] + 1, [[status, date_val, cache.to_iso_cell(time_ra)]])
-    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], row["_rowIndex"], lc["TIME_RA"] + 1, 1, 1, _TIME_FMT)
+    date_val = head[0][lc["DATE"]] if len(head[0]) > lc["DATE"] else ""
+    # Atomic: STATUS (col 10) và TIME_RA (col 12) cách nhau DATE (col 11) → ghi 3 cột
+    # STATUS→TIME_RA trong 1 update_values (thay 2 RPC rời).
+    sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], r, lc["STATUS"] + 1, [[status, date_val, cache.to_iso_cell(time_ra)]])
+    sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], r, lc["TIME_RA"] + 1, 1, 1, _TIME_FMT)
     invalidate_task_list_cache()
     invalidate_task_detail_cache(row["taskId"])
     cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7

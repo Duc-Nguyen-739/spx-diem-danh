@@ -136,10 +136,12 @@
       };
     });
     // Dư mẫu: mã có trong StaffData nhưng KHÁC ca/team → hiện đủ thông tin NGAY (không chờ Kết Thúc)
+    // FIX-12: bổ sung timeScanEpoch — server đếm/reject theo epoch (không phải text);
+    // row thiếu epoch sẽ bị server coi là CHƯA quét (mock cũ theo status text → lệch server).
     log.push({
       taskId: taskId, staffId: 'Ops129481', staffName: 'NV104', slotCode: '18:00-02:00',
       station: 'HN2 SOC', team: 'Inbound', workstation: 'IBReceiving', agency: 'GRG',
-      timeRefText: '', timeScanText: '09:05:00', status: 'Dư',
+      timeRefText: '', timeScanText: '09:05:00', timeScanEpoch: 1783080025000, status: 'Dư',
     });
     return log;
   }
@@ -147,8 +149,9 @@
   function counters(log) {
     var c = { scanned: 0, absent: 0, extra: 0, out: 0 };
     log.forEach(function (r) {
-      // Khớp server computeCounters: đếm theo timeScanText (không theo status text)
-      var hasScan = !!(r.timeScan || r.timeScanText);
+      // FIX-12: khớp server computeCounters — epoch là nguồn sự thật duy nhất
+      // (trước đây đếm theo timeScanText/status text → lệch khi cell thiếu epoch).
+      var hasScan = Number(r.timeScanEpoch) > 0;
       if (r.status === 'Ra ngoài') { c.out++; return; }  // meal-move: đã Ra chưa Vào
       if (hasScan) c.scanned++;
       if (r.status === 'Dư') c.extra++;
@@ -286,9 +289,18 @@
       var d = new Date(nowMs);
       var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
       var info = null;
-      // Đã điểm danh: Có mặt (đủ Ra+Vào) hoặc Dư. 'Ra ngoài' chưa Vào → quét Vào tiếp được.
-      if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư')) {
-        return { ok: false, message: 'Đã điểm danh', status: null, timeScanText: '', timeScanEpoch: 0, staffName: null, counters: counters(log) };
+      // FIX-12: reject theo EPOCH (khớp server ScanLogic.gs:39 — trước đây theo status
+      // text 'Có mặt'/'Dư'): đã Vào (timeScanEpoch>0) → đã điểm danh; meal-move mode 'ra'
+      // đã có Ra → cũng đã điểm danh. Row Dư mẫu giờ có epoch → reject đúng như server.
+      if (hit) {
+        var hasVao = Number(hit.timeScanEpoch) > 0;
+        var hasRa = Number(hit.timeRaEpoch) > 0;
+        var already = isMeal
+          ? (mode === 'ra' ? (hasVao || hasRa) : hasVao)
+          : hasVao;
+        if (already) {
+          return { ok: false, message: 'Đã điểm danh', status: null, timeScanText: '', timeScanEpoch: 0, staffName: null, counters: counters(log) };
+        }
       }
       if (hit) {
         if (isMeal && mode === 'ra') { hit.status = 'Ra ngoài'; hit.timeRaText = ts; hit.timeRaEpoch = nowMs; }
@@ -337,7 +349,15 @@
         seen[key] = true;
         var hit = null;
         log.forEach(function (r) { if (String(r.staffId || '').toLowerCase() === key) hit = r; });
-        if (hit && (hit.status === 'Có mặt' || hit.status === 'Dư' || hit.status === 'Ra ngoài')) { summary.already++; return; }
+        // FIX-12 (tiếp): reject theo EPOCH — `Ra ngoài` (có Ra chưa Vào) với mode 'vao'
+        // KHÔNG phải 'already-scanned' theo server (phải cho ghi Vào). Trước đây theo
+        // status text → 'Ra ngoài' luôn bị tính đã DD dù Vào còn hợp lệ.
+        if (hit) {
+          var hasVao = Number(hit.timeScanEpoch) > 0;
+          var hasRa = Number(hit.timeRaEpoch) > 0;
+          var alreadyPaste = mode === 'ra' ? (hasVao || hasRa) : hasVao;
+          if (alreadyPaste) { summary.already++; return; }
+        }
         if (hit) {
           if (mode === 'ra') { hit.status = 'Ra ngoài'; hit.timeRaText = ts; hit.timeRaEpoch = nowMs; summary.ra++; }
           else { hit.status = 'Có mặt'; hit.timeScanText = ts; hit.timeScanEpoch = nowMs; summary.vao++; }

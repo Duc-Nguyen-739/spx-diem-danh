@@ -21,25 +21,16 @@ _lock = threading.Lock()
 _MAX_KEYS = 200  # P2 #12 (2026-08-21): trần FIFO — vượt thì xóa key cũ nhất, tránh leak 15MB khi 500 task
 
 
-def _ttl_of(key):
-    """Map key → TTL. Key dạng prefix + id → dùng CACHE_TTL theo prefix."""
-    if key == config.CACHE_KEYS["STAFF_INDEX"] or key == config.CACHE_KEYS["FILTER_OPTIONS"]:
-        return config.CACHE_TTL["STAFF_INDEX"]
-    if key == config.CACHE_KEYS["TASK_LIST"]:
-        return config.CACHE_TTL["TASK_LIST"]
-    if key == config.CACHE_KEYS["SEARCH_LOG"]:
-        return config.CACHE_TTL["SEARCH_LOG"]
-    if key == config.CACHE_KEYS["TZ"]:
-        return config.CACHE_TTL["TZ"]
-    if key.startswith(config.CACHE_KEYS["TASK_DETAIL"]):
-        return config.CACHE_TTL["TASK_DETAIL"]
-    if key.startswith(config.CACHE_KEYS["TASK"]):
-        return config.CACHE_TTL["TASK"]
-    if key.startswith(config.CACHE_KEYS["LOG_ROWS"]):
-        return config.CACHE_TTL["LOG_ROWS"]
-    if key.startswith(config.CACHE_KEYS["TASK_COUNTS"]):
-        return config.CACHE_TTL["TASK_COUNTS"]
-    return 30
+# FIX-22: key nóng (đọc mọi request — task list/counters/staff index) KHÔNG bị
+# FIFO đuổi khi vượt trần; trần 200 key dư sức cho key theo-task (task/log rows).
+_HOT_KEYS = frozenset([
+    config.CACHE_KEYS["TASK_LIST"],
+    config.CACHE_KEYS["TASK_LIST_REV"],
+    config.CACHE_KEYS["TASK_COUNTS"] + "all",
+    config.CACHE_KEYS["STAFF_INDEX"],
+    config.CACHE_KEYS["FILTER_OPTIONS"],
+    config.CACHE_KEYS["TZ"],
+])
 
 
 def cache_get(key):
@@ -56,14 +47,17 @@ def cache_get(key):
 def cache_put(key, value, ttl_seconds):
     with _lock:
         _store[key] = (time.time() + ttl_seconds, value)
-        # FIFO evict khi vượt trần — giữ 200 key mới nhất
-        if len(_store) > _MAX_KEYS:
-            # xóa key cũ nhất (chèn đầu tiên) — Python 3.7+ dict giữ thứ tự
-            try:
-                oldest = next(iter(_store))
-                del _store[oldest]
-            except Exception:
-                pass
+        # FIFO evict khi vượt trần — giữ 200 key mới nhất (FIX-22: bỏ qua key nóng,
+        # không đuổi TASK_LIST/STAFF_INDEX... đang đọc mỗi request)
+        while len(_store) > _MAX_KEYS:
+            oldest = None
+            for k in _store:  # Python 3.7+ dict giữ thứ tự chèn
+                if k not in _HOT_KEYS:
+                    oldest = k
+                    break
+            if oldest is None:
+                break  # toàn key nóng — dừng (số key nóng << trần)
+            del _store[oldest]
     return True
 
 

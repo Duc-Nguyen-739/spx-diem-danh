@@ -24,7 +24,11 @@ from api import services
 
 
 def probe():
-    """Test kết nối: đọc StaffData → số dòng. Dùng ở lần deploy đầu verify key."""
+    """Test kết nối: đọc StaffData → số dòng. Dùng ở lần deploy đầu verify key.
+
+    Security (FIX-18): action này lộ số dòng StaffData. Khi ROLLCALL_API_TOKEN
+    có giá trị thì probe đã được gate token ở trên; production hosting BẮT BUỘC
+    set ROLLCALL_API_TOKEN (token rỗng = mọi action anonymous — xem api_token())."""
     values = sheets.get_values(config.SHEETS["STAFF_DATA"], unformatted=True)
     return {"ok": True, "staffRows": max(len(values) - 1, 0)}
 
@@ -129,7 +133,9 @@ def handler(event, context=None):
     if not token and isinstance(parsed_body, dict) and parsed_body.get("token"):
         token = str(parsed_body["token"]).strip()
     required = api_token()
-    if required and not hmac.compare_digest(token, required):
+    # FIX-04: compare_digest với str non-ASCII văng TypeError (500) — encode bytes trước
+    # (bytes so sánh constant-time an toàn mọi ký tự; sai token → 401 đúng nghĩa).
+    if required and not hmac.compare_digest(token.encode("utf-8"), required.encode("utf-8")):
         out = {"ok": False, "error": "Unauthorized"}
         # P1-3 (2026-08-25): khi có cb= thì phải wrap 401 thành cb({...}); — nếu trả
         # JSON thuần, script JSONP SyntaxError và withFailureHandler không bao giờ fire → kiosk treo
