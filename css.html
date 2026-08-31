@@ -88,14 +88,45 @@
     }
     .btn-ghost:hover { background: #f0f1f3; }
     .btn-sm { padding: 6px 12px; font-size: 13px; }  /* nút nhỏ trong bảng — hết inline style */
-    /* Nút quét bằng camera (2026-08-11) — nổi bật cạnh nút Quét, đủ to để chạm */
+    /* Nút quét bằng camera — HOT 2026: gradient aurora + shimmer + lift (2026-08-31) */
     .btn-camera {
-      background: #fff;
-      color: var(--primary);
-      border: 1px solid var(--primary);
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #FF6B35 0%, #EE4D2D 45%, #D43B1F 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-weight: 800;
+      letter-spacing: .3px;
+      box-shadow: 0 4px 16px rgba(238,77,45,.35), 0 1px 3px rgba(0,0,0,.18);
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      min-height: 44px;
     }
-    .btn-camera:hover { background: #eaf1fe; }
-    .btn-camera:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-camera::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.18), transparent 62%);
+      opacity: 0; transition: opacity .18s ease;
+      pointer-events: none;
+    }
+    .btn-camera::after {
+      content: ''; position: absolute; top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.42) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(12deg);
+      transition: transform .6s ease;
+      pointer-events: none;
+    }
+    .btn-camera:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(238,77,45,.45), 0 4px 10px rgba(0,0,0,.18);
+      filter: brightness(1.06);
+    }
+    .btn-camera:hover::after { transform: translateX(100%) rotate(12deg); }
+    .btn-camera:hover::before { opacity: 1; }
+    .btn-camera:active { transform: translateY(0) scale(.98); box-shadow: 0 2px 8px rgba(238,77,45,.3); }
+    .btn-camera:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-camera:disabled::before, .btn-camera:disabled::after { display: none; }
     td.stt { width: 40px; text-align: center; color: var(--muted); font-size: 13px; }  /* STT hẹp, không đẩy widths */
 
     main { width: 100%; max-width: 100%; margin: 0; padding: var(--space-4); }  /* bỏ cap 1920px — content trải full màn như header */
@@ -365,10 +396,12 @@
       border-color: var(--warning);
       box-shadow: 0 0 0 4px rgba(232, 93, 4, .18);
     }
-    /* Nút Quét chỉ hiển thị trên mobile (<992px); desktop máy quét tự Enter */
-    #btnScan { min-width: 64px; min-height: 44px; } /* touch target ≥44×44 */
+    /* Desktop: 2 nút Quét & Quét Camera = nhau trong phần task (2026-08-31) */
+    #btnScan, #btnCamScan { min-width: 64px; min-height: 44px; } /* touch target ≥44×44 */
     @media (min-width: 992px) {
-      #btnScan { display: none; }
+      .scan-row { align-items: stretch; gap: 12px; }
+      .scan-input-wrap { flex: 1 1 auto; }
+      #btnScan, #btnCamScan { flex: 0 0 160px; min-width: 160px; max-width: 180px; justify-content: center; }
     }
     /* Kiosk wide-screen: lớn hơn cho màn hình touch rộng (tham khảo v1 type scale) */
     @media (min-width: 1280px) {
