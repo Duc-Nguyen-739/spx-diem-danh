@@ -121,9 +121,19 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(238,77,45,.45), 0 4px 10px rgba(0,0,0,.18);
       filter: brightness(1.06);
+      background: linear-gradient(135deg, #FF6B35 0%, #EE4D2D 45%, #D43B1F 100%);
+      color: #fff;
     }
     .btn-camera:hover::after { transform: translateX(100%) rotate(12deg); }
     .btn-camera:hover::before { opacity: 1; }
+    .btn-camera:active,
+    .btn-camera:focus,
+    .btn-camera:focus-visible {
+      background: linear-gradient(135deg, #FF6B35 0%, #EE4D2D 45%, #D43B1F 100%);
+      color: #fff;
+      outline: none;
+      border: none;
+    }
     .btn-camera:active { transform: translateY(0) scale(.98); box-shadow: 0 2px 8px rgba(238,77,45,.3); }
     .btn-camera:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-camera:disabled::before, .btn-camera:disabled::after { display: none; }
