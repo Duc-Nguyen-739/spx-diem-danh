@@ -1,4 +1,4 @@
-# AGENTS.md — Quy ước cho AI agent (Điểm Danh HN2 SOC / Freebuff)
+# AGENTS.md — Quy ước cho AI agent (Điểm Danh HN2 SOC)
 
 > Repo: `spx-diem-danh`. GAS WebApp + Google Sheets + backend Python song song. Lịch sử migration/adapt từ các bộ quy tắc khác nằm ở [Phụ lục — Nguồn gốc & lịch sử](#phụ-lục--nguồn-gốc--lịch-sử) cuối file; phần thân chỉ chứa luật đang áp dụng.
 
