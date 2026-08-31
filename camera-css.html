@@ -233,8 +233,48 @@ body.scan-mode #loadingOverlay { display: none !important; }
 @media (max-width: 900px) {
   #btnCamScan { display: inline-flex; padding: 8px 12px; font-size: 13px; }
 }
+/* ===== THÔNG BÁO QUÉT CAMERA — thẻ lớn giống scanCard web (2026-08-31) =====
+    Nằm ngay dưới camera, trên danh sách kết quả — nổi bật trên overlay tối.
+    Cấu trúc y hệt .scan-card (sc-status · sc-name · sc-meta) nên dễ nhận diện. */
+.cam-scan-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 2px solid rgba(255,255,255,.18);
+  background: #fff;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+  min-height: 78px;
+  animation: stampIn .38s cubic-bezier(.22,1,.36,1);
+}
+.cam-scan-card.ok { border-color: #188038; background: #e6f4ea; }
+.cam-scan-card.extra { border-color: #e37400; background: #fef7e0; }
+.cam-scan-card.err { border-color: #d93025; background: #fce8e6; }
+.cam-scan-card.out { border-color: #0b57d0; background: #e8f0fe; }
+.cam-scan-card .sc-status {
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: #5f6368;
+}
+.cam-scan-card.ok .sc-status { color: #188038; }
+.cam-scan-card.extra .sc-status { color: #e37400; }
+.cam-scan-card.err .sc-status { color: #d93025; }
+.cam-scan-card.out .sc-status { color: #0b57d0; }
+.cam-scan-card .sc-name {
+  font-size: 22px; font-weight: 800; line-height: 1.25; margin-top: 2px; color: #1f1f1f;
+  word-break: break-word;
+}
+.cam-scan-card .sc-meta {
+  font-size: 12.5px; color: #5f6368; margin-top: 4px; line-height: 1.4;
+  word-break: break-word;
+}
+.cam-scan-card .sc-meta b { color: #1f1f1f; font-weight: 700; }
+@media (min-width: 1280px) {
+  .cam-scan-card .sc-name { font-size: 26px; }
+}
+@media (max-width: 600px) {
+  .cam-scan-card { padding: 12px 14px; min-height: 70px; }
+  .cam-scan-card .sc-name { font-size: 20px; }
+}
 /* +Task dropdown: nâng toolbar khỏi stacking context thấp (z-index 1) để menu
-   không bị text intro che trên Safari mobile (bug 2026-08-11) */
+    không bị text intro che trên Safari mobile (bug 2026-08-11) */
 .intro-m10 .task-list-toolbar { position: relative; z-index: 20; }
 .cam-start-btn {
   font-size: 17px; padding: 14px 30px; border-radius: 14px;

@@ -207,6 +207,21 @@
       '.rbadge.ok{background:rgba(46,125,50,.28);color:#81c784;}',
       '.rbadge.extra{background:rgba(255,152,0,.22);color:#ffb74d;}',
       '.rbadge.err{background:rgba(211,47,47,.28);color:#ef9a9a;}',
+      // THÔNG BÁO CAMERA POPUP — thẻ lớn giống web (2026-08-31)
+      '#camScanCard{margin:8px 14px;border-radius:12px;padding:12px 14px;border:2px solid rgba(255,255,255,.18);background:#fff;text-align:left;min-height:68px;animation:popStampIn .32s ease-out;}',
+      '#camScanCard.ok{border-color:#188038;background:#e6f4ea;}',
+      '#camScanCard.extra{border-color:#e37400;background:#fef7e0;}',
+      '#camScanCard.err{border-color:#d93025;background:#fce8e6;}',
+      '#camScanCard.out{border-color:#0b57d0;background:#e8f0fe;}',
+      '#camScanCard .sc-status{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#5f6368;}',
+      '#camScanCard.ok .sc-status{color:#188038;}',
+      '#camScanCard.extra .sc-status{color:#e37400;}',
+      '#camScanCard.err .sc-status{color:#d93025;}',
+      '#camScanCard.out .sc-status{color:#0b57d0;}',
+      '#camScanCard .sc-name{font-size:18px;font-weight:800;line-height:1.25;margin-top:2px;color:#1f1f1f;word-break:break-word;}',
+      '#camScanCard .sc-meta{font-size:11.5px;color:#5f6368;margin-top:3px;line-height:1.4;word-break:break-word;}',
+      '@keyframes popStampIn{0%{transform:scale(.92);opacity:0;}100%{transform:scale(1);opacity:1;}}',
+      '#camScanCard:empty{display:none;}',
       'button{font-size:16px;padding:12px 22px;border-radius:12px;border:0;cursor:pointer;}',
       '#startBtn{background:#e85d04;color:#fff;display:none;}',
       '#findBtn{background:#0b57d0;color:#fff;}',
@@ -223,6 +238,8 @@
       '<div id="flash"><b>✓</b></div>',
       '<div id="status">Đang mở camera…</div>',
       '</div>',
+      // THÔNG BÁO CAMERA POPUP — thẻ lớn giống web (2026-08-31)
+      '<div id="camScanCard" style="display:none"></div>',
       // QUÉT LIÊN TỤC (2026-08-17): chia đôi — trên là camera, dưới là kết quả quét
       '<div id="results">',
       '<div id="resultsHead">Kết quả quét</div>',
@@ -632,6 +649,9 @@
       '  function popBeepOk() { if (!popPlayMp3(false)) { popTone(2093, 0.18, 0, "triangle"); popTone(2093, 0.18, 0.15, "triangle"); } }',
       '  function popBeepWarn() { if (!popPlayMp3(false)) { popTone(740, 0.12, 0, "triangle"); popTone(740, 0.12, 0.16, "triangle"); } }',
       '  function popBeepErr() { if (!popPlayMp3(true)) { popTone(311, 0.2, 0, "sawtooth"); popTone(233, 0.24, 0.18, "sawtooth"); } }',
+      '  function popCardClass(st,isErr){if(isErr) return "err";if(st==="Dư") return "extra";if(st==="Ra ngoài") return "out";return "ok";}',
+      '  function renderPopScanCard(d){var c=document.getElementById("camScanCard");if(!c) return;if(!d||!d.code){c.style.display="none";c.innerHTML="";return;}var cls=popCardClass(d.status,d.isError);c.className=cls;c.innerHTML="";var s1=document.createElement("div");s1.className="sc-status";s1.textContent=d.isError?"Lỗi":(d.status||"");c.appendChild(s1);var s2=document.createElement("div");s2.className="sc-name";s2.textContent=d.staffName||d.code||"";c.appendChild(s2);var s3=document.createElement("div");s3.className="sc-meta";var meta="Mã: "+(d.code||"");if(d.slotCode) meta+=" · Ca: "+d.slotCode;if(d.team) meta+=" · "+d.team;else if(d.agency) meta+=" · "+d.agency;c.appendChild(s3);s3.textContent=meta;c.style.display="";try{c.setAttribute("data-code",String(d.code));}catch(e){}}',
+      '  function updatePopScanCardName(code,name){var c=document.getElementById("camScanCard");if(!c||!c.getAttribute||c.getAttribute("data-code")!==String(code)) return;var n=c.querySelector&&c.querySelector(".sc-name");if(n) n.textContent=String(name);}',
       '  function addResultRow(d) {',
       '    var body = document.getElementById("resultsBody");',
       '    var head = document.getElementById("resultsHead");',
@@ -677,6 +697,7 @@
       '    badge.className = "rbadge " + (d.isError ? "err" : (d.status === "Dư" ? "extra" : "ok"));',
       '    badge.textContent = d.status || "";',
       '    row.appendChild(badge);',
+      '    try{renderPopScanCard(d);}catch(e){}',
       '    // Scroll CONTAINER #results (overflow-y:auto) xuống dòng mới — trước set trên',
       '    // #resultsBody (con, không scroll được) → danh sách đứng im (bug 2026-08-17).',
       '    var sc = document.getElementById("results");',
@@ -1101,6 +1122,7 @@
     if (resBody) { resBody.innerHTML = ''; }
     var resHead = document.getElementById('camResultsHead');
     if (resHead) { resHead.textContent = 'Kết quả quét'; }
+    try{camClearModalScanCard();}catch(e){}
     var video = camVideo();
     if (video) { video.srcObject = null; }
     var modal = document.getElementById('cameraModal');
@@ -2313,6 +2335,53 @@
       '<span class="cr-badge ' + badgeCls + '">' + camEsc(p.status || '') + '</span>';
   }
 
+  // THÔNG BÁO CAMERA GIỐNG WEB (2026-08-31): thẻ lớn ngay dưới camera — status · tên · Mã/Ca/Team
+  // y hệt scanCard web (scanCardHTML). Pure để test được; isError → Lỗi, ngược lại status thật.
+  function camScanCardHTML(status, target, isError) {
+    var s = isError ? 'Lỗi' : String(status || '');
+    var name = target && (target.staffName || target.staffId) || '';
+    var code = target && target.staffId || '';
+    var slot = target && target.slotCode || '';
+    var team = target && target.team || '';
+    var agency = target && target.agency || '';
+    // Meta: Mã + Ca + Team/Station — khớp scanCardHTML web (Mã · Ca · team)
+    var meta = 'Mã: ' + camEsc(code);
+    if (slot) meta += ' · Ca: ' + camEsc(slot);
+    if (team) meta += ' · ' + camEsc(team);
+    else if (agency) meta += ' · ' + camEsc(agency);
+    return '<div class="sc-status">' + camEsc(s) + '</div>' +
+      '<div class="sc-name">' + camEsc(name) + '</div>' +
+      '<div class="sc-meta">' + meta + '</div>';
+  }
+
+  function camScanCardClass(status, isError) {
+    if (isError) return 'err';
+    if (status === 'Dư') return 'extra';
+    if (status === 'Ra ngoài') return 'out';
+    return 'ok';
+  }
+
+  function camRenderModalScanCard(status, target, isError) {
+    var card = document.getElementById('camScanCard');
+    if (!card) return;
+    // modal phải đang hiện mới render thẻ — tránh ghi khi popup đang mở (GAS iframe)
+    var camModalEl = document.getElementById('cameraModal');
+    if (!camModalEl || camModalEl.style.display !== 'flex') return;
+    var cls = camScanCardClass(status, isError);
+    card.className = 'cam-scan-card ' + cls;
+    card.innerHTML = camScanCardHTML(status, target, isError);
+    try { card.setAttribute('data-code', String(target && target.staffId || '')); } catch (e) {}
+    card.style.display = '';
+  }
+
+  function camClearModalScanCard() {
+    var card = document.getElementById('camScanCard');
+    if (!card) return;
+    card.style.display = 'none';
+    card.className = 'cam-scan-card';
+    card.innerHTML = '';
+  }
+
   function camAppendResult(status, target, isError) {
     if (!camOpen) return;         // chỉ khi đang quét camera (modal live HOẶC popup)
     if (!target) return;
@@ -2332,17 +2401,24 @@
       time: fmtTimeNow(),
       isError: !!isError,
       update: isUpdate,
+      slotCode: String(target.slotCode || ''),
+      team: String(target.team || ''),
+      station: String(target.station || ''),
+      agency: String(target.agency || ''),
     };
-    // POPUP đang mở (GAS iframe): gửi thông tin về popup — popup tự render danh sách
+    // POPUP đang mở (GAS iframe): gửi thông tin về popup — popup tự render danh sách + thẻ lớn
     if (camPopupRef && !camPopupRef.closed) {
       try { camPopupRef.postMessage(payload, window.location.origin); } catch (e) {}
       return;
     }
-    // MODAL đang mở (preview/hosting top-level): render trong #camResultsBody.
+    // MODAL đang mở (preview/hosting top-level): render trong #camResultsBody + thẻ lớn.
     // Chỉ render khi modal THẬT SỰ hiện (display:flex) — tránh tích dòng ẩn khi
     // popup GAS vừa đóng mà không gửi message (tab đóng bằng trình duyệt).
     var camModalEl = document.getElementById('cameraModal');
     if (!camModalEl || camModalEl.style.display !== 'flex') return;
+    // Thẻ lớn ngay dưới camera — giống scanCard web (status · tên · Mã/Ca/Team) — hiện
+    // cả lượt mới và update (server trả tên thật cho Dư → cập nhật thẻ).
+    camRenderModalScanCard(status, target, isError);
     // Flash phản hồi — chỉ lượt quét MỚI (server response cùng lượt là update →
     // không flash lại). Chạy ở đây (sau check modal hiện) — popup mode tự flash bên trong.
     if (!isUpdate) camFlashMark(status, isError);
@@ -2401,7 +2477,12 @@
       } catch (e) {}
       return;
     }
-    // MODAL: cập nhật tên dòng theo data-code (từ cuối lên).
+    // MODAL: cập nhật tên dòng theo data-code (từ cuối lên) + thẻ lớn nếu đang hiển thị cùng mã.
+    var card = document.getElementById('camScanCard');
+    if (card && card.getAttribute && card.getAttribute('data-code') === clean) {
+      var cn = card.querySelector && card.querySelector('.sc-name');
+      if (cn) cn.textContent = String(staffName);
+    }
     var body = document.getElementById('camResultsBody');
     if (!body) return;
     for (var i = body.children.length - 1; i >= 0; i--) {

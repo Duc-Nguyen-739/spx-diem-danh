@@ -462,9 +462,12 @@
       <button type="button" class="btn btn-camera" onclick="snapCameraFrame()">📸 Chụp</button>
       <button type="button" class="btn btn-ghost" onclick="pickCameraImage()">🖼 Chọn ảnh</button>
     </div>
+    <!-- THÔNG BÁO QUÉT CAMERA (2026-08-31): thẻ lớn ngay dưới camera, giống scanCard
+         web (Ra ngoài · NGUYỄN VĂN ĐỨC · Mã: Ops... · Ca: ... · Team) — nổi bật trên overlay tối. -->
+    <div id="camScanCard" class="cam-scan-card" role="status" aria-live="polite" style="display:none"></div>
     <!-- QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
          camera ở trên, thông tin vừa quét hiện ở dưới. camAppendResult (camera-scan.html)
-         render từng dòng vào #camResultsBody mỗi lần nhận mã; đóng camera là xoá. -->
+          render từng dòng vào #camResultsBody mỗi lần nhận mã; đóng camera là xoá. -->
     <div class="camera-results" id="camResults">
       <div class="camera-results-head" id="camResultsHead">Kết quả quét</div>
       <div class="camera-results-body" id="camResultsBody"></div>
