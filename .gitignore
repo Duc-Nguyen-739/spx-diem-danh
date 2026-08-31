@@ -28,3 +28,8 @@ codegraph.json
 .codegraph/
 __pycache__/
 *.pyc
+
+# Working files — plan/review gate (AGENTS.md §7.2) — gitignored, không commit
+plan.md
+review.md
+docs/plans/
