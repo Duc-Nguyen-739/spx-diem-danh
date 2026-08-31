@@ -1,6 +1,6 @@
 # AGENTS.md — Quy ước cho AI agent (Điểm Danh HN2 SOC)
 
-> Repo: `spx-diem-danh`. GAS WebApp + Google Sheets + backend Python song song. Lịch sử migration/adapt từ các bộ quy tắc khác nằm ở [Phụ lục — Nguồn gốc & lịch sử](#phụ-lục--nguồn-gốc--lịch-sử) cuối file; phần thân chỉ chứa luật đang áp dụng.
+> Repo: `spx-diem-danh`. GAS WebApp + Google Sheets + backend Python song song. Lịch sử migration/adapt từ các bộ quy tắc khác nằm ở [docs/appendix/nguon-goc-lich-su.md](docs/appendix/nguon-goc-lich-su.md); phần thân chỉ chứa luật đang áp dụng.
 
 > [!TIP]
 > **TL;DR cho agent mới — đọc 60s trước khi code:**
@@ -391,17 +391,4 @@ Marker: 🔴 P0 (blocker/sai data) · 🟠 P1 (break/khó dùng) · 🟡 P2 (cos
 
 ## Phụ lục — Nguồn gốc & lịch sử
 
-Phần này chỉ để tra cứu provenance, **không phải luật** — không cần đọc trước khi code.
-
-- Bộ quy tắc gốc hợp nhất từ "Lobe AI — Senior Software Engineer & AI Coding Assistant" + "Hermes SOUL" (2026-08-08), chuyển thể cho Freebuff. Cơ chế riêng của LobeHub (memory API, `hintIsSkill`, layer "Context") không tồn tại ở đây — thay bằng file `AGENTS.md` này + skill ở `skills/<tên>/SKILL.md` (đã chốt `§15`).
-- 2026-08-29: phần nhật ký debug tính năng quét camera (rất dài, thuần lịch sử) đã tách sang `docs/history/camera-scan-debug-log.md` (xem `§18.1`).
-- 2026-08-31: 12 "quy tắc vàng" trong bảng `§1` được đúc kết từ `attendance-portal AGENTS.md` §2 "12 quy tắc bất biến", adapt số liệu/kỹ thuật cho khớp `spx-diem-danh`:
-  - LF thay CRLF (`core.autocrlf=true` bên attendance-portal không áp dụng ở đây).
-  - 4 sheets thay 7.
-  - 3-file split (`index.html`/`css.html`/`js.html`) thay 9 module.
-  - 39 token thay 92.
-  - Spec dùng tên file `Spec — Điểm Danh HN2 SOC.md` (không phải `RollCall v2.md`).
-  - `npm run test` 219 test bên attendance-portal ~ tương đương `npm test` 378 test bên đây + audit `audit-css`/`audit-gs` riêng.
-  - `build-local.js` + `test-local-mock.js` port nguyên văn từ attendance-portal, chỉ đổi DOM IDs (`viewList`/`viewScan`) + counters (`S:3`).
-  - Tiền lệ checkpoint C (revert khi phát hiện vi phạm sau commit): attendance-portal `c7b4f56` → `a645309` → `d43d3b2` (2026-08-26).
-  - Lesson BOM khi ghi file (utf-8-sig thêm BOM gây lỗi hiển thị GAS): commit `9982293` (2026-08-11, attendance-portal) — lý do pattern deterministic ở `§1.1` bắt buộc dùng `utf-8` khi ghi, không dùng `utf-8-sig`.
+> Đã di dời → xem [docs/appendix/nguon-goc-lich-su.md](docs/appendix/nguon-goc-lich-su.md) — toàn bộ nội dung provenance/lịch sử adapt hiện nằm ở đó để `AGENTS.md` chỉ giữ luật đang áp dụng.
