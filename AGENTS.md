@@ -16,9 +16,9 @@
 | **A — Quy tắc vàng** | 12 vàng + Hard Constraints + cách edit LF | `§0` · `§3` · `§3.1` |
 | **B — Cách làm việc** | Nguyên tắc · Quyết định · Coding (3 nhánh) · Workflow (2 gate) | `§4` · `§5` · `§6` (`6.1/6.2/6.3`) · `§7` (`7.1/7.2`) |
 | **C — Tiêu chuẩn** | Fix P0/P1/P2 · Security · Performance · Review · Done · Communication | `§8` · `§9` · `§10` · `§11` · `§12` · `§13` |
-| **D — Kiến thức dự án** | GAS/Web/Python · Multi-project · Ghi nhớ · Dự án · Preview · Giao việc · UI 3-file + Camera · Test · Output | `§14` · `§15` · `§16` · `§17` · `§18` · `§19` · `§20` · `§21` · `§22` |
+| **D — Kiến thức dự án** | GAS/Web/Python · Multi-project · Ghi nhớ · Dự án · Giao việc · UI 3-file + Camera · Test · Output | `§14` · `§15` · `§16` · `§17` · `§19` · `§20` · `§21` · `§22` |
 
-> Chi tiết từng §: 0 [12 vàng](#0-quick-index--12-quy-tắc-vàng-adapt-cho-spx-diem-danh) · 1 [Ngôn ngữ](#1-ngôn-ngữ-bắt-buộc) · 2 [Ưu tiên](#2-ưu-tiên-khi-xung-đột) · 3 [Hard Constraints](#3-hard-constraints) · 3.1 [deterministic](#31-cách-edit-deterministic-bắt-buộc-khi-sửa-file-có-tiếng-việt) · 4 [Core](#4-core-principles) · 5 [Decision](#5-decision--ambiguity) · 6 [Coding](#6-coding-rules) · 6.1 [comment](#61-comment--quy-tắc-vàng-7) · 6.2 [token](#62-token--quy-tắc-vàng-8) · 6.3 [SSOT](#63-ssot--không-tạo-hàm-trùng--quy-tắc-vàng-10) · 7 [Workflow](#7-workflow) · 7.1 [checkpoint](#71-checkpoint-abc-bắt-buộc--quy-tắc-vàng-11) · 7.2 [plan gate](#72-planduyệtreview-gate--quy-tắc-vàng-12) · 8 [Fix Priority](#8-fix-priority) · 9 [Security](#9-security) · 10 [Performance](#10-performance) · 11 [Code Review](#11-code-review) · 12 [Verification](#12-verification-done) · 13 [Communication](#13-communication) · 14 [Platform](#14-platform-guidelines) · 15 [Multi-Project](#15-multi-project-context--context-loading) · 16 [Ghi nhớ](#16-ghi-nhớ--self-learning) · 17 [Dự án](#17-dự-án) · 18 [Preview chết](#18-bài-học-lặp-lại--freebuff-preview-hay-chết-giữa-phiên) · 19 [Giao việc](#19-quy-trình-giao-việc-của-user) · 20 [UI 3-file](#20-ui-tách-3-file--sửa-đúng-chỗ) · 21 [Test](#21-quy-tắc-test-bắt-buộc-trước-khi-push) · 22 [Output](#22-định-dạng-output-freebuff)
+> Chi tiết từng §: 0 [12 vàng](#0-quick-index--12-quy-tắc-vàng-adapt-cho-spx-diem-danh) · 1 [Ngôn ngữ](#1-ngôn-ngữ-bắt-buộc) · 2 [Ưu tiên](#2-ưu-tiên-khi-xung-đột) · 3 [Hard Constraints](#3-hard-constraints) · 3.1 [deterministic](#31-cách-edit-deterministic-bắt-buộc-khi-sửa-file-có-tiếng-việt) · 4 [Core](#4-core-principles) · 5 [Decision](#5-decision--ambiguity) · 6 [Coding](#6-coding-rules) · 6.1 [comment](#61-comment--quy-tắc-vàng-7) · 6.2 [token](#62-token--quy-tắc-vàng-8) · 6.3 [SSOT](#63-ssot--không-tạo-hàm-trùng--quy-tắc-vàng-10) · 7 [Workflow](#7-workflow) · 7.1 [checkpoint](#71-checkpoint-abc-bắt-buộc--quy-tắc-vàng-11) · 7.2 [plan gate](#72-planduyệtreview-gate--quy-tắc-vàng-12) · 8 [Fix Priority](#8-fix-priority) · 9 [Security](#9-security) · 10 [Performance](#10-performance) · 11 [Code Review](#11-code-review) · 12 [Verification](#12-verification-done) · 13 [Communication](#13-communication) · 14 [Platform](#14-platform-guidelines) · 15 [Multi-Project](#15-multi-project-context--context-loading) · 16 [Ghi nhớ](#16-ghi-nhớ--self-learning) · 17 [Dự án](#17-dự-án) · 19 [Giao việc](#19-quy-trình-giao-việc-của-user) · 20 [UI 3-file](#20-ui-tách-3-file--sửa-đúng-chỗ) · 21 [Test](#21-quy-tắc-test-bắt-buộc-trước-khi-push) · 22 [Output](#22-định-dạng-output-freebuff)
 
 ---
 
@@ -289,19 +289,6 @@ User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, 
 **Dual runtime — cùng domain logic**: GAS (`*.gs`) là webapp chính + backend Python song song (`api/*.py`, hosting top-level). Đổi logic quét/classify → sửa CẢ `.gs` LẪN `api/*.py` + chạy cả `npm test` (`tests/*.test.js`) lẫn `npm test:py` (`python3 -m unittest discover -s api -p 'test_*.py'`).
 
 Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-02-phase0-spec.md`, `skills/project-skill/SKILL.md` (kiến trúc + gotchas), `skills/review-gas-failure-modes/SKILL.md` (checklist 40+ failure mode GAS).
-
-## 18. Bài học lặp lại — Freebuff preview hay "chết" giữa phiên (Điểm Danh HN2 SOC)
-
-**Triệu chứng** (xảy ra nhiều lần, user báo "link test lỗi"): preview tự tắt sau sandbox restart; `freebuff-preview status` báo `running:false`/`statusCode:"000"`; curl vào URL proxy trả 502 hoặc không connect.
-
-**Quy trình chuẩn — làm ĐÚNG theo thứ tự, không bỏ bước:**
-1. `freebuff-preview status` → nếu `running:false` → `freebuff-preview start` (chờ message `"Preview is ready"` + `running:true, listening:true`).
-2. `sleep 5–8` rồi `curl -s -o /dev/null -w '%{http_code}' <URL>` xác nhận HTTP 200 **trước khi** gửi link cho user.
-3. Chỉ khi curl trả 200 mới claim "preview OK"; nếu vẫn 502 → `freebuff-preview restart` + chờ thêm 10–15s + curl lại (sandbox khởi động chậm hơn CLI báo ready).
-4. Không bao giờ nói "đang chạy" khi chưa có `running:true` + curl 200 (Constraint #8).
-5. `freebuff-preview start` có thể mất vài lần thử sau khi sandbox restart — kiên nhẫn chờ, không báo lỗi vội; nếu CLI không hồi phục → báo user bấm **Start preview** từ UI.
-
-*(Đã gặp nhiều lần, 2026-08-10: sau mỗi lần sửa code + verify trong sandbox, preview tự tắt do sandbox restart — không phải do code hỏng, chỉ cần start lại + verify curl trước khi đưa link.)*
 
 ## 19. Quy trình giao việc của user (2026-08-11)
 
