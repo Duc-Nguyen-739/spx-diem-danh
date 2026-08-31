@@ -150,9 +150,9 @@
       '<sty' + 'le>',
       'html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,sans-serif;}',
       '#wrap{position:fixed;inset:0;display:flex;flex-direction:column;}',
-      // CHIA 60/40 (2026-08-17): camera #view 60% · thông tin quét #results 40%
+      // CHIA 70/30 (2026-08-31): camera #view 70% · thông tin quét #results 30%
       // (flex 3:2) — danh sách dài thì cuộn trong #results (overflow-y:auto).
-      '#view{position:relative;flex:3 1 60%;min-height:0;overflow:hidden;background:#000;}',
+      '#view{position:relative;flex:7 1 70%;min-height:0;overflow:hidden;background:#000;}',
       '#video{width:100%;height:100%;object-fit:cover;display:block;}',
       '#frame{position:absolute;inset:12% 8%;border:2px dashed rgba(255,255,255,.85);border-radius:14px;pointer-events:none;}',
       // Thanh căn chỉnh mã vạch (2026-08-17): đường ngang sáng giữa khung — đưa mã
@@ -195,7 +195,7 @@
       '#bar{display:flex;gap:12px;justify-content:center;align-items:center;padding:14px;background:#0d111a;}',
       // QUÉT LIÊN TỤC (2026-08-17): danh sách kết quả quét ngay dưới camera —
       // camera ở trên (#view), thông tin vừa quét ở dưới (#results), cuộn được.
-      '#results{flex:2 1 40%;min-height:0;overflow-y:auto;background:#0d111a;border-top:1px solid rgba(255,255,255,.12);}',
+      '#results{flex:3 1 30%;min-height:0;overflow-y:auto;background:#0d111a;border-top:1px solid rgba(255,255,255,.12);}',
       '#resultsHead{padding:8px 14px;font-size:13px;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,.08);}',
       '#resultsBody{padding:4px 0;}',
       '#resultsBody:empty::after{content:"Quét mã để xem kết quả ở đây — camera không tự đóng";display:block;padding:10px 14px;color:#64748b;font-size:12.5px;}',
