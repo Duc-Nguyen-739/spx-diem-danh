@@ -3,9 +3,30 @@
 > Nguồn: hợp nhất bộ quy tắc "Lobe AI — Senior Software Engineer & AI Coding Assistant" + "Hermes SOUL" (2026-08-08), chuyển thể cho Freebuff. Cơ chế riêng của LobeHub (memory API, `hintIsSkill`, layer "Context") không tồn tại ở đây → thay bằng file `AGENTS.md` này + skill trong `.agents/skills/`.
 >
 > **File này đã được tối ưu (2026-08-29):** phần nhật ký debug tính năng quét camera (rất dài, thuần lịch sử) đã tách sang `docs/history/camera-scan-debug-log.md`. §20 bên dưới chỉ còn kiến trúc hiện tại + gotcha bắt buộc nhớ.
+>
+> **2026-08-31 — Đúc kết QUY TẮC VÀNG từ `attendance-portal` AGENTS (1).md (12 quy tắc bất biến):** đã rà soát, **adapt cho dự án spx-diem-danh** — giữ nguyên tinh thần, chỉ chỉnh số liệu/kỹ thuật cho khớp thực tế repo này (LF thay CRLF, 4 sheets thay 7, 3-file split thay 9 module, 39 token thay 92, 464 tests). Chi tiết adapt ghi trong §0 và §3.
 
 ## Mục lục
-1. [Ngôn ngữ](#1-ngôn-ngữ-bắt-buộc) · 2. [Ưu tiên khi xung đột](#2-ưu-tiên-khi-xung-đột) · 3. [Hard Constraints](#3-hard-constraints) · 4. [Core Principles](#4-core-principles) · 5. [Decision & Ambiguity](#5-decision--ambiguity) · 6. [Coding Rules](#6-coding-rules) · 7. [Workflow](#7-workflow) · 8. [Fix Priority](#8-fix-priority) · 9. [Security](#9-security) · 10. [Performance](#10-performance) · 11. [Code Review](#11-code-review) · 12. [Verification](#12-verification-done) · 13. [Communication](#13-communication) · 14. [Platform Guidelines](#14-platform-guidelines) · 15. [Multi-Project Context](#15-multi-project-context--context-loading) · 16. [Ghi nhớ & Self-learning](#16-ghi-nhớ--self-learning) · 17. [Dự án](#17-dự-án) · 18. [Bài học: Freebuff preview chết](#18-bài-học-lặp-lại--freebuff-preview-hay-chết-giữa-phiên) · 19. [Quy trình giao việc](#19-quy-trình-giao-việc-của-user) · 20. [UI tách 3 file](#20-ui-tách-3-file--sửa-đúng-chỗ) · 21. [Quy tắc test](#21-quy-tắc-test-bắt-buộc-trước-khi-push) · 22. [Định dạng output](#22-định-dạng-output-freebuff)
+0. [Quick index — 12 quy tắc vàng (adapt)](#0-quick-index--12-quy-tắc-vàng-adapt-cho-spx-diem-danh) · 1. [Ngôn ngữ](#1-ngôn-ngữ-bắt-buộc) · 2. [Ưu tiên khi xung đột](#2-ưu-tiên-khi-xung-đột) · 3. [Hard Constraints](#3-hard-constraints) · 3.1 [Cách edit deterministic](#31-cách-edit-deterministic-bắt-buộc-khi-sửa-file-có-tiếng-việt) · 4. [Core Principles](#4-core-principles) · 5. [Decision & Ambiguity](#5-decision--ambiguity) · 6. [Coding Rules](#6-coding-rules) · 7. [Workflow](#7-workflow) · 8. [Fix Priority](#8-fix-priority) · 9. [Security](#9-security) · 10. [Performance](#10-performance) · 11. [Code Review](#11-code-review) · 12. [Verification](#12-verification-done) · 13. [Communication](#13-communication) · 14. [Platform Guidelines](#14-platform-guidelines) · 15. [Multi-Project Context](#15-multi-project-context--context-loading) · 16. [Ghi nhớ & Self-learning](#16-ghi-nhớ--self-learning) · 17. [Dự án](#17-dự-án) · 18. [Bài học: Freebuff preview chết](#18-bài-học-lặp-lại--freebuff-preview-hay-chết-giữa-phiên) · 19. [Quy trình giao việc](#19-quy-trình-giao-việc-của-user) · 20. [UI tách 3 file](#20-ui-tách-3-file--sửa-đúng-chỗ) · 21. [Quy tắc test](#21-quy-tắc-test-bắt-buộc-trước-khi-push) · 22. [Định dạng output](#22-định-dạng-output-freebuff)
+
+---
+
+## 0. Quick index — 12 quy tắc vàng (adapt cho spx-diem-danh)
+
+> Nguồn gốc: `attendance-portal` AGENTS (1).md §2 "12 quy tắc bất biến" (2026-08-29). Đã **giữ 12 ý**, chỉ adapt kỹ thuật cho spx-diem-danh. Dòng `Adapt:` ghi điểm khác biệt.
+
+1. **LF + deterministic edit** — file trên disk dùng **LF** (`git i/lf w/lf`, khác attendance-portal CRLF `core.autocrlf=true`); sửa file có tiếng Việt phải qua **script deterministic** (utf-8, `newline=''`, tránh BOM `EF BB BF`) · `Adapt: LF thay CRLF`
+2. **Verify → commit + push ngay** (1 issue = 1 commit = 1 push) — tự động, không chờ hỏi
+3. **Batch cùng issue, không gộp issue khác** — gom nhiều edit nhỏ cùng 1 issue vào 1 script, commit 1-2 lần/batch
+4. **Không commit secrets / không đọc-ghi API keys-tokens** — `.clasp.json`, `.clasprc.json`, `SPREADSHEET_ID`, `ROLLCALL_API_TOKEN` → `[REDACTED]`
+5. **Verify bằng kết quả thực, không tưởng tượng** — CDP / `npm test` / log / `curl` — không claim fixed khi chưa verify
+6. **Không đoán mò** — mọi khẳng định phải có dẫn chứng test fail→pass / output
+7. **Không comment rác** (date/marker `FIX(YYYY-MM-DD)`/`P1:`/`B3:`/restatement) — chỉ `rationale non-obvious` / `gotcha đừng regress` / `KHỚP server`
+8. **Không hardcode màu/spacing/type/radius ngoài `:root`** — dùng token; thêm mới = thêm token · `Adapt: spx 39 token (attendance 92)`
+9. **Đổi API/UI/flow/số liệu → sync README + Spec + AGENTS cùng commit** — `Adapt: Spec — Điểm Danh HN2 SOC.md` (không phải `RollCall v2.md`), 4 sheets (không phải 7)
+10. **Không tạo hàm trùng — 1 logic 1 nơi (SSOT)** — grep trước khi tạo; whitelist duplicate phải có `KHỚP server` + guard test
+11. **Checkpoint A/B/C bắt buộc** trước-trong-sau khi sửa code (so diff với §3)
+12. **Plan→duyệt→review gate** (P0/P1/≥3 file/đổi API/UI/flow — `plan.md`/`review.md` gitignored, duyệt mới code)
 
 ---
 
@@ -22,17 +43,52 @@ User yêu cầu vi phạm constraint không-override được → từ chối ph
 
 ## 3. Hard Constraints
 
-| # | Rule | Override? |
-| :- | :-- | :-- |
-| 1 | Trả lời tiếng Việt | ✅ |
-| 2 | Không lộ secrets/tokens/credentials (code/log/output) | ❌ |
-| 3 | GAS: batch `getValues()`/`setValues()`, không loop `getValue()`/`setValue()` | ❌ |
-| 4 | Tôn trọng GAS timeout 6 phút | ❌ |
-| 5 | 1 issue → commit → push → issue tiếp; không gộp P0+P1 | ✅ (nếu user yêu cầu rõ) |
-| 6 | Mỗi dòng đổi phải liên quan trực tiếp request | ✅ |
-| 7 | Giữ nguyên behavior trừ khi được yêu cầu đổi | ✅ (chính là cách override #6) |
-| 8 | Không claim "fixed"/"test pass" khi chưa verify | ❌ |
-| 9 | Không tự đoán mò — mọi thứ phải có dẫn chứng = test (fail→pass / log / output) | ❌ |
+| # | Rule | Override? | Ghi chú cho spx-diem-danh |
+| :- | :-- | :-- | :-- |
+| 1 | Trả lời tiếng Việt | ✅ | — |
+| 2 | Không lộ secrets/tokens/credentials (code/log/output) — không đọc/ghi API keys, thay `[REDACTED]` | ❌ | `.clasp.json`, `.clasprc.json`, `SPREADSHEET_ID`, `ROLLCALL_API_TOKEN`, `codegraph.json`, file tạm |
+| 3 | GAS: batch `getValues()`/`setValues()`, không loop `getValue()`/`setValue()` | ❌ | — |
+| 4 | Tôn trọng GAS timeout 6 phút | ❌ | — |
+| 5 | **1 issue → commit → push → issue tiếp; batch cùng issue, tự động commit+push ngay không chờ hỏi** | ✅ (nếu user yêu cầu rõ) | Khớp §19 — không gộp P0+P1; KHÔNG tự `clasp push` (CI redeploy) |
+| 6 | Mỗi dòng đổi phải liên quan trực tiếp request | ✅ | — |
+| 7 | Giữ nguyên behavior trừ khi được yêu cầu đổi | ✅ (chính là cách override #6) | — |
+| 8 | **Không claim "fixed"/"test pass" khi chưa verify — verify bằng kết quả thực (test/CDP/curl/log), không đoán mò** | ❌ | Gộp §3#8+§3#9 cũ + quy tắc vàng #5+#6 |
+| 9 | **Không thêm comment rác** (`FIX(YYYY-MM-DD):`, `P1:`, `B3:`, restatement) — chỉ `rationale`/`gotcha`/`KHỚP server` ngắn, không kèm date/hash | — | Quy tắc vàng #7 — chi tiết §6 |
+| 10 | **Không hardcode màu/spacing/type/radius ngoài `:root`** — dùng token; thêm mới = thêm token vào `:root` | — | Quy tắc vàng #8 — spx 39 token (`--primary`, `--space-1..5`, `--text-xs..3xl`, `--card-radius`…), khác attendance 92; ngoại lệ: micro 1-3px, `#fff`/`#000`, `var(--x,#hex)`, px runtime |
+| 11 | **Đổi API/UI/flow/số liệu → sync `README.md` + `Spec — Điểm Danh HN2 SOC.md` (+ `AGENTS.md` nếu ảnh hưởng) cùng commit** | — | Quy tắc vàng #9 — số liệu: 4 sheets, 464 tests (29 files), 10 API, 8 views; miễn trừ: fix nội bộ không đổi hành vi quan sát được |
+| 12 | **Không tạo hàm trùng — 1 logic 1 nơi (SSOT)** — grep trước khi tạo; whitelist phải có `KHỚP server` 2 phía + guard test | — | Quy tắc vàng #10 — map spx: `normalize*`→`CsvUtil.gs:55` · `formatTime`→`CacheLayer.gs` · `cache`→`CacheLayer.gs` · `classifyScan/computeCounters`→`ScanLogic.gs:37` — chi tiết §6 |
+| 13 | **Checkpoint A/B/C bắt buộc** trước-trong-sau khi sửa code (so diff với §3) | — | Quy tắc vàng #11 — chi tiết §7 |
+| 14 | **Plan→duyệt→review gate** (P0/P1/≥3 file/đổi API/UI/flow — `plan.md`/`review.md` gitignored, duyệt mới code) | — | Quy tắc vàng #12 — chi tiết §7; miễn trừ: trivial <5 dòng 1 file không đổi API/UI |
+
+> **Lưu ý encoding cho spx-diem-danh (khác attendance-portal):** repo này dùng **LF** (`git ls-files --eol` → `i/lf w/lf`), **không CRLF**. Quy tắc vàng #1 gốc yêu cầu CRLF (`core.autocrlf=true`) là **không áp dụng** ở đây — thay bằng LF + script deterministic tránh BOM (§3.1). Đừng tạo CRLF.
+
+### 3.1 Cách edit deterministic (bắt buộc khi sửa file có tiếng Việt)
+
+> Adapt từ attendance-portal §3 — giữ pattern Python, đổi CRLF→LF cho khớp `spx-diem-danh`.
+
+Pattern chuẩn (Python, `execute_code`):
+
+```python
+path = r"..."  # .gs hay index.html/css.html/js.html
+# ĐỌC với newline='' — dùng utf-8-sig (strip BOM nếu file cũ có)
+with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+    content = f.read()
+# SỬA bằng string replace CHÍNH XÁC, assert count==1 cho từng anchor
+# GHI với newline='' — BẮT BUỘC dùng utf-8 (KHÔNG sig): utf-8-sig khi write THÊM BOM
+# (EF BB BF) → index.html serve qua GAS sinh khoảng trống phía trên header
+# (commit 9982293 lesson 2026-08-11 attendance-portal).
+with open(path, 'w', encoding='utf-8', newline='') as f:
+    f.write(content)
+```
+
+- **String literal trong Python phải khớp LF** — file spx dùng `\n` (không `\r\n`).
+- Khối lớn: tách nhỏ thành file tạm (write_file .txt) rồi ghép bằng index (`content.find(marker)`).
+- Sau mỗi edit HTML: verify `LF` — chạy:
+  ```bash
+  python3 -c "data=open('index.html','rb').read(); print('CRLF',data.count(b'\r\n'),'LF-only',data.count(b'\n')-data.count(b'\r\n'), 'BOM', data[:3]==b'\xef\xbb\xbf')"
+  ```
+  CRLF ≠0 hoặc BOM True → normalize + ghi lại.
+- After any HTML edit: JS parse `new Function`, CSS brace balance (`{}`=0), `npm test` nếu đụng logic.
 
 ## 4. Core Principles
 
@@ -62,7 +118,16 @@ Nếu thiếu thông tin:
 - Đơn giản hóa code (guard clause, tên mô tả, hàm nhỏ) — **không bao giờ đổi behavior**.
 - Xóa dead code do mình tạo, logic trùng, wrapper thừa, conditional lồng nhau khi gặp.
 
-**Comment:** chỉ comment rationale/gotcha cần thiết. **KHÔNG** thêm marker vòng fix mới (`FIX(2026-XX):`, `B3:`, `P1:`) — marker cũ trong codebase giữ nguyên, không đụng khi không cần.
+**Comment (quy tắc vàng #7):** chỉ comment rationale/gotcha cần thiết. **KHÔNG** thêm marker vòng fix mới (`FIX(2026-XX):`, `B3:`, `P1:`) — marker cũ trong codebase giữ nguyên, không đụng khi không cần. Lịch sử nằm ở git log + commit message.
+
+**Token (quy tắc vàng #8):** toàn bộ màu/spacing/type/radius phải nằm trong `:root` (spx hiện 39 token — `--primary`/`--danger`/`--space-1..5`/`--text-xs..3xl`/`--card-radius`/`--header-h`…). Thêm màu/spacing mới = thêm token vào `:root`, KHÔNG hardcode. Ngoại lệ chủ đích: micro 1-3px, `#fff`/`#000`, fallback `var(--x,#hex)`, px đo runtime. Audit: `grep -E "#[0-9a-f]{3,6}" css.html` phải về 0 ngoài token.
+
+**SSOT — Không tạo hàm trùng (quy tắc vàng #10):** trước khi tạo hàm mới:
+- `grep -rn "function <tên>" --include="*.gs" --include="*.html"` + `grep -rn "<keyword>"` (vd `normalize`, `formatTime`, `cache`, `computeCounters`) — nếu đã có → **reuse**, không copy.
+- **Map bắt buộc spx-diem-danh:** `normalize*` → `CsvUtil.gs:55` · `formatTime/formatDate` → `CacheLayer.gs:112` · `cache/cachedJson` → `CacheLayer.gs:27` · `filter/dedupe/buildStation` → `CsvUtil.gs:242` · `classifyScan/computeCounters/findLogRow` → `ScanLogic.gs:37` · `invalidation` → `Database.gs`/`CacheLayer.gs` — không tạo bản thứ 2.
+- Client/server duplicate (`classifyScan` vs `js.html`, `computeCounters`) là **ngoại lệ có chủ đích** — giữ comment `KHỚP server` + guard `tests/drift.test.js` + `node scripts/check-drift.js`. Thêm duplicate mới ngoài whitelist → P1.
+- **Thêm 1 cặp mới vào whitelist** (khi có lý do chính đáng phải trùng logic client/server): ghi rõ trong commit message (`whitelist: <tên hàm> — lý do`) + thêm comment `KHỚP server` ở CẢ 2 phía + thêm guard vào `tests/drift.test.js` — thiếu 1 trong 3 = chưa hợp lệ.
+- Tạo hàm xong → `node scripts/check-drift.js 2>&1 | head` + `npm test` — audit báo `DEAD`/`API treo` là P0, semantic duplicate (grep ≥2 hit cùng intent) là P1.
 
 ## 7. Workflow
 
@@ -72,6 +137,18 @@ Khi code: hiểu vấn đề → nêu assumption → plan ngắn → implement �
 - **TDD**: RED (test fail) → GREEN (implement tối thiểu) → REFACTOR. Test verify behavior, không phải implementation. Test double ưu tiên: Real → Fake → Stub → Mock. **Bug fix → viết failing reproduction test trước.**
 - **Debug**: Reproduce → Localize → Reduce → Root cause → Fix → Regression test → Verify. **Không bao giờ đoán.** Fix nguyên nhân, không fix triệu chứng.
 - **Rule of Three**: fix thứ 3 không ăn → STOP, không thử fix 4 — nghi vấn architecture, bàn với user trước. Red flags: "quick fix, investigate sau" · "thử X xem sao" · "sửa nhiều chỗ chạy test" → dừng, quay lại root cause.
+
+**Checkpoint A/B/C bắt buộc (quy tắc vàng #11):**
+- **Trước khi code (CHECKPOINT A)**: đọc rule §3 (Hard Constraints) + §3.1 (deterministic) + §6 (comment/token/SSOT) + §7 (workflow) + skills liên quan · liệt kê rule ÁP DỤNG cho thay đổi (vd: thay CSS → §3#9+#10 + §6 token) · ghi cách áp dụng · nếu xung đột → báo user TRƯỚC khi code.
+- **Sau khi sửa code, TRƯỚC khi commit (CHECKPOINT B)**: chạy `git diff --stat` + `git diff <file>` — so từng file với §3 · flag dòng ngoài phạm vi · flag comment rác mới (§3#9) · flag token hardcode (§3#10) · flag thiếu docs sync (§3#11) · flag duplicate (§3#12). Vi phạm → revert/sửa trước commit.
+- **Sau khi commit, TRƯỚC khi push (CHECKPOINT C)**: `git log -1 --stat` + `git show HEAD` — soát comment và dòng ngoài phạm vi · nếu vi phạm → `git revert HEAD` + làm lại (tiền lệ attendance `c7b4f56`→`a645309`→`d43d3b2` 2026-08-26).
+- **Khi xuất output (§22)**: thêm 1 dòng `**Rule check:** A: <list> · B: <list> · C: <list>` ngay sau TL;DR.
+
+**Plan→duyệt→review gate (quy tắc vàng #12) — áp dụng khi ≥1 P0/P1 hoặc chạm ≥3 file hoặc đổi API/UI/flow/số liệu (trigger §3#11):**
+- **Khi áp dụng:** sau audit/đánh giá code, tạo `plan.md` (working file, gitignored — không commit) theo template: Bối cảnh · Quyết định · Chi tiết file:line · Verify · Rủi ro; dừng lại chờ user duyệt (`duyệt`/`LGTM`/`OK`) — chưa duyệt thì KHÔNG được sửa code.
+- **Khi code xong:** verify thực tế (§3#8) rồi ghi `review.md` (gitignored) dạng §22: TL;DR + bảng P0/P1/P2 + Rule check A/B/C; không commit plan/review.
+- **Lưu vết (optional):** nếu cần audit sau, copy nội dung sang `docs/plans/YYYY-MM-DD-<slug>.md` và commit CÙNG commit code (1 issue=1 commit — §3#5).
+- **Miễn trừ:** fix trivial <5 dòng, 1 file, không đổi hành vi/API/UI thì bỏ qua gate (ghi 1 dòng lý do trong commit message).
 
 ## 8. Fix Priority
 
@@ -214,7 +291,7 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 368 test JS (27 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file .gs + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
+| `npm test` | 368 test JS (29 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file .gs + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
 | `npm run test:py` | 85 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run build:local` | `scripts/build-local.js` gộp GAS template `index.html` (`<?!= include() ?>` → `css/js/mobile/lib/camera`) → `index.local.html` cho `file://` | Trước `test:chrome` |
 | `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 11 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
