@@ -89,6 +89,16 @@
                                    // làm vạch Code128 mỏng bị alias/mất chi tiết → miss frame
                                    // (bản 2026-08-12 decode 1280px đã verify tự nhận nhanh).
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
+  // 🔍 ZOOM CAMERA (2026-08-31): zoom thuần chống mờ/mất chi tiết khi user dí sát hoặc mã
+  // nhỏ — không zoom digital quá 3x (lệch xa FOV khung dẫn hướng) và không tự zoom vô hạn.
+  // Bấm nút camZoomOut/camZoomIn (index.html) hoặc TỰ ZOOM sau CAM_AUTO_ZOOM_MS không nhận
+  // được mã nào (camShouldAutoZoom) → camZoomStep() applyConstraints zoom qua track.
+  // iOS Safari không hỗ trợ zoom constraint → applyConstraints no-op (không crash).
+  var camZoomCurrent = 1.0;  // mức zoom hiện tại (1.0 = FOV gốc)
+  var CAM_ZOOM_BASE = 1.0;
+  var CAM_ZOOM_MAX = 3.0;    // trần zoom — cao hơn khung dẫn hướng lệch quá xa FOV gốc
+  var CAM_ZOOM_STEP = 0.6;   // mỗi lần bấm nút/tự zoom tăng/giảm 0.6x
+  var CAM_AUTO_ZOOM_MS = 2500; // không nhận mã nào trong 2.5s → tự zoom 1 bậc
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
   var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
@@ -227,6 +237,7 @@
       '#startBtn{background:#e85d04;color:#fff;display:none;}',
       '#findBtn{background:#0b57d0;color:#fff;}',
       '#findBtn.active{background:#e85d04;box-shadow:0 0 0 2px rgba(255,255,255,.4);}',
+      '#zoomOut,#zoomIn{background:rgba(255,255,255,.12);color:#fff;font-size:15px;font-weight:700;padding:12px 16px;}',
       '#cancelBtn{background:rgba(255,255,255,.12);color:#fff;}',
       '</sty' + 'le>',
       '</head>',
@@ -248,6 +259,8 @@
       '</div>',
       '<div id="bar">',
       '<button id="startBtn" type="button">▶ Bật camera</button>',
+      '<button id="zoomOut" type="button" aria-label="Thu nhỏ camera">−</button>',
+      '<button id="zoomIn" type="button" aria-label="Phóng to camera">+</button>',
       '<button id="findBtn" type="button">🔍 Tìm Mã</button>',
       '<button id="cancelBtn" type="button">✕ Đóng</button>',
       '</div>',
@@ -266,6 +279,34 @@
       '  var tick = 0;',
       '  var findMode = false;',
       '  var findBtn = document.getElementById("findBtn");',
+      '  // 🔍 ZOOM (2026-08-31): đồng bộ với modal — nút − / + trong bar + TỰ ZOOM sau 2.5s',
+      '  // không nhận được mã nào (startTs). applyConstraints zoom → track không hỗ trợ',
+      '  // (iOS Safari) → no-op an toàn; clamp 1.0–3.0 + khoảng track hỗ trợ nếu đọc được.',
+      '  var zoomOutBtn = document.getElementById("zoomOut");',
+      '  var zoomInBtn = document.getElementById("zoomIn");',
+      '  var popZoom = 1.0;',
+      '  var startTs = 0;',
+      '  function popZoomStep(dir) {',
+      '    var target = Math.round((popZoom + dir * 0.6) * 10) / 10;',
+      '    var t = null;',
+      '    try { t = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null; } catch (e0) { t = null; }',
+      '    if (t && t.getCapabilities) {',
+      '      try {',
+      '        var c = t.getCapabilities();',
+      '        if (c && c.zoom && typeof c.zoom.min === "number" && typeof c.zoom.max === "number" && c.zoom.max > c.zoom.min) {',
+      '          if (target < c.zoom.min) target = c.zoom.min;',
+      '          if (target > c.zoom.max) target = c.zoom.max;',
+      '        }',
+      '      } catch (eC) {}',
+      '    }',
+      '    if (target < 1) target = 1;',
+      '    if (target > 3) target = 3;',
+      '    target = Math.round(target * 10) / 10;',
+      '    if (target === popZoom) return;',
+      '    popZoom = target;',
+      '    if (!t || !t.applyConstraints) return;',
+      '    try { t.applyConstraints({ advanced: [{ zoom: popZoom }] }); } catch (eZ) {}',
+      '  }',
       '  // 🔍 Tìm Mã (2026-08-16): ép focus liên tục (nếu trình duyệt hỗ trợ) + decode MỖI',
       '  // tick thay vì mỗi 2 tick — đưa mã vào khung là nhận nhanh hơn. Bấm lần nữa để tắt.',
       '  function setFindMode(on) {',
@@ -285,10 +326,22 @@
       '    try {',
       '      var o = window.opener;',
       '      if (!o) return null;',
-      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null, ocrReady: o.camOcrReady || null, fast: o.camFastDecode || null };',
+      '      return { jsQR: o.jsQR || null, Quagga: o.Quagga || null, readers: o.CAM_QUAGGA_READERS || null, configs: o.CAM_QUAGGA_CONFIGS || null, majority: o.camPickQuaggaMajority || null, known: o.camKnownStaffCode || null, allow: o.camQuaggaResultAllowed || null, ocr: o.camOcrFrame || null, ocrReady: o.camOcrReady || null, fast: o.camFastDecode || null, find: o.camIsFindMode || null };',
       '    } catch (e) { return null; }',
       '  }',
       '  var LIBS = getLibs();',
+      '  // SYNC FIND MODE (2026-08-31): user bật Tìm Mã ở modal trang chính rồi mở popup (hoặc',
+      '  // đang mở) — popup không tự thấy. LIBS.find (window.opener.camIsFindMode) là nguồn',
+      '  // chuẩn; poll 1s đồng bộ nút + trạng thái, và isFindActive() dùng ở runFullChain để',
+      '  // full chain chạy MỖI tick khi Tìm Mã đang bật ở MỌI phía (modal hoặc popup).',
+      '  function isFindActive() {',
+      '    try { return !!(findMode || (LIBS && LIBS.find && LIBS.find())); } catch (e) { return !!findMode; }',
+      '  }',
+      '  var findSyncTimer = setInterval(function () {',
+      '    var remote = false;',
+      '    try { remote = !!(LIBS && LIBS.find && LIBS.find()); } catch (e) {}',
+      '    if (remote !== findMode) setFindMode(remote);',
+      '  }, 1000);',
       '  var lastCode = "";',
       '  var lastCodeTs = 0;',
       '  // QUÉT LIÊN TỤC (2026-08-17): KHÔNG dừng camera / không đóng popup sau 1 mã —',
@@ -472,7 +525,7 @@
       '  // — nhận MỌI mã dạng "Ops…" (kể cả NV chưa có StaffData → Dư) → done NGAY, không chờ',
       '  // full chain. Full chain (majority ≥2) chỉ chạy khi fast fail VÀ tới nhịp (Tìm Mã = mọi tick).',
       '  function runFullChain(f) {',
-      '    if (!(findMode || tick % 2 === 0)) return;', // chưa tới nhịp full chain — bỏ qua
+      '    if (!(isFindActive() || tick % 2 === 0)) return;', // chưa tới nhịp full chain — bỏ qua
       '    busy = true;',
       '    decodeChain(f, function () { busy = false; });',
       '  }',
@@ -480,6 +533,8 @@
       '    if (!stream) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
+      '    // TỰ ZOOM (2026-08-31): 2.5s không nhận mã nào → zoom 1 bậc — khớp modal (camShouldAutoZoom)',
+      '    if (!lastCodeTs && startTs && Date.now() - startTs >= 2500 && popZoom < 3) popZoomStep(1);',
       '    // OCR mỗi 4 tick (2026-08-17, giảm từ 2 tick — Tesseract ngốn CPU/GC trên iPhone',
       '    // làm decode barcode chậm hẳn; tick lẻ 1,5,9 lệch khỏi full chain tick chẵn 0,2,4)',
       '    if (tick % 4 === 1) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
@@ -529,6 +584,7 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
+      '        startTs = Date.now(); // mốc tính TỰ ZOOM 2.5s không nhận mã (2026-08-31)',
       '        // Nhịp tick 200ms (2026-08-17, 260→200 — busy guard chặn chồng lấn nên thử lại',
       '        // nhanh hơn; khớp cooldown 1.5s mới)',
       '        timer = setInterval(loop, 200);',
@@ -550,14 +606,18 @@
       '  }',
       '  function stop() {',
       '    if (timer) { clearInterval(timer); timer = null; }',
+      '    if (findSyncTimer) { clearInterval(findSyncTimer); findSyncTimer = null; }',
       '    if (popWorkerWatchdog){ clearTimeout(popWorkerWatchdog); popWorkerWatchdog=null; }',
       '    popWorkerStall=0;',
       '    if (popWorker) { try { popWorker.terminate(); } catch (e) {} popWorker = null; }',
       '    if (popWorkerUrl) { try { URL.revokeObjectURL(popWorkerUrl); } catch (e) {} popWorkerUrl = null; }',
       '    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }',
       '    video.srcObject = null;',
+      '    popZoom = 1.0; startTs = 0; // zoom về gốc cho lần start kế (2026-08-31)',
       '  }',
       '  findBtn.addEventListener("click", function () { setFindMode(!findMode); });',
+      '  zoomOutBtn.addEventListener("click", function () { popZoomStep(-1); });',
+      '  zoomInBtn.addEventListener("click", function () { popZoomStep(1); });',
       '  startBtn.addEventListener("click", function () { start(true); });',
       '  cancelBtn.addEventListener("click", function () {',
       '    // Báo về trang cha để reset cờ busy — nếu không, lần bấm "Quét Camera" sau mở',
@@ -945,6 +1005,13 @@
       // tăng 450→500ms — "tối ưu" làm CHẬM hơn). camDecoding guard đã chặn chồng lấn; interval
       // 200ms + camera 30fps → mỗi fire có frame mới, không decode trùng frame.
       var now = Date.now();
+      // TỰ ZOOM (2026-08-31): 2.5s không nhận được mã nào → zoom nhẹ 1 bậc (mã nhỏ/xa →
+      // vạch dày hơn trong khung → decode dễ hơn). User zoom tay bất cứ lúc nào qua − / +.
+      if (camShouldAutoZoom(now)) {
+        camZoomStep(1);
+        var zEl = document.getElementById('camStatusLive');
+        if (zEl) zEl.textContent = '🔍 Tự zoom ' + camZoomCurrent.toFixed(1) + 'x — đưa mã vào khung';
+      }
       // Gợi ý khoảng cách (2026-08-17): iPhone focus gần nhất ~10cm — dí sát quá làm vạch
       // ngoài vùng nét dù màn hình nhìn nét → decode fail lặp lại ("lúc được lúc không").
       // Hiện hint 1 lần/phiên khi 4s chưa nhận được mã nào.
@@ -1090,6 +1157,50 @@
     }
   }
 
+  // PURE (popup đọc qua window.opener — không chạm DOM): trạng thái Tìm Mã của modal.
+  // Popup GAS dùng điều này để full chain chạy theo nhịp user bật ở trang chính (trước
+  // đây 2 bên độc lập — bật Tìm Mã ở modal không ảnh hưởng popup đang mở).
+  function camIsFindMode() {
+    return !!camFindMode;
+  }
+
+  // 🔍 ZOOM STEP (2026-08-31): tăng (dir=1) / giảm (dir=-1) mức zoom camera, clamp vào
+  // [CAM_ZOOM_BASE, CAM_ZOOM_MAX] và khoảng zoom track hỗ trợ (getCapabilities().zoom —
+  // min/max mỗi máy khác nhau). Apply qua advanced constraint — trình duyệt không hỗ trợ
+  // → no-op an toàn (iOS Safari). Chỉ apply khi mức THẬT SỰ đổi (đỡ giật preview).
+  function camZoomStep(dir) {
+    var target = Math.round((camZoomCurrent + dir * CAM_ZOOM_STEP) * 10) / 10;
+    var t = null;
+    try { t = camStream && camStream.getVideoTracks ? camStream.getVideoTracks()[0] : null; } catch (e0) { t = null; }
+    if (t && t.getCapabilities) {
+      try {
+        var caps = t.getCapabilities();
+        if (caps && caps.zoom && typeof caps.zoom.min === 'number' && typeof caps.zoom.max === 'number' && caps.zoom.max > caps.zoom.min) {
+          if (target < caps.zoom.min) target = caps.zoom.min;
+          if (target > caps.zoom.max) target = caps.zoom.max;
+        }
+      } catch (eCaps) { /* không đọc được caps — dùng khoảng chung */ }
+    }
+    if (target < CAM_ZOOM_BASE) target = CAM_ZOOM_BASE;
+    if (target > CAM_ZOOM_MAX) target = CAM_ZOOM_MAX;
+    target = Math.round(target * 10) / 10;
+    if (target === camZoomCurrent) return;
+    camZoomCurrent = target;
+    if (!t || !t.applyConstraints) return;
+    try { t.applyConstraints({ advanced: [{ zoom: camZoomCurrent }] }); } catch (e) { /* no-op */ }
+  }
+
+  // PURE: đã tới lúc TỰ ZOOM chưa (2026-08-31)? Điều kiện: không đang Tìm Mã (find mode
+  // đã là đường decode mạnh nhất), chưa đạt trần zoom, phiên này CHƯA nhận được mã nào
+  // (có mã rồi thì tôn trọng khoảng cách user đang giữ — không đột ngột đổi FOV), và đã
+  // quét vô ích đủ CAM_AUTO_ZOOM_MS. Test: tests/camera-code128.test.js.
+  function camShouldAutoZoom(now) {
+    if (camFindMode) return false;
+    if (camZoomCurrent >= CAM_ZOOM_MAX) return false;
+    if (camLastCodeTs) return false;
+    return !!(camStartedAt && now - camStartedAt >= CAM_AUTO_ZOOM_MS);
+  }
+
   // Reset trạng thái + UI nút Tìm Mã (đóng modal / nhận được mã) — không reset camStream
   // (người gọi tự xử lý).
   function resetCamFindUi() {
@@ -1110,6 +1221,9 @@
     }
     camSnapping = false;
     resetCamFindUi();
+    // Zoom về mức gốc khi đóng phiên quét (2026-08-31) — track mới ở lần mở sau luôn là
+    // FOV gốc; camZoomCurrent chỉ là bản mirror của constraint đã apply, không tự reset.
+    camZoomCurrent = CAM_ZOOM_BASE;
     // QUÉT LIÊN TỤC (2026-08-17): kết thúc phiên quét — tắt cờ, xoá dedup + danh sách
     // kết quả (mở lại camera → phiên mới, danh sách mới).
     camOpen = false;
@@ -2088,24 +2202,30 @@
     "importScripts('https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js');",
     "var reader = null;",
     "// LUÂN PHIÊN 4 chiến lược decode (2026-08-17, mã MẤT GÓC/MỜ MÀU — user: súng laser nhận",
-    "// được mà camera khó): mỗi frame chỉ decode 1 lần (nhanh → frame luôn MỚI) nhưng qua 4",
-    "// frame phủ đủ: 0=HybridBinarizer (mặc định), 1=GlobalHistogramBinarizer (mã nhạt/mờ 1 góc",
+    "// được mà camera khó) + PASS 2 (2026-08-31): mỗi frame decode theo chiến lược xoay vòng",
+    "// 0=HybridBinarizer (mặc định), 1=GlobalHistogramBinarizer (mã nhạt/mờ 1 góc",
     "// — local threshold nuốt vạch), 2=Normalized+Hybrid (mã MỜ MÀU/tương phản thấp — kéo dãn",
     "// min-max về 0-255 rồi local threshold), 3=Sharpen+Normalize+Hybrid (ảnh mờ — unsharp 3x3",
-    "// làm cạnh vạch sắc lại). Main thread vẫn chạy đủ bậc Hybrid+Global mỗi tick.",
+    "// làm cạnh vạch sắc lại); FAIL thì thử lại frame TRƯỚC bằng GlobalHistogram+TRY_HARDER.",
+    "// Main thread vẫn chạy đủ bậc Hybrid+Global mỗi tick.",
     "var strat = 0;",
+    "// Frame TRƯỚC (đã decode xong) — pass 2 dùng khi frame hiện tại fail (2026-08-31):",
+    "// user di chuyển thẻ liên tục, mã có thể chỉ 'đúng nét' đúng 1 frame — nếu bỏ lỡ vì",
+    "// worker đang bận decode frame cũ thì phải chờ mã xuất hiện lại. Pass 2 nhặt lại frame",
+    "// trước đó bằng đường decode chậm nhất (GlobalHistogram + TRY_HARDER).",
+    "var prev = null;",
+    "function toGray(buf, w, h) {",
+    "  if (buf.byteLength === w * h) return new Uint8ClampedArray(buf);",
+    "  var src = new Uint8ClampedArray(buf);",
+    "  var g = new Uint8ClampedArray(w * h);",
+    "  for (var i = 0, p = 0; p < w * h; i += 4, p++) {",
+    "    g[p] = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) | 0;",
+    "  }",
+    "  return g;",
+    "}",
     "function decodeOne(d) {",
     "  if (!reader) reader = new ZXing.MultiFormatReader();",
-    "  var gray;",
-    "  if (d.buf.byteLength === d.w * d.h) {",
-    "    gray = new Uint8ClampedArray(d.buf);",
-    "  } else {",
-    "    var src = new Uint8ClampedArray(d.buf);",
-    "    gray = new Uint8ClampedArray(d.w * d.h);",
-    "    for (var i = 0, p = 0; p < d.w * d.h; i += 4, p++) {",
-    "      gray[p] = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) | 0;",
-    "    }",
-    "  }",
+    "  var gray = toGray(d.buf, d.w, d.h);",
     "  var hints = new Map();",
     "  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.CODABAR, ZXing.BarcodeFormat.QR_CODE]);",
     "  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);",
@@ -2114,10 +2234,23 @@
     "  // · 3=Sharpen+Normalize+Hybrid (ảnh mờ/blur — unsharp 3x3 làm cạnh vạch sắc lại).",
     "  var s = strat;",
     "  strat = (strat + 1) % 4;",
-    "  if (s === 1) return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, true);",
-    "  if (s === 2) { normalizeInPlace(gray); return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
-    "  if (s === 3) { sharpenInPlace(gray, d.w, d.h); normalizeInPlace(gray); return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
-    "  return tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false);",
+    "  var text = null;",
+    "  try {",
+    "    if (s === 1) text = tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, true);",
+    "    else if (s === 2) { normalizeInPlace(gray); text = tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
+    "    else if (s === 3) { sharpenInPlace(gray, d.w, d.h); normalizeInPlace(gray); text = tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false); }",
+    "    else text = tryDecode(new ZXing.RGBLuminanceSource(gray, d.w, d.h), hints, false);",
+    "  } catch (e1) { text = null; }",
+    "  // PASS 2 (2026-08-31): frame hiện tại fail → nhặt lại frame TRƯỚC (prev) decode bằng",
+    "  // đường chậm nhất (GlobalHistogram + TRY_HARDER) — bắt lại mã 'đúng nét đúng 1 frame'",
+    "  // mà worker đã bỏ lỡ (bận decode frame cũ trong lúc user kéo thẻ qua khung).",
+    "  if (!text && prev && prev.buf && prev.w === d.w && prev.h === d.h) {",
+    "    try {",
+    "      var g2 = toGray(prev.buf, prev.w, prev.h);",
+    "      text = tryDecode(new ZXing.RGBLuminanceSource(g2, prev.w, prev.h), hints, true);",
+    "    } catch (e2) { text = null; }",
+    "  }",
+    "  return text;",
     "}",
     "// Min-max stretch grayscale về 0-255 — mã mờ màu (mực phai, range hẹp ~100-180) thành",
     "// tương phản đầy đủ → binarizer tách vạch rõ. Ảnh gần 1 màu (range < 40) → bỏ qua (tránh nhiễu).",
@@ -2157,6 +2290,15 @@
     "  var text = null;",
     "  try { text = decodeOne(e.data); } catch (err) { text = null; }",
     "  self.postMessage({ text: text });",
+    "  // Lưu frame CHƯA decode (hoặc decode fail) làm 'prev' cho pass 2 lượt sau —",
+    "  // buffer transferable (postMessage transfer) nên phải giữ ngay tại đây. Frame",
+    "  // decode ĐƯỢC mã → clear prev (mã cũ không còn ý nghĩa, đỡ tốn 8MB/frame).",
+    "  try {",
+    "    if (e.data && e.data.buf && e.data.w && e.data.h) {",
+    "      if (text) { prev = null; }",
+    "      else { prev = { buf: e.data.buf, w: e.data.w, h: e.data.h }; }",
+    "    }",
+    "  } catch (e3) { /* bỏ qua — prev cũ giữ nguyên */ }",
     "};",
     "// Tín hiệu ready (2026-08-17): importScripts ZXing xong + worker hoạt động → main hiện",
     "// '⚙️ Worker: bật' trên UI (kiểm tra worker có chạy được trên thiết bị thật không).",

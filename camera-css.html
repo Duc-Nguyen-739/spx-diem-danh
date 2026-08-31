@@ -30,6 +30,13 @@
   background: #e85d04;
   box-shadow: 0 0 0 2px rgba(255,255,255,.45), 0 0 18px rgba(232,93,4,.55);
 }
+/* Nút zoom − / + (2026-08-31): cạnh Tìm Mã — camZoomStep() tăng/giảm zoom camera.
+   Nền trung tính (khác Tìm Mã xanh) vì không phải trạng thái bật/tắt. */
+.cam-zoom-btn {
+  font-size: 15px; font-weight: 700; padding: 7px 13px; border-radius: 10px; border: 0;
+  background: rgba(255,255,255,.12); color: #fff; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.18);
+}
 /* CHIA 60/40 (2026-08-17): ô camera 60% · phần thông tin quét 40%
    chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view (flex 3) rộng
    hơn camera-results (flex 2). Video object-fit:cover lấp kín ô. Danh sách thông

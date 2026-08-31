@@ -758,19 +758,20 @@ test('CAM_WORKER_SRC: worker code NGUYÊN BẢN chạy đúng — ready + onmess
   // decode throw (NotFound) → onmessage try/catch → trả null (worker không crash)
   vm.runInContext('reader = null; ZXing.MultiFormatReader = function () { this.decode = function () { throw new Error("nf"); }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, null, 'decode lỗi → null (không crash worker)');
-  // LUÂN PHIÊN chiến lược (2026-08-17, mã mất góc/mờ màu): reset strat → frame 1 = Hybrid,
-  // frame 2 = GlobalHistogram → ra mã (mã nhạt/mờ 1 góc)
-  vm.runInContext('strat = 0; reader = null; var dc = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc++; if (dc === 2) return { getText: function () { return "Ops55555"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  // LUÂN PHIÊN chiến lược (2026-08-17, mã mất góc/mờ màu): reset strat+prev → frame 1 = Hybrid,
+  // frame 2 = GlobalHistogram → ra mã (mã nhạt/mờ 1 góc). prev=null giữa các message: tách
+  // PASS 2 (test riêng bên dưới) khỏi test xoay chiến lược — mỗi frame đúng 1 decode.
+  vm.runInContext('strat = 0; prev = null; reader = null; var dc = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc++; if (dc === 2) return { getText: function () { return "Ops55555"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, 'Ops55555', 'frame 2 (GlobalHistogram) bắt mã nhạt/mờ 1 góc');
   // frame 3 = Normalized+Hybrid — mã MỜ MÀU/tương phản thấp (normalize min-max trước decode)
-  vm.runInContext('strat = 0; reader = null; var dc2 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc2++; if (dc2 === 3) return { getText: function () { return "Ops33333"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  vm.runInContext('strat = 0; prev = null; reader = null; var dc2 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc2++; if (dc2 === 3) return { getText: function () { return "Ops33333"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, 'Ops33333', 'frame 3 (Normalized+Hybrid) bắt mã mờ màu');
   // normalizeInPlace: stretch min-max về 0-255 (mã mờ màu); range hẹp → no-op (tránh nhiễu)
   vm.runInContext('var g1 = new Uint8ClampedArray([50, 100, 150, 200]); normalizeInPlace(g1); this.r1 = Array.prototype.slice.call(g1); var g2 = new Uint8ClampedArray([120, 130, 140]); normalizeInPlace(g2); this.r2 = Array.prototype.slice.call(g2);', wctx);
   assert.deepEqual(Array.from(wctx.r1), [0, 85, 170, 255], 'stretch min-max về 0-255');
   assert.deepEqual(Array.from(wctx.r2), [120, 130, 140], 'range < 40 → giữ nguyên (không tạo nhiễu)');
-  // frame 4 = Sharpen+Normalize+Hybrid — ảnh MỜ/blur (mờ cả dải vạch)
-  vm.runInContext('strat = 0; reader = null; var dc3 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc3++; if (dc3 === 4) return { getText: function () { return "Ops44444"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
+  // frame 4 = Sharpen+Normalize+Hybrid — ảnh MỜ/blur (mờ cả dải vạch). prev=null như trên.
+  vm.runInContext('strat = 0; prev = null; reader = null; var dc3 = 0; ZXing.MultiFormatReader = function () { this.decode = function () { dc3++; if (dc3 === 4) return { getText: function () { return "Ops44444"; } }; return null; }; }; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } }); prev = null; self.onmessage({ data: { buf: buf, w: 4, h: 4 } });', wctx);
   assert.equal(posted[posted.length - 1].text, 'Ops44444', 'frame 4 (Sharpen+Normalize+Hybrid) bắt mã mờ/blur');
   // sharpenInPlace: unsharp 3x3 — cạnh vạch sắc hơn (pixel vạch tối hơn, nền sáng hơn)
   vm.runInContext('var g3 = new Uint8ClampedArray([200, 100, 200, 200, 100, 200, 200, 100, 200]); sharpenInPlace(g3, 3, 3); this.r3 = Array.prototype.slice.call(g3);', wctx);
@@ -825,4 +826,131 @@ test('camFastDecode: ZXing fail → Quagga fallback chạy (không mất khả n
       assert.ok(quaggaCalls >= 1, 'Quagga phải chạy khi ZXing fail');
     } finally { ctx.window.Quagga = savedQ; ctx.STAFF_INFO = savedS; }
   });
+});
+
+// ===== ZOOM + WORKER PASS 2 + SYNC FIND MODE (2026-08-31: bắt mã nhanh hơn nữa) =====
+
+test('camShouldAutoZoom: đủ 2.5s + chưa có mã + chưa max + không find mode → true', () => {
+  fastEnv(null, {}, () => {
+    const saved = { find: ctx.camFindMode, zoom: ctx.camZoomCurrent, started: ctx.camStartedAt, lastTs: ctx.camLastCodeTs, max: ctx.CAM_ZOOM_MAX };
+    try {
+      ctx.camFindMode = false;
+      ctx.camZoomCurrent = 1.0;
+      ctx.camLastCodeTs = 0;
+      ctx.camStartedAt = 1000;
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), true, 'đủ thời gian → tự zoom');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS - 1), false, 'chưa đủ thời gian → chưa zoom');
+      ctx.camLastCodeTs = 2000;
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đã có mã → tôn trọng khoảng cách hiện tại');
+      ctx.camLastCodeTs = 0;
+      ctx.camZoomCurrent = ctx.CAM_ZOOM_MAX;
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đạt trần zoom → không zoom thêm');
+      ctx.camZoomCurrent = 1.0;
+      ctx.camFindMode = true;
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'find mode đã là đường mạnh nhất → không tự zoom');
+      ctx.camFindMode = false;
+      ctx.camStartedAt = 0;
+      assert.equal(ctx.camShouldAutoZoom(99999), false, 'chưa mở camera (startedAt=0) → false');
+    } finally {
+      ctx.camFindMode = saved.find; ctx.camZoomCurrent = saved.zoom;
+      ctx.camStartedAt = saved.started; ctx.camLastCodeTs = saved.lastTs; ctx.CAM_ZOOM_MAX = saved.max;
+    }
+  });
+});
+
+test('camZoomStep: tăng/giảm đúng bậc 0.6, clamp [1.0, 3.0], clamp vào khoảng track hỗ trợ', () => {
+  fastEnv(null, {}, () => {
+    const saved = { stream: ctx.camStream, zoom: ctx.camZoomCurrent };
+    try {
+      ctx.camStream = null; // không có track → state vẫn đổi (applyConstraints bỏ qua)
+      ctx.camZoomCurrent = 1.0;
+      ctx.camZoomStep(1);
+      assert.equal(ctx.camZoomCurrent, 1.6, 'bấm + → 1.6x');
+      ctx.camZoomStep(1);
+      assert.equal(ctx.camZoomCurrent, 2.2, 'bấm + nữa → 2.2x');
+      ctx.camZoomCurrent = 3.0;
+      ctx.camZoomStep(1);
+      assert.equal(ctx.camZoomCurrent, 3.0, 'đạt trần 3.0 → giữ nguyên');
+      ctx.camZoomStep(-1);
+      assert.equal(ctx.camZoomCurrent, 2.4, 'bấm − → giảm về 2.4x');
+      ctx.camZoomCurrent = 1.0;
+      ctx.camZoomStep(-1);
+      assert.equal(ctx.camZoomCurrent, 1.0, 'đạt sàn 1.0 → giữ nguyên');
+      // track mock có getCapabilities zoom 1..2.5 → target vượt max track bị clamp
+      ctx.camStream = { getVideoTracks: () => [{ getCapabilities: () => ({ zoom: { min: 1, max: 2.5 } }), applyConstraints: () => {} }] };
+      ctx.camZoomCurrent = 2.0;
+      ctx.camZoomStep(1); // target 2.6 > max track 2.5 → clamp 2.5
+      assert.equal(ctx.camZoomCurrent, 2.5, 'clamp vào max của track (2.5)');
+    } finally { ctx.camStream = saved.stream; ctx.camZoomCurrent = saved.zoom; }
+  });
+});
+
+test('worker CAM_WORKER_SRC: PASS 2 — frame hiện tại fail → decode lại frame TRƯỚC (Global+TH)', () => {
+  let src = String(ctx.CAM_WORKER_SRC).replace(/importScripts\([^)]*\);\s*/, '');
+  const posted = [];
+  // Mock ZXing: decode chỉ THÀNH CÔNG khi (a) binarizer = GlobalHistogramBinarizer (đường
+  // pass 2 / strat 1) VÀ (b) gray[0] trong khoảng 5..20 (frame TRƯỚC — bufA=10; frame hiện
+  // tại bufB=200). Khoảng giá trị vì grayscale nhân hệ số 0.299/0.587/0.114 rồi |0 —
+  // 10*(tổng hệ số) tính float = 9.999... → |0 = 9 (so chính xác 10 sẽ MISS).
+  // → trả mã ở pass 2 chứng minh: pass 1 (frame hiện tại) fail, pass 2 (prev) thành công.
+  // lastBin = closure (KHÔNG dùng self — hàm mock chạy lexical scope outer trong vm).
+  let lastBin = '?';
+  const wctx = {
+    ZXing: {
+      MultiFormatReader: function () { this.decode = function (bitmap) { const v = bitmap.b && bitmap.b.s && bitmap.b.s.b ? bitmap.b.s.b[0] : -1; if (lastBin === 'Global' && v >= 5 && v <= 20) return { getText: function () { return 'Ops129481'; } }; throw new Error('NotFoundException'); }; },
+      RGBLuminanceSource: function (b, w, h) { this.b = b; this.w = w; this.h = h; },
+      BinaryBitmap: function (b) { this.b = b; },
+      HybridBinarizer: function (s) { this.s = s; lastBin = 'Hybrid'; },
+      GlobalHistogramBinarizer: function (s) { this.s = s; lastBin = 'Global'; },
+      DecodeHintType: { POSSIBLE_FORMATS: 'PF', TRY_HARDER: 'TH' },
+      BarcodeFormat: { CODE_128: 1, CODE_39: 2, CODE_93: 3, CODABAR: 4, QR_CODE: 5 },
+    },
+    self: { postMessage: function (m) { posted.push(m); } },
+  };
+  wctx.bufA = new Uint8ClampedArray(4 * 4 * 4).fill(10).buffer;   // "frame trước" — decode được
+  wctx.bufB = new Uint8ClampedArray(4 * 4 * 4).fill(200).buffer;  // "frame hiện tại" — fail
+  vm.createContext(wctx);
+  vm.runInContext(src, wctx);
+  // Frame 1 (bufA): strat 0 Hybrid → throw; pass 2 chưa có prev → null. prev = frame 1.
+  vm.runInContext('self.onmessage({ data: { buf: bufA, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, null, 'frame 1 (Hybrid) fail → null');
+  // Frame 2 (bufB): strat 1 Global + bufB(200) → throw; PASS 2: prev = frame 1 (bufA=10)
+  // qua GlobalHistogram → RA MÃ (mã chỉ "đúng nét" ở frame bị bỏ lỡ).
+  vm.runInContext('self.onmessage({ data: { buf: bufB, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops129481', 'pass 2 nhặt lại frame trước → ra mã');
+  // Decode được mã → prev clear: frame 3 fail mà không có prev → không pass 2
+  vm.runInContext('self.onmessage({ data: { buf: bufB, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, null, 'đã clear prev sau khi nhận mã → không decode frame cũ vô ích');
+  // prev được cập nhật lại sau frame fail → frame kế pass 2 kích hoạt lần nữa
+  // msg 4 (bufA): pass 1 Hybrid fail; pass 2 trên prev (msg 3 = bufB) vẫn fail → null
+  vm.runInContext('self.onmessage({ data: { buf: bufA, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, null, 'pass 2 decode prev KHÔNG đọc được → null (không nhầm)');
+  // msg 5 (bufA): pass 1 fail; pass 2 trên prev (msg 4 = bufA) → RA MÃ lần nữa
+  vm.runInContext('self.onmessage({ data: { buf: bufA, w: 4, h: 4 } });', wctx);
+  assert.equal(posted[posted.length - 1].text, 'Ops129481', 'frame sau fail → pass 2 trên prev ra mã lần nữa');
+});
+
+test('camIsFindMode: trả trạng thái camFindMode hiện tại (popup sync qua opener)', () => {
+  fastEnv(null, {}, () => {
+    const saved = ctx.camFindMode;
+    try {
+      ctx.camFindMode = true;
+      assert.equal(ctx.camIsFindMode(), true);
+      ctx.camFindMode = false;
+      assert.equal(ctx.camIsFindMode(), false);
+    } finally { ctx.camFindMode = saved; }
+  });
+});
+
+test('index.html: camera-head có 2 nút zoom − / + gọi camZoomStep', () => {
+  const idx = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(idx.includes('id="camZoomOut"'), 'có nút zoom out');
+  assert.ok(idx.includes('id="camZoomIn"'), 'có nút zoom in');
+  assert.ok(/id="camZoomOut"[^>]*onclick="camZoomStep\(-1\)"/.test(idx), 'zoom out gọi camZoomStep(-1)');
+  assert.ok(/id="camZoomIn"[^>]*onclick="camZoomStep\(1\)"/.test(idx), 'zoom in gọi camZoomStep(1)');
+});
+
+test('camera-css.html: có style cho nút zoom', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'camera-css.html'), 'utf8');
+  assert.ok(css.includes('.cam-zoom-btn'), 'có class cam-zoom-btn');
 });

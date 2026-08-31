@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-474%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 474" />
+  <img src="https://img.shields.io/badge/tests-481%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 481" />
   <img src="https://img.shields.io/badge/Node-%3E%3D22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="node" />
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="python" />
   <img src="https://img.shields.io/badge/Sheets-API-34A853?style=for-the-badge&logo=googlesheets&logoColor=white" alt="sheets" />
@@ -143,11 +143,11 @@ scanStaffApi (Code.gs) → scanStaff (ScanService.gs) → classifyScan / classif
 | Thành phần | Công nghệ | Ghi chú hot |
 | :--------- | :-------- | :---------- |
 | 🎨 **Frontend** | ![HTML](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/CSS-1572B6?style=flat-square&logo=css3&logoColor=white) ![JS](https://img.shields.io/badge/Vanilla_JS-F7DF1E?style=flat-square&logo=javascript&logoColor=000) | 3-file split `index.html` + `css.html` (`<style>`) + `js.html` (`<script>`) qua `<?!= include() ?>` |
-| 📷 **Camera** | ![ZXing](https://img.shields.io/badge/ZXing-CDN-FF6B35?style=flat-square) ![Quagga](https://img.shields.io/badge/Quagga-vendored-0d111a?style=flat-square) ![Tesseract](https://img.shields.io/badge/Tesseract-OCR-34A853?style=flat-square) | `camera-scan.html` + `camera-css.html` + `lib-jsqr/quagga` + **Web Worker 3-4 binarizer** + `contrast(1.35)` |
+| 📷 **Camera** | ![ZXing](https://img.shields.io/badge/ZXing-CDN-FF6B35?style=flat-square) ![Quagga](https://img.shields.io/badge/Quagga-vendored-0d111a?style=flat-square) ![Tesseract](https://img.shields.io/badge/Tesseract-OCR-34A853?style=flat-square) | `camera-scan.html` + `camera-css.html` + `lib-jsqr/quagga` + **Web Worker 3-4 binarizer + pass 2 + zoom −/+** + `contrast(1.35)` |
 | ☁️ **Backend GAS** | ![GAS](https://img.shields.io/badge/Google_Apps_Script-V8-4285F4?style=flat-square&logo=googleappsscript&logoColor=white) | `Code.gs` + 8 module `.gs` · `V8` · `Asia/Ho_Chi_Minh` · `USER_DEPLOYING` · `DOMAIN` |
 | 🐍 **Backend Python** | ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/API-JSONP%2FPOST-009688?style=flat-square) | `api/main.py` · `scanlogic.py` · `services.py` · `database.py` · `sheets.py` · `google-api-python-client` |
 | 🗄️ **Database** | ![Sheets](https://img.shields.io/badge/Google_Sheets-4_sheets-34A853?style=flat-square&logo=googlesheets&logoColor=white) | ID via **Script Properties** `SPREADSHEET_ID` — **không commit** (FIX-25) |
-| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-474_passing-188038?style=flat-square) | `node:test` 29f/378 + `unittest` 85 + Chrome 11 = **474** |
+| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-481_passing-188038?style=flat-square) | `node:test` 29f/384 + `unittest` 85 + Chrome 12 = **481** |
 | 🔧 **Build** | ![Scripts](https://img.shields.io/badge/scripts-inline--html-FF8A5C?style=flat-square) | `inline-html.js` · `serve.js :4173` · `build-static.js → dist/` · `build-local.js → index.local.html` |
 | 🚀 **Deploy** | ![clasp](https://img.shields.io/badge/clasp-redeploy-0d111a?style=flat-square&logo=googlecloud&logoColor=white) ![Actions](https://img.shields.io/badge/GitHub_Actions-CI_gate-2088FF?style=flat-square&logo=githubactions&logoColor=white) | `push -f` + `version` + `redeploy` (không `deploy` mới) |
 
@@ -256,9 +256,9 @@ pip install -r requirements.txt
 #### 🧪 Kiểm thử bắt buộc
 
 ```bash
-npm test            # 378 — node --test tests/*.test.js
+npm test            # 384 — node --test tests/*.test.js
 npm run test:py     # 85  — python -m unittest discover -s api -p 'test_*.py'
-npm run build:local && npm run test:chrome  # 11 Chrome
+npm run build:local && npm run test:chrome  # 12 Chrome
 ```
 
 </td>
@@ -298,26 +298,26 @@ Mock UI: mở `index.html` trực tiếp — `js.html` tự nạp `mock/mock-goo
 ## 🧪 Kiểm thử — 474 tests hot
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node-378%2F378-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Node-384%2F384-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Python-85%2F85-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Chrome-11%2F11-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/total-474%20passing-188038?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Chrome-12%2F12-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/total-481%20passing-188038?style=for-the-badge" />
 </p>
 
 **Workflow chuẩn trước push (§19 AGENTS.md — khớp `attendance-portal`):**
 
 ```bash
 npm run build:local
-npm test              # 378/378 pass
+npm test              # 384/384 pass
 npm run test:py       # 85/85 pass
-npm run test:chrome   # 11/11 pass (khi đổi UI/scan/mock) — cần Node ≥22 + Chrome
+npm run test:chrome   # 12/12 pass (khi đổi UI/scan/mock) — cần Node ≥22 + Chrome
 ```
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 29 file, 378 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR | **Mọi commit** |
+| `npm test` | 29 file, 384 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR | **Mọi commit** |
 | `npm run test:py` | 85 tests `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
-| `npm run test:chrome` | 11 checks CDP — boot `index.local.html` + mock → task list 30 rows / openScan / quét `Ops229444` / trùng / Dư / backToList | Đổi **UI/scan/mock** |
+| `npm run test:chrome` | 12 checks CDP — boot `index.local.html` + mock → task list 30 rows / openScan / quét `Ops229444` / trùng / Dư / backToList | Đổi **UI/scan/mock** |
 
 > CDP: `node scripts/cdp-helper.js list|open <url>|eval <expr>|shot <png>|click <x> <y>` — `WebSocket` global (Node 22+)
 
@@ -406,7 +406,7 @@ curl -s -o /dev/null -w '%{http_code}' "https://script.google.com/macros/s/<DEPL
 - ✅ **Camera AI** — ZXing (chính) + Quagga + jsQR + Tesseract OCR + Web Worker 3-4 binarizer; popup GAS iframe, live modal standalone
 - ✅ **Tìm kiếm + queue optimistic + counters epoch + âm thanh** mp3 beep/buzz
 - ✅ **Poll 3s + cache versioned + LockService 10s**
-- ✅ **Test 378 + 85 + 11 = 474 pass** · CI gate `.github/workflows/deploy.yml` chặn regression trước `clasp push` + `redeploy`
+- ✅ **Test 384 + 85 + 12 = 481 pass** · CI gate `.github/workflows/deploy.yml` chặn regression trước `clasp push` + `redeploy`
 - ✅ **Bảo mật FIX-25/26** — xóa spreadsheet ID khỏi repo + fail CI khi deploy lỗi
 - ⏳ **P2** — QA prod với mã NV thật
 

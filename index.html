@@ -446,6 +446,8 @@
     <div class="camera-head">
       <span class="camera-title" id="cameraTitle">📷 Quét mã bằng camera</span>
       <div class="camera-head-actions">
+        <button type="button" class="cam-zoom-btn" id="camZoomOut" onclick="camZoomStep(-1)" aria-label="Thu nhỏ camera">−</button>
+        <button type="button" class="cam-zoom-btn" id="camZoomIn" onclick="camZoomStep(1)" aria-label="Phóng to camera">+</button>
         <button type="button" class="cam-find-btn" id="camFindBtn" onclick="toggleCamFind()" aria-label="Lấy nét tìm mã nhanh hơn">🔍 Tìm Mã</button>
         <button type="button" class="dialog-close camera-close" onclick="closeCameraModal()" aria-label="Đóng camera">✕</button>
       </div>
