@@ -314,7 +314,7 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 | `npm run build:local` | `scripts/build-local.js` gộp GAS template `index.html` (`<?!= include() ?>` → `css/js/mobile/lib/camera`) → `index.local.html` cho `file://` | Trước `test:chrome` |
 | `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 11 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
 
-> Tổng test hiện tại: 378 JS + 85 Python = **463 test**. *(Bản gốc ghi 464 ở một vài chỗ — lệch 1 so với số cộng thực tế trong bảng trên; cần đối chiếu lại con số thật khi có dịp, bản này dùng số tính được từ bảng.)*
+> Tổng test hiện tại: 378 JS + 85 Python + 11 Chrome = **474 test** (378 `node:test` + 85 `unittest` + 11 `test:chrome`).
 
 **Workflow chuẩn trước push:** `build:local` → `npm test` → `test:py` → `test:chrome` (nếu đổi UI) → commit → push. Không claim pass khi chưa có số liệu (luật 4). `index.local.html` đã `.gitignore`/`.claspignore`.
 

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-464%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 464" />
+  <img src="https://img.shields.io/badge/tests-474%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 474" />
   <img src="https://img.shields.io/badge/Node-%3E%3D22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="node" />
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="python" />
   <img src="https://img.shields.io/badge/Sheets-API-34A853?style=for-the-badge&logo=googlesheets&logoColor=white" alt="sheets" />
@@ -102,7 +102,7 @@
 
 ## 🏗️ Kiến trúc dual runtime — 1 logic, 2 nơi chạy
 
-> Đổi logic quét/classify → sửa **cả `.gs` lẫn `api/*.py`** + chạy `npm test` + `npm run test:py` (§21 `AGENTS.md`)
+> Đổi logic quét/classify → sửa **cả `.gs` lẫn `api/*.py`** + chạy `npm test` + `npm run test:py` (§19 `AGENTS.md`)
 
 ```mermaid
 graph TD
@@ -147,7 +147,7 @@ scanStaffApi (Code.gs) → scanStaff (ScanService.gs) → classifyScan / classif
 | ☁️ **Backend GAS** | ![GAS](https://img.shields.io/badge/Google_Apps_Script-V8-4285F4?style=flat-square&logo=googleappsscript&logoColor=white) | `Code.gs` + 8 module `.gs` · `V8` · `Asia/Ho_Chi_Minh` · `USER_DEPLOYING` · `DOMAIN` |
 | 🐍 **Backend Python** | ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/API-JSONP%2FPOST-009688?style=flat-square) | `api/main.py` · `scanlogic.py` · `services.py` · `database.py` · `sheets.py` · `google-api-python-client` |
 | 🗄️ **Database** | ![Sheets](https://img.shields.io/badge/Google_Sheets-4_sheets-34A853?style=flat-square&logo=googlesheets&logoColor=white) | ID via **Script Properties** `SPREADSHEET_ID` — **không commit** (FIX-25) |
-| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-464_passing-188038?style=flat-square) | `node:test` 27f/368 + `unittest` 85 + Chrome 11 = **464** |
+| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-474_passing-188038?style=flat-square) | `node:test` 29f/378 + `unittest` 85 + Chrome 11 = **474** |
 | 🔧 **Build** | ![Scripts](https://img.shields.io/badge/scripts-inline--html-FF8A5C?style=flat-square) | `inline-html.js` · `serve.js :4173` · `build-static.js → dist/` · `build-local.js → index.local.html` |
 | 🚀 **Deploy** | ![clasp](https://img.shields.io/badge/clasp-redeploy-0d111a?style=flat-square&logo=googlecloud&logoColor=white) ![Actions](https://img.shields.io/badge/GitHub_Actions-CI_gate-2088FF?style=flat-square&logo=githubactions&logoColor=white) | `push -f` + `version` + `redeploy` (không `deploy` mới) |
 
@@ -194,16 +194,16 @@ spx-diem-danh/
 │   ├── build-local.js     # → index.local.html (cho file:// + test:chrome)
 │   ├── inline-html.js     # transform <?!= include() ?>
 │   └── cdp-helper.js      # CDP list/open/eval/shot/click
-├── tests/                 # 27 file, 368 tests — node:test
+├── tests/                 # 29 file, 378 tests — node:test
 ├── docs/intent/diem-danh-hn2-soc.md
 ├── docs/spec/2026-08-02-phase0-spec.md
-├── skills/project-skill/ + review-gas-failure-modes/
+├── skills/                # 5 skills: audit-webapp-optimize, debug-systematic, project-skill, review-gas-failure-modes, ui-ux-audit
 ├── .github/workflows/deploy.yml  # CI gate + push + redeploy
 ├── package.json           # v0.1.0 — test/test:py/test:chrome/dev/build/build:local
 └── requirements.txt
 ```
 
-> **3-file split (§20 AGENTS.md):** GAS `HtmlService` không serve `.css`/`.js` tĩnh (clasp chỉ push `.gs/.html/.json`) nên CSS/JS ở `css.html`/`js.html` và nhúng qua scriptlet `<?!= include('css') ?>`. `serve.js` + `build-static.js` thay bằng nội dung file qua `inline-html.js` — sửa transform phải sửa đủ 3 nơi + `npm test` (`inline-html.test.js`, `code-doget.test.js`).
+> **3-file split (§18 AGENTS.md):** GAS `HtmlService` không serve `.css`/`.js` tĩnh (clasp chỉ push `.gs/.html/.json`) nên CSS/JS ở `css.html`/`js.html` và nhúng qua scriptlet `<?!= include('css') ?>`. `serve.js` + `build-static.js` thay bằng nội dung file qua `inline-html.js` — sửa transform phải sửa đủ 3 nơi + `npm test` (`inline-html.test.js`, `code-doget.test.js`).
 
 </details>
 
@@ -256,7 +256,7 @@ pip install -r requirements.txt
 #### 🧪 Kiểm thử bắt buộc
 
 ```bash
-npm test            # 368 — node --test tests/*.test.js
+npm test            # 378 — node --test tests/*.test.js
 npm run test:py     # 85  — python -m unittest discover -s api -p 'test_*.py'
 npm run build:local && npm run test:chrome  # 11 Chrome
 ```
@@ -295,27 +295,27 @@ Mock UI: mở `index.html` trực tiếp — `js.html` tự nạp `mock/mock-goo
 
 ---
 
-## 🧪 Kiểm thử — 464 tests hot
+## 🧪 Kiểm thử — 474 tests hot
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node-368%2F368-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Node-378%2F378-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Python-85%2F85-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Chrome-11%2F11-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/total-464%20passing-188038?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/total-474%20passing-188038?style=for-the-badge" />
 </p>
 
-**Workflow chuẩn trước push (§21 AGENTS.md — khớp `attendance-portal`):**
+**Workflow chuẩn trước push (§19 AGENTS.md — khớp `attendance-portal`):**
 
 ```bash
 npm run build:local
-npm test              # 368/368 pass
+npm test              # 378/378 pass
 npm run test:py       # 85/85 pass
 npm run test:chrome   # 11/11 pass (khi đổi UI/scan/mock) — cần Node ≥22 + Chrome
 ```
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 27 file, 368 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR | **Mọi commit** |
+| `npm test` | 29 file, 378 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR | **Mọi commit** |
 | `npm run test:py` | 85 tests `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run test:chrome` | 11 checks CDP — boot `index.local.html` + mock → task list 30 rows / openScan / quét `Ops229444` / trùng / Dư / backToList | Đổi **UI/scan/mock** |
 
@@ -376,7 +376,7 @@ curl -s -o /dev/null -w '%{http_code}' "https://script.google.com/macros/s/<DEPL
 ## 📏 Quy ước phát triển — neon HUD
 
 > [!TIP]
-> Chi tiết đầy đủ: [`AGENTS.md`](AGENTS.md) (§3 Hard Constraints, §14 GAS, §20 camera gotchas, §21 test) và [`skills/project-skill/SKILL.md`](skills/project-skill/SKILL.md)
+> Chi tiết đầy đủ: [`AGENTS.md`](AGENTS.md) (§1 Bảng luật, §13 Platform GAS, §18 UI 3-file + Camera, §19 test) và [`skills/project-skill/SKILL.md`](skills/project-skill/SKILL.md)
 
 - 🌐 **Ngôn ngữ:** cột sheet / biến / file = **tiếng Anh**; hiển thị web = **tiếng Việt**
 - 📦 **Hằng số tập trung** `Config.gs` — không hardcode rải rác; client mirror `STATUS`/`TASK_STATUS` trong `js.html` (1 nguồn mỗi phía)
@@ -406,7 +406,7 @@ curl -s -o /dev/null -w '%{http_code}' "https://script.google.com/macros/s/<DEPL
 - ✅ **Camera AI** — ZXing (chính) + Quagga + jsQR + Tesseract OCR + Web Worker 3-4 binarizer; popup GAS iframe, live modal standalone
 - ✅ **Tìm kiếm + queue optimistic + counters epoch + âm thanh** mp3 beep/buzz
 - ✅ **Poll 3s + cache versioned + LockService 10s**
-- ✅ **Test 368 + 85 + 11 = 464 pass** · CI gate `.github/workflows/deploy.yml` chặn regression trước `clasp push` + `redeploy`
+- ✅ **Test 378 + 85 + 11 = 474 pass** · CI gate `.github/workflows/deploy.yml` chặn regression trước `clasp push` + `redeploy`
 - ✅ **Bảo mật FIX-25/26** — xóa spreadsheet ID khỏi repo + fail CI khi deploy lỗi
 - ⏳ **P2** — QA prod với mã NV thật
 
@@ -419,5 +419,5 @@ Private — repo `Duc-Nguyen-739/spx-diem-danh`. Không commit `Att.csv` thật;
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=120&section=footer&text=&fontSize=0" width="100%" />
 
 <p align="center">
-  <sub>Cập nhật README hot 2026-08-28 — đồng bộ <code>AGENTS.md §21</code> · <code>Config.gs</code> TTL 15s/30s · <code>package.json v0.1.0</code> · <code>appsscript.json Asia/Ho_Chi_Minh/DOMAIN</code> · workflow <code>deploy.yml version+redeploy</code> &nbsp;•&nbsp; Spec: <a href="docs/spec/2026-08-02-phase0-spec.md">Phase 0</a> &nbsp;•&nbsp; Phong cách: <b>aurora gradient + bento + glassmorphism + neon Shopee Express #EE4D2D</b></sub>
+  <sub>Cập nhật README hot 2026-08-31 — đồng bộ <code>AGENTS.md §19</code> · <code>Config.gs</code> TTL 15s/30s · <code>package.json v0.1.0</code> · <code>appsscript.json Asia/Ho_Chi_Minh/DOMAIN</code> · workflow <code>deploy.yml version+redeploy</code> &nbsp;•&nbsp; Spec: <a href="docs/spec/2026-08-02-phase0-spec.md">Phase 0</a> &nbsp;•&nbsp; Phong cách: <b>aurora gradient + bento + glassmorphism + neon Shopee Express #EE4D2D</b></sub>
 </p>
