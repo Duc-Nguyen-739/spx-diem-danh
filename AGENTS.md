@@ -322,51 +322,70 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 CI gate `.github/workflows/deploy.yml` chạy đủ `npm test` + `test:py` + `build:local` + `test:chrome`.
 
-## §20. Định dạng output (Freebuff)
+## §20. Định dạng output (chuẩn chung — BẮT BUỘC khi trả kết quả skill)
 
-**1. Output trong khung hội thoại (chat)** — mọi câu trả lời của agent đều là Markdown, hiển thị trực tiếp trong terminal/app:
+> Khi in kết quả chạy skill (`audit`/`review`/`debug`), TUÂN THỦ format này — dễ quét, có marker, không tường thuật.
+> Chỉ áp dụng cho OUTPUT CỦA SKILL; với Q&A/sửa bug đơn lẻ, ưu tiên trả lời ngắn gọn (<4 dòng) — không đắp bảng P0/P1/P2.
 
-| Phần tử | Ví dụ |
-| :------ | :---- |
-| Tiêu đề | `# H1` · `## H2` · `### H3` |
-| Danh sách | `- item` · `1. item` |
-| Bảng | `\| cột A \| cột B \|` |
-| Code inline | `` `const x = 1` `` |
-| Code block | ` ```ts ... ``` ` (có highlight theo ngôn ngữ) |
-| Trích dẫn | `> ghi chú` |
-| Link | `[văn bản](https://...)` |
+### §20.1 TL;DR 1 dòng — verdict + đếm issue
+`✅ Approve — 0 P0 · 2 P1 · 5 P2` | `⚠️ Cần duyệt — 1 P0` | `🔴 Blocked — 3 P0`
 
-Ngoài ra agent còn hiển thị tiến trình làm việc: danh sách việc cần làm (todos), lệnh terminal đang chạy, và diff thay đổi file.
+### §20.1b Dòng Rule check (luật #12, bắt buộc khi đã chạy checkpoint A/B/C — tức có sửa code) — ngay sau TL;DR
+`**Rule check:** A: <rule đã áp dụng> · B: <rule đã kiểm diff> · C: <rule đã kiểm commit>`  
+VD: `**Rule check:** A: §1#8 §1#9 §1#11 · B: §1#8 · C: §1#8`  
+Bỏ dòng này khi task không đụng code (đọc/phân tích/trả lời câu hỏi).
 
-**2. Output dạng file**
-- Agent đọc/ghi mọi định dạng file văn bản trong repo: `.md`, `.txt`, `.json`, `.yaml`, `.ts/.js/.py/.gs`, HTML/CSS…
-- `.md` (Markdown): hỗ trợ đầy đủ — đọc, tạo mới, hoặc chỉnh sửa bất kỳ file `.md` nào khi được yêu cầu.
-- File được ghi thẳng vào working directory của repo (qua công cụ file, không qua shell redirection).
+### §20.2 Bảng findings (audit/review/debug — bảng mặc định) — mỗi dòng = 1 issue, cell ≤1 dòng
+| # | Sev | Vấn đề | Vị trí | Đề xuất |
+|---|---|---|---|---|
+| P0-1 | 🔴 P0 | quét ngoài DS ghi PRESENT | `ScanLogic.gs:142` | mirror server EXTRA |
+| P1-1 | 🟠 P1 | card mobile lệch tông | `css.html:88` | override `tbody td:nth-child(n)` |
+| P2-1 | 🟡 P2 | comment thừa | `Code.gs:30` | xóa |
 
-**3. Các loại output khác**
-- **Preview URL:** với dự án web, Freebuff chạy dev server trong sandbox và trả về URL xem trước.
-- **Deploy:** build tĩnh ra thư mục output (ví dụ `dist/`) rồi triển lên hosting do Freebuff quản lý.
-- **Báo cáo kiểm tra:** kết quả typecheck/test trả về dạng log văn bản kèm phân tích lỗi.
+Marker: 🔴 P0 (blocker/sai data) · 🟠 P1 (break/khó dùng) · 🟡 P2 (cosmetic). ID đếm liên tục: P0-1, P0-2… → P1-1… → P2-1…
 
-**4. Mẫu output chuẩn (template)**
+### §20.3 Đánh giá tổng thể — ngay sau bảng findings, 3–5 dòng ngắn gọn
+- Tổng quan: <chất lượng chung / rủi ro chính>
+- Blocker: <có/không — P0 nào chặn deploy/data>
+- Ưu tiên fix: P0 → P1 → P2 (liệt kê ID, vd: P0-1, P1-2)
+- Nếu 0 P0: nêu 1–2 điểm mạnh để cân bằng
 
-```markdown
-# <Tiêu đề công việc>
+### §20.4 Nhóm theo chủ đề (chỉ khi >5 issue — đếm TỔNG số dòng bảng §20.2)
+`### Nhóm + bullet 1 dòng/cái.`
 
-## Tóm tắt
-- <Đã làm gì, kết quả ra sao>
+### §20.5 Khối hành động cuối (bắt buộc khi có ≥1 P0/P1 · optional khi chỉ toàn P2 hoặc empty-state)
+> **Tiếp theo:** [làm gì] · [ai] · [duyệt?] — khớp gate `§6.2`
 
-## Thay đổi
-| File | Nội dung thay đổi |
-| :--- | :---------------- |
-| path/to/file.ts | <mô tả ngắn> |
+### §20.6 Quy tắc vàng (khi in bảng)
+- Không tóm tắt lại nội dung skill — chỉ in kết quả.
+- Không đoạn văn >3 dòng không chia ý.
+- Dùng marker 🔴🟠🟡 ✅ ⚠️ ✓ thay chữ "lỗi/nghiêm trọng/đã xong".
+- Số liệu đi đầu (đếm trước, kể sau): 5 P2 chứ không "có vài issue nhỏ".
+- Mỗi finding có `file:line` cụ thể — không "ở đâu đó trong scan".
 
-## Cách kiểm chứng
-1. Chạy `<lệnh>` → kết quả: <pass/fail>
+### §20.7 Confidence score — biến thể của bảng §20.2, CHỈ dùng khi skill yêu cầu độ tin cậy (hiện: `review-gas-failure-modes`)
+| # | Sev | Vấn đề | Vị trí | Conf | Đề xuất |
+|---|---|---|---|---|---|
+| P0-1 | 🔴 P0 | cache blind put mất write | `Cache.gs:55` | 92 | read-merge-write |
+- Blocker/security: LUÔN report dù conf thấp. P0/P1 ≥70 · P2 ≥80 · dưới ngưỡng → bỏ.
 
-## Việc tiếp theo (tuỳ chọn)
-- [ ] <gợi ý bước kế>
-```
+### §20.8 Empty-state — KHÔNG có issue thì in 1 dòng, không bỏ trống
+`✅ Sạch — 0 P0 · 0 P1 · 0 P2 (kèm scope đã quét: test:css + test:gs + audit-ui)`
+
+### §20.9 Anti-pattern (CẤM)
+✗ Tôi đã đọc qua code và thấy có một số vấn đề nhỏ về giao diện, cụ thể là màu sắc ở vài chỗ có vẻ không nhất quán...  
+→ Thay bằng: `⚠️ Cần duyệt — 0 P0 · 2 P1` + bảng 2 hàng (vị trí + đề xuất cụ thể). Quy tắc: không tường thuật, không "vài chỗ/có vẻ", mỗi claim có `file:line`.
+
+### §20.10 Wireframe khi đánh giá đề xuất UI — vẽ ASCII trước khi chốt
+- Vẽ ≥2 trạng thái: Đóng/Mở (hoặc Trước/Sau), và **Mobile (≤991px)** nếu ảnh hưởng responsive.
+- Dùng box-drawing `│─┌┐└┘▾▴` + label class/function **thật** (`.view-topbar`, `#scanLoadPane`, `canScanLoad_()`…) — khớp code, không vẽ chung chung.
+- Ghi rõ **luật tương tác** (mở/đóng, clear-selection khi đổi Station, disable điều kiện) ngay dưới khung.
+- KHÔNG thay thế bảng findings P0/P1/P2 — wireframe là minh họa kèm verdict.
+
+### §20.11 Đọc thêm — link chuẩn spx-diem-danh
+- `README.md` — tổng quan cập nhật.
+- `Spec — Điểm Danh HN2 SOC.md` — spec đầy đủ.
+- `skills/` — bộ skill chuẩn `SKILL.md` (`skills/project-skill/SKILL.md`, `skills/review-gas-failure-modes/SKILL.md`, `skills/audit-webapp-optimize/SKILL.md`, `skills/ui-ux-audit/SKILL.md`, `skills/debug-systematic/SKILL.md`).
 
 ---
 
