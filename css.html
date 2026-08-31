@@ -396,12 +396,17 @@
       border-color: var(--warning);
       box-shadow: 0 0 0 4px rgba(232, 93, 4, .18);
     }
-    /* Desktop: 2 nút Quét & Quét Camera = nhau trong phần task (2026-08-31) */
+    /* 2 nút Quét & Quét Camera = nhau trong phần task (2026-08-31) */
     #btnScan, #btnCamScan { min-width: 64px; min-height: 44px; } /* touch target ≥44×44 */
     @media (min-width: 992px) {
       .scan-row { align-items: stretch; gap: 12px; }
       .scan-input-wrap { flex: 1 1 auto; }
       #btnScan, #btnCamScan { flex: 0 0 160px; min-width: 160px; max-width: 180px; justify-content: center; }
+    }
+    @media (max-width: 991px) {
+      .scan-row { gap: 8px; }
+      .scan-input-wrap { flex: 1 1 100%; }
+      #btnScan, #btnCamScan { flex: 1 1 0; min-width: 0; }
     }
     /* Kiosk wide-screen: lớn hơn cho màn hình touch rộng (tham khảo v1 type scale) */
     @media (min-width: 1280px) {
