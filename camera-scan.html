@@ -279,7 +279,7 @@
       '  var tick = 0;',
       '  var findMode = false;',
       '  var findBtn = document.getElementById("findBtn");',
-      '  // 🔍 ZOOM (2026-08-31): đồng bộ với modal — nút − / + trong bar + TỰ ZOOM sau 2.5s',
+      '  // 🔍 ZOOM (2026-08-31) KHỚP modal camZoomStep — duplicate có chủ đích (popup string-isolated) — nút − / + trong bar + TỰ ZOOM sau 2.5s',
       '  // không nhận được mã nào (startTs). applyConstraints zoom → track không hỗ trợ',
       '  // (iOS Safari) → no-op an toàn; clamp 1.0–3.0 + khoảng track hỗ trợ nếu đọc được.',
       '  var zoomOutBtn = document.getElementById("zoomOut");',
@@ -287,9 +287,10 @@
       '  var popZoom = 1.0;',
       '  var startTs = 0;',
       '  function popZoomStep(dir) {',
-      '    var target = Math.round((popZoom + dir * 0.6) * 10) / 10;',
       '    var t = null;',
       '    try { t = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null; } catch (e0) { t = null; }',
+      '    if (!t || !t.applyConstraints) return;',
+      '    var target = Math.round((popZoom + dir * 0.6) * 10) / 10;',
       '    if (t && t.getCapabilities) {',
       '      try {',
       '        var c = t.getCapabilities();',
@@ -335,9 +336,11 @@
       '  // chuẩn; poll 1s đồng bộ nút + trạng thái, và isFindActive() dùng ở runFullChain để',
       '  // full chain chạy MỖI tick khi Tìm Mã đang bật ở MỌI phía (modal hoặc popup).',
       '  function isFindActive() {',
+      '    try { LIBS = getLibs(); } catch (e2) {}',
       '    try { return !!(findMode || (LIBS && LIBS.find && LIBS.find())); } catch (e) { return !!findMode; }',
       '  }',
       '  var findSyncTimer = setInterval(function () {',
+      '    try { LIBS = getLibs(); } catch (e2) {}',
       '    var remote = false;',
       '    try { remote = !!(LIBS && LIBS.find && LIBS.find()); } catch (e) {}',
       '    if (remote !== findMode) setFindMode(remote);',
@@ -1169,9 +1172,10 @@
   // min/max mỗi máy khác nhau). Apply qua advanced constraint — trình duyệt không hỗ trợ
   // → no-op an toàn (iOS Safari). Chỉ apply khi mức THẬT SỰ đổi (đỡ giật preview).
   function camZoomStep(dir) {
-    var target = Math.round((camZoomCurrent + dir * CAM_ZOOM_STEP) * 10) / 10;
     var t = null;
     try { t = camStream && camStream.getVideoTracks ? camStream.getVideoTracks()[0] : null; } catch (e0) { t = null; }
+    if (!t || !t.applyConstraints) return;
+    var target = Math.round((camZoomCurrent + dir * CAM_ZOOM_STEP) * 10) / 10;
     if (t && t.getCapabilities) {
       try {
         var caps = t.getCapabilities();
@@ -1195,6 +1199,7 @@
   // (có mã rồi thì tôn trọng khoảng cách user đang giữ — không đột ngột đổi FOV), và đã
   // quét vô ích đủ CAM_AUTO_ZOOM_MS. Test: tests/camera-code128.test.js.
   function camShouldAutoZoom(now) {
+    if (!camStream) return false;
     if (camFindMode) return false;
     if (camZoomCurrent >= CAM_ZOOM_MAX) return false;
     if (camLastCodeTs) return false;
@@ -2201,12 +2206,11 @@
   var CAM_WORKER_SRC = [
     "importScripts('https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js');",
     "var reader = null;",
-    "// LUÂN PHIÊN 4 chiến lược decode (2026-08-17, mã MẤT GÓC/MỜ MÀU — user: súng laser nhận",
-    "// được mà camera khó) + PASS 2 (2026-08-31): mỗi frame decode theo chiến lược xoay vòng",
-    "// 0=HybridBinarizer (mặc định), 1=GlobalHistogramBinarizer (mã nhạt/mờ 1 góc",
-    "// — local threshold nuốt vạch), 2=Normalized+Hybrid (mã MỜ MÀU/tương phản thấp — kéo dãn",
-    "// min-max về 0-255 rồi local threshold), 3=Sharpen+Normalize+Hybrid (ảnh mờ — unsharp 3x3",
-    "// làm cạnh vạch sắc lại); FAIL thì thử lại frame TRƯỚC bằng GlobalHistogram+TRY_HARDER.",
+    "// LUÂN PHIÊN 4 chiến lược (2026-08-17, mã MẤT GÓC/MỜ MÀU — user: súng laser nhận",
+    "// được mà camera khó) xoay 4 chiến lược (0..3) + PASS 2 trên prev (2026-08-31): mỗi",
+    "// frame decode 1 chiến lược xoay vòng 0=Hybrid, 1=GlobalHistogram (nhạt 1 góc — local",
+    "// threshold nuốt vạch), 2=Normalized+Hybrid (mờ màu / tương phản thấp), 3=Sharpen+",
+    "// Normalize+Hybrid (ảnh mờ); FAIL thì thử lại frame TRƯỚC bằng GlobalHistogram+TRY_HARDER.",
     "// Main thread vẫn chạy đủ bậc Hybrid+Global mỗi tick.",
     "var strat = 0;",
     "// Frame TRƯỚC (đã decode xong) — pass 2 dùng khi frame hiện tại fail (2026-08-31):",

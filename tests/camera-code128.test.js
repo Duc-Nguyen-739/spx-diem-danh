@@ -832,8 +832,9 @@ test('camFastDecode: ZXing fail → Quagga fallback chạy (không mất khả n
 
 test('camShouldAutoZoom: đủ 2.5s + chưa có mã + chưa max + không find mode → true', () => {
   fastEnv(null, {}, () => {
-    const saved = { find: ctx.camFindMode, zoom: ctx.camZoomCurrent, started: ctx.camStartedAt, lastTs: ctx.camLastCodeTs, max: ctx.CAM_ZOOM_MAX };
+    const saved = { find: ctx.camFindMode, zoom: ctx.camZoomCurrent, started: ctx.camStartedAt, lastTs: ctx.camLastCodeTs, max: ctx.CAM_ZOOM_MAX, stream: ctx.camStream };
     try {
+      ctx.camStream = { getVideoTracks: () => [{ getCapabilities: () => ({}), applyConstraints: () => {} }] };
       ctx.camFindMode = false;
       ctx.camZoomCurrent = 1.0;
       ctx.camLastCodeTs = 0;
@@ -848,12 +849,14 @@ test('camShouldAutoZoom: đủ 2.5s + chưa có mã + chưa max + không find mo
       ctx.camZoomCurrent = 1.0;
       ctx.camFindMode = true;
       assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'find mode đã là đường mạnh nhất → không tự zoom');
-      ctx.camFindMode = false;
+      ctx.camStream = null;
+      assert.equal(ctx.camShouldAutoZoom(99999), false, 'chưa mở camera (camStream null) → false');
+      ctx.camStream = { getVideoTracks: () => [] };
       ctx.camStartedAt = 0;
       assert.equal(ctx.camShouldAutoZoom(99999), false, 'chưa mở camera (startedAt=0) → false');
     } finally {
       ctx.camFindMode = saved.find; ctx.camZoomCurrent = saved.zoom;
-      ctx.camStartedAt = saved.started; ctx.camLastCodeTs = saved.lastTs; ctx.CAM_ZOOM_MAX = saved.max;
+      ctx.camStartedAt = saved.started; ctx.camLastCodeTs = saved.lastTs; ctx.CAM_ZOOM_MAX = saved.max; ctx.camStream = saved.stream;
     }
   });
 });
@@ -862,10 +865,14 @@ test('camZoomStep: tăng/giảm đúng bậc 0.6, clamp [1.0, 3.0], clamp vào k
   fastEnv(null, {}, () => {
     const saved = { stream: ctx.camStream, zoom: ctx.camZoomCurrent };
     try {
-      ctx.camStream = null; // không có track → state vẫn đổi (applyConstraints bỏ qua)
+      ctx.camStream = null;
       ctx.camZoomCurrent = 1.0;
       ctx.camZoomStep(1);
-      assert.equal(ctx.camZoomCurrent, 1.6, 'bấm + → 1.6x');
+      assert.equal(ctx.camZoomCurrent, 1.0, 'chưa có stream → không đổi (tránh drift)');
+      ctx.camStream = { getVideoTracks: () => [{ applyConstraints: () => {} }] };
+      ctx.camZoomCurrent = 1.0;
+      ctx.camZoomStep(1);
+      assert.equal(ctx.camZoomCurrent, 1.6, 'có stream → bấm + → 1.6x');
       ctx.camZoomStep(1);
       assert.equal(ctx.camZoomCurrent, 2.2, 'bấm + nữa → 2.2x');
       ctx.camZoomCurrent = 3.0;
