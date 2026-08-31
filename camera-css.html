@@ -30,14 +30,14 @@
   background: #e85d04;
   box-shadow: 0 0 0 2px rgba(255,255,255,.45), 0 0 18px rgba(232,93,4,.55);
 }
-/* CHIA 70/30 (2026-08-31, yêu cầu user): ô camera 70% · phần thông tin quét 30%
-   chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view (flex 7) rộng
-   hơn camera-results (flex 3). Video object-fit:cover lấp kín ô. Danh sách thông
+/* CHIA 60/40 (2026-08-17): ô camera 60% · phần thông tin quét 40%
+   chiều cao màn hình — .camera-stage lấp đầy overlay, camera-view (flex 3) rộng
+   hơn camera-results (flex 2). Video object-fit:cover lấp kín ô. Danh sách thông
    tin dài thì CUỘN (overflow-y:auto trên .camera-results). */
 .camera-view {
   position: relative; border-radius: 16px; overflow: hidden;
   background: #000;
-  flex: 7 1 70%; min-height: 0;
+  flex: 3 1 60%; min-height: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 24px 60px rgba(0,0,0,.55);
 }
 .camera-view video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -165,13 +165,16 @@
 .camera-actions .btn { min-width: 110px; }
 @media (max-width: 600px) {
   .camera-stage { max-width: 420px; }
+  /* MOBILE 70% (2026-08-31): camera chiếm 70% chiều cao màn hình mobile */
+  .camera-view { flex: 7 1 70%; }
+  .camera-results { flex: 3 1 30%; }
 }
-/* ===== QUÉT LIÊN TỤC (2026-08-17, cập nhật 2026-08-31 70/30): camera trên, kết quả quét dưới =====
-   Panel nằm trong #cameraModal — chia 70/30 màn hình quét: trên là ô camera,
+/* ===== QUÉT LIÊN TỤC (2026-08-17): camera trên, kết quả quét dưới =====
+   Panel nằm trong #cameraModal — chia đôi màn hình quét: trên là ô camera,
    dưới là danh sách thông tin vừa quét (mã + tên + giờ + badge trạng thái).
    Media ≤600px (mobile) co camera-view nhường chỗ cho danh sách cuộn được. */
 .camera-results {
-  flex: 3 1 30%; min-height: 0;
+  flex: 2 1 40%; min-height: 0;
   overflow-y: auto;   /* danh sách dài → cuộn trong panel, không đẩy camera */
   background: rgba(2, 6, 23, .62);
   border: 1px solid rgba(255, 255, 255, .1);
