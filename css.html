@@ -137,6 +137,11 @@
     .btn-camera:active { transform: translateY(0) scale(.98); box-shadow: 0 2px 8px rgba(238,77,45,.3); }
     .btn-camera:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-camera:disabled::before, .btn-camera:disabled::after { display: none; }
+    /* P1-15: nút "Quét Camera" chỉ hiện trên mobile — ẩn trên PC (≥992px) */
+    #btnCamScan { display: none; }
+    @media (max-width: 991px) {
+      #btnCamScan { display: inline-flex; align-items: center; justify-content: center; }
+    }
     td.stt { width: 40px; text-align: center; color: var(--muted); font-size: 13px; }  /* STT hẹp, không đẩy widths */
 
     main { width: 100%; max-width: 100%; margin: 0; padding: var(--space-4); }  /* bỏ cap 1920px — content trải full màn như header */
