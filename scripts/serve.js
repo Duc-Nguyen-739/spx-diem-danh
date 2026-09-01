@@ -95,7 +95,10 @@ const server = http.createServer((req, res) => {
         // google.script.run (không có trong trang ngoài GAS).
         // DEMO (?demo=1): không gọi GAS — load mock-google.js (task/staff giả) để test
         // UI + camera với dữ liệu có sẵn (GAS access DOMAIN chặn JSONP anonymous).
-        const isDemo = /[?&]demo=1\b/.test(req.url);
+        // P1-F: mặc định DEMO khi chạy local không set RC_API_BASE — tránh bấm quét ở
+        // preview dev làm bẩn data production qua RC_API_BASE_DEFAULT. Thêm ?prod=1 để ép nối prod.
+        const isProd = /[?&]prod=1\b/.test(req.url);
+        const isDemo = /[?&]demo=1\b/.test(req.url) || (!isProd && !process.env.RC_API_BASE);
         res.end(isDemo ? injectDemoFlag(html) : injectStandaloneFlags(html));
         return;
       } catch (e) {
