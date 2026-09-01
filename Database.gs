@@ -984,14 +984,33 @@ function batchMealMoveLogUpdates_(taskId, updates) {
     }
   }
   if (anyChanged) {
-    if (writes.status.length) batchSetOneCol_(sheet, LOG_COLS.STATUS + 1, writes.status);
-    if (writes.timeRa.length) {
-      batchSetOneCol_(sheet, LOG_COLS.TIME_RA + 1, writes.timeRa);
-      batchSetNumberFormat_(sheet, LOG_COLS.TIME_RA + 1, writes.timeRa);
+    // P1-2: gộp STATUS/TIME_RA/TIME_SCAN thành 1 setValues 4 cột (TIME_SCAN→TIME_RA) — atomic, tránh half-written nếu 1 trong 3 RPC rời fail giữa chừng
+    var changedSet = {};
+    writes.status.forEach(function(w){ changedSet[w[0]]=true; });
+    writes.timeRa.forEach(function(w){ changedSet[w[0]]=true; });
+    writes.timeScan.forEach(function(w){ changedSet[w[0]]=true; });
+    var combined = [];
+    for (var k = 0; k < matches.length; k++) {
+      var ri = matches[k];
+      if (!changedSet[ri]) continue;
+      var r = rows[k];
+      combined.push([ri, [r[LOG_COLS.TIME_SCAN], r[LOG_COLS.STATUS], r[LOG_COLS.DATE], r[LOG_COLS.TIME_RA]]]);
     }
-    if (writes.timeScan.length) {
-      batchSetOneCol_(sheet, LOG_COLS.TIME_SCAN + 1, writes.timeScan);
-      batchSetNumberFormat_(sheet, LOG_COLS.TIME_SCAN + 1, writes.timeScan);
+    if (combined.length) {
+      combined.sort(function(a,b){ return a[0]-b[0]; });
+      var i = 0;
+      while (i < combined.length) {
+        var j = i + 1;
+        while (j < combined.length && combined[j][0] === combined[j-1][0] + 1) j++;
+        var startRow = combined[i][0];
+        var count = combined[j-1][0] - startRow + 1;
+        var vals = [];
+        for (var p = i; p < j; p++) vals[combined[p][0]-startRow] = combined[p][1];
+        sheet.getRange(startRow, LOG_COLS.TIME_SCAN + 1, count, 4).setValues(vals);
+        i = j;
+      }
+      if (writes.timeRa.length) batchSetNumberFormat_(sheet, LOG_COLS.TIME_RA + 1, writes.timeRa);
+      if (writes.timeScan.length) batchSetNumberFormat_(sheet, LOG_COLS.TIME_SCAN + 1, writes.timeScan);
     }
     invalidateTaskDetailCache_(taskId);
     invalidateTaskListCache_();  // U3: batch meal-move đổi counter → list thiết bị khác thấy ngay

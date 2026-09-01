@@ -661,24 +661,34 @@ def batch_meal_move_log_updates(task_id, updates):
     any_changed = bool(writes_status or writes_ra or writes_scan)
     if not any_changed:
         return 0
-    # 4) Ghi chỉ dòng đổi — gộp liền nhau (batchSetOneCol)
-    def _batch_writes(col_idx, writes):
-        if not writes:
-            return
-        writes = sorted(writes, key=lambda x: x[0])
-        i = 0
-        while i < len(writes):
-            j = i
-            while j + 1 < len(writes) and writes[j + 1][0] == writes[j][0] + 1:
-                j += 1
-            start_row = writes[i][0]
-            col = [[w[1]] for w in writes[i:j + 1]]
-            sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], start_row, col_idx + 1, col)
-            i = j + 1
-    _batch_writes(lc["STATUS"], writes_status)
-    _batch_writes(lc["TIME_RA"], writes_ra)
-    _batch_writes(lc["TIME_SCAN"], writes_scan)
-    # Format chỉ vùng vừa ghi time
+    # 4) Ghi atomic 4 cột TIME_SCAN→TIME_RA (cols 9-12) trong 1 update_values — tránh half-written (P1-2)
+    status_dict = dict(writes_status)
+    ra_dict = dict(writes_ra)
+    scan_dict = dict(writes_scan)
+    changed = set(status_dict) | set(ra_dict) | set(scan_dict)
+    combined = []
+    for ridx in sorted(changed):
+        row = row_map.get(ridx, [])
+        u = by_row.get(ridx, {})
+        final_scan = scan_dict.get(ridx, row[lc["TIME_SCAN"]] if len(row) > lc["TIME_SCAN"] else "")
+        final_status = status_dict.get(ridx, row[lc["STATUS"]] if len(row) > lc["STATUS"] else "")
+        final_date = row[lc["DATE"]] if len(row) > lc["DATE"] else ""
+        final_ra = ra_dict.get(ridx, row[lc["TIME_RA"]] if len(row) > lc["TIME_RA"] else "")
+        combined.append((ridx, [final_scan, final_status, final_date, final_ra]))
+    # batch ghi 4 cột liền
+    combined.sort(key=lambda x: x[0])
+    i = 0
+    while i < len(combined):
+        j = i
+        while j + 1 < len(combined) and combined[j + 1][0] == combined[j][0] + 1:
+            j += 1
+        start_row = combined[i][0]
+        vals = [[None]*4 for _ in range(j - i + 1)]
+        for p in range(i, j + 1):
+            vals[combined[p][0] - start_row] = combined[p][1]
+        sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], start_row, lc["TIME_SCAN"] + 1, vals)
+        i = j + 1
+    # Format chỉ vùng vừa ghi time (data đã atomic, format rời không ảnh hưởng correctness)
     for writes, col in [(writes_ra, lc["TIME_RA"] + 1), (writes_scan, lc["TIME_SCAN"] + 1)]:
         if not writes:
             continue
