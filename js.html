@@ -869,7 +869,9 @@
   var _previewSeq = 0; // 2026-08-20 (review): response preview CŨ (đổi filter nhanh,
                        // RPC trước chậm về sau) không được ghi đè response mới
   function updateCreatePreview() {
-    var station = byId('fStation').value;
+    var _fSt = byId('fStation');
+    if (!_fSt) return;
+    var station = _fSt.value;
     var slotCode = getSelectedChips('fSlotCode');
     var team = getSelectedChips('fTeam');
     var date = byId('fDate').value;
