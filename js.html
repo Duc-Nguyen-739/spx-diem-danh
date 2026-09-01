@@ -3216,7 +3216,10 @@
       // (paste batch đang chạy — PASTE_BUSY). `inp.disabled = full` vô điều kiện
       // cũ bật lại input giữa chừng paste → quét tay/RPC chạy song song batch.
       if (full) inp.disabled = true;
-      else if (!PASTE_BUSY) inp.disabled = false;
+      else if (!PASTE_BUSY) {
+        var canScan = !!(CURRENT_TASK && CURRENT_TASK.status === TASK_STATUS_C.OPEN);
+        inp.disabled = !canScan;
+      }
     }
   }
 
