@@ -856,12 +856,17 @@ function appendLogRow_(row) {
   // A1-log (2026-08-24): field text copy từ CSV (staffName/station/team/agency/date) —
   // untrusted → sanitize trước khi ghi, chống formula injection (cell =cmd thực thi khi
   // mở sheet). taskId/staffId giữ nguyên (chuẩn hóa Ops pattern).
-  getSheet_(SHEETS.ATTENDANCE_LOG).appendRow([
+  const sh = getSheet_(SHEETS.ATTENDANCE_LOG);
+  sh.appendRow([
     row.taskId, row.staffId, sanitizeCellText_(row.staffName),
     sanitizeCellText_(row.slotCode), sanitizeCellText_(row.station), sanitizeCellText_(row.team),
     sanitizeCellText_(row.workstation), row.timeRef || '', row.timeScan || '', row.status,
     sanitizeCellText_(row.date || ''), row.timeRa || '', sanitizeCellText_(row.agency || ''),
   ]);
+  // Format giờ quét/ra cho dòng append (khớp batchInsertLogRows_/updateLogRowScan_) — nếu không cell hiển thị datetime đầy đủ
+  var appendRow = sh.getLastRow();
+  sh.getRange(appendRow, LOG_COLS.TIME_SCAN + 1).setNumberFormat('HH:mm:ss');
+  sh.getRange(appendRow, LOG_COLS.TIME_RA + 1).setNumberFormat('HH:mm:ss');
   invalidateTaskDetailCache_(row.taskId);
   invalidateTaskListCache_();  // U3: dòng Dư mới → counter list đổi
   invalidateLogRows_(row.taskId); // U2: dòng mới append cuối — cache cũ thiếu dòng → xoá (tần suất thấp)
