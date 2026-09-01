@@ -89,16 +89,15 @@
                                    // làm vạch Code128 mỏng bị alias/mất chi tiết → miss frame
                                    // (bản 2026-08-12 decode 1280px đã verify tự nhận nhanh).
   var camFindMode = false;   // "🔍 Tìm Mã" (2026-08-16): full-chain decode MỖI tick + ép focus liên tục
-  // 🔍 ZOOM CAMERA (2026-08-31): zoom thuần chống mờ/mất chi tiết khi user dí sát hoặc mã
-  // nhỏ — không zoom digital quá 3x (lệch xa FOV khung dẫn hướng) và không tự zoom vô hạn.
-  // Bấm nút camZoomOut/camZoomIn (index.html) hoặc TỰ ZOOM sau CAM_AUTO_ZOOM_MS không nhận
-  // được mã nào (camShouldAutoZoom) → camZoomStep() applyConstraints zoom qua track.
-  // iOS Safari không hỗ trợ zoom constraint → applyConstraints no-op (không crash).
+  // 🔍 ZOOM CAMERA (2026-08-31, cập nhật 2026-09-01): zoom THỦ CÔNG qua nút − / + — không tự
+  // động zoom (user yêu cầu giữ FOV gốc, tự điều chỉnh qua nút khi cần). Zoom digital tối đa
+  // 3x (lệch xa FOV khung dẫn hướng). Bấm camZoomOut/camZoomIn (index.html) →
+  // camZoomStep() applyConstraints zoom qua track. iOS Safari không hỗ trợ → no-op an toàn.
   var camZoomCurrent = 1.0;  // mức zoom hiện tại (1.0 = FOV gốc)
   var CAM_ZOOM_BASE = 1.0;
   var CAM_ZOOM_MAX = 3.0;    // trần zoom — cao hơn khung dẫn hướng lệch quá xa FOV gốc
-  var CAM_ZOOM_STEP = 0.6;   // mỗi lần bấm nút/tự zoom tăng/giảm 0.6x
-  var CAM_AUTO_ZOOM_MS = 2500; // không nhận mã nào trong 2.5s → tự zoom 1 bậc
+  var CAM_ZOOM_STEP = 0.6;   // mỗi lần bấm nút tăng/giảm 0.6x (thủ công)
+  var CAM_AUTO_ZOOM_MS = 2500; // giữ hằng số cho tương thích test cũ (không còn tự zoom)
   var camScanMode = false;   // đang ở TAB QUÉT RIÊNG (?scan=1) — kết quả gửi về trang gốc
   var camScanToken = '';     // token định danh phiên quét
   var CAM_FORMATS = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e'];
@@ -279,9 +278,9 @@
       '  var tick = 0;',
       '  var findMode = false;',
       '  var findBtn = document.getElementById("findBtn");',
-      '  // 🔍 ZOOM (2026-08-31) KHỚP modal camZoomStep — duplicate có chủ đích (popup string-isolated) — nút − / + trong bar + TỰ ZOOM sau 2.5s',
-      '  // không nhận được mã nào (startTs). applyConstraints zoom → track không hỗ trợ',
-      '  // (iOS Safari) → no-op an toàn; clamp 1.0–3.0 + khoảng track hỗ trợ nếu đọc được.',
+      '  // 🔍 ZOOM (2026-08-31, cập nhật 2026-09-01) KHỚP modal camZoomStep — duplicate có chủ đích (popup string-isolated) — nút − / + thủ công, KHÔNG tự zoom',
+      '  // applyConstraints zoom → track không hỗ trợ (iOS Safari) → no-op an toàn;',
+      '  // clamp 1.0–3.0 + khoảng track hỗ trợ nếu đọc được.',
       '  var zoomOutBtn = document.getElementById("zoomOut");',
       '  var zoomInBtn = document.getElementById("zoomIn");',
       '  var popZoom = 1.0;',
@@ -539,8 +538,7 @@
       '    if (!stream) return;',
       '    if (!video.videoWidth) return;',
       '    tick++;',
-      '    // TỰ ZOOM (2026-08-31): 2.5s không nhận mã nào → zoom 1 bậc — khớp modal (camShouldAutoZoom)',
-      '    if (!lastCodeTs && startTs && Date.now() - startTs >= 2500 && popZoom < 3) popZoomStep(1);',
+      '    // TỰ ZOOM đã tắt (2026-09-01): không tự zoom — chỉ zoom thủ công qua nút − / +',
       '    // OCR mỗi 4 tick (2026-08-17, giảm từ 2 tick — Tesseract ngốn CPU/GC trên iPhone',
       '    // làm decode barcode chậm hẳn; tick lẻ 1,5,9 lệch khỏi full chain tick chẵn 0,2,4)',
       '    if (tick % 4 === 1) ocrTick();', // song song: OCR chạy kể cả khi chain barcode đang busy
@@ -590,7 +588,7 @@
       '        if (p && p.catch) p.catch(function () {});',
       '        statusEl.textContent = "Đưa mã vào khung, giữ yên — tự nhận diện";',
       '        startBtn.style.display = "none";',
-      '        startTs = Date.now(); // mốc tính TỰ ZOOM 2.5s không nhận mã (2026-08-31)',
+      '        startTs = Date.now(); // mốc phiên quét (giữ cho tương thích)',
       '        // Nhịp tick 200ms (2026-08-17, 260→200 — busy guard chặn chồng lấn nên thử lại',
       '        // nhanh hơn; khớp cooldown 1.5s mới)',
       '        timer = setInterval(loop, 200);',
@@ -1012,13 +1010,7 @@
       // tăng 450→500ms — "tối ưu" làm CHẬM hơn). camDecoding guard đã chặn chồng lấn; interval
       // 200ms + camera 30fps → mỗi fire có frame mới, không decode trùng frame.
       var now = Date.now();
-      // TỰ ZOOM (2026-08-31): 2.5s không nhận được mã nào → zoom nhẹ 1 bậc (mã nhỏ/xa →
-      // vạch dày hơn trong khung → decode dễ hơn). User zoom tay bất cứ lúc nào qua − / +.
-      if (camShouldAutoZoom(now)) {
-        camZoomStep(1);
-        var zEl = document.getElementById('camStatusLive');
-        if (zEl) zEl.textContent = '🔍 Tự zoom ' + camZoomCurrent.toFixed(1) + 'x — đưa mã vào khung';
-      }
+      // TỰ ZOOM đã tắt (2026-09-01): không tự zoom — chỉ zoom thủ công qua nút − / +
       // Gợi ý khoảng cách (2026-08-17): iPhone focus gần nhất ~10cm — dí sát quá làm vạch
       // ngoài vùng nét dù màn hình nhìn nét → decode fail lặp lại ("lúc được lúc không").
       // Hiện hint 1 lần/phiên khi 4s chưa nhận được mã nào.
@@ -1199,16 +1191,11 @@
     try { var _p3 = t.applyConstraints({ advanced: [{ zoom: camZoomCurrent }] }); if (_p3 && _p3.catch) _p3.catch(function(){}); } catch (e) { /* no-op */ }
   }
 
-  // PURE: đã tới lúc TỰ ZOOM chưa (2026-08-31)? Điều kiện: không đang Tìm Mã (find mode
-  // đã là đường decode mạnh nhất), chưa đạt trần zoom, phiên này CHƯA nhận được mã nào
-  // (có mã rồi thì tôn trọng khoảng cách user đang giữ — không đột ngột đổi FOV), và đã
-  // quét vô ích đủ CAM_AUTO_ZOOM_MS. Test: tests/camera-code128.test.js.
+  // PURE: đã tới lúc TỰ ZOOM chưa — ĐÃ TẮT (2026-09-01): user yêu cầu KHÔNG tự động zoom,
+  // chỉ giữ zoom thủ công qua nút − / +. Hàm giữ lại cho tương thích test, luôn trả false.
+  // Test: tests/camera-code128.test.js (cập nhật kỳ vọng false).
   function camShouldAutoZoom(now) {
-    if (!camStream) return false;
-    if (camFindMode) return false;
-    if (camZoomCurrent >= CAM_ZOOM_MAX) return false;
-    if (camLastCodeTs) return false;
-    return !!(camStartedAt && now - camStartedAt >= CAM_AUTO_ZOOM_MS);
+    return false;
   }
 
   // Reset trạng thái + UI nút Tìm Mã (đóng modal / nhận được mã) — không reset camStream

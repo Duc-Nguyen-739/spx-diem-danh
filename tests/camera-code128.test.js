@@ -830,7 +830,7 @@ test('camFastDecode: ZXing fail → Quagga fallback chạy (không mất khả n
 
 // ===== ZOOM + WORKER PASS 2 + SYNC FIND MODE (2026-08-31: bắt mã nhanh hơn nữa) =====
 
-test('camShouldAutoZoom: đủ 2.5s + chưa có mã + chưa max + không find mode → true', () => {
+test('camShouldAutoZoom: đã tắt tự zoom (2026-09-01) — luôn false, chỉ zoom thủ công', () => {
   fastEnv(null, {}, () => {
     const saved = { find: ctx.camFindMode, zoom: ctx.camZoomCurrent, started: ctx.camStartedAt, lastTs: ctx.camLastCodeTs, max: ctx.CAM_ZOOM_MAX, stream: ctx.camStream };
     try {
@@ -839,16 +839,16 @@ test('camShouldAutoZoom: đủ 2.5s + chưa có mã + chưa max + không find mo
       ctx.camZoomCurrent = 1.0;
       ctx.camLastCodeTs = 0;
       ctx.camStartedAt = 1000;
-      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), true, 'đủ thời gian → tự zoom');
-      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS - 1), false, 'chưa đủ thời gian → chưa zoom');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đã tắt tự zoom → luôn false dù đủ thời gian');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS - 1), false, 'chưa đủ thời gian → false');
       ctx.camLastCodeTs = 2000;
-      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đã có mã → tôn trọng khoảng cách hiện tại');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đã có mã → false');
       ctx.camLastCodeTs = 0;
       ctx.camZoomCurrent = ctx.CAM_ZOOM_MAX;
-      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đạt trần zoom → không zoom thêm');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'đạt trần zoom → false');
       ctx.camZoomCurrent = 1.0;
       ctx.camFindMode = true;
-      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'find mode đã là đường mạnh nhất → không tự zoom');
+      assert.equal(ctx.camShouldAutoZoom(1000 + ctx.CAM_AUTO_ZOOM_MS), false, 'find mode → false');
       ctx.camStream = null;
       assert.equal(ctx.camShouldAutoZoom(99999), false, 'chưa mở camera (camStream null) → false');
       ctx.camStream = { getVideoTracks: () => [] };
