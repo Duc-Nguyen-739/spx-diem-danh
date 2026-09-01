@@ -1996,6 +1996,7 @@
   STATUS_ORDER[STATUS_C.PRESENT] = 1;
   STATUS_ORDER[STATUS_C.ABSENT] = 2;
   STATUS_ORDER[STATUS_C.EXTRA] = 3;
+  STATUS_ORDER[STATUS_C.OUT] = 4;
   // C4: rank status cho sort — KHÔNG dùng `|| 9` (0 là falsy → PENDING thành 9)
   function statusRank(s) {
     var r = STATUS_ORDER[s];
