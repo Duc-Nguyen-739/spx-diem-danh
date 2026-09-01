@@ -8,11 +8,12 @@
  * - Timezone cache 1 lần — KHÔNG gọi Session.getScriptTimeZone() trong loop
  */
 
-/** Lấy sheet theo tên, tạo mới nếu chưa có (kèm header nếu chỉ định). */
+/** Lấy sheet theo tên; chỉ tạo mới khi có header (ensureSheets_ setup path). */
 function getSheet_(name, header) {
   const ss = getSpreadsheet_();
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
+    if (!header || !header.length) throw new Error('Sheet "' + name + '" không tồn tại — chạy setupSheets() để khởi tạo');
     sheet = ss.insertSheet(name);
   }
   // Tự set header khi sheet trống (mới tạo HOẶC đã tồn tại nhưng chưa có dữ liệu).
