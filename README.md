@@ -194,10 +194,10 @@ spx-diem-danh/
 │   ├── build-local.js     # → index.local.html (cho file:// + test:chrome)
 │   ├── inline-html.js     # transform <?!= include() ?>
 │   └── cdp-helper.js      # CDP list/open/eval/shot/click
-├── tests/                 # 29 file, 378 tests — node:test
+├── tests/                 # 29 file, 384 tests — node:test
 ├── docs/intent/diem-danh-hn2-soc.md
 ├── docs/spec/2026-08-02-phase0-spec.md
-├── skills/                # 5 skills: audit-webapp-optimize, debug-systematic, project-skill, review-gas-failure-modes, ui-ux-audit
+├── skills/                # 10 skills: accessibility-audit, audit-webapp-optimize, codebase-explorer, code-research, debug-systematic, project-skill, review-gas-failure-modes, security-review, ui-ux-audit, writing-plans
 ├── .github/workflows/deploy.yml  # CI gate + push + redeploy
 ├── package.json           # v0.1.0 — test/test:py/test:chrome/dev/build/build:local
 └── requirements.txt
@@ -295,7 +295,7 @@ Mock UI: mở `index.html` trực tiếp — `js.html` tự nạp `mock/mock-goo
 
 ---
 
-## 🧪 Kiểm thử — 474 tests hot
+## 🧪 Kiểm thử — 481 tests hot
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node-384%2F384-brightgreen?style=for-the-badge" />

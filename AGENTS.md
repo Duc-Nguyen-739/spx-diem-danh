@@ -262,7 +262,7 @@ User làm nhiều project nhỏ — mỗi project có kiến trúc, convention, 
 - **Skip ghi nhớ:** câu hỏi one-off, sửa typo, bug thoáng qua, lời xã giao, info chỉ có nghĩa trong hội thoại hiện tại.
 - **Tự sửa lỗi:** thừa nhận rõ với user → lưu bài học → nếu lặp pattern → tạo skill + checklist.
 
-> **Đã chốt 2026-08-31 — vị trí skill chuẩn:** `skills/<tên>/SKILL.md` (ví dụ `skills/project-skill/SKILL.md`, `skills/review-gas-failure-modes/SKILL.md`). Đã kiểm tra thực tế `spx-diem-danh`: `.agents/` **không tồn tại**, `skills/` có 5 skill (`audit-webapp-optimize`/`debug-systematic`/`project-skill`/`review-gas-failure-modes`/`ui-ux-audit`). Trước đây bản nháp ghi `.agents/skills/...` là tiền tố của opencode, không áp dụng ở repo này — đã sửa thống nhất.
+> **Đã chốt 2026-08-31 — vị trí skill chuẩn:** `skills/<tên>/SKILL.md` (ví dụ `skills/project-skill/SKILL.md`, `skills/review-gas-failure-modes/SKILL.md`). Đã kiểm tra thực tế `spx-diem-danh`: `.agents/` **không tồn tại**, `skills/` có 10 skill (`accessibility-audit`/`audit-webapp-optimize`/`codebase-explorer`/`code-research`/`debug-systematic`/`project-skill`/`review-gas-failure-modes`/`security-review`/`ui-ux-audit`/`writing-plans`). Trước đây bản nháp ghi `.agents/skills/...` là tiền tố của opencode, không áp dụng ở repo này — đã sửa thống nhất.
 
 ## §16. Dự án
 
@@ -309,12 +309,12 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 378 test JS (29 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file `.gs` + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
+| `npm test` | 384 test JS (29 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file `.gs` + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
 | `npm run test:py` | 85 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run build:local` | `scripts/build-local.js` gộp GAS template `index.html` (`<?!= include() ?>` → `css/js/mobile/lib/camera`) → `index.local.html` cho `file://` | Trước `test:chrome` |
-| `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 11 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
+| `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 12 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
 
-> Tổng test hiện tại: 378 JS + 85 Python + 11 Chrome = **474 test** (378 `node:test` + 85 `unittest` + 11 `test:chrome`).
+> Tổng test hiện tại: 384 JS + 85 Python + 12 Chrome = **481 test** (384 `node:test` + 85 `unittest` + 12 `test:chrome`).
 
 **Workflow chuẩn trước push:** `build:local` → `npm test` → `test:py` → `test:chrome` (nếu đổi UI) → commit → push. Không claim pass khi chưa có số liệu (luật 4). `index.local.html` đã `.gitignore`/`.claspignore`.
 
