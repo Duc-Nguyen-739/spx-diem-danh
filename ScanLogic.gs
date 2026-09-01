@@ -75,7 +75,7 @@ function findLogRow(logRows, staffId) {
  * @param {Array<Object>} logRows
  * @returns {{scanned: number, absent: number, extra: number, total: number}}
  */
-function computeCounters(cfg, logRows) {
+function computeCounters(cfg, logRows) { // KHỚP server: js.html:recountFromLog
   let scanned = 0;
   let absent = 0;
   let extra = 0;

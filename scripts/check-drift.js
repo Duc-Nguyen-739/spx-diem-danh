@@ -127,6 +127,22 @@ function checkDrift() {
   compareConstMap(extractGsStringConstants(gsCfg, 'UI_LABELS'), extractPyStringConstants(pyCfg, 'UI_LABELS'), 'Config.UI_LABELS', drifts);
   compareConstMap(extractGsStringConstants(gsCfg, 'TASK_TYPE'), extractPyStringConstants(pyCfg, 'TASK_TYPE'), 'Config.TASK_TYPE', drifts);
 
+  // ===== 3. Client mirrors — KHỚP server marker + cooldown sync =====
+  try {
+    const jsHtml = read('js.html');
+    if (!jsHtml.includes('KHỚP server')) drifts.push('KHỚP server marker thiếu — js.html không có comment KHỚP server cho hàm mirror');
+  } catch (e) { drifts.push('KHỚP server check: không đọc được js.html'); }
+  try {
+    const gsLogic2 = read('ScanLogic.gs');
+    if (!gsLogic2.includes('KHỚP server')) drifts.push('KHỚP server marker thiếu — ScanLogic.gs không có comment');
+  } catch (e) {}
+  try {
+    const camHtml = read('camera-scan.html');
+    const camCool = camHtml.match(/CAM_CODE_COOLDOWN_MS\s*=\s*(\d+)/);
+    if (gsDup && camCool && gsDup[1] !== camCool[1]) drifts.push('Cooldown lệch — Config.gs DUPLICATE_WINDOW_MS=' + gsDup[1] + ' vs camera-scan.html CAM_CODE_COOLDOWN_MS=' + camCool[1]);
+    if (!camCool) drifts.push('Cooldown check: không tìm thấy CAM_CODE_COOLDOWN_MS trong camera-scan.html');
+  } catch (e) { drifts.push('Cooldown check: không đọc được camera-scan.html'); }
+
   return { ok: drifts.length === 0, drifts };
 }
 

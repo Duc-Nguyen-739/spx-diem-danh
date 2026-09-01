@@ -2295,10 +2295,11 @@
   function scanBusy() {
     return SCAN_QUEUE.length > 0 || SCAN_PROCESSING || PASTE_BUSY;
   }
+  // KHỚP server: ScanLogic.gs:computeCounters
   // B: recount theo timeScan (khớp server computeCounters — ScanLogic.gs) thay vì
   // đếm theo status text: tránh lệch khi dòng có timeScan nhưng status chưa cập nhật.
   // Dùng cho: optimistic bump (submitScan), rollback/sync (processScanQueue).
-  function recountFromLog() {
+  function recountFromLog() { // KHỚP server: ScanLogic.gs:computeCounters
     var s = 0, e = 0, a = 0, out = 0;
     (CURRENT_LOG || []).forEach(function (r) {
       // P2: epoch là nguồn sự thật duy nhất (khớp server computeCounters)
