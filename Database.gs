@@ -755,7 +755,8 @@ function batchSetOneCol_(sheet, col, writes) {
 function markUnscannedAbsent_(taskId, taskType) {
   // meal-move: thiếu Vào (timeScan rỗng) = Vắng — bất kể đã có Ra hay chưa
   var isMealMove = taskType === TASK_TYPE.MEAL_MOVE;
-  return transformLogStatuses_(taskId, function (status, timeScan) {
+  var absentCount = 0;
+  transformLogStatuses_(taskId, function (status, timeScan) {
     if (timeScan && status === STATUS.PENDING) {
       // P1: insurance data-repair — dòng có timeScan nhưng status còn '-' (data legacy/
       // sửa tay; mọi write path đều ghi 2 cột trong 1 setValues atomic dưới LockService
@@ -766,10 +767,14 @@ function markUnscannedAbsent_(taskId, taskType) {
     if (!timeScan) {
       // Chưa có Vào — Vắng (cả reconcile lẫn meal-move)
       // meal-move: NV đã Ra (OUT) nhưng chưa Vào cũng thành Vắng
-      if (status === STATUS.PENDING || (isMealMove && status === STATUS.OUT)) return STATUS.ABSENT;
+      if (status === STATUS.PENDING || (isMealMove && status === STATUS.OUT)) {
+        absentCount++;
+        return STATUS.ABSENT;
+      }
     }
     return null;
   });
+  return absentCount;
 }
 
 /** Mở lại task: reset NV Vắng (ABSENT) về Chưa điểm danh (PENDING). NV Có mặt giữ nguyên. */

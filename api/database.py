@@ -478,16 +478,19 @@ def transform_log_statuses(task_id, mutate):
 def mark_unscanned_absent(task_id, task_type):
     """Kết thúc: dòng chưa Vào (timeScan rỗng) → Vắng; meal-move OUT chưa Vào cũng Vắng."""
     is_meal = task_type == config.TASK_TYPE["MEAL_MOVE"]
+    absent = {"n": 0}
 
     def _mutate(status, time_scan):
         if time_scan and status == config.STATUS["PENDING"]:
             return config.STATUS["PRESENT"]  # insurance: có giờ nhưng status '-' → chuẩn hóa Có mặt
         if not time_scan:
             if status == config.STATUS["PENDING"] or (is_meal and status == config.STATUS["OUT"]):
+                absent["n"] += 1
                 return config.STATUS["ABSENT"]
         return None
 
-    return transform_log_statuses(task_id, _mutate)
+    transform_log_statuses(task_id, _mutate)
+    return absent["n"]
 
 
 def reset_absent_to_pending(task_id):
