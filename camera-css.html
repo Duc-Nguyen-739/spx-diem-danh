@@ -236,8 +236,11 @@ body.scan-mode #loadingOverlay { display: none !important; }
 .scan-mode .camera-guide { left: 6%; right: 6%; }
 .scan-mode .camera-results { flex: 0 0 auto; max-height: 28vh; }
 .scan-mode .camera-status { font-size: 14px; padding: 12px; }
-/* Nút 📷 Quét camera — luôn hiện (desktop = nhau với nút Quét, mobile giữ nguyên) — 2026-08-31 */
-#btnCamScan { display: inline-flex; align-items: center; justify-content: center; }
+/* P1-15: nút "Quét Camera" chỉ hiện trên mobile — ẩn trên PC (≥992px) */
+#btnCamScan { display: none; }
+@media (max-width: 991px) {
+  #btnCamScan { display: inline-flex; align-items: center; justify-content: center; }
+}
 @media (max-width: 900px) {
   #btnCamScan { padding: 8px 12px; font-size: 13px; }
 }
