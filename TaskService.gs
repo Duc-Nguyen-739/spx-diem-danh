@@ -83,7 +83,11 @@ function createReconcileTask(input) {
     let taskId = makeTaskId_(now);
     // Tránh trùng taskId cùng phút — suffix số tăng dần (-2, -3, ...) thay vì -x-x
     let suffix = 2;
+    const MAX_SUFFIX = 50;
     while (readTask_(taskId)) {
+      if (suffix > MAX_SUFFIX) {
+        return { ok: false, taskId: null, count: 0, message: 'Quá nhiều task trùng — thử lại sau giây lát' };
+      }
       taskId = makeTaskId_(now) + '-' + suffix;
       suffix++;
     }
@@ -331,7 +335,11 @@ function createMealMoveTaskCore_(input) {
     const now = new Date();
     let taskId = 'M' + makeTaskId_(now).slice(1);  // prefix M phân biệt meal-move (R = reconcile)
     let suffix = 2;
+    const MAX_SUFFIX = 50;
     while (readTask_(taskId)) {
+      if (suffix > MAX_SUFFIX) {
+        return { ok: false, taskId: null, count: 0, message: 'Quá nhiều task trùng — thử lại sau giây lát' };
+      }
       taskId = 'M' + makeTaskId_(now).slice(1) + '-' + suffix;
       suffix++;
     }

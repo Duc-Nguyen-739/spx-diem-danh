@@ -116,7 +116,10 @@ def create_reconcile_task(input_):
         now = datetime.datetime.now(cache._TZ)
         task_id = make_task_id(now)
         suffix = 2
+        max_suffix = 50
         while database.read_task(task_id):
+            if suffix > max_suffix:
+                return {"ok": False, "taskId": None, "count": 0, "message": "Quá nhiều task trùng — thử lại sau giây lát"}
             task_id = f"{make_task_id(now)}-{suffix}"
             suffix += 1
 
@@ -210,7 +213,10 @@ def create_meal_move_task_core(input_):
     now = datetime.datetime.now(cache._TZ)
     task_id = "M" + make_task_id(now)[1:]
     suffix = 2
+    max_suffix = 50
     while database.read_task(task_id):
+        if suffix > max_suffix:
+            return {"ok": False, "taskId": None, "count": 0, "message": "Quá nhiều task trùng — thử lại sau giây lát"}
         task_id = f"M{make_task_id(now)[1:]}-{suffix}"
         suffix += 1
 
