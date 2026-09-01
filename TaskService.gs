@@ -329,10 +329,10 @@ function createMealMoveTaskCore_(input) {
     });
 
     const now = new Date();
-    let taskId = 'M' + makeTaskId_(now);  // prefix M phân biệt meal-move (R = reconcile)
+    let taskId = 'M' + makeTaskId_(now).slice(1);  // prefix M phân biệt meal-move (R = reconcile)
     let suffix = 2;
     while (readTask_(taskId)) {
-      taskId = 'M' + makeTaskId_(now) + '-' + suffix;
+      taskId = 'M' + makeTaskId_(now).slice(1) + '-' + suffix;
       suffix++;
     }
 

@@ -208,10 +208,10 @@ def create_meal_move_task_core(input_):
         })
 
     now = datetime.datetime.now(cache._TZ)
-    task_id = "M" + make_task_id(now)
+    task_id = "M" + make_task_id(now)[1:]
     suffix = 2
     while database.read_task(task_id):
-        task_id = f"M{make_task_id(now)}-{suffix}"
+        task_id = f"M{make_task_id(now)[1:]}-{suffix}"
         suffix += 1
 
     task = {
