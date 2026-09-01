@@ -306,7 +306,7 @@
       '    if (target === popZoom) return;',
       '    popZoom = target;',
       '    if (!t || !t.applyConstraints) return;',
-      '    try { t.applyConstraints({ advanced: [{ zoom: popZoom }] }); } catch (eZ) {}',
+      '    try { var _pp = t.applyConstraints({ advanced: [{ zoom: popZoom }] }); if (_pp && _pp.catch) _pp.catch(function(){}); } catch (eZ) {}',
       '  }',
       '  // 🔍 Tìm Mã (2026-08-16): ép focus liên tục (nếu trình duyệt hỗ trợ) + decode MỖI',
       '  // tick thay vì mỗi 2 tick — đưa mã vào khung là nhận nhanh hơn. Bấm lần nữa để tắt.',
@@ -316,7 +316,7 @@
       '    if (findMode && stream) {',
       '      try {',
       '        var track = stream.getVideoTracks && stream.getVideoTracks()[0];',
-      '        if (track && track.applyConstraints) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });',
+      '        if (track && track.applyConstraints) { var _pf = track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); if (_pf && _pf.catch) _pf.catch(function(){}); }',
       '      } catch (e) {}',
       '    }',
       '    if (findMode) statusEl.textContent = "🔍 Đang tìm mã — giữ yên camera";',
@@ -584,7 +584,7 @@
       '        // đầu, không cần bấm 🔍 Tìm Mã. iOS Safari không expose focus control → no-op.',
       '        try {',
       '          var track0 = s.getVideoTracks && s.getVideoTracks()[0];',
-      '          if (track0 && track0.applyConstraints) track0.applyConstraints({ advanced: [{ focusMode: "continuous" }] });',
+      '          if (track0 && track0.applyConstraints) { var _pf0 = track0.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); if (_pf0 && _pf0.catch) _pf0.catch(function(){}); }',
       '        } catch (e2) {}',
       '        var p = video.play();', 
       '        if (p && p.catch) p.catch(function () {});',
@@ -926,7 +926,8 @@
         try {
           var camTrack = stream.getVideoTracks && stream.getVideoTracks()[0];
           if (camTrack && camTrack.applyConstraints) {
-            camTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            var _p = camTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            if (_p && _p.catch) _p.catch(function(){});
           }
         } catch (e) { /* không hỗ trợ focus control — bỏ qua */ }
         var p = video.play();
@@ -1154,7 +1155,8 @@
         try {
           var track = camStream.getVideoTracks && camStream.getVideoTracks()[0];
           if (track && track.applyConstraints) {
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            var _p2 = track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            if (_p2 && _p2.catch) _p2.catch(function(){});
           }
         } catch (e) { /* không hỗ trợ focus control — bỏ qua */ }
       }
@@ -1194,7 +1196,7 @@
     if (target === camZoomCurrent) return;
     camZoomCurrent = target;
     if (!t || !t.applyConstraints) return;
-    try { t.applyConstraints({ advanced: [{ zoom: camZoomCurrent }] }); } catch (e) { /* no-op */ }
+    try { var _p3 = t.applyConstraints({ advanced: [{ zoom: camZoomCurrent }] }); if (_p3 && _p3.catch) _p3.catch(function(){}); } catch (e) { /* no-op */ }
   }
 
   // PURE: đã tới lúc TỰ ZOOM chưa (2026-08-31)? Điều kiện: không đang Tìm Mã (find mode
