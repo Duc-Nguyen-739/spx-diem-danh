@@ -507,8 +507,8 @@ def update_log_row_scan(row, time_scan, status):
     trả lỗi cho client, không ghi gì)."""
     lc = config.LOG_COLS
     r = row["_rowIndex"]
-    dest = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"A{r}:A{r}", unformatted=True)
-    if not dest or str(dest[0][0] if dest[0] else "").strip() != row["taskId"]:
+    dest = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"A{r}:B{r}", unformatted=True)
+    if not dest or str(dest[0][0] if len(dest[0]) > 0 else "").strip() != row["taskId"] or str(dest[0][1] if len(dest[0]) > 1 else "").strip().upper() != str(row.get("staffId", "")).strip().upper():
         return False
     sheets.update_values(config.SHEETS["ATTENDANCE_LOG"], r, lc["TIME_SCAN"] + 1, [[cache.to_iso_cell(time_scan), status]])
     sheets.set_number_format(config.SHEETS["ATTENDANCE_LOG"], r, lc["TIME_SCAN"] + 1, 1, 1, _TIME_FMT)
@@ -585,7 +585,7 @@ def update_log_row_ra(row, time_ra, status):
     lc = config.LOG_COLS
     r = row["_rowIndex"]
     head = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_=f"A{r}:K{r}", unformatted=True)
-    if not head or str(head[0][0] if head[0] else "").strip() != row["taskId"]:
+    if not head or str(head[0][0] if head[0] else "").strip() != row["taskId"] or str(head[0][1] if len(head[0]) > 1 else "").strip().upper() != str(row.get("staffId", "")).strip().upper():
         return False
     # DATE val có thể là serial number (unformatted) — giữ nguyên, update ghi USER_ENTERED sẽ hiển thị đúng
     date_val = head[0][lc["DATE"]] if len(head[0]) > lc["DATE"] else ""

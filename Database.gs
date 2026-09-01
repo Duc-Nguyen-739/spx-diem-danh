@@ -794,7 +794,12 @@ function updateLogRowScan_(row, timeScan, status) {
   // trong cửa sổ cache → ghi nhầm giờ + status vào dòng NV khác (silent corruption).
   // Verify TASK_ID tại dòng đích khớp task mới ghi (mirror Python update_log_row_scan).
   const lastRow = sheet.getLastRow();
-  if (row._rowIndex > lastRow || String(sheet.getRange(row._rowIndex, 1).getValue() || '').trim() !== row.taskId) {
+  if (row._rowIndex > lastRow) {
+    Logger.log('updateLogRowScan_: STALE row — taskId=' + row.taskId + ' rowIndex=' + row._rowIndex);
+    return false;
+  }
+  var hdr = sheet.getRange(row._rowIndex, 1, 1, 2).getValues()[0] || [];
+  if (String(hdr[0] || '').trim() !== row.taskId || String(hdr[1] || '').trim().toUpperCase() !== String(row.staffId || '').trim().toUpperCase()) {
     Logger.log('updateLogRowScan_: STALE row — taskId=' + row.taskId + ' rowIndex=' + row._rowIndex);
     return false;
   }
@@ -908,7 +913,7 @@ function updateLogRowRa_(row, timeRa, status) {
   // Đọc chung 1 range A..K lấy cả TASK_ID lẫn DATE → không tốn thêm RPC so với trước
   // (trước đọc riêng DATE cột K).
   const head = sheet.getRange(row._rowIndex, 1, 1, LOG_COLS.DATE + 1).getValues()[0] || [];
-  if (String(head[LOG_COLS.TASK_ID] || '').trim() !== row.taskId) {
+  if (String(head[LOG_COLS.TASK_ID] || '').trim() !== row.taskId || String(head[LOG_COLS.STAFF_ID] || '').trim().toUpperCase() !== String(row.staffId || '').trim().toUpperCase()) {
     Logger.log('updateLogRowRa_: STALE row — taskId=' + row.taskId + ' rowIndex=' + row._rowIndex);
     return false;
   }
