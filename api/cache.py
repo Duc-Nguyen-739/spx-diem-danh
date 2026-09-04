@@ -27,6 +27,7 @@ _HOT_KEYS = frozenset([
     config.CACHE_KEYS["TASK_LIST"],
     config.CACHE_KEYS["TASK_LIST_REV"],
     config.CACHE_KEYS["TASK_COUNTS"] + "all",
+    config.CACHE_KEYS["TASK_COUNTS"] + "slots",
     config.CACHE_KEYS["STAFF_INDEX"],
     config.CACHE_KEYS["FILTER_OPTIONS"],
     config.CACHE_KEYS["TZ"],

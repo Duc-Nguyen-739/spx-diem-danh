@@ -380,9 +380,13 @@ function readTaskList_() {
     // Merge counters (total/scanned/extra) từ AttendanceLog — 1 lần đọc log + group,
     // không N+1 đọc log riêng từng task. (User yêu cầu cột đếm ở danh sách task.)
     const counters = taskCountersForList_();
+    // Ca của task Điểm danh Ra/Vào: task sheet để trống — derive từ slotCode các
+    // dòng log (staffIndex copy khi pre-fill/quét), distinct sort join như reconcile.
+    const slotMap = taskSlotCodesForList_();
     out.forEach(function (t) {
       const c = counters[t.taskId] || { total: 0, scanned: 0, extra: 0 };
       t.total = c.total; t.scanned = c.scanned; t.extra = c.extra;
+      if (!t.slotCode && slotMap[t.taskId]) t.slotCode = slotMap[t.taskId];
     });
     return out.reverse(); // dòng mới nhất thường ở cuối → đưa lên đầu
   }, CACHE_TTL.TASK_LIST);
@@ -416,6 +420,31 @@ function taskCountersForList_() {
       if (hasScan) out[taskId].scanned++;
       if (st === STATUS.EXTRA) out[taskId].extra++;
     }
+    return out;
+  }, CACHE_TTL.TASK_COUNTS);
+}
+
+/** Ca (slotCode) cho task Điểm danh Ra/Vào — task sheet để trống, derive từ log.
+ * Đọc AttendanceLog 1 lần (A2:D) rồi group distinct sort — tránh N+1. */
+function taskSlotCodesForList_() {
+  return cachedJsonRev_(CACHE_KEYS.TASK_COUNTS + 'slots', CACHE_KEYS.TASK_LIST_REV, function () {
+    const sheet = getSheet_(SHEETS.ATTENDANCE_LOG);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return {};
+    const values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    const sets = {};
+    for (let i = 0; i < values.length; i++) {
+      const taskId = String(values[i][0] || '').trim();
+      if (!taskId) continue;
+      const slot = String(values[i][LOG_COLS.SLOT_CODE] || '').trim();
+      if (!slot) continue;
+      if (!sets[taskId]) sets[taskId] = {};
+      sets[taskId][slot] = true;
+    }
+    const out = {};
+    Object.keys(sets).forEach(function (id) {
+      out[id] = Object.keys(sets[id]).sort().join(', ');
+    });
     return out;
   }, CACHE_TTL.TASK_COUNTS);
 }

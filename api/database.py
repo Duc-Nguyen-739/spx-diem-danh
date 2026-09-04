@@ -186,11 +186,16 @@ def _read_task_list_uncached():
         if task["taskId"]:
             out.append(task)
     counters = task_counters_for_list()
+    # Ca của task Điểm danh Ra/Vào: task sheet để trống — derive từ slotCode các
+    # dòng log, distinct sort join như reconcile (mirror Database.gs readTaskList_).
+    slot_map = task_slot_codes_for_list()
     for t in out:
         cc = counters.get(t["taskId"], {"total": 0, "scanned": 0, "extra": 0})
         t["total"] = cc["total"]
         t["scanned"] = cc["scanned"]
         t["extra"] = cc["extra"]
+        if not t["slotCode"] and t["taskId"] in slot_map:
+            t["slotCode"] = slot_map[t["taskId"]]
     out.reverse()  # dòng mới nhất thường ở cuối → đưa lên đầu
     return out
 
@@ -230,6 +235,29 @@ def _task_counters_uncached():
         if st == config.STATUS["EXTRA"]:
             entry["extra"] += 1
     return out
+
+
+def task_slot_codes_for_list():
+    """Ca cho task Điểm danh Ra/Vào — derive distinct sort từ cột SLOT_CODE log
+    (mirror Database.gs taskSlotCodesForList_ — tránh N+1, chung rev với counters)."""
+    return cache.cache_get_or_put_rev(
+        config.CACHE_KEYS["TASK_COUNTS"] + "slots", config.CACHE_KEYS["TASK_LIST_REV"],
+        _task_slot_codes_uncached, config.CACHE_TTL["TASK_COUNTS"])
+
+
+def _task_slot_codes_uncached():
+    # 1 RPC A2:D (taskId..slotCode) — SLOT_CODE ở index 3.
+    values = sheets.get_values(config.SHEETS["ATTENDANCE_LOG"], range_="A2:D", unformatted=True)
+    sets = {}
+    for row in values or []:
+        task_id = str(row[0] if row else "").strip()
+        if not task_id:
+            continue
+        slot = str(row[config.LOG_COLS["SLOT_CODE"]] if len(row) > config.LOG_COLS["SLOT_CODE"] else "").strip()
+        if not slot:
+            continue
+        sets.setdefault(task_id, set()).add(slot)
+    return {tid: ", ".join(sorted(s)) for tid, s in sets.items()}
 
 
 def invalidate_task_list_cache():

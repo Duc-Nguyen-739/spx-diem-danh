@@ -169,6 +169,16 @@
     if (!MOCK_LOGS[taskId]) MOCK_LOGS[taskId] = buildLog(taskId);
     return MOCK_LOGS[taskId];
   }
+  // Ca của task Điểm danh Ra/Vào: derive từ slotCode các dòng log (mirror server
+  // readTaskList_ — task sheet để trống, distinct sort join như reconcile).
+  function mockTaskSlotCode(taskId) {
+    var seen = {};
+    getLog(taskId).forEach(function (r) {
+      var s = String(r.slotCode || '').trim();
+      if (s) seen[s] = true;
+    });
+    return Object.keys(seen).sort().join(', ');
+  }
 
   var handlers = {
     getMeta: function () {
@@ -213,7 +223,9 @@
         });
         if (scanned) {
           var c = counters(log);
-          tasks.push(Object.assign({}, t, c, { total: log.length }));
+          var merged = Object.assign({}, t, c, { total: log.length });
+          if (!merged.slotCode) merged.slotCode = mockTaskSlotCode(t.taskId);
+          tasks.push(merged);
         }
       });
       if (!hit && !tasks.length) return { ok: false, message: 'Không tìm thấy mã ' + q };
@@ -237,7 +249,10 @@
       return { ok: true, staff: out, count: Object.keys(out).length };
     },
     getTaskListApi: function () {
-      return MOCK_DATA.tasks.slice();
+      return MOCK_DATA.tasks.map(function (t) {
+        if (t.slotCode) return Object.assign({}, t);
+        return Object.assign({}, t, { slotCode: mockTaskSlotCode(t.taskId) });
+      });
     },
     getTaskDetailApi: function (taskId) {
       var task = null;

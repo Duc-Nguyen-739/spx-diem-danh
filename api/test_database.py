@@ -389,6 +389,43 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(last[config.LOG_COLS["STATION"]], "HN2 SOC")
         self.assertEqual(last[config.LOG_COLS["AGENCY"]], "GRG")
 
+    def test_read_task_list_fills_meal_move_slotcode(self):
+        """Ca task Ra/Vào (slotCode '') derive từ log — reconcile giữ nguyên."""
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+        database.insert_task({
+            "taskId": "M1", "taskType": "meal-move", "station": "HN2 SOC", "slotCode": "",
+            "team": "Outbound", "status": "open", "createdAt": now, "createdBy": "web",
+            "completedAt": None, "note": "",
+        })
+        database.insert_task({
+            "taskId": "R1", "taskType": "reconcile", "station": "HN2 SOC", "slotCode": "08:00-17:00",
+            "team": "Outbound", "status": "open", "createdAt": now, "createdBy": "web",
+            "completedAt": None, "note": "",
+        })
+        self.fake.set_sheet(config.SHEETS["ATTENDANCE_LOG"], [LOG_HEADER] + [
+            ['M1', 'OPS001', 'NV A', '18:00-02:00', '', '', '', '', '', '-', '', '', ''],
+            ['M1', 'OPS002', 'NV B', '08:00-17:00', '', '', '', '', '', '-', '', '', ''],
+            ['M1', 'OPS003', 'NV C', '', '', '', '', '', '', '-', '', '', ''],
+            ['M1', 'OPS004', 'NV D', '08:00-17:00', '', '', '', '', '', '-', '', '', ''],
+            ['R1', 'OPS005', 'NV E', '22:00-06:00', '', '', '', '', '', '-', '', '', ''],
+        ])
+        cache.clear_cache()  # set_sheet tay sau insert → đọc tươi
+        tasks = {t["taskId"]: t for t in database.read_task_list()}
+        self.assertEqual(tasks["M1"]["slotCode"], "08:00-17:00, 18:00-02:00")
+        self.assertEqual(tasks["R1"]["slotCode"], "08:00-17:00")
+
+    def test_read_task_list_empty_log_keeps_slotcode_empty(self):
+        """Task Ra/Vào chưa có NV (0 dòng log) → Ca vẫn trống, không crash."""
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+        database.insert_task({
+            "taskId": "M-EMPTY", "taskType": "meal-move", "station": "HN2 SOC", "slotCode": "",
+            "team": "Outbound", "status": "open", "createdAt": now, "createdBy": "web",
+            "completedAt": None, "note": "",
+        })
+        cache.clear_cache()
+        tasks = {t["taskId"]: t for t in database.read_task_list()}
+        self.assertEqual(tasks["M-EMPTY"]["slotCode"], "")
+
     def test_sheets_updated_range_regex(self):
         """#20: sheets.append_values regex handle '!A1' lẫn '!A5:M6'."""
         import re
