@@ -914,7 +914,7 @@ function overwriteStaffData_(staffList) {
   // FIX-02 (P0): mọi write path khác đều có lock — riêng sync thiếu → 2 sync chạy
   // song song ghi chéo nhau. waitLock để tuần tự hoá (editor-only gate đã có).
   const lock = LockService.getScriptLock();
-  try { lock.waitLock(10000); } catch (e) { throw new Error('Hệ thống đang bận — thử lại sync sau giây lát'); }
+  try { lock.waitLock(10000); } catch (e) { throw new Error('Hệ thống đang bận — thử lại sau giây lát'); }
   try {
     const rows = staffList.map(function (s) {
       return [
