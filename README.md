@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-481%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 481" />
+  <img src="https://img.shields.io/badge/tests-488%20passing-188038?style=for-the-badge&logo=vitest&logoColor=white" alt="tests 488" />
   <img src="https://img.shields.io/badge/Node-%3E%3D22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="node" />
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="python" />
   <img src="https://img.shields.io/badge/Sheets-API-34A853?style=for-the-badge&logo=googlesheets&logoColor=white" alt="sheets" />
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=800&size=18&duration=2200&pause=900&color=EE4D2D&center=true&vCenter=true&width=760&lines=Kiosk+1+m%C3%A0n+%E2%80%A2+qu%C3%A9t+10-15+m%C3%A3%2Fgi%C3%A2y+%E2%80%A2+epoch+l%C3%A0+s%E1%BB%B1+th%E1%BA%ADt;GAS+WebApp+%2B+Python+backend+%E2%80%A2+c%C3%B9ng+1+domain+logic;Ops...+%E2%86%92+C%C3%B3+m%E1%BA%B7t+%2F+V%E1%BA%AFng+%2F+D%C6%B0+%2F+Ra+ngo%C3%A0i" alt="typing" />
+  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=800&size=18&duration=2200&pause=900&color=EE4D2D&center=true&vCenter=true&width=760&lines=Kiosk+1+m%C3%A0n+%E2%80%A2+qu%C3%A9t+li%C3%AAn+t%E1%BB%A5c+%E2%80%A2+epoch+l%C3%A0+s%E1%BB%B1+th%E1%BA%ADt;GAS+WebApp+%2B+Python+backend+%E2%80%A2+c%C3%B9ng+1+domain+logic;Ops...+%E2%86%92+C%C3%B3+m%E1%BA%B7t+%2F+V%E1%BA%AFng+%2F+D%C6%B0+%2F+Ra+ngo%C3%A0i" alt="typing" />
 </p>
 
 <p align="center">
@@ -37,7 +37,7 @@
 
 <p align="center">
 
-`🎯 TL;DR` • `✨ Bento` • `🏗️ Kiến trúc` • `🧱 Tech` • `📁 Cấu trúc` • `🗄️ Sheets` • `⚡ 30s Start` • `🧪 481 Tests` • `🚀 Deploy` • `📏 Quy ước`
+`🎯 TL;DR` • `✨ Bento` • `🏗️ Kiến trúc` • `🧱 Tech` • `📁 Cấu trúc` • `🗄️ Sheets` • `⚡ 30s Start` • `🧪 488 Tests` • `🚀 Deploy` • `📏 Quy ước`
 
 </p>
 
@@ -166,7 +166,7 @@ scanStaffApi (Code.gs) → scanStaff (ScanService.gs) → classifyScan / classif
 | ☁️ **Backend GAS** | ![GAS](https://img.shields.io/badge/Google_Apps_Script-V8-4285F4?style=flat-square&logo=googleappsscript&logoColor=white) | `Code.gs` + 8 module `.gs` · `V8` · `Asia/Ho_Chi_Minh` · `USER_DEPLOYING` · `DOMAIN` · `LockService 10s` |
 | 🐍 **Backend Python** | ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white) ![API](https://img.shields.io/badge/API-JSONP%2FPOST-009688?style=flat-square) | `api/main.py` · `scanlogic.py` · `services.py` · `database.py` · `sheets.py` · `google-api-python-client` |
 | 🗄️ **Database** | ![Sheets](https://img.shields.io/badge/Google_Sheets-4_sheets-34A853?style=flat-square&logo=googlesheets&logoColor=white) | ID via **Script Properties** `SPREADSHEET_ID` — **không commit** (FIX-25) · batch `getValues`/`setValues` |
-| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-481_passing-188038?style=flat-square) | `node:test` 29f/384 + `unittest` 85 + Chrome 12 = **481** · `check:drift` SSOT guard |
+| 🧪 **Test** | ![Node](https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Tests](https://img.shields.io/badge/tests-488_passing-188038?style=flat-square) | `node:test` 30f/389 + `unittest` 87 + Chrome 12 = **488** · `check:drift` SSOT guard |
 | 🔧 **Build** | ![Scripts](https://img.shields.io/badge/scripts-inline--html-FF8A5C?style=flat-square) | `inline-html.js` · `serve.js :4173` · `build-static.js → dist/` · `build-local.js → index.local.html` |
 | 🚀 **Deploy** | ![clasp](https://img.shields.io/badge/clasp-redeploy-0d111a?style=flat-square&logo=googlecloud&logoColor=white) ![Actions](https://img.shields.io/badge/GitHub_Actions-CI-2088FF?style=flat-square&logo=githubactions&logoColor=white) | `push -f` + `version` + `redeploy` (không `deploy` mới) · `concurrency: deploy-gas` |
 
@@ -205,7 +205,7 @@ spx-diem-danh/
 │   ├── services.py        # port ScanService/TaskService
 │   ├── database.py        # port Database.gs (+ stale guard)
 │   ├── sheets.py / cache.py / config.py / csvutil.py
-│   └── test_*.py          # 85 tests (5 files)
+│   └── test_*.py          # 87 tests (5 files)
 ├── mock/mock-google.js    # mock google.script.run + ?demo=1
 ├── scripts/
 │   ├── serve.js           # preview :4173 (inline + inject __RC_STANDALONE__/__RC_DEMO__)
@@ -213,7 +213,7 @@ spx-diem-danh/
 │   ├── build-local.js     # → index.local.html (cho file:// + test:chrome)
 │   ├── inline-html.js     # transform <?!= include() ?>
 │   └── cdp-helper.js      # CDP list/open/eval/shot/click (Node 22 WebSocket global)
-├── tests/                 # 29 file, 384 tests — node:test
+├── tests/                 # 30 file, 389 tests — node:test
 ├── docs/intent/diem-danh-hn2-soc.md
 ├── docs/spec/2026-08-02-phase0-spec.md
 ├── skills/                # 10 skills: project-skill, review-gas-failure-modes, audit-webapp-optimize...
@@ -292,7 +292,7 @@ pip install -r requirements.txt
 #### 🧪 Kiểm thử bắt buộc
 
 ```bash
-npm test            # 384 — node --test tests/*.test.js
+npm test            # 389 — node --test tests/*.test.js
 npm run test:py     # 85  — python -m unittest discover -s api -p 'test_*.py'
 npm run build:local && npm run test:chrome  # 12 Chrome
 npm run check:drift # SSOT guard (KHỚP server)
@@ -335,28 +335,28 @@ Mock UI: mở `index.html` trực tiếp — `js.html` tự nạp `mock/mock-goo
 
 ---
 
-## 🧪 Kiểm thử — 481 tests
+## 🧪 Kiểm thử — 488 tests
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node-384%2F384-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Python-85%2F85-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Node-389%2F389-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Python-87%2F87-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Chrome-12%2F12-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/total-481%20passing-188038?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/total-488%20passing-188038?style=for-the-badge" />
 </p>
 
 **Workflow chuẩn trước push (§19 AGENTS.md):**
 
 ```bash
 npm run build:local
-npm test              # 384/384 pass — 29 files
-npm run test:py       # 85/85 pass — 5 files api/test_*.py
+npm test              # 389/389 pass — 30 files
+npm run test:py       # 87/87 pass — 5 files api/test_*.py
 npm run test:chrome   # 12/12 pass (khi đổi UI/scan/mock) — cần Node ≥22 + Chrome
 ```
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 29 file, 384 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR/drift | **Mọi commit** |
-| `npm run test:py` | 85 tests `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
+| `npm test` | 30 file, 389 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR/drift | **Mọi commit** |
+| `npm run test:py` | 87 tests `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run test:chrome` | 12 checks CDP — boot `index.local.html` + mock → task list 30 rows / openScan 6 rows · quét `Ops229444` S+1/A-1 / trùng / Dư+1 / backToList | Đổi **UI/scan/mock** |
 | `npm run check:drift` | guard `KHỚP server` + dead code — audit duplicate client/server | Sau khi tạo hàm mới |
 
@@ -438,7 +438,7 @@ curl -s -o /dev/null -w '%{http_code}' "https://script.google.com/macros/s/<DEPL
 - ✅ **Camera AI** — ZXing (chính) + Quagga + jsQR + Tesseract OCR + Web Worker 3–4 binarizer; popup GAS iframe, live modal standalone; **manual `−/+` zoom** (auto zoom off 2026-09-01)
 - ✅ **Tìm kiếm + queue optimistic + counters epoch + âm thanh** mp3 beep/buzz + `AudioContext` unlock
 - ✅ **Poll 3s + cache versioned + LockService 10s + stale guard**
-- ✅ **Test 384 + 85 + 12 = 481 pass** · `check:drift` guard · CI `deploy-gas` concurrency
+- ✅ **Test 389 + 87 + 12 = 488 pass** · `check:drift` guard · CI `deploy-gas` concurrency
 - ✅ **Bảo mật FIX-25/26 + stale + formula sanitize** — xóa spreadsheet ID khỏi repo + fail CI khi deploy lỗi
 - ⏳ **P2** — QA prod với mã NV thật · tối ưu bento animation trên kiosk cấu hình thấp
 
