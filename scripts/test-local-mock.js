@@ -31,7 +31,7 @@ const INDEX_FILE = 'file:///' + path.resolve(__dirname, '..', 'index.local.html'
 const SETTLE_MS = 1000;
 // FIX-13: bỏ magic sleep 2800ms khi load — thay bằng waitUntil poll 100ms (sau khi
 // CDP connected). SETTLE_MS giữ làm grace nhỏ sau mỗi action có waitUntil riêng.
-const LOAD_WAIT_MS = 2800; // fallback legacy (không dùng trong luồng chính nữa)
+const _LEGACY_LOAD_WAIT_MS = 2800; // deprecated: fallback legacy, không dùng trong luồng chính nữa
 
 // FIX-13: detect Chrome kể cả khi cài qua Puppeteer (~/.cache/puppeteer/chrome/<ver>/...)
 // — trước đây chỉ quét path hệ thống → FAIL 8/11 thật ở 1 phiên vì exe rơi vào 'google-chrome'
@@ -198,7 +198,7 @@ async function main() {
   await send(ws, 'Runtime.enable');
   // FIX-13: poll chờ app + mock nạp (100ms) thay sleep 2800ms cứng — page chậm vẫn pass
   const metaReady = await waitUntil(ws, "window.META && window.META.appTitle", 10000);
-  if (!metaReady) await sleep(LOAD_WAIT_MS);
+  if (!metaReady) await sleep(_LEGACY_LOAD_WAIT_MS);
   // FIX-13: task list render là async (getTaskListApi 250ms) — chờ có dòng trước khi check
   await waitUntil(ws, "document.querySelectorAll('#taskListBody tr').length > 0", 5000);
 
