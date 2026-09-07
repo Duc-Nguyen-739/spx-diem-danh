@@ -91,6 +91,9 @@ def _bad_request():
     raise RuntimeError("secret path /home/abc")
 
 
+_TOKEN_EMPTY_WARNED = False
+
+
 def api_token():
     """Token API tùy chọn (env ROLLCALL_API_TOKEN — Điểm Danh HN2 SOC) — 2026-08-19 (NEW-1).
 
@@ -99,7 +102,12 @@ def api_token():
     GAS không áp dụng cơ chế này (lá chắn = deployment access DOMAIN).
     Đọc env mỗi request (rẻ) để test đổi được mà không reload module.
     """
-    return (os.environ.get("ROLLCALL_API_TOKEN") or "").strip()
+    global _TOKEN_EMPTY_WARNED
+    token = (os.environ.get("ROLLCALL_API_TOKEN") or "").strip()
+    if not token and not _TOKEN_EMPTY_WARNED:
+        _TOKEN_EMPTY_WARNED = True
+        logging.getLogger(__name__).warning("ROLLCALL_API_TOKEN rỗng — mọi action anonymous (chỉ dùng cho preview/demo/test local)")
+    return token
 
 
 def handler(event, context=None):
