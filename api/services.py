@@ -24,7 +24,7 @@ CFG = {
     "DUPLICATE_WINDOW_MS": config.DUPLICATE_WINDOW_MS,
 }
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 _BUSY_MSG = "Hệ thống đang bận — thử lại sau giây lát"
 
 
