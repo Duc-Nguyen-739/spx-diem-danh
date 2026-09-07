@@ -15,6 +15,7 @@ bằng freebuff-deploy check khi CLI hồi phục. `probe` action test kết n�
 
 import hmac
 import json
+import logging
 import os
 import re
 
@@ -65,10 +66,9 @@ def dispatch(action, args):
     try:
         return {"ok": True, "result": fn(*arg_list[:max_args])}
     except Exception as e:  # noqa: BLE001 — fail rõ ràng, không leak stack
-        # A3 (2026-08-23): log đầy đủ server-side, client nhận message chung — không
-        # leak đường dẫn/tên service qua str(e).
-        import traceback
-        traceback.print_exc()
+        # A3 (2026-08-23): chỉ log tên exception server-side, client nhận message
+        # chung — không leak đường dẫn/tên service qua str(e) hay traceback.
+        logging.getLogger(__name__).warning("dispatch failed: %s", type(e).__name__)
         return {"ok": False, "error": "Lỗi hệ thống — thử lại sau"}
 
 
