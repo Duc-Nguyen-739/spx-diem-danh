@@ -3,7 +3,7 @@
 KHÔNG gọi Google API — test được trên Python thuần (`python -m unittest`).
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Map header sheet/csv (giữ đúng tên) → field chuẩn
 CSV_HEADER_FIELD = {
@@ -57,7 +57,6 @@ def normalize_staff_date(date):
     # Dạng serial number (cell date thật, UNFORMATTED_VALUE): 46239.0 = 2026-08-01
     if isinstance(date, (int, float)) and not isinstance(date, bool):
         try:
-            from datetime import timedelta
             return (datetime(1899, 12, 30) + timedelta(days=float(date))).strftime("%Y-%m-%d")
         except Exception:
             return ""

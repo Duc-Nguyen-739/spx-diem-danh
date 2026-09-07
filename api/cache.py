@@ -180,7 +180,6 @@ def to_datetime(value):
             return None
         # serial: ngày kể từ 1899-12-30 (Google Sheets epoch, đã tính bug 1900)
         try:
-            from datetime import timedelta
             return datetime(1899, 12, 30, tzinfo=_TZ) + timedelta(days=float(value))
         except Exception:
             return None
