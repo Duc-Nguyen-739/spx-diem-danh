@@ -97,6 +97,8 @@
       --ok-pine: #1e4d33;
       --leaf-2: #2e7d32;
       --leaf-3: #43a047;
+      --reopen-glow: rgba(22,163,74,.35);
+      --reopen-glow-soft: rgba(46,204,113,.45);
       --err: #ef4444;
       --err-soft: #fecaca;
       --link: #1a6be0;
@@ -201,6 +203,56 @@
     .btn-camera:active { transform: translateY(0) scale(.98); box-shadow: 0 2px 8px rgba(238,77,45,.3); }
     .btn-camera:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-camera:disabled::before, .btn-camera:disabled::after { display: none; }
+    /* Nút "Mở Lại" — HOT 2026: gradient xanh lá + glow + shimmer + pulse, cùng ngôn ngữ .btn-camera nhưng khác màu để không nhầm nút camera / Hoàn Thành */
+    .btn-reopen {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--ok-leaf) 0%, var(--ok-deep) 55%, var(--leaf-2) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-weight: 800;
+      letter-spacing: .3px;
+      box-shadow: 0 4px 16px var(--reopen-glow), 0 1px 3px rgba(0,0,0,.18);
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      min-height: 44px;
+      animation: reopen-pulse 2.4s ease-out infinite;
+    }
+    .btn-reopen::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.20), transparent 62%);
+      opacity: 0; transition: opacity .18s ease;
+      pointer-events: none;
+    }
+    .btn-reopen::after {
+      content: ''; position: absolute; top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.42) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(12deg);
+      transition: transform .6s ease;
+      pointer-events: none;
+    }
+    .btn-reopen:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.08);
+      color: #fff;
+    }
+    .btn-reopen:hover::after { transform: translateX(100%) rotate(12deg); }
+    .btn-reopen:hover::before { opacity: 1; }
+    .btn-reopen:active { animation: none; transform: translateY(0) scale(.98); box-shadow: 0 2px 8px var(--reopen-glow); }
+    .btn-reopen:focus-visible { outline: 2px solid var(--ok-leaf); outline-offset: 2px; }
+    .btn-reopen:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; animation: none; }
+    .btn-reopen:disabled::before, .btn-reopen:disabled::after { display: none; }
+    @keyframes reopen-pulse {
+      0% { box-shadow: 0 4px 16px var(--reopen-glow), 0 0 0 0 var(--reopen-glow-soft); }
+      70% { box-shadow: 0 4px 16px var(--reopen-glow), 0 0 0 12px transparent; }
+      100% { box-shadow: 0 4px 16px var(--reopen-glow), 0 0 0 0 transparent; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn-reopen { animation: none; }
+      .btn-reopen::after { display: none; }
+    }
     /* P1-15: nút "Quét Camera" chỉ hiện trên mobile — ẩn trên PC (≥992px) */
     #btnCamScan { display: none; }
     @media (max-width: 991px) {
