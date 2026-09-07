@@ -300,13 +300,13 @@
         statusEl.appendChild(o);
       });
     }
-    // 2026-08-20: debounce 150ms — tránh renderScanTable (sort + paint ~600 dòng)
-    // chạy mỗi ký tự gõ; đồng nhất headerSearch (350ms) / previewStaff (400ms).
+    // 2026-08-20: debounce 200ms — tránh renderScanTable (sort + paint ~600 dòng)
+    // chạy mỗi ký tự gõ; đồng nhất toàn app 200ms.
     var _scanSearchTimer = null;
     if (searchEl) searchEl.addEventListener('input', function () {
       SCAN_FILTER.q = searchEl.value;
       clearTimeout(_scanSearchTimer);
-      _scanSearchTimer = setTimeout(function () { renderScanTable(CURRENT_LOG); }, 150);
+      _scanSearchTimer = setTimeout(function () { renderScanTable(CURRENT_LOG); }, 200);
     });
     if (statusEl) statusEl.addEventListener('change', function () {
       SCAN_FILTER.status = statusEl.value;
@@ -550,7 +550,7 @@
       clearBtn.classList.toggle('show', !!input.value);
       clearTimeout(_headerSearchTimer);
       var q = input.value.trim();
-      if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 350);
+      if (q.length >= 2) _headerSearchTimer = setTimeout(doSearch, 200);
       else onSearchInputCleared();
     });
     input.addEventListener('keydown', function (e) {
@@ -897,7 +897,7 @@
     hintEl.textContent = '';
     updateHud(station, '…', slotCode.length, team.length);
     clearTimeout(_previewTimer);
-    _previewTimer = setTimeout(function () {  // debounce 400ms — tranh spam RPC khi doi select lien tuc
+    _previewTimer = setTimeout(function () {  // debounce 200ms — tranh spam RPC khi doi select lien tuc
       var seq = ++_previewSeq;
       google.script.run
         .withSuccessHandler(function (res) {
@@ -918,7 +918,7 @@
         })
         .withFailureHandler(function (err) { if (seq !== _previewSeq) return; markServerFail(); box.setAttribute('data-state', 'err'); cntEl.textContent = 'Lỗi preview: ' + err.message; updateHud(station, '—', slotCode.length, team.length); })
         .previewStaffApi({ station: station, slotCode: slotCode, team: team, date: date, contractType: contractType });
-    }, 400);
+    }, 200);
   }
   // HUD stat (Dark Industrial): NV khớp / Ca chọn / Team
   function updateHud(stationName, nv, ca, team) {
@@ -1460,6 +1460,8 @@
       return;
     }
     stopScanPolling();  // rời màn quét → dừng poll đồng bộ
+    if (typeof scanCardHideTimer !== 'undefined') clearTimeout(scanCardHideTimer);
+    if (typeof toastTimer !== 'undefined') clearTimeout(toastTimer);
     byId('viewScan').classList.add('hidden');
     byId('viewList').classList.remove('hidden');
     loadTaskList();
@@ -2457,7 +2459,7 @@
           cntEl.textContent = 'Lỗi preview: ' + err.message;
         })
         .previewStaffApi({ station: station, team: teams });
-    }, 400);
+    }, 200);
   }
   function createMealMoveTask() {
     if (BUSY) return;
