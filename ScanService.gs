@@ -189,7 +189,7 @@ function scanStaff(taskId, rawStaffId, mode) {
     // tránh dìm cảnh báo thật trong Stackdriver (2026-08-20 audit).
     const t3 = Date.now();
     const benchMs = t3 - t0;
-    if (benchMs > 1000) {
+    if (benchMs > 1000 || (benchMs > 500 && Math.random() < 0.1)) {
       Logger.log(JSON.stringify({ bench: 'scanStaff', taskId: taskId, staffId: staffId, action: effectiveResult.action, scanPhase: effectiveResult.scanPhase || null, totalMs: benchMs, readMs: t2 - t1, writeMs: t3 - t2 }));
     }
     return {
