@@ -28,7 +28,7 @@ build();
 const CDP_PORT = 9222;
 const CDP_HTTP = 'http://127.0.0.1:' + CDP_PORT;
 const INDEX_FILE = 'file:///' + path.resolve(__dirname, '..', 'index.local.html').replace(/\\/g, '/');
-const SETTLE_MS = 600;
+const SETTLE_MS = 1000;
 // FIX-13: bỏ magic sleep 2800ms khi load — thay bằng waitUntil poll 100ms (sau khi
 // CDP connected). SETTLE_MS giữ làm grace nhỏ sau mỗi action có waitUntil riêng.
 const LOAD_WAIT_MS = 2800; // fallback legacy (không dùng trong luồng chính nữa)
@@ -327,6 +327,8 @@ async function main() {
   const extraOk = S3 && S2b && String(Number(S2b.cExtra) + 1) === S3.cExtra;
   check('Quét NV lạ Ops777777 → Dư +1 (E+1), S+1', extraOk, S3 ? 'before E:' + S2b.cExtra + ' → after E:' + S3.cExtra + ' S:' + S3.cScanned : s3.err);
 
+   // Ổn định CI: chờ scan queue drain trước khi backToList (tránh race scanBusy return sớm).
+   await waitUntil(ws, "typeof scanBusy !== 'function' || !scanBusy()", 5000);
    const back = await evalIn(ws, `(function(){
     if (typeof backToList === 'function') { backToList(); return 'back'; }
     return 'no-back';
@@ -377,6 +379,7 @@ async function main() {
     && /Paste: \d+ Ra, \d+ Vào/.test(S5.toast);
   check('Paste batch meal-move qua ô quét → toast summary Paste (Ra/Vào)', pasteOk,
     S5 ? 'task=' + S4.taskId + ' type=' + S4.taskType + ' toast=' + S5.toast.slice(0, 60) : s5.err + ' / ' + pasteRun.value);
+  await waitUntil(ws, "typeof scanBusy !== 'function' || !scanBusy()", 5000);
   await evalIn(ws, `typeof backToList === 'function' ? backToList() : null`);
 
   const passed = results.filter((r) => r.pass).length;
