@@ -1,4 +1,4 @@
-"""main — HTTP handler cho Điểm Danh HN2 SOC backend (port JsonpApi.gs + doGet JSONP, 2026-08-12).
+r"""main — HTTP handler cho Điểm Danh HN2 SOC backend (port JsonpApi.gs + doGet JSONP, 2026-08-12).
 
 Giao thức (khớp shim google.script.run trong js.html + JsonpApi.gs):
   GET ?action=<fn>&args=<JSON array>&cb=<callback>  → cb({"ok":true,"result":...});
