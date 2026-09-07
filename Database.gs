@@ -108,7 +108,7 @@ function ensureSheets_() {
   const taskSheet = getSheet_(SHEETS.ATTENDANCE_TASK);
   if (taskSheet.getLastColumn() < TASK_COL_COUNT) {
     taskSheet.insertColumnAfter(taskSheet.getLastColumn());
-    taskSheet.getRange(1, TASK_COL_COUNT).setValue('note');
+    taskSheet.getRange(1, TASK_COL_COUNT, 1, 1).setValues([['note']]);
   }
 }
 
