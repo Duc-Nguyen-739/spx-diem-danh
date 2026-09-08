@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>10 Mẫu Mới Màn Quét Ra/Vào (Đợt 2) — SPX Điểm Danh HN2 SOC</title>
+<style>
+  /* ============ GALLERY BASE ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #eef0f4; color: #1f1f1f; line-height: 1.5; }
+  .gal-head { background: #0d111a; color: #e2e8f0; padding: 22px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid #2a3142; }
+  .gal-logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; }
+  .gal-logo .spx-badge { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); color: #fff; font-size: 13px; font-weight: 800; letter-spacing: .5px; padding: 5px 11px; border-radius: 7px; }
+  .gal-logo small { color: #7f8ea3; font-weight: 600; }
+  .gal-head h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  .gal-head p { color: #9aa7bd; font-size: 13px; }
+  .gal-nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e6ec; display: flex; gap: 6px; padding: 10px 24px; overflow-x: auto; flex-wrap: wrap; }
+  .gal-nav a { text-decoration: none; color: #303844; font-size: 12.5px; font-weight: 600; border: 1px solid #e2e6ec; border-radius: 999px; padding: 5px 12px; transition: all .15s ease; white-space: nowrap; }
+  .gal-nav a:hover { border-color: #7c3aed; color: #7c3aed; }
+  .gal-hint { max-width: 1180px; margin: 18px auto 0; padding: 0 20px; color: #5f6368; font-size: 13.5px; }
+  .gal-hint b { color: #7c3aed; }
+  .back-link { display: inline-block; margin-top: 8px; font-size: 12.5px; color: #0b57d0; text-decoration: none; font-weight: 600; }
+  .back-link:hover { text-decoration: underline; }
+  main { max-width: 1180px; margin: 0 auto; padding: 14px 20px 80px; display: grid; gap: 26px; }
+  .sample { display: grid; gap: 10px; }
+  .sample-head { display: flex; gap: 14px; align-items: flex-start; padding: 4px 2px; }
+  .sample-num { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px; background: #0d111a; color: #c4b5fd; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .sample-head h2 { font-size: 17px; font-weight: 700; }
+  .sample-head p { color: #5f6368; font-size: 13px; margin-top: 2px; max-width: 760px; }
+  .sample-head .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px; background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; border-radius: 999px; padding: 2px 10px; margin-top: 6px; }
+  .stage { border-radius: 18px; padding: 28px 20px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; border: 1px solid #e2e6ec; background: #f8f9fb; min-height: 420px; }
+  .stage.dark { background: #141a26; border-color: #262d3d; }
+  .stage.neon { background: radial-gradient(circle at 15% 10%, rgba(124,58,237,.35), transparent 50%), radial-gradient(circle at 85% 90%, rgba(34,211,238,.3), transparent 50%), linear-gradient(160deg, #0f0520, #160a33 60%, #04202b); border-color: #3b2a63; }
+  .stage.candy { background: linear-gradient(135deg, #ffe4f1, #e9e4ff 45%, #d8f5e8); border-color: #e3c8f5; }
+  .stage.paper { background: #e7dcc3; border-color: #cbb98f; }
+  .stage.boards { background: #0a0a0a; border-color: #2a2a2a; }
+
+  /* ============ SHARED SCAN PRIMITIVES ============ */
+  .scan { width: 100%; max-width: 980px; border-radius: 16px; background: var(--card, #fff); color: var(--tx, #1f1f1f); box-shadow: 0 18px 50px rgba(10,20,45,.16); overflow: hidden; border: 1px solid var(--bd, #e2e6ec); }
+  .sc-top { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--bd, #e2e6ec); background: var(--top-bg, #fff); flex-wrap: wrap; }
+  .sc-back { border: 1px solid var(--bd, #e2e6ec); background: transparent; color: var(--mut, #5f6368); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .sc-back:hover { border-color: var(--acc, #7c3aed); color: var(--acc, #7c3aed); }
+  .sc-title { flex: 1; min-width: 180px; }
+  .sc-title b { display: block; font-size: 15px; }
+  .sc-title small { font-size: 12px; color: var(--mut, #5f6368); }
+  .sc-modes { display: flex; gap: 6px; background: var(--seg-bg, #eef0f3); border-radius: 12px; padding: 4px; }
+  .sc-modes button { border: none; background: transparent; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--mut, #5f6368); cursor: pointer; font-family: inherit; transition: all .18s ease; }
+  .sc-modes button.on-ra { background: #fff; color: #e65100; box-shadow: 0 2px 8px rgba(10,20,45,.14); }
+  .sc-modes button.on-vao { background: #fff; color: #188038; box-shadow: 0 2px 8px rgba(10,20,45,.14); }
+  .sc-finish { border: none; border-radius: 10px; padding: 9px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; background: var(--acc, #7c3aed); color: #fff; box-shadow: 0 4px 14px var(--acc-shadow, rgba(124,58,237,.35)); }
+  .sc-finish:hover { filter: brightness(1.07); }
+  .sc-counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px 16px 0; }
+  .sc-c { border: 1px solid var(--bd, #e2e6ec); background: var(--c-bg, #fff); border-radius: 12px; padding: 10px 8px 12px; text-align: center; }
+  .sc-c b { display: block; font-size: 28px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .sc-c span { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--mut, #5f6368); background: var(--seg-bg, #f1f3f4); padding: 2px 10px; border-radius: 10px; margin-top: 6px; }
+  .c-in b { color: #188038; } .c-out b { color: #e65100; } .c-abs b { color: #d93025; } .c-ext b { color: #e37400; }
+  .sc-main { display: grid; grid-template-columns: 380px 1fr; gap: 14px; padding: 14px 16px 16px; align-items: start; }
+  .sc-inputrow { display: flex; gap: 8px; }
+  .sc-inputrow input { flex: 1; min-width: 0; padding: 11px 13px; border: 1.5px solid var(--bd, #e2e6ec); border-radius: 10px; font-size: 15px; font-weight: 700; letter-spacing: .5px; text-align: center; background: var(--in-bg, #fff); color: var(--tx, #1f1f1f); font-family: inherit; }
+  .sc-inputrow input:focus { outline: none; border-color: var(--acc, #7c3aed); box-shadow: 0 0 0 3px var(--ring, rgba(124,58,237,.18)); }
+  .sc-inputrow button { border: none; border-radius: 10px; padding: 0 20px; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; background: var(--acc, #7c3aed); color: #fff; min-height: 44px; }
+  .sc-inputrow button:hover { filter: brightness(1.07); }
+  .sc-hint { font-size: 12px; color: var(--mut, #5f6368); margin-top: 7px; }
+  .sc-hint b { color: var(--acc, #7c3aed); }
+  .sc-card { border-radius: 12px; padding: 14px 16px; margin-top: 10px; border: 2px solid var(--bd, #e2e6ec); background: var(--c-bg, #fff); min-height: 86px; }
+  .sc-card.ok { border-color: #188038; background: #e6f4ea; animation: stamp .38s cubic-bezier(.22,1,.36,1); }
+  .sc-card.warn { border-color: #e65100; background: #fff3e0; animation: stamp .38s cubic-bezier(.22,1,.36,1); }
+  .sc-card.err { border-color: #d93025; background: #fce8e6; animation: stamp .38s cubic-bezier(.22,1,.36,1); }
+  .sc-card.extra { border-color: #e37400; background: #fef7e0; animation: stamp .38s cubic-bezier(.22,1,.36,1); }
+  @keyframes stamp { 0% { transform: scale(.92); opacity: 0; } 60% { transform: scale(1.03); } 100% { transform: scale(1); opacity: 1; } }
+  .sc-st { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--mut, #5f6368); }
+  .sc-card.ok .sc-st { color: #188038; } .sc-card.warn .sc-st { color: #e65100; } .sc-card.err .sc-st { color: #d93025; } .sc-card.extra .sc-st { color: #e37400; }
+  .sc-name { font-size: 22px; font-weight: 800; line-height: 1.25; margin-top: 2px; }
+  .sc-meta { font-size: 12.5px; color: var(--mut, #5f6368); margin-top: 3px; font-family: Consolas, "Courier New", monospace; }
+  .sc-empty { color: var(--mut, #5f6368); font-size: 13px; }
+  .sc-empty b { font-family: Consolas, monospace; color: var(--acc, #7c3aed); }
+  .sc-tablewrap { overflow: auto; border: 1px solid var(--bd, #e2e6ec); border-radius: 12px; max-height: 340px; }
+  .sc-tablewrap table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .sc-tablewrap th { background: var(--seg-bg, #f1f3f4); color: var(--mut, #5f6368); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; text-align: left; padding: 8px 10px; position: sticky; top: 0; }
+  .sc-tablewrap td { padding: 8px 10px; border-top: 1px solid var(--bd, #e2e6ec); white-space: nowrap; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .st { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .st-out { background: #fff3e0; color: #e65100; } .st-in { background: #e6f4ea; color: #188038; }
+  .st-pending { background: var(--seg-bg, #f1f3f4); color: var(--mut, #5f6368); } .st-extra { background: #fef7e0; color: #e37400; }
+  tr.flash td { animation: rowflash 1.2s ease; }
+  @keyframes rowflash { 0%, 40% { background: rgba(124,58,237,.18); } 100% { background: transparent; } }
+
+  /* ============ T1 — NEUMORPHISM (Soft UI) ============ */
+  .t1 { --card: #e0e5ec; --bd: #e0e5ec; --tx: #3d4451; --mut: #7a8494; --acc: #6d5ef0; --acc-shadow: rgba(109,94,240,.35); --ring: rgba(109,94,240,.25); --seg-bg: #e0e5ec; --c-bg: #e0e5ec; --in-bg: #e0e5ec; --top-bg: #e0e5ec; border: none; box-shadow: 20px 20px 50px #b8bec9, -20px -20px 50px #ffffff; }
+  .t1 .sc-c, .t1 .sc-card, .t1 .sc-tablewrap { box-shadow: 8px 8px 16px #b8bec9, -8px -8px 16px #ffffff; border: none; }
+  .t1 .sc-inputrow input { box-shadow: inset 5px 5px 10px #b8bec9, inset -5px -5px 10px #ffffff; border: none; }
+  .t1 .sc-inputrow button, .t1 .sc-finish { box-shadow: 5px 5px 12px #b8bec9, -5px -5px 12px #ffffff; }
+  .t1 .sc-modes { box-shadow: inset 4px 4px 8px #b8bec9, inset -4px -4px 8px #ffffff; }
+  .t1 .sc-modes button.on-ra { background: #e0e5ec; color: #e65100; box-shadow: 4px 4px 8px #b8bec9, -4px -4px 8px #ffffff; }
+  .t1 .sc-modes button.on-vao { background: #e0e5ec; color: #188038; box-shadow: 4px 4px 8px #b8bec9, -4px -4px 8px #ffffff; }
+  .t1 .sc-card.ok { background: #d9ecdd; } .t1 .sc-card.warn { background: #f7e3cd; }
+  .t1 .sc-card.err { background: #f5cfcb; } .t1 .sc-card.extra { background: #f7ecc8; }
+  .t1 .sc-tablewrap th { background: #d5dbe4; }
+
+  /* ============ T2 — NEON CYBERPUNK ============ */
+  .t2 { --card: #120826; --bd: #3b2a63; --tx: #e9f6ff; --mut: #9d8df1; --acc: #22d3ee; --acc-shadow: rgba(34,211,238,.45); --ring: rgba(34,211,238,.4); --top-bg: #0d0518; --seg-bg: #1c1038; --c-bg: #180b30; --in-bg: #0d0518; border-color: #7c3aed; box-shadow: 0 0 30px rgba(124,58,237,.45), 0 18px 50px rgba(0,0,0,.6); }
+  .t2 .sc-title b { color: #fff; text-shadow: 0 0 12px rgba(34,211,238,.8); }
+  .t2 .sc-modes button.on-ra { background: #ff2d95; color: #fff; box-shadow: 0 0 14px rgba(255,45,149,.8); }
+  .t2 .sc-modes button.on-vao { background: #22d3ee; color: #04202b; box-shadow: 0 0 14px rgba(34,211,238,.8); }
+  .t2 .sc-inputrow button, .t2 .sc-finish { background: linear-gradient(135deg, #22d3ee, #7c3aed); box-shadow: 0 0 16px rgba(34,211,238,.6); }
+  .t2 .sc-inputrow input { color: #a5f3fc; }
+  .t2 .c-in b { color: #34f5a5; text-shadow: 0 0 10px rgba(52,245,165,.8); } .t2 .c-out b { color: #ff7ab8; text-shadow: 0 0 10px rgba(255,45,149,.8); }
+  .t2 .c-abs b { color: #ff6b6b; text-shadow: 0 0 10px rgba(255,107,107,.8); } .t2 .c-ext b { color: #ffd166; text-shadow: 0 0 10px rgba(255,209,102,.8); }
+  .t2 .sc-card.ok { background: rgba(52,245,165,.1); border-color: #34f5a5; box-shadow: 0 0 18px rgba(52,245,165,.35); } .t2 .sc-card.ok .sc-st { color: #34f5a5; }
+  .t2 .sc-card.warn { background: rgba(255,45,149,.1); border-color: #ff2d95; box-shadow: 0 0 18px rgba(255,45,149,.35); } .t2 .sc-card.warn .sc-st { color: #ff7ab8; }
+  .t2 .sc-card.err { background: rgba(255,107,107,.1); border-color: #ff6b6b; } .t2 .sc-card.err .sc-st { color: #ff6b6b; }
+  .t2 .sc-card.extra { background: rgba(255,209,102,.1); border-color: #ffd166; } .t2 .sc-card.extra .sc-st { color: #ffd166; }
+  .t2 .st-out { background: rgba(255,45,149,.22); color: #ff7ab8; } .t2 .st-in { background: rgba(52,245,165,.18); color: #34f5a5; }
+  .t2 .st-pending { background: #1c1038; color: #9d8df1; } .t2 .st-extra { background: rgba(255,209,102,.2); color: #ffd166; }
+  .t2 .sc-tablewrap th { background: #1c1038; }
+  .t2 .cyber-bar { padding: 8px 16px; background: #0d0518; border-bottom: 1px solid #3b2a63; font-family: Consolas, monospace; font-size: 11px; color: #22d3ee; letter-spacing: 2px; text-shadow: 0 0 8px rgba(34,211,238,.8); }
+
+  /* ============ T3 — SWISS TYPOGRAPHY ============ */
+  .t3 { --card: #fff; --bd: #111; --tx: #111; --mut: #666; --acc: #e30613; --acc-shadow: rgba(227,6,19,.3); --ring: rgba(227,6,19,.2); border-radius: 0; border: 2px solid #111; box-shadow: 8px 8px 0 #111; }
+  .t3 .sc-top { border-bottom: 2px solid #111; } .t3 .sc-title b { font-size: 20px; letter-spacing: -.5px; }
+  .t3 .sc-title small { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
+  .t3 .sc-modes { background: #fff; border: 2px solid #111; border-radius: 0; }
+  .t3 .sc-modes button { border-radius: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+  .t3 .sc-modes button.on-ra { background: #111; color: #fff; box-shadow: none; }
+  .t3 .sc-modes button.on-vao { background: #e30613; color: #fff; box-shadow: none; }
+  .t3 .sc-c { border: 2px solid #111; border-radius: 0; box-shadow: 4px 4px 0 #111; }
+  .t3 .sc-c b { font-size: 36px; letter-spacing: -1px; }
+  .t3 .c-in b, .t3 .c-out b, .t3 .c-abs b, .t3 .c-ext b { color: #111; }
+  .t3 .sc-inputrow input { border: 2px solid #111; border-radius: 0; }
+  .t3 .sc-inputrow button, .t3 .sc-finish { background: #e30613; border-radius: 0; box-shadow: 4px 4px 0 #111; }
+  .t3 .sc-card { border: 2px solid #111; border-radius: 0; box-shadow: 4px 4px 0 #111; }
+  .t3 .sc-card.ok { background: #fff; border-color: #111; border-left: 10px solid #188038; }
+  .t3 .sc-card.warn { background: #fff; border-color: #111; border-left: 10px solid #e65100; }
+  .t3 .sc-card.err { background: #fff; border-color: #111; border-left: 10px solid #e30613; }
+  .t3 .sc-card.extra { background: #fff; border-color: #111; border-left: 10px solid #e37400; }
+  .t3 .sc-tablewrap { border: 2px solid #111; border-radius: 0; box-shadow: 4px 4px 0 #111; }
+  .t3 .sc-tablewrap th { background: #111; color: #fff; }
+  .t3 .st { border-radius: 0; border: 1.5px solid #111; }
+
+  /* ============ T4 — CANDY PASTEL ============ */
+  .t4 { --card: rgba(255,255,255,.8); --bd: #f3d1f4; --tx: #5b21b6; --mut: #a07cc4; --acc: #ec4899; --acc-shadow: rgba(236,72,153,.4); --ring: rgba(236,72,153,.25); border-radius: 28px; border: 2px solid #fff; box-shadow: 0 24px 60px rgba(168,85,247,.3); backdrop-filter: blur(10px); }
+  .t4 .sc-top { background: transparent; border-bottom: 2px dashed #f3d1f4; }
+  .t4 .sc-modes { background: rgba(255,255,255,.7); border-radius: 999px; }
+  .t4 .sc-modes button { border-radius: 999px; }
+  .t4 .sc-modes button.on-ra { background: linear-gradient(135deg, #fb923c, #ec4899); color: #fff; }
+  .t4 .sc-modes button.on-vao { background: linear-gradient(135deg, #34d399, #22d3ee); color: #06302a; }
+  .t4 .sc-c { border-radius: 22px; background: rgba(255,255,255,.85); border: 2px solid #fff; box-shadow: 0 8px 20px rgba(168,85,247,.15); }
+  .t4 .c-in b { color: #059669; } .t4 .c-out b { color: #ea580c; } .t4 .c-abs b { color: #e11d48; } .t4 .c-ext b { color: #d97706; }
+  .t4 .sc-inputrow input { border-radius: 999px; border: 2px solid #f3d1f4; background: #fff; }
+  .t4 .sc-inputrow button { border-radius: 999px; background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+  .t4 .sc-finish { border-radius: 999px; background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+  .t4 .sc-card { border-radius: 22px; }
+  .t4 .sc-tablewrap { border-radius: 22px; border: 2px solid #fff; }
+  .t4 .sc-tablewrap th { background: rgba(139,92,246,.12); }
+
+  /* ============ T5 — DUAL ARENA (RA vs VÀO đối đầu) ============ */
+  .t5 { --card: #0d111a; --bd: #2a3142; --tx: #e2e8f0; --mut: #8b98ab; --acc: #ee4d2d; --acc-shadow: rgba(238,77,45,.4); --ring: rgba(238,77,45,.3); --top-bg: #0d111a; --seg-bg: #1a2233; --c-bg: #141b28; --in-bg: #0d111a; }
+  .t5 .arena { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid var(--bd); }
+  .t5 .arena button { border: none; padding: 26px 12px; font-size: 26px; font-weight: 900; letter-spacing: 1px; cursor: pointer; font-family: inherit; color: rgba(255,255,255,.4); background: #141b28; transition: all .2s ease; }
+  .t5 .arena button small { display: block; font-size: 12px; font-weight: 600; letter-spacing: 2px; margin-top: 4px; }
+  .t5 .arena button.on-ra { background: linear-gradient(135deg, #ff5f2e, #c2361a); color: #fff; box-shadow: inset 0 -4px 0 rgba(255,255,255,.35), 0 0 30px rgba(238,77,45,.5); }
+  .t5 .arena button.on-vao { background: linear-gradient(135deg, #2e7d32, #0d3b1e); color: #fff; box-shadow: inset 0 -4px 0 rgba(255,255,255,.35), 0 0 30px rgba(46,125,50,.5); }
+  .t5 .vs { position: absolute; left: 50%; transform: translate(-50%, 0); width: 44px; height: 44px; border-radius: 50%; background: #0d111a; border: 2px solid #2a3142; color: #ff8a5c; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 22px; z-index: 2; }
+  .t5 .arena-wrap { position: relative; }
+  .t5 .sc-modes { display: none; }
+  .t5 .sc-inputrow button, .t5 .sc-finish { background: linear-gradient(135deg, #ff5f2e, #ee4d2d); }
+  .t5 .sc-card.ok { background: rgba(24,128,56,.16); } .t5 .sc-card.warn { background: rgba(230,81,0,.14); }
+  .t5 .sc-card.err { background: rgba(217,48,37,.14); } .t5 .sc-card.extra { background: rgba(227,116,0,.14); }
+  .t5 .st-out { background: rgba(230,81,0,.25); color: #ffab40; } .t5 .st-in { background: rgba(24,128,56,.25); color: #4ade80; }
+  .t5 .st-pending { background: #1a2233; color: #8b98ab; } .t5 .st-extra { background: rgba(227,116,0,.25); color: #ffab40; }
+
+  /* ============ T6 — KANBAN 4 CỘT ============ */
+  .t6 { --acc: #0b57d0; --acc-shadow: rgba(11,87,208,.3); --ring: rgba(11,87,208,.25); }
+  .t6 .sc-modes button.on-ra { background: #e65100; color: #fff; } .t6 .sc-modes button.on-vao { background: #188038; color: #fff; }
+  .t6 .sc-main { grid-template-columns: 1fr; }
+  .t6 .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .t6 .kb-col { background: var(--seg-bg, #f1f3f4); border-radius: 12px; padding: 10px; min-height: 120px; }
+  .t6 .kb-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--mut); margin-bottom: 8px; }
+  .t6 .kb-head i { width: 9px; height: 9px; border-radius: 3px; }
+  .t6 .kb-head b { margin-left: auto; background: #fff; border-radius: 999px; padding: 0 8px; font-size: 11px; }
+  .t6 .kb-card { background: #fff; border: 1px solid var(--bd); border-left: 4px solid var(--mut); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(10,20,45,.07); animation: stamp .3s ease; }
+  .t6 .kb-card b { font-family: Consolas, monospace; font-size: 12px; display: block; }
+  .t6 .kb-card span { font-size: 12px; font-weight: 600; display: block; }
+  .t6 .kb-card small { font-size: 10.5px; color: var(--mut); font-family: Consolas, monospace; }
+  .t6 .kb-out { border-left-color: #e65100; } .t6 .kb-in { border-left-color: #188038; }
+  .t6 .kb-pending { border-left-color: #9aa7bd; } .t6 .kb-extra { border-left-color: #e37400; }
+
+  /* ============ T7 — PROJECTOR (bảng điện tử treo tường) ============ */
+  .t7 { --card: #050505; --bd: #2b2b2b; --tx: #ffd60a; --mut: #8a7a00; --acc: #ffd60a; --acc-shadow: rgba(255,214,10,.4); --ring: rgba(255,214,10,.3); --top-bg: #050505; --seg-bg: #141414; --c-bg: #0d0d0d; --in-bg: #0d0d0d; border-color: #2b2b2b; font-family: Consolas, "Courier New", monospace; }
+  .t7 .board { text-align: center; padding: 10px 16px 0; }
+  .t7 .board small { font-size: 11px; letter-spacing: 4px; color: #8a7a00; }
+  .t7 .board .led { font-size: 44px; font-weight: 800; letter-spacing: 6px; color: #ffd60a; text-shadow: 0 0 18px rgba(255,214,10,.9), 0 0 40px rgba(255,214,10,.5); }
+  .t7 .sc-c { border-color: #2b2b2b; } .t7 .sc-c b { color: #ffd60a; text-shadow: 0 0 12px rgba(255,214,10,.8); }
+  .t7 .sc-c span { background: #141414; color: #8a7a00; }
+  .t7 .sc-modes button.on-ra { background: #ffd60a; color: #111; box-shadow: 0 0 14px rgba(255,214,10,.7); }
+  .t7 .sc-modes button.on-vao { background: #3aff7c; color: #04140a; box-shadow: 0 0 14px rgba(58,255,124,.7); }
+  .t7 .sc-inputrow input { color: #ffd60a; }
+  .t7 .sc-inputrow button, .t7 .sc-finish { background: #ffd60a; color: #111; box-shadow: 0 0 14px rgba(255,214,10,.5); font-family: Consolas, monospace; }
+  .t7 .sc-back { font-family: Consolas, monospace; }
+  .t7 .sc-card { background: #0d0d0d; }
+  .t7 .sc-card.ok { border-color: #3aff7c; } .t7 .sc-card.ok .sc-st { color: #3aff7c; }
+  .t7 .sc-card.warn { border-color: #ffd60a; } .t7 .sc-card.warn .sc-st { color: #ffd60a; }
+  .t7 .sc-card.err { border-color: #ff4d4d; } .t7 .sc-card.err .sc-st { color: #ff4d4d; }
+  .t7 .sc-card.extra { border-color: #ff9f1c; } .t7 .sc-card.extra .sc-st { color: #ff9f1c; }
+  .t7 .sc-name { color: #fff; } .t7 .sc-tablewrap th { background: #141414; color: #8a7a00; }
+  .t7 .st-out { background: rgba(255,214,10,.15); color: #ffd60a; } .t7 .st-in { background: rgba(58,255,124,.15); color: #3aff7c; }
+  .t7 .st-pending { background: #141414; color: #8a7a00; } .t7 .st-extra { background: rgba(255,159,28,.15); color: #ff9f1c; }
+
+  /* ============ T8 — FEED SỰ KIỆN ============ */
+  .t8 { --acc: #0284c7; --acc-shadow: rgba(2,132,199,.3); --ring: rgba(2,132,199,.25); }
+  .t8 .sc-modes button.on-ra { background: #e65100; color: #fff; } .t8 .sc-modes button.on-vao { background: #188038; color: #fff; }
+  .t8 .sc-main { grid-template-columns: 360px 1fr; }
+  .t8 .feed { border: 1px solid var(--bd); border-radius: 12px; max-height: 340px; overflow: auto; background: var(--c-bg, #fff); }
+  .t8 .feed-head { position: sticky; top: 0; background: var(--seg-bg, #f1f3f4); padding: 8px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--mut); display: flex; align-items: center; gap: 6px; }
+  .t8 .feed-head i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: blinkdot 1.6s infinite; }
+  @keyframes blinkdot { 50% { opacity: .35; } }
+  .t8 .feed-item { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--bd); animation: stamp .3s ease; }
+  .t8 .feed-ic { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; }
+  .t8 .fi-out { background: #e65100; } .t8 .fi-in { background: #188038; } .t8 .fi-err { background: #d93025; } .t8 .fi-extra { background: #e37400; }
+  .t8 .feed-item b { font-size: 13px; display: block; } .t8 .feed-item small { font-size: 11.5px; color: var(--mut); font-family: Consolas, monospace; }
+  .t8 .feed-item time { font-size: 10.5px; color: var(--mut); }
+
+  /* ============ T9 — GIẤY KRAFT / DẤU MỰC ============ */
+  .t9 { --card: #f6efdb; --bd: #d8c49a; --tx: #3d2f1d; --mut: #8a7550; --acc: #b3261e; --acc-shadow: rgba(179,38,30,.3); --ring: rgba(179,38,30,.25); --top-bg: #f1e6cb; --seg-bg: #ece0c3; --c-bg: #faf5e6; --in-bg: #fffdf4; border-radius: 6px; border: 1px solid #cbb98f; box-shadow: 0 18px 50px rgba(61,47,29,.3); background-image: repeating-linear-gradient(0deg, transparent 0 26px, rgba(179,38,30,.05) 26px 27px); }
+  .t9 .sc-title b { font-family: Georgia, "Times New Roman", serif; }
+  .t9 .sc-modes { border: 1.5px dashed #8a7550; background: transparent; }
+  .t9 .sc-modes button.on-ra { background: transparent; color: #b3261e; box-shadow: none; border: 2px solid #b3261e; transform: rotate(-2deg); }
+  .t9 .sc-modes button.on-vao { background: transparent; color: #1e6b33; box-shadow: none; border: 2px solid #1e6b33; transform: rotate(2deg); }
+  .t9 .sc-c { background: #faf5e6; } .t9 .c-in b { color: #1e6b33; } .t9 .c-out b { color: #b3261e; }
+  .t9 .sc-inputrow input { border: 1.5px dashed #8a7550; font-family: Consolas, monospace; }
+  .t9 .sc-inputrow button, .t9 .sc-finish { background: #b3261e; }
+  .t9 .sc-card { border-style: dashed; }
+  .t9 .sc-card.ok { background: #faf5e6; border: 2px solid #1e6b33; } .t9 .sc-card.ok .sc-st { color: #1e6b33; }
+  .t9 .sc-card.warn, .t9 .sc-card.err { background: #faf5e6; border: 2px solid #b3261e; } .t9 .sc-card.warn .sc-st, .t9 .sc-card.err .sc-st { color: #b3261e; }
+  .t9 .sc-card.extra { background: #faf5e6; border: 2px solid #b45309; } .t9 .sc-card.extra .sc-st { color: #b45309; }
+  .t9 .sc-name { font-family: Georgia, serif; }
+  .t9 .stamp { display: inline-block; border: 2.5px solid currentColor; border-radius: 6px; padding: 1px 10px; transform: rotate(-4deg); font-weight: 900; }
+  .t9 .sc-card.ok .sc-st { font-size: 14px; } .t9 .sc-card.warn .sc-st, .t9 .sc-card.err .sc-st { font-size: 14px; }
+  .t9 .sc-tablewrap th { background: #ece0c3; font-family: Georgia, serif; }
+
+  /* ============ T10 — GAUGE TIẾN ĐỘ ============ */
+  .t10 { --card: #0b1220; --bd: #223148; --tx: #e2e8f0; --mut: #7f8ea3; --acc: #22d3ee; --acc-shadow: rgba(34,211,238,.4); --ring: rgba(34,211,238,.35); --top-bg: #080d17; --seg-bg: #141d30; --c-bg: #101828; --in-bg: #080d17; }
+  .t10 .gauge-bar { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--bd); flex-wrap: wrap; }
+  .t10 .ring { position: relative; width: 92px; height: 92px; flex: 0 0 auto; }
+  .t10 .ring svg { transform: rotate(-90deg); }
+  .t10 .ring .pct { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; }
+  .t10 .ring .pct b { font-size: 20px; color: #fff; } .t10 .ring .pct span { font-size: 9px; color: var(--mut); text-transform: uppercase; letter-spacing: 1px; }
+  .t10 .g-stats { display: flex; gap: 10px; flex: 1; flex-wrap: wrap; }
+  .t10 .g-stat { flex: 1; min-width: 90px; background: var(--seg-bg); border: 1px solid var(--bd); border-radius: 12px; padding: 8px 12px; }
+  .t10 .g-stat b { font-size: 22px; font-variant-numeric: tabular-nums; display: block; }
+  .t10 .g-stat span { font-size: 10.5px; color: var(--mut); text-transform: uppercase; letter-spacing: .5px; }
+  .t10 .sc-modes button.on-ra { background: #e65100; color: #fff; } .t10 .sc-modes button.on-vao { background: #22d3ee; color: #04202b; }
+  .t10 .sc-inputrow button, .t10 .sc-finish { background: linear-gradient(135deg, #22d3ee, #0b57d0); }
+  .t10 .sc-inputrow input { color: #a5f3fc; }
+  .t10 .sc-card.ok { background: rgba(34,211,238,.1); border-color: #22d3ee; } .t10 .sc-card.ok .sc-st { color: #22d3ee; }
+  .t10 .sc-card.warn { background: rgba(230,81,0,.12); border-color: #e65100; } .t10 .sc-card.warn .sc-st { color: #ffab40; }
+  .t10 .sc-card.err { background: rgba(217,48,37,.12); border-color: #d93025; } .t10 .sc-card.err .sc-st { color: #f87171; }
+  .t10 .sc-card.extra { background: rgba(227,116,0,.12); border-color: #e37400; } .t10 .sc-card.extra .sc-st { color: #ffab40; }
+  .t10 .st-out { background: rgba(230,81,0,.22); color: #ffab40; } .t10 .st-in { background: rgba(34,211,238,.18); color: #22d3ee; }
+  .t10 .st-pending { background: #141d30; color: #7f8ea3; } .t10 .st-extra { background: rgba(227,116,0,.22); color: #ffab40; }
+  .t10 .sc-tablewrap th { background: #141d30; }
+
+  @media (max-width: 860px) {
+    .sc-main, .t8 .sc-main { grid-template-columns: 1fr; }
+    .t6 .kanban { grid-template-columns: repeat(2, 1fr); }
+    .sc-counters { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .sc-c b { font-size: 20px; }
+    .stage { padding: 16px 10px; }
+    .t5 .arena button { font-size: 19px; padding: 20px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="gal-head">
+  <div class="gal-logo"><span class="spx-badge">SPX Express</span><small>Điểm Danh HN2 SOC · Kiosk</small></div>
+  <div style="margin-left:auto;text-align:right;">
+    <h1>10 MẪU MỚI MÀN QUÉT RA/VÀO — ĐỢT 2</h1>
+    <p>Phong cách hoàn toàn khác đợt 1: counters · ô quét · thẻ kết quả · bảng/kandan/feed</p>
+  </div>
+</header>
+
+<nav class="gal-nav">
+  <a href="#t1">1 · Neumorphism</a><a href="#t2">2 · Cyberpunk</a><a href="#t3">3 · Swiss</a>
+  <a href="#t4">4 · Candy</a><a href="#t5">5 · Dual Arena</a><a href="#t6">6 · Kanban</a>
+  <a href="#t7">7 · Projector</a><a href="#t8">8 · Feed</a><a href="#t9">9 · Giấy kraft</a>
+  <a href="#t10">10 · Gauge</a>
+</nav>
+
+<p class="gal-hint">Cả 10 mẫu đều <b>bấm được thật</b>: chuyển chế độ Ra/Vào, nhập mã (thử <b>Ops229445</b>) rồi Enter — số liệu, thẻ kết quả, bảng/kanban/feed/gauge cập nhật như app thật. Dữ liệu minh hoạ: task <b>RV-2026-0908 · HN2 SOC · Team KHO-B · 5 NV</b> (Ops229444 đã Ra lúc 11:32:05).<br>
+<a class="back-link" href="ra-vao-scan.html">← Xem 10 mẫu đợt 1 (Dark HUD, Bento, Glass…)</a></p>
+
+<main>
+
+  <!-- ========== T1 · NEUMORPHISM ========== -->
+  <section class="sample" id="t1">
+    <div class="sample-head"><span class="sample-num">01</span><div>
+      <h2>Neumorphism — nút lõm/nổi như đất nặn</h2>
+      <p>Bóng mềm 2 chiều tạo cảm giác nút bấm vật lý. Êm mắt, sang — hợp máy tính bảng của quản lý, bấm nhiều không mỏi.</p>
+      <span class="tag">Soft UI · Tablet · Êm mắt</span>
+    </div></div>
+    <div class="stage"><div class="scan t1" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T2 · CYBERPUNK ========== -->
+  <section class="sample" id="t2">
+    <div class="sample-head"><span class="sample-num">02</span><div>
+      <h2>Neon Cyberpunk — tím + cyan phát sáng</h2>
+      <p>Neon glow toàn màn hình, số phát sáng trong bóng tối. Chất chơi nhất — hợp kiosk ca đêm, đội kho trẻ, sự kiện.</p>
+      <span class="tag">Neon · Ca đêm · Chất chơi</span>
+    </div></div>
+    <div class="stage neon"><div class="scan t2" data-scan>
+      <div class="cyber-bar">▚ SPX-NEON // MEAL-MOVE // RV-2026-0908</div>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · RA/VÀO</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T3 · SWISS ========== -->
+  <section class="sample" id="t3">
+    <div class="sample-head"><span class="sample-num">03</span><div>
+      <h2>Swiss Typography — đen/trắng/đỏ, chữ khổng lồ</h2>
+      <p>Phong cách báo chí Thụy Sĩ: lưới cứng, bóng đổ đặc, vạch màu bên trái thẻ kết quả. Rõ ràng tuyệt đối — không màu mè gây xao nhãng.</p>
+      <span class="tag">Rõ ràng · Báo chí · Không xao nhãng</span>
+    </div></div>
+    <div class="stage"><div class="scan t3" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 / RA–VÀO</b><small>HN2 SOC · KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="QUÉT MÃ OPS…" autocomplete="off" spellcheck="false"><button type="button" data-go>QUÉT</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T4 · CANDY ========== -->
+  <section class="sample" id="t4">
+    <div class="sample-head"><span class="sample-num">04</span><div>
+      <h2>Candy Pastel — kẹo ngọt bo tròn</h2>
+      <p>Hồng–tím–bạc hà pastel, bo góc 28px, gradient kẹo. Vui vẻ, giảm căng thẳng giờ cao điểm — hợp khu vực có nhiều NV nữ/trẻ.</p>
+      <span class="tag">Pastel · Vui vẻ · Giờ cao điểm</span>
+    </div></div>
+    <div class="stage candy"><div class="scan t4" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T5 · DUAL ARENA ========== -->
+  <section class="sample" id="t5">
+    <div class="sample-head"><span class="sample-num">05</span><div>
+      <h2>Dual Arena — RA đấu VÀO như 2 đội</h2>
+      <p>2 nửa màn hình đối đầu (cam RA vs xanh VÀO) kèm huy hiệu VS ở giữa. Không thể bấm nhầm chế độ — nhìn là biết đang quét chiều nào.</p>
+      <span class="tag">Chống nhầm · 2 nửa màn hình · Kiosk cửa</span>
+    </div></div>
+    <div class="stage dark"><div class="scan t5" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra</button><button type="button" data-mode="vao">Vào</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="arena-wrap"><div class="vs">VS</div><div class="arena"><button type="button" class="on-ra" data-mode="ra">⬆ RA NGOÀI<small>QUÉT ĐỂ RA</small></button><button type="button" data-mode="vao">⬇ VÀO LẠI<small>QUÉT ĐỂ VÀO</small></button></div></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T6 · KANBAN ========== -->
+  <section class="sample" id="t6">
+    <div class="sample-head"><span class="sample-num">06</span><div>
+      <h2>Kanban 4 cột — thẻ NV tự nhảy cột khi quét</h2>
+      <p>Không còn bảng: NV là thẻ tự nhảy giữa 4 cột Chưa quét / Ra ngoài / Đã vào / Dư. Nhìn toàn cảnh ca làm trong 1 màn hình.</p>
+      <span class="tag">Kanban · Toàn cảnh · Không bảng</span>
+    </div></div>
+    <div class="stage"><div class="scan t6" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div>
+        <table style="display:none;"><tbody data-rows></tbody></table></div>
+        <div class="kanban" data-kanban></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T7 · PROJECTOR ========== -->
+  <section class="sample" id="t7">
+    <div class="sample-head"><span class="sample-num">07</span><div>
+      <h2>Projector — bảng LED treo tường</h2>
+      <p>Số LED vàng khổng lồ đọc được từ 10m, nền đen. Treo ở cổng kho cho cả đội cùng thấy tiến độ Ra/Vào realtime.</p>
+      <span class="tag">LED · Treo tường · Đọc từ xa</span>
+    </div></div>
+    <div class="stage boards"><div class="scan t7" data-scan>
+      <div class="board"><small>HN2 SOC · ĐIỂM DANH RA / VÀO</small><div class="led"><span data-c="scanned">0</span>–<span data-c="out">1</span></div></div>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908</b><small>TEAM KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">RA</button><button type="button" data-mode="vao">VÀO</button></div>
+        <button class="sc-finish" type="button">END</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="SCAN OPS…" autocomplete="off" spellcheck="false"><button type="button" data-go>QUÉT</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T8 · FEED ========== -->
+  <section class="sample" id="t8">
+    <div class="sample-head"><span class="sample-num">08</span><div>
+      <h2>Feed sự kiện — dòng thời gian quét realtime</h2>
+      <p>Mỗi lượt quét là 1 dòng feed (mới nhất lên đầu, chấm xanh nhấp nháy LIVE). Giám sát ca chỉ cần nhìn feed là biết chuyện gì đang xảy ra.</p>
+      <span class="tag">Realtime · Giám sát ca · Feed</span>
+    </div></div>
+    <div class="stage"><div class="scan t8" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div>
+        <div class="sc-tablewrap" style="margin-top:10px;"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+        <div class="feed"><div class="feed-head"><i></i>Trực tiếp</div><div data-feedlist></div></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T9 · GIẤY KRAFT ========== -->
+  <section class="sample" id="t9">
+    <div class="sample-head"><span class="sample-num">09</span><div>
+      <h2>Giấy kraft — biên bản kho đóng dấu mực</h2>
+      <p>Nền giấy kẻ dòng, nút viền đứt, kết quả là con dấu mực đỏ/xanh đóng lệch. Gần gũi với đội kho quen sổ sách giấy.</p>
+      <span class="tag">Giấy · Dấu mực · Thân thuộc</span>
+    </div></div>
+    <div class="stage paper"><div class="scan t9" data-scan>
+      <div class="sc-top"><button class="sc-back" type="button">← Sổ task</button>
+        <div class="sc-title"><b>Sổ Ra/Vào — RV-2026-0908</b><small>Kho HN2 SOC · Đội KHO-B · 5 người</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">✎ Ra ngoài</button><button type="button" data-mode="vao">✎ Vào lại</button></div>
+        <button class="sc-finish" type="button">Chốt sổ</button></div>
+      <div class="sc-counters"><div class="sc-c c-in"><b data-c="scanned">0</b><span>Đã vào</span></div><div class="sc-c c-out"><b data-c="out">1</b><span>Ra ngoài</span></div><div class="sc-c c-abs"><b data-c="absent">4</b><span>Chưa quét</span></div><div class="sc-c c-ext"><b data-c="extra">0</b><span>Dư</span></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Ghi mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Đóng dấu</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+  <!-- ========== T10 · GAUGE ========== -->
+  <section class="sample" id="t10">
+    <div class="sample-head"><span class="sample-num">10</span><div>
+      <h2>Gauge tiến độ — vòng % đã vào</h2>
+      <p>Vòng tiến độ % Vào lại + 3 chỉ số bên cạnh. Mỗi lượt quét vòng tròn đầy thêm — tạo cảm giác "sắp xong ca", thúc đẩy đội quét nhanh.</p>
+      <span class="tag">Tiến độ · Động lực · Cuối ca</span>
+    </div></div>
+    <div class="stage dark"><div class="scan t10" data-scan>
+      <div class="gauge-bar">
+        <div class="ring"><svg width="92" height="92" viewBox="0 0 92 92"><circle cx="46" cy="46" r="40" fill="none" stroke="#223148" stroke-width="10"/><circle data-ring cx="46" cy="46" r="40" fill="none" stroke="#22d3ee" stroke-width="10" stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="251.3" style="transition:stroke-dashoffset .5s ease;"/></svg><div class="pct"><b data-pct>0%</b><span>Đã vào</span></div></div>
+        <div class="g-stats"><div class="g-stat"><b data-c="scanned" style="color:#22d3ee;">0</b><span>Đã vào</span></div><div class="g-stat"><b data-c="out" style="color:#ffab40;">1</b><span>Ra ngoài</span></div><div class="g-stat"><b data-c="absent" style="color:#f87171;">4</b><span>Chưa quét</span></div><div class="g-stat"><b data-c="extra" style="color:#ffab40;">0</b><span>Dư</span></div></div>
+      </div>
+      <div class="sc-top"><button class="sc-back" type="button">←</button>
+        <div class="sc-title"><b>RV-2026-0908 · Điểm danh Ra/Vào</b><small>HN2 SOC · Team KHO-B · 5 NV</small></div>
+        <div class="sc-modes"><button type="button" class="on-ra" data-mode="ra">Ra ngoài</button><button type="button" data-mode="vao">Vào lại</button></div>
+        <button class="sc-finish" type="button">Kết thúc</button></div>
+      <div class="sc-counters" style="display:none;"><div class="sc-c"><b data-c="scanned">0</b></div><div class="sc-c"><b data-c="out">1</b></div><div class="sc-c"><b data-c="absent">4</b></div><div class="sc-c"><b data-c="extra">0</b></div></div>
+      <div class="sc-main"><div class="sc-scanbox">
+        <div class="sc-inputrow"><input data-input placeholder="Quét mã Ops…" autocomplete="off" spellcheck="false"><button type="button" data-go>Quét</button></div>
+        <div class="sc-hint" data-hint></div><div class="sc-card" data-card></div></div>
+        <div class="sc-tablewrap"><table><thead><tr><th>Mã NV</th><th>Tên NV</th><th>Vender</th><th>Giờ Ra</th><th>Giờ Vào</th><th>Số phút</th><th>Trạng thái</th></tr></thead><tbody data-rows></tbody></table></div></div>
+    </div></div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var SEED = [
+    { code: 'Ops229444', name: 'NGUYỄN VĂN ĐỨC', vender: 'ABC Logistics', ra: '11:32:05', vao: '', min: '', st: 'out' },
+    { code: 'Ops229445', name: 'TRẦN THỊ LAN', vender: 'ABC Logistics', ra: '', vao: '', min: '', st: 'pending' },
+    { code: 'Ops229446', name: 'LÊ VĂN HÙNG', vender: 'XYZ Staffing', ra: '', vao: '', min: '', st: 'pending' },
+    { code: 'Ops229447', name: 'PHẠM THỊ PHƯƠNG', vender: 'XYZ Staffing', ra: '', vao: '', min: '', st: 'pending' },
+    { code: 'Ops229448', name: 'HOÀNG VĂN MINH', vender: 'ABC Logistics', ra: '', vao: '', min: '', st: 'pending' }
+  ];
+  var TOTAL = SEED.length;
+  var ST_TXT = { out: 'Ra ngoài', in: 'Đã vào', pending: 'Chưa quét', extra: 'Dư' };
+  var ST_CLS = { out: 'st-out', in: 'st-in', pending: 'st-pending', extra: 'st-extra' };
+  var KB = [
+    { k: 'pending', t: 'Chưa quét', c: '#9aa7bd' },
+    { k: 'out', t: 'Ra ngoài', c: '#e65100' },
+    { k: 'in', t: 'Đã vào', c: '#188038' },
+    { k: 'extra', t: 'Dư', c: '#e37400' }
+  ];
+
+  function nowT() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function rowHtml(r) {
+    return '<tr data-code="' + r.code.toUpperCase() + '" data-st="' + r.st + '">' +
+      '<td data-l="Mã NV" class="mono">' + esc(r.code) + '</td>' +
+      '<td data-l="Tên NV"><b>' + esc(r.name) + '</b></td>' +
+      '<td data-l="Vender">' + esc(r.vender) + '</td>' +
+      '<td data-l="Giờ Ra" data-f="ra" class="mono">' + (r.ra || '—') + '</td>' +
+      '<td data-l="Giờ Vào" data-f="vao" class="mono">' + (r.vao || '—') + '</td>' +
+      '<td data-l="Số phút" data-f="min" class="mono">' + (r.min || '—') + '</td>' +
+      '<td data-l="Trạng thái" data-f="st"><span class="st ' + ST_CLS[r.st] + '">' + ST_TXT[r.st] + '</span></td></tr>';
+  }
+  function emptyCard(box) {
+    box.className = 'sc-card';
+    box.innerHTML = '<div class="sc-empty">Chưa có lượt quét — thử nhập <b>Ops229445</b> rồi Enter</div>';
+  }
+  function setCard(box, cls, st, name, meta, stamped) {
+    box.className = 'sc-card ' + cls;
+    var stHtml = box.closest('.t9') && (cls === 'ok' || cls === 'warn' || cls === 'err')
+      ? '<div class="sc-st"><span class="stamp">' + esc(st) + '</span></div>'
+      : '<div class="sc-st">' + esc(st) + '</div>';
+    box.innerHTML = stHtml + '<div class="sc-name">' + esc(name) + '</div><div class="sc-meta">' + meta + '</div>';
+  }
+  function paintCounters(root, s) {
+    root.querySelectorAll('[data-c]').forEach(function (el) {
+      var k = el.getAttribute('data-c');
+      if (s[k] !== undefined) el.textContent = s[k];
+    });
+  }
+  function paintHint(root, s) {
+    var h = root.querySelector('[data-hint]');
+    if (h) h.innerHTML = s.mode === 'ra'
+      ? 'Chế độ <b>Ra ngoài</b> — quét để ghi giờ Ra'
+      : 'Chế độ <b>Vào lại</b> — quét để ghi giờ Vào + số phút';
+  }
+  function paintModes(root, s) {
+    root.querySelectorAll('[data-mode]').forEach(function (b) {
+      var m = b.getAttribute('data-mode');
+      b.classList.toggle('on-ra', m === 'ra' && s.mode === 'ra');
+      b.classList.toggle('on-vao', m === 'vao' && s.mode === 'vao');
+    });
+  }
+  function rowsOf(root) {
+    return Array.prototype.slice.call(root.querySelectorAll('[data-rows] tr'));
+  }
+  function renderKanban(root) {
+    var kb = root.querySelector('[data-kanban]');
+    if (!kb) return;
+    kb.innerHTML = KB.map(function (col) {
+      var cards = rowsOf(root).filter(function (tr) { return tr.getAttribute('data-st') === col.k; });
+      var html = '<div class="kb-col"><div class="kb-head"><i style="background:' + col.c + ';"></i>' + col.t + '<b>' + cards.length + '</b></div>';
+      cards.forEach(function (tr) {
+        var ra = tr.querySelector('[data-f="ra"]').textContent;
+        var vao = tr.querySelector('[data-f="vao"]').textContent;
+        html += '<div class="kb-card kb-' + col.k + '"><b>' + esc(tr.getAttribute('data-code')) + '</b><span>' + esc(tr.cells[1].textContent) + '</span><small>' +
+          (ra !== '—' ? 'Ra ' + esc(ra) : '') + (vao !== '—' ? ' → Vào ' + esc(vao) : '') + '</small></div>';
+      });
+      return html + '</div>';
+    }).join('');
+  }
+  function feedPush(root, kind, title, sub) {
+    var list = root.querySelector('[data-feedlist]');
+    if (!list) return;
+    var ic = { out: ['fi-out', '⬆'], in: ['fi-in', '✓'], err: ['fi-err', '!'], extra: ['fi-extra', '+'] }[kind] || ['fi-out', '•'];
+    var div = document.createElement('div');
+    div.className = 'feed-item';
+    div.innerHTML = '<div class="feed-ic ' + ic[0] + '">' + ic[1] + '</div><div><b>' + esc(title) + '</b><small>' + esc(sub) + '</small><br><time>' + nowT() + '</time></div>';
+    list.insertBefore(div, list.firstChild);
+    while (list.children.length > 20) list.removeChild(list.lastChild);
+  }
+  function renderGauge(root, s) {
+    var ring = root.querySelector('[data-ring]');
+    if (!ring) return;
+    var pct = Math.round((s.scanned / TOTAL) * 100);
+    ring.style.strokeDashoffset = String(251.3 * (1 - s.scanned / TOTAL));
+    var p = root.querySelector('[data-pct]');
+    if (p) p.textContent = pct + '%';
+  }
+  function doScan(root, raw) {
+    var s = root._st;
+    var code = String(raw || '').trim().toUpperCase();
+    if (!code) return;
+    var box = root.querySelector('[data-card]');
+    var tr = root.querySelector('[data-rows] tr[data-code="' + code + '"]');
+    if (!tr) {
+      s.extra++;
+      var tb = root.querySelector('[data-rows]');
+      var tmp = document.createElement('tbody');
+      tmp.innerHTML = rowHtml({ code: code, name: 'MÃ NGOÀI DANH SÁCH', vender: '—', ra: '', vao: '', min: '', st: 'extra' });
+      var row = tmp.firstChild;
+      tb.appendChild(row);
+      row.classList.add('flash');
+      setCard(box, 'extra', 'Dư — mã ngoài danh sách', code, 'Không thuộc Team KHO-B · vẫn ghi nhận');
+      feedPush(root, 'extra', code + ' — Dư', 'Mã ngoài danh sách');
+      paintCounters(root, s); renderKanban(root); renderGauge(root, s);
+      return;
+    }
+    var cells = {
+      ra: tr.querySelector('[data-f="ra"]'),
+      vao: tr.querySelector('[data-f="vao"]'),
+      min: tr.querySelector('[data-f="min"]'),
+      st: tr.querySelector('[data-f="st"]')
+    };
+    var nm = tr.cells[1].textContent;
+    var vd = tr.cells[2].textContent;
+    function setSt(k) {
+      tr.setAttribute('data-st', k);
+      cells.st.innerHTML = '<span class="st ' + ST_CLS[k] + '">' + ST_TXT[k] + '</span>';
+    }
+    if (s.mode === 'ra') {
+      if (cells.ra.textContent !== '—') {
+        setCard(box, 'warn', 'Trùng — đã Ra lúc ' + cells.ra.textContent, nm, esc(code) + ' · ' + esc(vd));
+        feedPush(root, 'err', nm + ' — quét trùng Ra', code + ' · đã Ra ' + cells.ra.textContent);
+      } else {
+        cells.ra.textContent = nowT();
+        setSt('out'); s.out++; s.absent--;
+        setCard(box, 'warn', 'Ra ngoài', nm, esc(code) + ' · ' + esc(vd) + ' · Ra ' + cells.ra.textContent);
+        feedPush(root, 'out', nm + ' — Ra ngoài', code + ' · ' + esc(vd) + ' · ' + cells.ra.textContent);
+        tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+      }
+    } else {
+      if (cells.ra.textContent === '—') {
+        setCard(box, 'err', 'Chưa Ra — quét Ra trước', nm, esc(code) + ' · ' + esc(vd) + ' · chưa có giờ Ra');
+        feedPush(root, 'err', nm + ' — Vào khi chưa Ra', code + ' · bị từ chối');
+      } else if (cells.vao.textContent !== '—') {
+        setCard(box, 'warn', 'Trùng — đã Vào lúc ' + cells.vao.textContent, nm, esc(code) + ' · ' + esc(vd));
+        feedPush(root, 'err', nm + ' — quét trùng Vào', code + ' · đã Vào ' + cells.vao.textContent);
+      } else {
+        cells.vao.textContent = nowT();
+        cells.min.textContent = String(1 + Math.floor(Math.random() * 28));
+        setSt('in'); s.scanned++; s.out--;
+        setCard(box, 'ok', 'Vào lại · ' + cells.min.textContent + ' phút', nm, esc(code) + ' · ' + esc(vd) + ' · Ra ' + cells.ra.textContent + ' → Vào ' + cells.vao.textContent);
+        feedPush(root, 'in', nm + ' — Vào lại (' + cells.min.textContent + '′)', code + ' · Ra ' + cells.ra.textContent + ' → Vào ' + cells.vao.textContent);
+        tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+      }
+    }
+    paintCounters(root, s); renderKanban(root); renderGauge(root, s);
+  }
+
+  document.querySelectorAll('[data-scan]').forEach(function (root) {
+    root._st = { mode: 'ra', scanned: 0, out: 1, absent: 4, extra: 0 };
+    root.querySelector('[data-rows]').innerHTML = SEED.map(rowHtml).join('');
+    emptyCard(root.querySelector('[data-card]'));
+    paintHint(root, root._st);
+    renderKanban(root); renderGauge(root, root._st);
+    feedPush(root, 'out', 'NGUYỄN VĂN ĐỨC — Ra ngoài', 'Ops229444 · ABC Logistics · 11:32:05');
+    root.querySelectorAll('[data-mode]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        root._st.mode = b.getAttribute('data-mode');
+        paintModes(root, root._st); paintHint(root, root._st);
+      });
+    });
+    var input = root.querySelector('[data-input]');
+    function go() { doScan(root, input.value); input.value = ''; input.focus(); }
+    root.querySelector('[data-go]').addEventListener('click', go);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  });
+})();
+</script>
+</body>
+</html>
