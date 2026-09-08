@@ -102,6 +102,7 @@
 - **Scan card projector** + **toast** (không `alert`) + `stampIn` + `scanLine` aurora
 - **Dark Industrial HUD** `#0d111a` + neon `#EE4D2D` + glass overlay
 - **beep/buzz** Web Audio 🔊/🔇 + `AudioContext` unlock on gesture
+- **Sáng/Tối** nút 🌙/☀️ trên header — Dark HUD (Mẫu 01 đợt 1) qua `data-theme`, nhớ lựa chọn bằng `localStorage`
 - **Poll 3s** · skeleton · focus trap 3s · sticky topbar
 
 </td>

@@ -102,6 +102,14 @@
       --err: #ef4444;
       --err-soft: #fecaca;
       --link: #1a6be0;
+      --link-bright: #7dd3fc;
+      --success-bright: #4ade80;
+      --danger-bright: #f87171;
+      --warning-bright: #ffab40;
+      --overlay-dark: rgba(13, 19, 27, .78);
+      --card-ok-dark: rgba(24, 128, 56, .16);
+      --card-err-dark: rgba(217, 48, 37, .14);
+      --card-extra-dark: rgba(227, 116, 0, .16);
       --danger-dark: #b3261e;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1282,4 +1290,70 @@
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
+
+    /* ===== Theme Dark HUD (Mẫu 01 đợt 1) — bật bằng <html data-theme="dark-hud">, nút #btnTheme ===== */
+    html[data-theme="dark-hud"] {
+      color-scheme: dark;
+      --bg: var(--ink);
+      --card: var(--ink-8);
+      --border: var(--slate-deep);
+      --text: var(--surface-1);
+      --muted: var(--slate);
+      --surface-muted: var(--ink-6);
+      --surface-2: var(--ink-6);
+      --surface-3: var(--slate-deep);
+      --surface-4: var(--ink-6);
+      --surface-5: var(--ink-6);
+      --mist: var(--ink-6);
+      --cloud: var(--ink-6);
+      --skel-1: var(--ink-6);
+      --skel-2: var(--slate-deep);
+      --card-ok-bg: var(--card-ok-dark);
+      --card-err-bg: var(--card-err-dark);
+      --card-extra-bg: var(--card-extra-dark);
+      --cream: var(--card-extra-dark);
+      --cream-3: var(--card-extra-dark);
+      --amber-pale: var(--card-extra-dark);
+      --amber-dark: var(--warning-bright);
+      --gold-deep: var(--warning-bright);
+      --link: var(--link-bright);
+      --primary-dark: var(--link-bright);
+    }
+    html[data-theme="dark-hud"] select,
+    html[data-theme="dark-hud"] input[type="text"],
+    html[data-theme="dark-hud"] .att-toolbar input[type="search"],
+    html[data-theme="dark-hud"] .att-toolbar select,
+    html[data-theme="dark-hud"] .task-note-editbox textarea {
+      background: var(--ink);
+      color: var(--text);
+    }
+    html[data-theme="dark-hud"] .btn-outline,
+    html[data-theme="dark-hud"] .btn-copy-ops,
+    html[data-theme="dark-hud"] .btn-note-edit { background: transparent; }
+    html[data-theme="dark-hud"] .about-dialog { background: var(--card); }
+    html[data-theme="dark-hud"] .about-sample { background: var(--surface-muted); }
+    html[data-theme="dark-hud"] .about-samples-title { color: var(--text); }
+    html[data-theme="dark-hud"] .about-samples-sub { color: var(--muted); }
+    html[data-theme="dark-hud"] .task-pagin { background: var(--card); }
+    html[data-theme="dark-hud"] .task-pagin button { background: var(--surface-muted); color: var(--text); }
+    html[data-theme="dark-hud"] #loadingOverlay { background: var(--overlay-dark); }
+    html[data-theme="dark-hud"] #loadingOverlay p { color: var(--muted); }
+    html[data-theme="dark-hud"] .counter.scanned .num,
+    html[data-theme="dark-hud"] .scan-card.ok .sc-status,
+    html[data-theme="dark-hud"] .badge.present { color: var(--success-bright); }
+    html[data-theme="dark-hud"] .counter.absent .num,
+    html[data-theme="dark-hud"] .scan-card.err .sc-status,
+    html[data-theme="dark-hud"] .badge.absent { color: var(--danger-bright); }
+    html[data-theme="dark-hud"] .counter.extra .num,
+    html[data-theme="dark-hud"] .scan-card.extra .sc-status,
+    html[data-theme="dark-hud"] .badge.extra { color: var(--warning-bright); }
+    html[data-theme="dark-hud"] .counter.out .num,
+    html[data-theme="dark-hud"] .counter.out .lbl,
+    html[data-theme="dark-hud"] .badge.out { color: var(--amber-hot); }
+    html[data-theme="dark-hud"] .badge.tt-meal { color: var(--success-bright); }
+    html[data-theme="dark-hud"] .intro-m10::before { opacity: .25; }
+    html[data-theme="dark-hud"] .intro-m10::after { opacity: .5; }
+    html[data-theme="dark-hud"] .intro-m10-head .section-heading,
+    html[data-theme="dark-hud"] .intro-m10-desc { color: var(--text); }
+    html[data-theme="dark-hud"] .intro-m10-desc b { color: var(--success-bright); }
   </style>

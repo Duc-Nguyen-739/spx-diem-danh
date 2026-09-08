@@ -441,6 +441,45 @@
     showToast(SOUND_ON ? 'Âm thanh: Bật' : 'Âm thanh: Tắt');
   }
 
+  /* ===== Giao diện Sáng/Tối — theme Dark HUD (Mẫu 01 đợt 1), nút #btnTheme ===== */
+  var THEME_KEY = 'rc2_theme';
+  var THEME_DARK = 'dark-hud';
+  // Guard sandbox test thiếu documentElement (scan-poll.test.js) — không DOM thì bỏ qua
+  function themeRoot() {
+    try { return (typeof document !== 'undefined' && document.documentElement) || null; }
+    catch (e) { return null; }
+  }
+  function paintThemeButton() {
+    var root = themeRoot();
+    if (!root) return;
+    var b = byId('btnTheme');
+    if (!b) return;
+    var dark = root.getAttribute('data-theme') === THEME_DARK;
+    b.textContent = dark ? '☀️' : '🌙';
+    b.title = dark ? 'Chuyển giao diện Sáng' : 'Chuyển giao diện Tối (Dark HUD)';
+  }
+  function applyTheme(t) {
+    var root = themeRoot();
+    if (!root) return;
+    if (t === THEME_DARK) root.setAttribute('data-theme', THEME_DARK);
+    else root.removeAttribute('data-theme');
+    paintThemeButton();
+  }
+  function initTheme() {
+    var t = '';
+    try { t = localStorage.getItem(THEME_KEY) || ''; } catch (e) {}
+    applyTheme(t);
+  }
+  function toggleTheme() {
+    var root = themeRoot();
+    var dark = !root || root.getAttribute('data-theme') !== THEME_DARK;
+    var t = dark ? THEME_DARK : '';
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    applyTheme(t);
+    showToast(dark ? 'Giao diện: Tối (Dark HUD)' : 'Giao diện: Sáng');
+  }
+  initTheme();
+
   /* ===== Âm thanh phản hồi quét (C1) — MP3 file (2026-08-28) =====
      success: success-alert.mp3 · error: failure-alert-new.mp3 — gate bởi SOUND_ON.
      Embed base64 data URI để chạy mọi môi trường (GAS iframe, hosting, file://) không cần fetch.
