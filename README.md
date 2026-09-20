@@ -118,7 +118,7 @@
 </tr>
 </table>
 
-> **Kết thúc task** → dòng chưa quét gán **Vắng** (modal confirm) · `PRESENT` có `timeScan` nhưng `PENDING` sẽ auto-repair → `reopenTask` reset `Vắng→PENDING` · **Dư** linh hoạt — mã ngoài hệ thống vẫn ghi `Dư` không chặn luồng.
+> **Kết thúc task** → dòng chưa quét gán **Vắng** (modal confirm) · `PRESENT` có `timeScan` nhưng `PENDING` sẽ auto-repair → `reopenTask` reset `Vắng→PENDING` · **Dư** linh hoạt — mã ngoài hệ thống vẫn ghi `Dư` không chặn luồng · **Chuyển Danh Sách** (task Ca): lần 1 tạo task Ra/Vào link `SOURCE_TASK_ID` + dồn Có mặt/Dư (giữ task Ca mở, ở lại màn Ca); lần 2+ chỉ thêm NV mới (delta, nút thành `Chuyển Tiếp` + banner link).
 
 ---
 
@@ -237,7 +237,7 @@ spx-diem-danh/
 | :---- | :------ | :-- | :---- |
 | 🟦 **Config** | Cấu hình optional | `STATIONS`, `DEFAULT_STATION` | `5m` |
 | 🟩 **StaffData** | Dữ liệu HR — **20 cột** giữ nguyên header `Att.csv` | `No., Staff ID, Staff Name, ..., Slot Code, Workstation, Team, Station` — read-only, HR tự đồng bộ | `STAFF_INDEX 5m` |
-| 🟧 **AttendanceTask** | Task — **10 cột** | `Task ID, Type (reconcile/meal-move), Station, Slot Code, Team, Status (open/done), Created At/By, Completed At, Note` | `TASK 15s` · `TASK_LIST 30s` |
+| 🟧 **AttendanceTask** | Task — **11 cột** | `Task ID, Type (reconcile/meal-move), Station, Slot Code, Team, Status (open/done), Created At/By, Completed At, Note, Source Task (link Ca→Ra/Vào)` | `TASK 15s` · `TASK_LIST 30s` |
 | 🟨 **AttendanceLog** | Log đối chiếu — **13 cột** | `Task ID, Staff ID/Name, Slot/Team/Station/Workstation, Time Ref, Time Scan, Status (-/Có mặt/Vắng/Dư/Ra ngoài), Date, Time Ra, Agency` | `LOG_ROWS 30s` · `TASK_DETAIL 15s` |
 
 > Đã bỏ `cardIn`/`cardOut` khỏi Log (2026-08-03) — StaffData giữ nguyên, chỉ hiển thị. `timeRa`/`agency` chỉ `meal-move` có giá trị.

@@ -100,11 +100,11 @@ class TestServices(unittest.TestCase):
         statuses = {row["staffId"]: row["status"] for row in detail["log"]}
         self.assertEqual(statuses["OPS002"], "-")
 
-    def test_transfer_present_list_to_meal_move(self):
-        # A4 (2026-08-19): 1 RPC gộp tạo task Ra/Vào + đóng task cũ (trước 2 RPC riêng
-        # → cửa sổ giữa 2 RPC fail → NV trùng 2 task). Server giữ 1 lock cho cả 2 bước.
+    def test_transfer_creates_linked_task_and_keeps_old_open(self):
+        # Kieu moi: lan 1 tao target Ra/Vao link sourceTaskId, task Ca GIU OPEN
+        # (khong tu hoan thanh), NV chua quet GIU PENDING (khong bi Vang).
         task_id = self._create_task()
-        r0 = services.scan_staff(task_id, "OPS001", now_override=self.t0)  # OPS001 Có mặt
+        r0 = services.scan_staff(task_id, "OPS001", now_override=self.t0)  # OPS001 Co mat
         self.assertTrue(r0["ok"], r0.get("message"))
         present = [r for r in services.get_task_detail(task_id)["log"] if r["status"] == "Có mặt"]
         self.assertEqual([p["staffId"] for p in present], ["OPS001"])
@@ -118,22 +118,96 @@ class TestServices(unittest.TestCase):
             task_id,
         )
         self.assertTrue(r["ok"], r.get("message"))
+        self.assertTrue(r["created"])
+        self.assertEqual(r["added"], 1)
         new_id = r["taskId"]
         self.assertTrue(new_id.startswith("M"))
-        # Task cũ ĐÃ ĐÓNG + NV chưa quét thành Vắng
+        # Task cu VAN MO + NV chua quet van Chua diem danh (khong bi Vang nhu A4 cu)
         old_detail = services.get_task_detail(task_id)
-        self.assertEqual(old_detail["task"]["status"], "done")
+        self.assertEqual(old_detail["task"]["status"], "open")
         old_statuses = {row["staffId"]: row["status"] for row in old_detail["log"]}
         self.assertEqual(old_statuses["OPS001"], "Có mặt")
-        self.assertEqual(old_statuses["OPS002"], "Vắng")
-        # Task mới: NV Có mặt → pre-fill "Giờ Ra" = "Giờ điểm danh" + status OUT
-        # (khớp GAS createMealMoveTaskCore_ — trước Python tạo PENDING + giờ Ra trống)
+        self.assertEqual(old_statuses["OPS002"], "-")
+        # Task moi: link sourceTaskId + pre-fill Gio Ra + status OUT
         new_detail = services.get_task_detail(new_id)
+        self.assertEqual(new_detail["task"]["sourceTaskId"], task_id)
         self.assertEqual(len(new_detail["log"]), 1)
         row = new_detail["log"][0]
         self.assertEqual(row["staffId"], "OPS001")
         self.assertEqual(row["status"], "Ra ngoài")
         self.assertEqual(row["timeRaEpoch"], time_ra_by_staff["OPS001"])
+
+    def test_transfer_second_press_appends_delta_only(self):
+        # Lan 2: dung hint target cu — chi them NV moi, khong tao target moi.
+        task_id = self._create_task()
+        services.scan_staff(task_id, "OPS001", now_override=self.t0)
+        first = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id)
+        new_id = first["taskId"]
+        services.scan_staff(task_id, "OPS002", now_override=self.t0)
+        detail = services.get_task_detail(task_id)
+        present = [r for r in detail["log"] if r["status"] in ("Có mặt", "Dư")]
+        second = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"],
+             "staffIds": [p["staffId"] for p in present],
+             "timeRaByStaff": {p["staffId"]: p["timeScanEpoch"] for p in present},
+             "createdBy": "web"},
+            task_id, new_id,
+        )
+        self.assertTrue(second["ok"], second.get("message"))
+        self.assertFalse(second["created"])
+        self.assertEqual(second["taskId"], new_id, "lan 2 van dung target cu")
+        self.assertEqual(second["added"], 1, "chi them OPS002")
+        self.assertEqual(second["skipped"], 1, "bo qua OPS001 da co")
+        rows = services.get_task_detail(new_id)["log"]
+        self.assertEqual(len(rows), 2)
+
+    def test_transfer_resolves_target_without_hint(self):
+        # Multi-kiosk: thiet bi khac khong co hint van resolve qua SOURCE_TASK_ID.
+        task_id = self._create_task()
+        services.scan_staff(task_id, "OPS001", now_override=self.t0)
+        first = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id)
+        new_id = first["taskId"]
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id)
+        self.assertTrue(r["ok"], r.get("message"))
+        self.assertEqual(r["taskId"], new_id, "khong hint van ra dung target")
+        self.assertEqual(r["added"], 0)
+        self.assertEqual(r["skipped"], 1)
+
+    def test_transfer_target_done_creates_new(self):
+        # Target bi ket thuc tay -> lan bam sau tao target MOI thay the.
+        task_id = self._create_task()
+        services.scan_staff(task_id, "OPS001", now_override=self.t0)
+        first = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id)
+        old_target = first["taskId"]
+        services.complete_task(old_target)
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id, old_target)
+        self.assertTrue(r["ok"], r.get("message"))
+        self.assertTrue(r["created"])
+        self.assertNotEqual(r["taskId"], old_target, "target cu DONE -> tao moi")
+
+    def test_transfer_hint_mismatch_rejected(self):
+        # Hint target cua task Ca khac -> reject, khong tron danh sach.
+        task_a = self._create_task()
+        task_b = self._create_task()
+        services.scan_staff(task_a, "OPS001", now_override=self.t0)
+        rb = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_b)
+        r = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_a, rb["taskId"])
+        self.assertFalse(r["ok"])
+        self.assertIn("không thuộc", r["message"])
 
     def test_transfer_old_task_closed_rejected(self):
         task_id = self._create_task()
@@ -149,7 +223,7 @@ class TestServices(unittest.TestCase):
         self.assertFalse(r["ok"])
 
     def test_transfer_create_fail_no_side_effect(self):
-        # Thiếu Station/Team → task cũ KHÔNG bị đóng
+        # Thiếu Station/Team → task cũ KHÔNG bị đóng (van OPEN nhu cu)
         task_id = self._create_task()
         r = services.transfer_present_list_to_meal_move(
             {"station": "", "team": [], "staffIds": ["OPS001"]}, task_id)

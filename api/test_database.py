@@ -101,7 +101,7 @@ STAFF_HEADER = ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency'
                 'Actual Hours', 'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation',
                 'Team', 'Station']
 
-TASK_HEADER = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note']
+TASK_HEADER = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']
 LOG_HEADER = ['taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
               'timeRef', 'timeScan', 'status', 'date', 'timeRa', 'agency']
 

@@ -41,7 +41,7 @@ API_ACTIONS = {
     "previewStaffApi": (services.preview_staff, 1),
     "createReconcileTaskApi": (services.create_reconcile_task, 1),
     "createMealMoveTaskApi": (services.create_meal_move_task, 1),
-    "transferPresentListToMealMoveApi": (services.transfer_present_list_to_meal_move, 2),
+    "transferPresentListToMealMoveApi": (services.transfer_present_list_to_meal_move, 3),
     "pasteMealMoveScanApi": (services.paste_meal_move_scan, 3),
     "getTaskListApi": (services.list_tasks, 1),
     "getTaskDetailApi": (services.get_task_detail, 2),

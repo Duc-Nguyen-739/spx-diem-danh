@@ -1566,6 +1566,7 @@
     var camBtn = byId('btnCamScan');
     if (camBtn) camBtn.disabled = !canScan;
     updateFinishBtnState();
+    renderTransferBanner();
     if (canScan && !window.__RC_CAM_OPEN__) {
       var __cm = byId('cameraModal');
       if (!__cm || __cm.style.display !== 'flex') {
@@ -2538,6 +2539,49 @@
   // CHUYỂN DANH SÁCH (2026-08-18, yêu cầu user): từ task Điểm Danh Ca — lấy toàn bộ NV
   // "Có mặt" (CURRENT_LOG) → tự động tạo task Điểm danh Ra/Vào với danh sách đó
   // (kế thừa station + team task hiện tại). Bấm nút "Chuyển Danh Sách" cạnh Hoàn Thành.
+  // TRANSFER LINK (kieu moi): 1 task Ca <-> 1 task Ra/Vao qua SOURCE_TASK_ID (server giu).
+  // Client chi giu goi y target (memory + localStorage) de gui kem — server tu resolve
+  // khi thieu (multi-kiosk van chung 1 target). Sau khi chuyen: O LAI man Ca.
+  var TRANSFER_TARGETS = {};
+  try {
+    if (typeof localStorage !== 'undefined') {
+      var savedTransferMap = JSON.parse(localStorage.getItem('rc2_transferTargets') || '{}');
+      if (savedTransferMap && typeof savedTransferMap === 'object') TRANSFER_TARGETS = savedTransferMap;
+    }
+  } catch (e) { TRANSFER_TARGETS = {}; }
+  function getTransferTarget(oldTaskId) {
+    return TRANSFER_TARGETS[String(oldTaskId || '')] || null;
+  }
+  function saveTransferTarget(oldTaskId, targetTaskId) {
+    TRANSFER_TARGETS[String(oldTaskId || '')] = String(targetTaskId || '');
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('rc2_transferTargets', JSON.stringify(TRANSFER_TARGETS));
+      }
+    } catch (e) {}
+  }
+  function clearTransferTargets() {
+    TRANSFER_TARGETS = {};
+    try { if (typeof localStorage !== 'undefined') localStorage.removeItem('rc2_transferTargets'); } catch (e) {}
+  }
+  // Banner link sang task Ra/Vao trong man Ca — goi sau moi lan mo task + sau chuyen.
+  // Dung class .task-note/.tn-text/.tn-actions co san (khong them CSS — luat #9).
+  function renderTransferBanner() {
+    var wrap = byId('transferLinkWrap');
+    if (!wrap) return;
+    var target = (CURRENT_TASK && CURRENT_TASK.taskType === 'reconcile'
+      && CURRENT_TASK.status === TASK_STATUS_C.OPEN)
+      ? getTransferTarget(CURRENT_TASK.taskId) : null;
+    if (!target) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<div class="task-note"><span class="tn-text">Task Ra/Vào: <b>'
+      + esc(target) + '</b></span><span class="tn-actions"><button class="btn btn-ghost" type="button" onclick="openScan(\''
+      + esc(target) + '\')">Mở</button></span></div>';
+  }
+
+  // CHUYEN DANH SACH kieu moi: tu task Diem Danh Ca — lay NV Co mat/Du hien tai
+  // (CURRENT_LOG) -> server tao target Ra/Vao (lan 1) hoac don delta (lan 2..n),
+  // ke thua station + team task hien tai. Man hinh O LAI task Ca. Bam nut
+  // "Chuyen Danh Sach" canh Hoan Thanh.
   function transferPresentListToMealMove() {
     if (BUSY) return;
     if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'reconcile') return;
@@ -2561,30 +2605,30 @@
     BUSY = true;
     var btn = byId('btnTransferList');
     if (btn) btn.disabled = true;
-    // A4 (2026-08-19): gộp 2 RPC (tạo task Ra/Vào + hoàn thành task cũ) thành 1 RPC —
-    // server giữ 1 lock cho CẢ 2 bước → không còn cửa sổ giữa 2 RPC mà task mới đã tạo
-    // nhưng task cũ chưa đóng (mất mạng/complete fail → NV trùng ở 2 task).
-    // res.partial=true: task mới ĐÃ tạo nhưng đóng task cũ fail → vẫn mở task mới + toast lỗi.
+    var oldTaskId = CURRENT_TASK.taskId;
+    var hint = getTransferTarget(oldTaskId);
+    // 1 RPC duy nhat: server giu 1 lock cho resolve/create/append — task Ca GIU OPEN,
+    // client O LAI (khong openScan nhu A4 cu).
     google.script.run
       .withSuccessHandler(function (res) {
         BUSY = false;
         if (btn) btn.disabled = false;
         loadTaskList();
-        // O-B (2026-08-20): bỏ loadStaffIndex() thừa — server index fresh + scan response mang info NV lạ
-        if (res.ok) {
+        if (res.ok && res.taskId) {
+          saveTransferTarget(oldTaskId, res.taskId);
           showToast(res.message, false);
-          openScan(res.taskId);
         } else {
           showToast(res.message, true);
-          if (res.taskId) openScan(res.taskId);  // partial: task mới đã tạo — vẫn chuyển sang nó
         }
+        renderTransferBanner();
+        updateFinishBtnState();
       })
       .withFailureHandler(function (err) {
         BUSY = false;
         if (btn) btn.disabled = false;
         showToast('Lỗi chuyển danh sách: ' + err.message, true);
       })
-      .transferPresentListToMealMoveApi(input, CURRENT_TASK.taskId);
+      .transferPresentListToMealMoveApi(input, oldTaskId, hint);
   }
   // COPY MÃ OPS (2026-08-25): copy toàn bộ mã Ops trong task hiện tại (cả reconcile + meal-move)
   // Nút nằm cùng hàng Hoàn Thành/Chuyển Danh Sách — dùng cho cả task open/done.
@@ -3205,7 +3249,12 @@
     if (transferBtn) {
       transferBtn.hidden = !isOpen || !CURRENT_TASK || CURRENT_TASK.taskType === 'meal-move';
       transferBtn.disabled = scanBusy() || !isOpen;
-      transferBtn.title = scanBusy() ? 'Đang xử lý quét — chờ xong rồi chuyển' : '';
+      var linkedTarget = (typeof getTransferTarget === 'function' && CURRENT_TASK && CURRENT_TASK.taskId)
+        ? getTransferTarget(CURRENT_TASK.taskId) : null;
+      transferBtn.textContent = linkedTarget ? 'Chuyển Tiếp' : 'Chuyển Danh Sách';
+      transferBtn.title = scanBusy()
+        ? 'Đang xử lý quét — chờ xong rồi chuyển'
+        : (linkedTarget ? 'Dồn thêm NV mới vào ' + linkedTarget : '');
     }
     // Nút "Copy mã Ops" (2026-08-25): hiện cho cả 2 loại task (reconcile + meal-move), cả open/done
     // Disable khi chưa có log để copy.

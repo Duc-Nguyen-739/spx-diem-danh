@@ -119,6 +119,7 @@ global.BUSY = false;
 global.getSelectedChips = (id) => (els[id] ? els[id].chips.filter((c) => c.classList.contains('selected')).map((c) => c.dataset.value) : []);
 global.fillSelect = (id, values) => { if (els[id]) els[id]._options = values || []; };
 global.showToast = (msg) => { toastMsg = msg; };
+global.updateFinishBtnState = () => {};
 global.loadTaskList = () => {};
 global.loadStaffIndex = () => {};  // refresh staff cache sau khi tạo task (không liên quan input)
 global.openScan = (taskId) => { openedScanId = taskId; };
@@ -173,7 +174,7 @@ function fnHandler(fn, ...args) {
 // ---- Chạy khối trong CÙNG realm (runInThisContext) ----
 const api = vm.runInThisContext(
   '(function () {\n' + pureBlock + '\n' + block +
-  '\nreturn { openCreateMealModal, closeCreateMealModal, canSubmitMealCreate, buildMealCreateInput, updateMealSubmitState, updateMealPreview, createMealMoveTask, fillMealOptions, fillMealTeamChips, resetMealCreate, transferPresentListToMealMove, buildTransferMealInput };\n})()'
+  '\nreturn { openCreateMealModal, closeCreateMealModal, canSubmitMealCreate, buildMealCreateInput, updateMealSubmitState, updateMealPreview, createMealMoveTask, fillMealOptions, fillMealTeamChips, resetMealCreate, transferPresentListToMealMove, buildTransferMealInput, getTransferTarget, clearTransferTargets };\n})()'
 );
 
 // ================= TESTS =================
@@ -339,9 +340,10 @@ test('closeCreateMealModal: đóng modal + trả focus về nút +Task', () => {
   assert.equal(els.btnCreateTask.focusCount, before + 1);
 });
 
-// ===== transferPresentListToMealMove (Chuyển Danh Sách) — 2026-08-18 =====
+// ===== transferPresentListToMealMove (Chuyển Danh Sách kiểu mới: giữ task Ca, dồn delta) =====
 function setupTransferTask() {
   resetEls();
+  api.clearTransferTargets();
   global.CURRENT_TASK = { taskId: 'RC-1', taskType: 'reconcile', station: 'HN2 SOC', team: 'Outbound, Inbound', status: 'open' };
   global.CURRENT_LOG = [
     { staffId: 'OPS1', status: 'Có mặt', timeScanEpoch: 1700000000000 },
@@ -350,14 +352,17 @@ function setupTransferTask() {
   ];
 }
 
-test('transferPresentListToMealMove: 1 RPC duy nhất — tạo task Ra/Vào + hoàn thành task cũ (A4 2026-08-19)', () => {
+test('transferPresentListToMealMove: lần 1 tạo target + Ở LẠI task Ca (không openScan, không hoàn thành)', () => {
   setupTransferTask();
-  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', message: 'Đã tạo M-NEW-1 và hoàn thành RC-1' };
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', added: 2, skipped: 0, created: true, count: 2, message: 'Đã tạo M-NEW-1: chuyển 2 NV từ RC-1' };
   api.transferPresentListToMealMove();
-  // 1 RPC server-side (không còn chain createMealMoveTaskApi → completeTaskApi)
+  // 1 RPC server-side (tạo target Ra/Vào — task Ca giữ OPEN)
   assert.equal(lastCall.fn, 'transferPresentListToMealMoveApi', 'chỉ gọi 1 RPC transfer');
-  assert.equal(lastCall.args[1], 'RC-1', 'tham số 2 = task Điểm Danh Ca cần đóng');
-  assert.equal(openedScanId, 'M-NEW-1', 'tự chuyển sang tab task Ra/Vào vừa tạo');
+  assert.equal(lastCall.args[1], 'RC-1', 'tham số 2 = task Điểm Danh Ca nguồn');
+  assert.equal(lastCall.args[2], null, 'lần 1 chưa có hint target');
+  assert.equal(openedScanId, null, 'ở lại task Ca — không tự chuyển tab');
+  assert.equal(api.getTransferTarget('RC-1'), 'M-NEW-1', 'lưu mapping Ca → Ra/Vào');
+  assert.equal(toastMsg, 'Đã tạo M-NEW-1: chuyển 2 NV từ RC-1');
   assert.ok(!global.BUSY, 'BUSY reset sau khi xong');
 });
 
@@ -365,10 +370,12 @@ test('transferPresentListToMealMove: gửi kèm timeRaByStaff — "Giờ điểm
   setupTransferTask();
   let capturedInput = null;
   let capturedOldId = null;
-  apiResults.transferPresentListToMealMoveApi = (input, oldTaskId) => { capturedInput = input; capturedOldId = oldTaskId; return { ok: true, taskId: 'M-NEW-1', message: 'ok' }; };
+  let capturedHint = 'unset';
+  apiResults.transferPresentListToMealMoveApi = (input, oldTaskId, hint) => { capturedInput = input; capturedOldId = oldTaskId; capturedHint = hint; return { ok: true, taskId: 'M-NEW-1', added: 2, created: true, count: 2, message: 'ok' }; };
   api.transferPresentListToMealMove();
   assert.ok(capturedInput, 'transferPresentListToMealMoveApi được gọi với input');
   assert.equal(capturedOldId, 'RC-1');
+  assert.equal(capturedHint, null, 'lần 1 hint null');
   assert.deepEqual(capturedInput.staffIds, ['OPS1', 'OPS3'], 'staffIds = NV Có mặt');
   assert.deepEqual(capturedInput.timeRaByStaff, {
     OPS1: 1700000000000,
@@ -376,21 +383,41 @@ test('transferPresentListToMealMove: gửi kèm timeRaByStaff — "Giờ điểm
   }, 'timeRaByStaff = map staffId → "Giờ điểm danh" (epoch) của NV Có mặt');
 });
 
-test('transferPresentListToMealMove: server fail (không taskId) → toast lỗi, không chuyển tab', () => {
+test('transferPresentListToMealMove: lần 2 gửi hint target + ở lại (dồn delta)', () => {
+  setupTransferTask();
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', added: 2, skipped: 0, created: true, count: 2, message: 'Đã tạo M-NEW-1: chuyển 2 NV từ RC-1' };
+  api.transferPresentListToMealMove();
+  assert.equal(api.getTransferTarget('RC-1'), 'M-NEW-1');
+  // Quét thêm NV rồi bấm tiếp
+  global.CURRENT_LOG.push({ staffId: 'OPS4', status: 'Có mặt', timeScanEpoch: 1700000002000 });
+  let capturedHint = null;
+  let capturedIds = null;
+  apiResults.transferPresentListToMealMoveApi = (input, oldTaskId, hint) => { capturedIds = input.staffIds; capturedHint = hint; return { ok: true, taskId: 'M-NEW-1', added: 1, skipped: 2, created: false, count: 1, message: 'Đã thêm 1 NV vào M-NEW-1 (bỏ qua 2 đã có)' }; };
+  api.transferPresentListToMealMove();
+  assert.equal(capturedHint, 'M-NEW-1', 'lần 2 gửi hint target đã lưu');
+  assert.deepEqual(capturedIds, ['OPS1', 'OPS3', 'OPS4']);
+  assert.equal(openedScanId, null, 'vẫn ở lại task Ca');
+  assert.equal(toastMsg, 'Đã thêm 1 NV vào M-NEW-1 (bỏ qua 2 đã có)');
+  assert.equal(api.getTransferTarget('RC-1'), 'M-NEW-1', 'giữ mapping');
+});
+
+test('transferPresentListToMealMove: server fail (không taskId) → toast lỗi, không chuyển tab, không mapping', () => {
   setupTransferTask();
   apiResults.transferPresentListToMealMoveApi = { ok: false, taskId: null, message: 'Lỗi tạo task' };
   api.transferPresentListToMealMove();
   assert.equal(lastCall.fn, 'transferPresentListToMealMoveApi');
   assert.equal(openedScanId, null, 'không chuyển tab khi tạo thất bại');
   assert.equal(toastMsg, 'Lỗi tạo task');
+  assert.equal(api.getTransferTarget('RC-1'), null, 'không lưu mapping khi fail');
 });
 
-test('transferPresentListToMealMove: partial (task mới đã tạo, đóng task cũ fail) → vẫn chuyển tab + toast lỗi', () => {
+test('transferPresentListToMealMove: server trả target có sẵn (created:false) → ở lại + giữ mapping', () => {
   setupTransferTask();
-  apiResults.transferPresentListToMealMoveApi = { ok: false, taskId: 'M-NEW-1', partial: true, message: 'Đã tạo M-NEW-1 nhưng không hoàn thành được RC-1: Đã kết thúc' };
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-OLD-9', added: 0, skipped: 2, created: false, count: 0, message: 'Không có NV mới — M-OLD-9 đã đủ (2 đã có)' };
   api.transferPresentListToMealMove();
-  assert.equal(openedScanId, 'M-NEW-1', 'task mới đã tạo — vẫn chuyển sang nó dù đóng task cũ lỗi');
-  assert.ok(toastMsg.includes('M-NEW-1'), 'toast nhắc đã tạo task mới');
+  assert.equal(openedScanId, null, 'ở lại task Ca dù target đã tồn tại');
+  assert.equal(api.getTransferTarget('RC-1'), 'M-OLD-9');
+  assert.ok(toastMsg.includes('M-OLD-9'), 'toast nêu target hiện tại');
 });
 
 test('transferPresentListToMealMove: không phải task reconcile → bỏ qua im lặng', () => {

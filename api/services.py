@@ -154,7 +154,7 @@ def create_meal_move_task(input_):
         _lock.release()
 
 
-def create_meal_move_task_core(input_):
+def create_meal_move_task_core(input_, source_task_id=None):
     """Thân create_meal_move_task KHÔNG lock — dùng chung trong lock ngoài
     (transfer_present_list_to_meal_move) — tránh deadlock (threading.Lock không reentrant)."""
     inp = input_ or {}
@@ -166,49 +166,13 @@ def create_meal_move_task_core(input_):
     raw = list(inp.get("staffIds")) if isinstance(inp.get("staffIds"), (list, tuple)) else []
     if len(raw) > 1000:
         return {"ok": False, "taskId": None, "count": 0, "message": f"Quá nhiều mã ({len(raw)}), giới hạn 1000"}
-    seen = set()
-    ids = []
-    for c in raw:
-        id_ = csvutil.normalize_staff_id(c)
-        if not id_ or not csvutil.is_valid_barcode_id(id_) or id_ in seen:
-            continue
-        seen.add(id_)
-        ids.append(id_)
+    ids = normalize_transfer_ids(raw)
 
     created_by = str(inp.get("createdBy") or "").strip() or "web"
     note = str(inp.get("note") or "").strip()
     # 2026-08-19: map staffId → epoch ms "Giờ điểm danh" của task reconcile — pre-fill
     # "Giờ Ra" (khớp GAS createMealMoveTaskCore_) — NV Có mặt coi như đã Ra, status OUT.
-    time_ra_by_staff = inp.get("timeRaByStaff") or {}
-
-    # FIX-20: validate dict + to_epoch_ms an toàn — GAS Number(...)||0 bao dung
-    if not isinstance(time_ra_by_staff, dict):
-        time_ra_by_staff = {}
-    def _to_epoch_ms(v):
-        try:
-            return int(v or 0) or 0
-        except Exception:
-            return 0
-    index = database.read_staff_index()
-    staff_list = []
-    for id_ in ids:
-        info = index.get(id_) or {}
-        ra_epoch = _to_epoch_ms(time_ra_by_staff.get(id_))
-        try:
-            time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
-        except Exception:
-            time_ra = None
-            ra_epoch = 0
-        # date luôn "" — staff index SLIM không giữ date (khớp GAS readStaffIndex_:
-        # cache <100KB; pre-fill dùng read_staff_list riêng, không qua index)
-        staff_list.append({
-            "staffId": id_, "staffName": info.get("staffName") or "",
-            "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",
-            "team": info.get("team") or "", "workstation": info.get("workstation") or "",
-            "agency": info.get("agency") or "",
-            "timeRa": time_ra, "timeRaEpoch": ra_epoch,
-            "status": config.STATUS["OUT"] if time_ra else config.STATUS["PENDING"],
-        })
+    staff_list = build_transfer_staff_list(ids, inp.get("timeRaByStaff") or {})
 
     now = datetime.datetime.now(cache._TZ)
     task_id = "M" + make_task_id(now)[1:]
@@ -225,6 +189,7 @@ def create_meal_move_task_core(input_):
         "station": station, "slotCode": "", "team": team,
         "status": config.TASK_STATUS["OPEN"], "createdAt": now,
         "createdBy": created_by, "completedAt": None, "note": note,
+        "sourceTaskId": source_task_id or "",
     }
     try:
         database.insert_task(task)
@@ -268,15 +233,16 @@ def complete_task_core(task_id):
     return {"ok": True, "message": msg}
 
 
-def transfer_present_list_to_meal_move(input_, old_task_id):
-    """Chuyển danh sách NV Có mặt từ task Điểm Danh Ca → task Ra/Vào mới (A4 2026-08-19).
-    1 RPC + 1 lock cho CẢ 2 bước (tạo task mới + đóng task cũ) — trước đây client gọi
-    createMealMoveTaskApi → completeTaskApi 2 RPC riêng: cửa sổ giữa 2 RPC fail → task mới
-    tồn tại mà task cũ vẫn MỞ → NV trùng ở 2 task. partial=True: task mới ĐÃ tạo nhưng đóng
-    task cũ fail (không rollback — không có xoá task) → client vẫn mở task mới, user tự xử lý.
+def transfer_present_list_to_meal_move(input_, old_task_id, target_task_id=None):
+    """Chuyen NV Co mat/Du tu task Diem Danh Ca -> task Ra/Vao LIEN KET (mirror GAS).
+
+    Lan 1: tao task Ra/Vao moi co sourceTaskId = old_task_id; lan 2..n: don DELTA
+    vao DUNG target do. Task Ca GIU OPEN (khong tu hoan thanh). 1 lock duy nhat.
+    Target da DONE -> tao target moi thay the.
     """
     if not old_task_id:
         return {"ok": False, "taskId": None, "count": 0, "message": "Thiếu taskId task cũ"}
+    target_task_id = str(target_task_id or "").strip() or None
     if not _lock.acquire(timeout=10):
         return {"ok": False, "taskId": None, "count": 0, "message": _BUSY_MSG}
     try:
@@ -285,21 +251,144 @@ def transfer_present_list_to_meal_move(input_, old_task_id):
             return {"ok": False, "taskId": None, "count": 0, "message": f"Không tìm thấy task {old_task_id}"}
         if old_task["status"] != config.TASK_STATUS["OPEN"]:
             return {"ok": False, "taskId": None, "count": 0, "message": "Task đã kết thúc — không chuyển được"}
-        created = create_meal_move_task_core(input_)
-        if not created["ok"]:
-            return {"ok": False, "taskId": None, "count": 0, "message": created["message"]}
-        fin = complete_task_core(old_task_id)
-        if not fin["ok"]:
+        if old_task.get("taskType") != config.TASK_TYPE["RECONCILE"]:
+            return {"ok": False, "taskId": None, "count": 0, "message": "Chỉ chuyển được từ task Điểm Danh Ca"}
+        target = None
+        if target_task_id:
+            hinted = database.read_task(target_task_id)
+            if not hinted:
+                return {"ok": False, "taskId": None, "count": 0, "message": f"Không tìm thấy task Ra/Vào {target_task_id} — bấm lại để tạo mới"}
+            if hinted.get("taskType") != config.TASK_TYPE["MEAL_MOVE"]:
+                return {"ok": False, "taskId": None, "count": 0, "message": "Task liên kết không phải Ra/Vào"}
+            if str(hinted.get("sourceTaskId") or "") != old_task_id:
+                return {"ok": False, "taskId": None, "count": 0, "message": "Task Ra/Vào không thuộc task Ca này"}
+            if hinted["status"] == config.TASK_STATUS["OPEN"]:
+                target = hinted
+        if target is None:
+            target = find_linked_meal_task(old_task_id)
+        if target is None:
+            created = create_meal_move_task_core(input_, old_task_id)
+            if not created["ok"]:
+                return {"ok": False, "taskId": None, "count": 0, "message": created["message"]}
             return {
-                "ok": False, "taskId": created["taskId"], "count": created["count"], "partial": True,
-                "message": f"Đã tạo {created['taskId']} nhưng không hoàn thành được {old_task_id}: {fin['message']}",
+                "ok": True, "taskId": created["taskId"], "added": created["count"],
+                "skipped": 0, "updated": 0, "created": True, "count": created["count"],
+                "message": f"Đã tạo {created['taskId']}: chuyển {created['count']} NV từ {old_task_id}",
             }
+        delta = append_transfer_delta(target, input_)
+        if not delta["ok"]:
+            return {"ok": False, "taskId": target["taskId"], "count": 0, "message": delta["message"]}
+        if delta["added"] > 0:
+            msg = f"Đã thêm {delta['added']} NV vào {target['taskId']}"
+            if delta["skipped"] > 0:
+                msg += f" (bỏ qua {delta['skipped']} đã có)"
+        else:
+            msg = f"Không có NV mới — {target['taskId']} đã đủ ({delta['skipped']} đã có)"
         return {
-            "ok": True, "taskId": created["taskId"], "count": created["count"],
-            "message": f"Đã tạo {created['taskId']} và hoàn thành {old_task_id}",
+            "ok": True, "taskId": target["taskId"], "added": delta["added"],
+            "skipped": delta["skipped"], "updated": delta["updated"],
+            "created": False, "count": delta["added"], "message": msg,
         }
     finally:
         _lock.release()
+
+
+def find_linked_meal_task(old_task_id):
+    """Target Ra/Vao dang mo moi nhat co sourceTaskId = old_task_id (list moi nhat len dau)."""
+    for t in database.read_task_list():
+        if (t.get("taskType") == config.TASK_TYPE["MEAL_MOVE"]
+                and str(t.get("sourceTaskId") or "") == old_task_id
+                and t.get("status") == config.TASK_STATUS["OPEN"]):
+            return t
+    return None
+
+
+def normalize_transfer_ids(raw):
+    """Chuan hoa + dedupe ma Ops (dung chung create/append transfer — SSOT)."""
+    seen = set()
+    ids = []
+    for code in (list(raw) if isinstance(raw, (list, tuple)) else []):
+        id_ = csvutil.normalize_staff_id(code)
+        if not id_ or not csvutil.is_valid_barcode_id(id_) or id_ in seen:
+            continue
+        seen.add(id_)
+        ids.append(id_)
+    return ids
+
+
+def _transfer_epoch_ms(v):
+    try:
+        return int(v or 0) or 0
+    except Exception:
+        return 0
+
+
+def build_transfer_staff_list(ids, time_ra_by_staff):
+    """Dung staffList pre-fill Ra/Vao tu ids + timeRaByStaff (dung chung create/append — SSOT)."""
+    index = database.read_staff_index()
+    staff_list = []
+    for id_ in (ids or []):
+        info = index.get(id_) or {}
+        ra_epoch = _transfer_epoch_ms((time_ra_by_staff or {}).get(id_))
+        try:
+            time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ) if ra_epoch > 0 else None
+        except Exception:
+            time_ra = None
+            ra_epoch = 0
+        staff_list.append({
+            "staffId": id_, "staffName": info.get("staffName") or "",
+            "slotCode": info.get("slotCode") or "", "station": info.get("station") or "",
+            "team": info.get("team") or "", "workstation": info.get("workstation") or "",
+            "agency": info.get("agency") or "",
+            "timeRa": time_ra, "timeRaEpoch": ra_epoch,
+            "status": config.STATUS["OUT"] if time_ra else config.STATUS["PENDING"],
+        })
+    return staff_list
+
+
+def append_transfer_delta(target, input_):
+    """Don delta vao target co san: them NV moi + bu Gio Ra con thieu."""
+    inp = input_ or {}
+    ids = normalize_transfer_ids(inp.get("staffIds"))
+    if not ids:
+        return {"ok": False, "message": "Chưa có nhân viên nào Có mặt/Dư để chuyển"}
+    time_ra_by_staff = inp.get("timeRaByStaff") or {}
+    if not isinstance(time_ra_by_staff, dict):
+        time_ra_by_staff = {}
+    log = database.read_log_rows(target["taskId"])  # tuoi — can _rowIndex cho bu Gio Ra
+    by_id = {str(r.get("staffId") or "").upper(): r for r in log}
+    fresh = []
+    ra_updates = []
+    skipped = 0
+    for id_ in ids:
+        row = by_id.get(id_.upper())
+        if row is None:
+            fresh.append(id_)
+            continue
+        skipped += 1
+        ra_epoch = _transfer_epoch_ms(time_ra_by_staff.get(id_))
+        if (ra_epoch > 0 and not (int(row.get("timeRaEpoch") or 0) > 0)
+                and row.get("status") in (config.STATUS["PENDING"], config.STATUS["OUT"], config.STATUS["PRESENT"])):
+            try:
+                time_ra = datetime.datetime.fromtimestamp(ra_epoch / 1000, tz=cache._TZ)
+            except Exception:
+                continue
+            ra_updates.append({
+                "_rowIndex": row["_rowIndex"],
+                "status": config.STATUS["OUT"] if row.get("status") == config.STATUS["PENDING"] else row.get("status"),
+                "timeRa": time_ra,
+            })
+    if len(log) + len(fresh) > 1000:
+        return {"ok": False, "message": f"Task Ra/Vào đã nhiều dòng ({len(log)}) — chia nhỏ danh sách"}
+    now = datetime.datetime.now(cache._TZ)
+    added = 0
+    if fresh:
+        added = database.batch_insert_log_rows(target["taskId"], build_transfer_staff_list(fresh, time_ra_by_staff), now)
+    updated = 0
+    if ra_updates:
+        database.batch_meal_move_log_updates(target["taskId"], ra_updates)
+        updated = len(ra_updates)
+    return {"ok": True, "added": added, "skipped": skipped, "updated": updated}
 
 
 def reopen_task(task_id):

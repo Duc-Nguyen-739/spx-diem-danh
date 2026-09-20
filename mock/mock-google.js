@@ -295,6 +295,71 @@
       MOCK_DATA.tasks.unshift(task);
       return { ok: true, taskId: taskId, count: 0, message: 'Tạo task Điểm danh Ra/Vào: ' + taskId };
     },
+    transferPresentListToMealMoveApi: function (input, oldTaskId, targetTaskId) {
+      // Khop server kieu moi: giu task Ca OPEN, don delta vao 1 target link sourceTaskId.
+      var old = null;
+      MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === oldTaskId) old = t; });
+      if (!old) return { ok: false, taskId: null, count: 0, message: 'Không tìm thấy task ' + oldTaskId };
+      if (old.status !== 'open') return { ok: false, taskId: null, count: 0, message: 'Task đã kết thúc — không chuyển được' };
+      var target = null;
+      if (targetTaskId) {
+        MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === targetTaskId) target = t; });
+        if (!target || target.status !== 'open' || target.sourceTaskId !== oldTaskId) target = null;
+      }
+      if (!target) {
+        MOCK_DATA.tasks.forEach(function (t) {
+          if (!target && t.taskType === 'meal-move' && t.sourceTaskId === oldTaskId && t.status === 'open') target = t;
+        });
+      }
+      var ids = [];
+      var seen = {};
+      ((input && input.staffIds) || []).forEach(function (id) {
+        var key = String(id || '').trim();
+        if (!key || seen[key.toLowerCase()]) return;
+        seen[key.toLowerCase()] = true;
+        ids.push(key);
+      });
+      if (!ids.length) return { ok: false, taskId: null, count: 0, message: 'Chưa có nhân viên nào Có mặt/Dư để chuyển' };
+      var timeRaByStaff = (input && input.timeRaByStaff) || {};
+      var created = false;
+      if (!target) {
+        var station = String((input && input.station) || '').trim();
+        var team = Array.isArray(input && input.team) ? input.team.join(', ') : String((input && input.team) || '').trim();
+        if (!station || !team) return { ok: false, taskId: null, count: 0, message: 'Vui lòng chọn Station và Team để tạo task' };
+        var newId = 'M' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-0' + (MOCK_DATA.tasks.length + 1);
+        target = { taskId: newId, taskType: 'meal-move', station: station, slotCode: '', team: team,
+          status: 'open', createdBy: MOCK_CURRENT_USER, createdAtText: '2026-08-02 09:00:00',
+          note: String((input && input.note) || ''), sourceTaskId: oldTaskId };
+        MOCK_DATA.tasks.unshift(target);
+        MOCK_LOGS[target.taskId] = [];  // task moi = log trong (buildLog chi seed task mau cu)
+        created = true;
+      }
+      var log = getLog(target.taskId);
+      var have = {};
+      log.forEach(function (r) { have[String(r.staffId || '').toLowerCase()] = true; });
+      var nowMs = Date.now();
+      var d = new Date(nowMs);
+      var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+      var added = 0, skipped = 0;
+      ids.forEach(function (id) {
+        if (have[id.toLowerCase()]) { skipped++; return; }
+        var info = null;
+        MOCK_DATA.staff.forEach(function (s) { if (s.staffId.toLowerCase() === id.toLowerCase()) info = s; });
+        var raEpoch = Number(timeRaByStaff[id]) || 0;
+        log.push({ taskId: target.taskId, staffId: id, staffName: info ? info.staffName : '',
+          slotCode: info ? info.slotCode : '', station: info ? info.station : '',
+          team: info ? info.team : '', workstation: info ? info.workstation : '',
+          agency: info ? (info.agency || '') : '', timeRefText: '',
+          timeRaText: raEpoch > 0 ? ts : '', timeRaEpoch: raEpoch > 0 ? raEpoch : 0,
+          timeScanText: '', timeScanEpoch: 0, status: raEpoch > 0 ? 'Ra ngoài' : '-' });
+        added++;
+      });
+      target.total = log.length;
+      return { ok: true, taskId: target.taskId, added: added, skipped: skipped, updated: 0,
+        created: created, count: added,
+        message: created ? ('Đã tạo ' + target.taskId + ': chuyển ' + added + ' NV từ ' + oldTaskId)
+          : (added > 0 ? ('Đã thêm ' + added + ' NV vào ' + target.taskId) : ('Không có NV mới — ' + target.taskId + ' đã đủ')) };
+    },
     scanStaffApi: function (taskId, staffId, mode) {
       var isMeal = (mode === 'ra' || mode === 'vao');  // mock khớp server scanStaff(taskId, staffId, mode)
       var log = getLog(taskId);

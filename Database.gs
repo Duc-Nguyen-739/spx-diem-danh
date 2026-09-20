@@ -77,7 +77,7 @@ function ensureSheets_() {
   getSheet_(SHEETS.CONFIG, ['Key', 'Value']);
   getSheet_(SHEETS.STAFF_DATA, ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency', 'Contract Type', 'Event ID', 'Matching Type', 'Gender', 'Department', 'Clock In Time', 'Clock Out Time', 'Actual Hours', 'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation', 'Team', 'Station']);
   getSheet_(SHEETS.ATTENDANCE_TASK, [
-    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note',
+    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId',
   ]);
   const logSheet = getSheet_(SHEETS.ATTENDANCE_LOG, [
     'taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
@@ -106,9 +106,15 @@ function ensureSheets_() {
   // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
   // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
   const taskSheet = getSheet_(SHEETS.ATTENDANCE_TASK);
-  if (taskSheet.getLastColumn() < TASK_COL_COUNT) {
+  var TASK_HEADER_BY_COL = { 10: 'note', 11: 'sourceTaskId' };
+  var addedTaskCols = [];
+  while (taskSheet.getLastColumn() < TASK_COL_COUNT) {
     taskSheet.insertColumnAfter(taskSheet.getLastColumn());
-    taskSheet.getRange(1, TASK_COL_COUNT, 1, 1).setValues([['note']]);
+    addedTaskCols.push(taskSheet.getLastColumn());
+  }
+  if (addedTaskCols.length) {
+    taskSheet.getRange(1, addedTaskCols[0], 1, addedTaskCols.length)
+      .setValues([addedTaskCols.map(function (col) { return TASK_HEADER_BY_COL[col] || ''; })]);
   }
 }
 
@@ -224,6 +230,7 @@ function taskFromRow_(row) {
     createdAtText: formatDateTime_(createdAt),
     completedAtText: formatDateTime_(completedAt),
     note: String(row[TASK_COLS.NOTE] || ''),
+    sourceTaskId: String(row[TASK_COLS.SOURCE_TASK_ID] || ''),
   };
 }
 
@@ -299,6 +306,7 @@ function insertTask_(task) {
     task.taskId, task.taskType,
     sanitizeCellText_(task.station), sanitizeCellText_(task.slotCode), sanitizeCellText_(task.team),
     task.status, task.createdAt, sanitizeCellText_(task.createdBy), task.completedAt || '', sanitizeCellText_(task.note),
+    task.sourceTaskId || '',
   ]);
   invalidateTaskListCache_();
   invalidateTaskCache_(task.taskId);  // F8: phá negative-cache readTaskCached_ (taskId giờ-tạo có thể trùng)

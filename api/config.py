@@ -54,8 +54,9 @@ TASK_COLS = {
     "CREATED_BY": 7,
     "COMPLETED_AT": 8,
     "NOTE": 9,    # Ghi chú của task — 2026-08-08
+    "SOURCE_TASK_ID": 10,  # task Ca goc (link Ca -> Ra/Vao)
 }
-TASK_COL_COUNT = 10
+TASK_COL_COUNT = 11
 
 # ===== Cột AttendanceLog (1 dòng / NV) =====
 LOG_COLS = {

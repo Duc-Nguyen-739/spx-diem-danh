@@ -138,8 +138,7 @@ function completeTask(taskId) {
 }
 
 /**
- * Thân completeTask KHÔNG lock — dùng chung bên trong lock ngoài
- * (transferPresentListToMealMoveApi) để tránh deadlock (lock không reentrant).
+ * Thân completeTask KHÔNG lock — completeTask bọc lock rồi gọi vào.
  */
 function completeTaskCore_(taskId) {
   if (!taskId) return { ok: false, message: 'Thiếu taskId' };
@@ -163,19 +162,20 @@ function completeTaskCore_(taskId) {
 }
 
 /**
- * Chuyển danh sách NV Có mặt từ task Điểm Danh Ca → task Ra/Vào mới (A4 2026-08-19).
- * 1 RPC + 1 lock duy nhất cho CẢ 2 bước (tạo task mới + đóng task cũ) — trước đây
- * client gọi 2 RPC riêng createMealMoveTaskApi → completeTaskApi: cửa sổ giữa 2 RPC
- * fail (mất mạng/server lỗi) → task mới tồn tại mà task cũ vẫn MỞ → danh sách NV
- * trùng ở 2 task. Giờ cả 2 bước nằm trong 1 lock — không có cửa sổ giữa chừng.
- * partial=true: task mới ĐÃ tạo nhưng đóng task cũ fail (không rollback được — không
- * có xoá task) → client vẫn mở task mới, user tự xử lý task cũ (hiếm: chỉ ghi sheet fail).
- * @param {Object} input — input tạo task Ra/Vào (giống createMealMoveTask: station/team/staffIds/timeRaByStaff/note)
- * @param {string} oldTaskId — task Điểm Danh Ca cần đóng
- * @returns {{ok: boolean, taskId: string|null, count: number, message: string, partial?: boolean}}
+ * Chuyen danh sach NV Co mat/Du tu task Diem Danh Ca -> task Ra/Vao LIEN KET.
+ * Lan 1: tao task Ra/Vao moi co SOURCE_TASK_ID = oldTaskId; lan 2..n: don DELTA
+ * (NV chua co trong target + bu Gio Ra con thieu) vao DUNG target do.
+ * Task Ca GIU OPEN + client O LAI man Ca (khong tu hoan thanh/chuyen tab).
+ * 1 lock duy nhat — 2 kiosk bam cung luc van chung 1 target (resolve trong lock).
+ * Target da DONE (ket thuc tay) -> tao target moi thay the.
+ * @param {Object} input — input tao task Ra/Vao (station/team/staffIds/timeRaByStaff/note)
+ * @param {string} oldTaskId — task Diem Danh Ca nguon
+ * @param {string} targetTaskId — goi y target cua client (optional — server tu resolve qua SOURCE_TASK_ID)
+ * @returns {{ok: boolean, taskId: string|null, added: number, skipped: number, updated: number, created: boolean, count: number, message: string}}
  */
-function transferPresentListToMealMoveApi(input, oldTaskId) {
+function transferPresentListToMealMoveApi(input, oldTaskId, targetTaskId) {
   if (!oldTaskId) return { ok: false, taskId: null, count: 0, message: 'Thiếu taskId task cũ' };
+  targetTaskId = String(targetTaskId || '').trim() || null;
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
@@ -188,22 +188,144 @@ function transferPresentListToMealMoveApi(input, oldTaskId) {
     if (oldTask.status !== TASK_STATUS.OPEN) {
       return { ok: false, taskId: null, count: 0, message: 'Task đã kết thúc — không chuyển được' };
     }
-    const created = createMealMoveTaskCore_(input);
-    if (!created.ok) return { ok: false, taskId: null, count: 0, message: created.message };
-    const fin = completeTaskCore_(oldTaskId);
-    if (!fin.ok) {
+    if (oldTask.taskType !== TASK_TYPE.RECONCILE) {
+      return { ok: false, taskId: null, count: 0, message: 'Chỉ chuyển được từ task Điểm Danh Ca' };
+    }
+    let target = null;
+    if (targetTaskId) {
+      const hinted = readTask_(targetTaskId);
+      if (!hinted) return { ok: false, taskId: null, count: 0, message: 'Không tìm thấy task Ra/Vào ' + targetTaskId + ' — bấm lại để tạo mới' };
+      if (hinted.taskType !== TASK_TYPE.MEAL_MOVE) {
+        return { ok: false, taskId: null, count: 0, message: 'Task liên kết không phải Ra/Vào' };
+      }
+      if (String(hinted.sourceTaskId || '') !== oldTaskId) {
+        return { ok: false, taskId: null, count: 0, message: 'Task Ra/Vào không thuộc task Ca này' };
+      }
+      if (hinted.status === TASK_STATUS.OPEN) target = hinted;
+    }
+    if (!target) target = findLinkedMealTask_(oldTaskId);
+    if (!target) {
+      const created = createMealMoveTaskCore_(input, oldTaskId);
+      if (!created.ok) return { ok: false, taskId: null, count: 0, message: created.message };
       return {
-        ok: false, taskId: created.taskId, count: created.count, partial: true,
-        message: 'Đã tạo ' + created.taskId + ' nhưng không hoàn thành được ' + oldTaskId + ': ' + fin.message,
+        ok: true, taskId: created.taskId, added: created.count, skipped: 0, updated: 0,
+        created: true, count: created.count,
+        message: 'Đã tạo ' + created.taskId + ': chuyển ' + created.count + ' NV từ ' + oldTaskId,
       };
     }
+    const delta = appendTransferDelta_(target, input);
+    if (!delta.ok) return { ok: false, taskId: target.taskId, count: 0, message: delta.message };
     return {
-      ok: true, taskId: created.taskId, count: created.count,
-      message: 'Đã tạo ' + created.taskId + ' và hoàn thành ' + oldTaskId,
+      ok: true, taskId: target.taskId, added: delta.added, skipped: delta.skipped,
+      updated: delta.updated, created: false, count: delta.added,
+      message: delta.added > 0
+        ? 'Đã thêm ' + delta.added + ' NV vào ' + target.taskId + (delta.skipped > 0 ? ' (bỏ qua ' + delta.skipped + ' đã có)' : '')
+        : 'Không có NV mới — ' + target.taskId + ' đã đủ (' + delta.skipped + ' đã có)',
     };
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Tim target Ra/Vao dang mo moi nhat co SOURCE_TASK_ID = oldTaskId.
+ * readTaskList_ tra moi nhat len dau — hit dau tien la target can dung.
+ */
+function findLinkedMealTask_(oldTaskId) {
+  const tasks = readTaskList_();
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    if (t.taskType === TASK_TYPE.MEAL_MOVE
+        && String(t.sourceTaskId || '') === oldTaskId
+        && t.status === TASK_STATUS.OPEN) {
+      return t;
+    }
+  }
+  return null;
+}
+
+/** Chuan hoa + dedupe danh sach ma Ops (dung chung create/append transfer — SSOT). */
+function normalizeTransferIds_(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = {};
+  const ids = [];
+  list.forEach(function (code) {
+    const id = normalizeStaffId(code);
+    if (!id || !isValidBarcodeId(id)) return;
+    if (seen[id]) return;
+    seen[id] = true;
+    ids.push(id);
+  });
+  return ids;
+}
+
+/**
+ * Dung staffList pre-fill Ra/Vao tu ids + timeRaByStaff (dung chung create/append — SSOT).
+ * NV co Gio diem danh -> coi nhu da Ra (status OUT); chua co -> PENDING.
+ */
+function buildTransferStaffList_(ids, timeRaByStaff) {
+  const index = readStaffIndex_();
+  return (ids || []).map(function (id) {
+    const info = index[id] || {};
+    const raEpoch = Number((timeRaByStaff || {})[id]) || 0;
+    const timeRa = raEpoch > 0 ? new Date(raEpoch) : null;
+    return {
+      staffId: id,
+      staffName: info.staffName || '',
+      slotCode: info.slotCode || '',
+      station: info.station || '',
+      team: info.team || '',
+      workstation: info.workstation || '',
+      agency: info.agency || '',
+      date: info.date || '',
+      timeRa: timeRa,
+      timeRaEpoch: raEpoch,
+      status: timeRa ? STATUS.OUT : STATUS.PENDING,
+    };
+  });
+}
+
+/**
+ * Don delta vao target co san: them NV moi + bu Gio Ra con thieu.
+ * @returns {{ok: boolean, added: number, skipped: number, updated: number, message?: string}}
+ */
+function appendTransferDelta_(target, input) {
+  const ids = normalizeTransferIds_(input && input.staffIds);
+  if (!ids.length) return { ok: false, message: 'Chưa có nhân viên nào Có mặt/Dư để chuyển' };
+  const timeRaByStaff = (input && input.timeRaByStaff) || {};
+  const log = readLogRows_(target.taskId);  // tuoi — can _rowIndex cho bu Gio Ra
+  const byId = {};
+  log.forEach(function (r) { byId[String(r.staffId || '').toUpperCase()] = r; });
+  const fresh = [];
+  const raUpdates = [];
+  let skipped = 0;
+  ids.forEach(function (id) {
+    const row = byId[id.toUpperCase()];
+    if (!row) { fresh.push(id); return; }
+    skipped++;
+    const raEpoch = Number(timeRaByStaff[id]) || 0;
+    if (raEpoch > 0 && !(Number(row.timeRaEpoch) > 0)
+        && (row.status === STATUS.PENDING || row.status === STATUS.OUT || row.status === STATUS.PRESENT)) {
+      raUpdates.push({
+        _rowIndex: row._rowIndex,
+        status: row.status === STATUS.PENDING ? STATUS.OUT : row.status,
+        timeRa: new Date(raEpoch),
+      });
+    }
+  });
+  if (log.length + fresh.length > 1000) {
+    return { ok: false, message: 'Task Ra/Vào đã nhiều dòng (' + log.length + ') — chia nhỏ danh sách' };
+  }
+  let added = 0;
+  if (fresh.length) {
+    added = batchInsertLogRows_(target.taskId, buildTransferStaffList_(fresh, timeRaByStaff), new Date());
+  }
+  let updated = 0;
+  if (raUpdates.length) {
+    batchMealMoveLogUpdates_(target.taskId, raUpdates);
+    updated = raUpdates.length;
+  }
+  return { ok: true, added: added, skipped: skipped, updated: updated };
 }
 
 /**
@@ -267,7 +389,7 @@ function createMealMoveTask(input) {
  * Thân createMealMoveTask KHÔNG lock — dùng chung bên trong lock ngoài
  * (transferPresentListToMealMoveApi) để tránh deadlock (lock không reentrant).
  */
-function createMealMoveTaskCore_(input) {
+function createMealMoveTaskCore_(input, sourceTaskId) {
   // 2026-08-08: task Điểm danh Ra/Vào GIỜ BẮT BUỘC chọn Station + Team (kiosk biết
   // task thuộc khu nào / nhóm nào). Giống createReconcileTask: team nhận mảng → nối ', '
   // cho cột task sheet; filter dùng mảng gốc.
@@ -289,15 +411,7 @@ function createMealMoveTaskCore_(input) {
 
   // Chuẩn hóa + dedupe + bỏ mã không hợp lệ (chỉ nhận mã Ops)
   // Cho phép danh sách rỗng — tạo task trống, paste/quét mã bên trong task
-  const seen = {};
-  const ids = [];
-  raw.forEach(function (c) {
-    const id = normalizeStaffId(c);
-    if (!id || !isValidBarcodeId(id)) return;
-    if (seen[id]) return;
-    seen[id] = true;
-    ids.push(id);
-  });
+  const ids = normalizeTransferIds_(raw);
 
   // Email người tạo — ưu tiên Session (server tự lấy, KHÔNG tin client)
   let createdBy = 'web';
@@ -310,27 +424,7 @@ function createMealMoveTaskCore_(input) {
   const note = String((input && input.note) || '').trim();
 
   // Lookup thông tin NV từ staffIndex (cache 5m) — lấy tên, agency, station...
-  const index = readStaffIndex_();
-    const staffList = ids.map(function (id) {
-      const info = index[id] || {};
-      // timeRaByStaff[id] = epoch "Giờ điểm danh" từ task reconcile — NV Có mặt
-      // đã được điểm danh → coi như đã Ra (giờ Ra = giờ điểm danh), status OUT.
-      const raEpoch = Number(timeRaByStaff[id]) || 0;
-      const timeRa = raEpoch > 0 ? new Date(raEpoch) : null;
-      return {
-        staffId: id,
-        staffName: info.staffName || '',
-        slotCode: info.slotCode || '',
-        station: info.station || '',
-        team: info.team || '',
-        workstation: info.workstation || '',
-        agency: info.agency || '',
-        date: info.date || '',
-        timeRa: timeRa,              // meal-move: giờ Ra pre-fill từ "Giờ điểm danh"
-        timeRaEpoch: raEpoch,        // epoch cho counters/warm cache
-        status: timeRa ? STATUS.OUT : STATUS.PENDING,  // đã Ra → OUT, chưa → PENDING
-      };
-    });
+  const staffList = buildTransferStaffList_(ids, timeRaByStaff);
 
     const now = new Date();
     let taskId = 'M' + makeTaskId_(now).slice(1);  // prefix M phân biệt meal-move (R = reconcile)
@@ -355,6 +449,7 @@ function createMealMoveTaskCore_(input) {
       createdBy: createdBy,
       completedAt: null,
       note: note,
+      sourceTaskId: String(sourceTaskId || ''),
     };
     // P2-7: nguyên tử — nếu pre-fill fail, đóng task vừa tạo
     try {
