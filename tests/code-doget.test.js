@@ -21,6 +21,8 @@ function mockSheet(rows) {
   return {
     getLastRow: () => rows.length,
     getLastColumn: () => (rows[0] ? rows[0].length : 0),
+    getMaxColumns: () => (rows[0] ? rows[0].length : 0),
+    insertColumnAfter: () => { rows.forEach((r) => r.push('')); },
     getDataRange: () => ({ getValues: () => rows.map((r) => r || []) }),
     getRange: (r, c, nr, nc) => ({
       getValues: () => rows.slice(r - 1, r - 1 + (nr || 1)).map((row) => (row ? row.slice(c - 1, c - 1 + (nc || 1)) : [])),

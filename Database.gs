@@ -90,32 +90,67 @@ function ensureSheets_() {
   // Tự thêm cột cuối + đặt header cho từng cột thiếu — an toàn với mọi phiên bản cũ.
   // BUG 2026-08-20 (review): headers[nextCol-11] với nextCol=10 (sheet 9 cột) →
   // headers[-1]=undefined → header cột 10 ghi rỗng. Dùng map cột → header đúng.
-  var LOG_HEADER_BY_COL = { 10: 'status', 11: 'date', 12: 'timeRa', 13: 'agency' };
-  var addedCols = [];
-  while (logSheet.getLastColumn() < LOG_COL_COUNT) {
-    var nextCol = logSheet.getLastColumn() + 1;
-    logSheet.insertColumnAfter(logSheet.getLastColumn());
-    addedCols.push(nextCol);
-  }
-  // FIX-20: ghi header các cột mới 1 setValues (cột thêm luôn liền nhau) thay setValue
-  // trong loop — migration-only nhưng vẫn tránh N RPC.
-  if (addedCols.length) {
-    logSheet.getRange(1, addedCols[0], 1, addedCols.length)
-      .setValues([addedCols.map(function (c) { return LOG_HEADER_BY_COL[c] || ''; })]);
-  }
+  ensureSheetColumns_(logSheet, LOG_COL_COUNT, ['taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation', 'timeRef', 'timeScan', 'status', 'date', 'timeRa', 'agency']);
   // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
   // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
   const taskSheet = getSheet_(SHEETS.ATTENDANCE_TASK);
-  var TASK_HEADER_BY_COL = { 10: 'note', 11: 'sourceTaskId' };
-  var addedTaskCols = [];
-  while (taskSheet.getLastColumn() < TASK_COL_COUNT) {
-    taskSheet.insertColumnAfter(taskSheet.getLastColumn());
-    addedTaskCols.push(taskSheet.getLastColumn());
+  ensureSheetColumns_(taskSheet, TASK_COL_COUNT, ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']);
+}
+
+/**
+ * Dam bao sheet co du so cot (migration chay moi lan load — phai RE + idempotent).
+ * Bai hoc P0 (AttendanceTask dinh ~200 cot "note"): KHONG loop theo getLastColumn() —
+ * cot moi chen TRONG chua co content nen getLastColumn() co the doc stale (mai 10) ->
+ * loop vo han + header-write theo added[] se son sai hang loat.
+ * Dung getMaxColumns() (grid that — tang chac chan sau moi insert) + guard dem +
+ * chi ghi header TRONG [1..colCount] (khong bao gio ghi de ngoai pham vi).
+ */
+function ensureSheetColumns_(sheet, colCount, headers) {
+  var guard = 0;
+  while (sheet.getMaxColumns() < colCount && guard < colCount + 5) {
+    sheet.insertColumnAfter(sheet.getMaxColumns());
+    guard++;
   }
-  if (addedTaskCols.length) {
-    taskSheet.getRange(1, addedTaskCols[0], 1, addedTaskCols.length)
-      .setValues([addedTaskCols.map(function (col) { return TASK_HEADER_BY_COL[col] || ''; })]);
+  var heads = sheet.getRange(1, 1, 1, colCount).getValues()[0] || [];
+  var vals = [];
+  var need = false;
+  for (var k = 0; k < colCount; k++) {
+    var has = String(heads[k] == null ? '' : heads[k]).trim();
+    vals.push(has || (headers[k] || ''));
+    if (!has && (headers[k] || '')) need = true;
   }
+  if (need) sheet.getRange(1, 1, 1, colCount).setValues([vals]);
+}
+
+/**
+ * Don sheet AttendanceTask dinh migration loi (~200 cot "note" thua).
+ * CHI CHAY TU SCRIPT EDITOR 1 LAN (Deploy khong tu sua du lieu).
+ * An toan: chi xoa khoi cot thua khi TOAN BO o duoi header deu trong —
+ * con 1 o data la abort (bao vi tri, khong dong vao sheet). Cuoi cung viet
+ * lai header chuan 11 cot (code doc theo index).
+ */
+function repairTaskSheetColumns() {
+  if (!isEditor_()) return 'Chỉ chạy từ Script Editor';
+  const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
+  const lastCol = sheet.getLastColumn();
+  const lastRow = sheet.getLastRow();
+  if (lastCol > TASK_COL_COUNT) {
+    const extra = lastCol - TASK_COL_COUNT;
+    const rows = lastRow > 1 ? sheet.getRange(2, TASK_COL_COUNT + 1, lastRow - 1, extra).getValues() : [];
+    const dirty = [];
+    for (let r = 0; r < rows.length; r++) {
+      for (let cc = 0; cc < rows[r].length; cc++) {
+        const v = rows[r][cc];
+        if (v !== '' && v !== null && v !== undefined && String(v).trim() !== '') {
+          if (dirty.length < 5) dirty.push('R' + (r + 2) + 'C' + (TASK_COL_COUNT + 1 + cc));
+        }
+      }
+    }
+    if (dirty.length) return 'KHÔNG xóa: còn dữ liệu ở ' + dirty.join(', ') + ' — kiểm tra tay trước';
+    sheet.deleteColumns(TASK_COL_COUNT + 1, extra);
+  }
+  sheet.getRange(1, 1, 1, TASK_COL_COUNT).setValues([['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']]);
+  return 'OK: AttendanceTask đã chuẩn 11 cột';
 }
 
 // ===== Cache wrapper + format Date: xem CacheLayer.gs (tách 2026-08-11) =====
