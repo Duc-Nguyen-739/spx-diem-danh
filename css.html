@@ -1218,7 +1218,24 @@
   .btn-meal-switch:active { transform: translateY(0) scale(.97); }
   .btn-meal-switch:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
   .btn-meal-switch[hidden] { display: none; }
-  /* Copy mã Ops — nằm cùng hàng Hoàn Thành/Chuyển Danh Sách (2026-08-25): viền cam Shopee Express, hover fill, pulse khi copy */
+  /* Nút Chuyển Tiếp (S5 duyệt): outline xanh primary + badge đếm NV — màu/token sẵn có */
+  .btn-transfer {
+    background: #fff;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    font-weight: 700;
+  }
+  .btn-transfer:hover { background: var(--cloud); }
+  .btn-transfer:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-transfer .transfer-cnt {
+    background: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  /* Copy mã Ops — nằm cùng hàng Hoàn Thành/Chuyển Tiếp (2026-08-25): viền cam Shopee Express, hover fill, pulse khi copy */
   .btn-copy-ops {
     display: inline-flex; align-items: center; gap: 7px;
     background: #fff; color: var(--primary); border: 1.5px solid var(--primary);

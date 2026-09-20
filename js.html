@@ -2538,7 +2538,7 @@
 
   // CHUYỂN DANH SÁCH (2026-08-18, yêu cầu user): từ task Điểm Danh Ca — lấy toàn bộ NV
   // "Có mặt" (CURRENT_LOG) → tự động tạo task Điểm danh Ra/Vào với danh sách đó
-  // (kế thừa station + team task hiện tại). Bấm nút "Chuyển Danh Sách" cạnh Hoàn Thành.
+  // (kế thừa station + team task hiện tại). Bấm nút "Chuyển Tiếp" cạnh Hoàn Thành.
   // TRANSFER LINK (kieu moi): 1 task Ca <-> 1 task Ra/Vao qua SOURCE_TASK_ID (server giu).
   // Client chi giu goi y target (memory + localStorage) de gui kem — server tu resolve
   // khi thieu (multi-kiosk van chung 1 target). Sau khi chuyen: O LAI man Ca.
@@ -2631,7 +2631,7 @@
       .transferPresentListToMealMoveApi(input, oldTaskId, hint);
   }
   // COPY MÃ OPS (2026-08-25): copy toàn bộ mã Ops trong task hiện tại (cả reconcile + meal-move)
-  // Nút nằm cùng hàng Hoàn Thành/Chuyển Danh Sách — dùng cho cả task open/done.
+  // Nút nằm cùng hàng Hoàn Thành/Chuyển Tiếp — dùng cho cả task open/done.
   function copyAllOpsCodes() {
     var list = CURRENT_LOG || [];
     if (!list.length) {
@@ -3227,6 +3227,21 @@
   }
 
   // P1: không cho Kết thúc khi còn lượt quét chờ server (task-closed sẽ mất scan).
+  // Badge dem NV se chuyen (Co mat/Du) tren nut Chuyen Tiep (S5) — reuse
+  // buildTransferMealInput de dem dung tap server se nhan (SSOT).
+  function updateTransferBadge() {
+    var badge = byId('transferCnt');
+    if (!badge) return;
+    var n = 0;
+    if (CURRENT_TASK && CURRENT_TASK.taskType === 'reconcile'
+        && typeof buildTransferMealInput === 'function' && typeof STATUS_C !== 'undefined') {
+      try {
+        n = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT).staffIds.length;
+      } catch (e) { n = 0; }
+    }
+    badge.textContent = String(n);
+    badge.hidden = !(n > 0);
+  }
   function updateFinishBtnState() {
     var btn = byId('btnFinish');
     if (!btn) return;
@@ -3243,18 +3258,14 @@
       btn.disabled = !isOpen;
       btn.title = '';
     }
-    // Nút "Chuyển Danh Sách" (2026-08-18): chỉ task reconcile còn mở — disable khi
-    // đang xử lý quét để không đọc log đang dở.
+    // Nút "Chuyển Tiếp" (S5): 1 nút duy nhất — badge đếm NV Có mặt/Dư sẽ chuyển.
+    // Chỉ task reconcile còn mở — disable khi đang xử lý quét để không đọc log đang dở.
     var transferBtn = byId('btnTransferList');
     if (transferBtn) {
       transferBtn.hidden = !isOpen || !CURRENT_TASK || CURRENT_TASK.taskType === 'meal-move';
       transferBtn.disabled = scanBusy() || !isOpen;
-      var linkedTarget = (typeof getTransferTarget === 'function' && CURRENT_TASK && CURRENT_TASK.taskId)
-        ? getTransferTarget(CURRENT_TASK.taskId) : null;
-      transferBtn.textContent = linkedTarget ? 'Chuyển Tiếp' : 'Chuyển Danh Sách';
-      transferBtn.title = scanBusy()
-        ? 'Đang xử lý quét — chờ xong rồi chuyển'
-        : (linkedTarget ? 'Dồn thêm NV mới vào ' + linkedTarget : '');
+      updateTransferBadge();
+      transferBtn.title = scanBusy() ? 'Đang xử lý quét — chờ xong rồi chuyển' : '';
     }
     // Nút "Copy mã Ops" (2026-08-25): hiện cho cả 2 loại task (reconcile + meal-move), cả open/done
     // Disable khi chưa có log để copy.

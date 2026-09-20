@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Nút Chuyển Tiếp (1 nút duy nhất)</title>
+<style>
+  :root {
+    --spx: #ee4d2d;
+    --spx-deep: #d43b1f;
+    --spx-bright: #ff6b35;
+    --bg: #0b1120;
+    --panel: #131b2e;
+    --line: rgba(148, 163, 184, .14);
+    --text: #e2e8f0;
+    --muted: #8b98ab;
+    --green: #188038;
+    --red: #d93025;
+    --blue: #1a73e8;
+    --purple: #7c3aed;
+    /* app thật (sáng) */
+    --app-bg: #f5f6f8;
+    --app-card: #ffffff;
+    --app-text: #1f1f1f;
+    --app-muted: #5f6368;
+    --app-border: #d9dce1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .sub code { background: #0e1626; border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; color: #ff8a6b; }
+  .spec {
+    background: rgba(238,77,45,.08); border: 1px solid rgba(238,77,45,.35);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px;
+  }
+  .spec b { color: #ff8a6b; }
+  .spec ul { margin: 6px 0 0 18px; }
+  .spec li { margin: 2px 0; }
+  .pick-line {
+    position: sticky; top: 0; z-index: 5;
+    background: #0b1120; padding: 10px 0; margin-bottom: 14px;
+    font-size: 14px; font-weight: 700; color: #ffd9cf;
+  }
+  .pick-line b { color: #ff8a6b; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; cursor: pointer;
+  }
+  .card:hover { border-color: rgba(238,77,45,.5); }
+  .card.picked { border-color: var(--spx); box-shadow: 0 0 0 1px var(--spx); }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .tag {
+    font-size: 12px; font-weight: 800; color: #0b1120; background: #ff8a6b;
+    border-radius: 8px; padding: 2px 10px; white-space: nowrap;
+  }
+  .card.picked .tag { background: var(--spx); color: #fff; }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .rec { font-size: 11px; font-weight: 800; color: #4ade80; border: 1px solid #4ade80; border-radius: 999px; padding: 1px 8px; margin-left: auto; white-space: nowrap; }
+  /* topbar mô phỏng app thật */
+  .demo-topbar {
+    background: var(--app-bg); border: 1px solid var(--app-border);
+    border-radius: 12px; padding: 10px 12px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .demo-back {
+    background: transparent; color: var(--app-muted); border: 1px solid var(--app-border);
+    border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .demo-title { flex: 1; min-width: 120px; text-align: center; color: var(--app-text); }
+  .demo-title b { display: block; font-size: 14px; }
+  .demo-title span { font-size: 11px; color: var(--app-muted); }
+  .demo-finish {
+    background: var(--green); color: #fff; border: none;
+    border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 600; white-space: nowrap;
+  }
+  /* base nút mẫu = .btn app thật */
+  .btn {
+    border: none; border-radius: 8px; padding: 10px 18px;
+    font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  /* S1 */
+  .s1 { background: transparent; color: var(--app-muted); border: 1px solid var(--app-border); }
+  /* S2 */
+  .s2 { background: var(--green); color: #fff; }
+  /* S3 */
+  .s3 { background: var(--spx); color: #fff; box-shadow: 0 2px 8px rgba(238,77,45,.4); }
+  /* S4 (khuyến nghị) */
+  .s4 { background: #fff; color: var(--spx-deep); border: 1.5px solid var(--spx); font-weight: 700; }
+  .s4:hover { background: rgba(238,77,45,.08); }
+  /* S5 */
+  .s5 { background: #fff; color: var(--blue); border: 1.5px solid var(--blue); font-weight: 700; }
+  .s5 .cnt {
+    background: var(--blue); color: #fff; font-size: 12px; font-weight: 800;
+    border-radius: 999px; padding: 1px 8px;
+  }
+  /* S6 */
+  .s6 {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; border: none;
+    box-shadow: 0 2px 10px rgba(124,58,237,.4);
+  }
+  /* S7 split */
+  .split { display: inline-flex; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--spx); }
+  .split .s7a { background: #fff; color: var(--spx-deep); border: none; border-radius: 0; font-weight: 700; }
+  .split .s7b { background: var(--spx); color: #fff; border: none; border-radius: 0; padding: 10px 12px; }
+  /* S8 */
+  .s8 { background: transparent; color: var(--app-muted); border: 1px solid var(--app-border); padding: 6px 12px; font-size: 13px; }
+  /* S9 */
+  .s9 { background: #fff; color: var(--spx-deep); border: 1.5px solid var(--spx); font-weight: 700; }
+  .s9 .sub2 { font-weight: 400; font-size: 12px; color: var(--app-muted); }
+  /* S10 dark */
+  .demo-topbar.dark { background: #0d111a; border-color: #2a3142; }
+  .demo-topbar.dark .demo-title b { color: #e2e8f0; }
+  .demo-topbar.dark .demo-title span { color: #8b98ab; }
+  .demo-topbar.dark .demo-back { color: #8b98ab; border-color: #2a3142; }
+  .s10 {
+    background: rgba(238,77,45,.12); color: #ff8a6b; border: 1px solid rgba(238,77,45,.6);
+    box-shadow: 0 0 12px rgba(238,77,45,.25); font-weight: 700;
+  }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .note b { color: var(--text); }
+  .pro { color: #4ade80; } .con { color: #f87171; }
+  .states { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .foot { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
+  .foot code { background: #0e1626; padding: 1px 6px; border-radius: 5px; color: #ff8a6b; }
+  @media (max-width: 560px) {
+    .demo-title { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Nút Chuyển Tiếp — 10 mẫu duyệt</h1>
+  <div class="sub">Bấm vào từng thẻ để đánh dấu mẫu đang ưng (không lưu đâu, chỉ để nhìn). File: <code>mockups/chuyen-tiep-button.html</code></div>
+
+  <div class="spec">
+    <b>Chốt hành vi (áp dụng cho mọi mẫu):</b>
+    <ul>
+      <li>Chỉ còn <b>1 nút duy nhất</b>, nhãn cố định <b>“Chuyển Tiếp”</b> — bỏ 2 trạng thái Chuyển Danh Sách / Chuyển Tiếp.</li>
+      <li>Vị trí giữ nguyên: cạnh nút Hoàn Thành trong topbar màn quét task Điểm Danh Ca.</li>
+      <li>Chỉ hiện ở task Điểm Danh Ca còn mở; disable khi đang quét.</li>
+      <li>Lần 1 tạo task Ra/Vào mới, lần sau dồn thêm vào đúng task đó (logic cũ giữ nguyên).</li>
+    </ul>
+  </div>
+
+  <div class="pick-line" id="pickLine">Bạn đang ưng mẫu: <b>chưa chọn</b> — bấm vào 1 thẻ bên dưới</div>
+
+  <div id="samples">
+
+    <div class="card" data-s="S1">
+      <div class="card-head"><span class="tag">S1</span><span class="card-title">Ghost giữ nguyên (baseline)</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s1" type="button">Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> không đổi style, rủi ro 0, quen mắt. <b class="con">Nhược:</b> mờ nhạt cạnh nút xanh, kiosk dễ bỏ qua.</div>
+    </div>
+
+    <div class="card" data-s="S2">
+      <div class="card-head"><span class="tag">S2</span><span class="card-title">Solid xanh lá (như Hoàn Thành)</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s2" type="button">Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> rõ là hành động chính, dễ bấm. <b class="con">Nhược:</b> 2 nút xanh đứng cạnh nhau, dễ bấm nhầm Hoàn Thành.</div>
+    </div>
+
+    <div class="card" data-s="S3">
+      <div class="card-head"><span class="tag">S3</span><span class="card-title">Cam solid SPX</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s3" type="button">Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> nổi bật nhất topbar, đúng brand SPX. <b class="con">Nhược:</b> hơi chói khi đứng cạnh nút đỏ Kết Thúc (task đã có giờ Ra).</div>
+    </div>
+
+    <div class="card" data-s="S4">
+      <div class="card-head"><span class="tag">S4</span><span class="card-title">Cam outline + icon ⇄</span><span class="rec">KHUYẾN NGHỊ</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s4" type="button">⇄ Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> brand SPX nhưng nhẹ, phân biệt rõ Hoàn Thành (xanh) / Kết Thúc (đỏ), icon ⇄ gợi đúng nghĩa “chuyển”. <b class="con">Nhược:</b> thêm 1 style mới (1 class CSS).</div>
+    </div>
+
+    <div class="card" data-s="S5">
+      <div class="card-head"><span class="tag">S5</span><span class="card-title">Xanh dương + badge đếm NV</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s5" type="button">Chuyển Tiếp <span class="cnt">5</span></button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> badge cho biết sẽ chuyển bao nhiêu NV (Có mặt + Dư), giàu thông tin nhất. <b class="con">Nhược:</b> số nhảy mỗi lần quét — phải cập nhật theo poll; màu xanh dương là màu mới trong topbar.</div>
+    </div>
+
+    <div class="card" data-s="S6">
+      <div class="card-head"><span class="tag">S6</span><span class="card-title">Tím gradient</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s6" type="button">Chuyển Tiếp →</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> khác biệt hoàn toàn, không lẫn nút nào. <b class="con">Nhược:</b> lạc tông SPX (cam/xanh/đỏ), thêm màu mới ngoài token.</div>
+    </div>
+
+    <div class="card" data-s="S7">
+      <div class="card-head"><span class="tag">S7</span><span class="card-title">Nút split: chuyển + mở task Ra/Vào</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <span class="split"><button class="btn s7a" type="button">Chuyển Tiếp</button><button class="btn s7b" type="button" title="Mở task Ra/Vào">↗</button></span>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> gộp luôn nút “Mở” của banner vào topbar, khỏi cần banner riêng. <b class="con">Nhược:</b> phức tạp nhất, tốn chỗ trên mobile, 2 vùng bấm sát nhau dễ nhầm.</div>
+    </div>
+
+    <div class="card" data-s="S8">
+      <div class="card-head"><span class="tag">S8</span><span class="card-title">Compact nhỏ gọn</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s8" type="button">Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> topbar thoáng nhất, hợp mobile. <b class="con">Nhược:</b> nhỏ khó bấm bằng găng tay kiosk, vẫn mờ như S1.</div>
+    </div>
+
+    <div class="card" data-s="S9">
+      <div class="card-head"><span class="tag">S9</span><span class="card-title">1 nút, nhãn động theo trạng thái</span></div>
+      <div class="demo-topbar">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s9" type="button">Chuyển Tiếp <span class="sub2">· M-0716</span></button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> vẫn 1 nút nhưng biết đang dồn vào task nào (lần 1 hiện “· 5 NV”). <b class="con">Nhược:</b> nhãn dài, đi ngược ý “nhãn cố định” — cần bạn xác nhận có chấp nhận nhãn động không.</div>
+    </div>
+
+    <div class="card" data-s="S10">
+      <div class="card-head"><span class="tag">S10</span><span class="card-title">Neon cam cho theme tối</span></div>
+      <div class="demo-topbar dark">
+        <button class="demo-back" type="button">← Danh sách task</button>
+        <div class="demo-title"><b>R20260920-0715</b><span>Đối chiếu · HN2 SOC · Đang mở</span></div>
+        <button class="btn s10" type="button">⇄ Chuyển Tiếp</button>
+        <button class="demo-finish" type="button">Hoàn Thành</button>
+      </div>
+      <div class="note"><b class="pro">Ưu:</b> khớp theme Dark HUD đang dùng. <b class="con">Nhược:</b> phải làm 2 style sáng/tối, công gấp đôi.</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    Xem file trực tiếp: <code>mockups/chuyen-tiep-button.html</code> (mở bằng trình duyệt). Trả lời mã mẫu (vd <code>S4</code>) để tôi code thật vào app — chưa sửa code app trước khi bạn duyệt (gate §6.2).
+  </div>
+</div>
+<script>
+  var line = document.getElementById('pickLine');
+  document.querySelectorAll('.card').forEach(function (el) {
+    el.addEventListener('click', function () {
+      document.querySelectorAll('.card').forEach(function (x) { x.classList.remove('picked'); });
+      el.classList.add('picked');
+      line.innerHTML = 'Bạn đang ưng mẫu: <b>' + el.dataset.s + '</b> — trả lời mã này để tôi code thật';
+    });
+  });
+</script>
+</body>
+</html>
