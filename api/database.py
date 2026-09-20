@@ -440,6 +440,10 @@ def batch_insert_log_rows(task_id, staff_list, created_at):
         rows.append(row)
     start = sheets.append_values(config.SHEETS["ATTENDANCE_LOG"], rows)
     invalidate_log_rows(task_id)  # scan đầu sẽ đọc tươi (cold 1 lần, an toàn)
+    # Append vao task HIEN CO (transfer delta): detail + list phai tuoi ngay
+    # (parity GAS batchAppendLogRows_ + batchInsertLogRows_).
+    invalidate_task_detail_cache(task_id)
+    invalidate_task_list_cache()
     cache.cache_remove(config.CACHE_KEYS["SEARCH_LOG"])  # FIX-7: pre-fill cũng tạo log mới
     _format_time_columns(start, len(rows))
     return len(rows)

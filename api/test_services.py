@@ -195,6 +195,33 @@ class TestServices(unittest.TestCase):
         self.assertTrue(r["created"])
         self.assertNotEqual(r["taskId"], old_target, "target cu DONE -> tao moi")
 
+    def test_transfer_delta_refreshes_list_counters(self):
+        # RED: batch_insert append (transfer lan 2) phai invalidate list/detail —
+        # neu khong, danh sach task hien total cu (thieu dot chuyen moi nhat).
+        task_id = self._create_task()
+        services.scan_staff(task_id, "OPS001", now_override=self.t0)
+        first = services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001"],
+             "timeRaByStaff": {"OPS001": 1000}, "createdBy": "web"}, task_id)
+        new_id = first["taskId"]
+        before = [t for t in services.list_tasks()["tasks"] if t["taskId"] == new_id][0]
+        self.assertEqual(before["total"], 1)
+        services.scan_staff(task_id, "OPS002", now_override=self.t0)
+        # Thiet bi khac poll GIUA quet va chuyen -> list/detail cache dung total=1.
+        # Transfer dot 2 append xong: poll lai phai thay total=2 NGAY (khong doi het TTL).
+        mid_list = [t for t in services.list_tasks()["tasks"] if t["taskId"] == new_id][0]
+        self.assertEqual(mid_list["total"], 1)
+        mid_detail = services.get_task_detail(new_id)
+        self.assertEqual(len(mid_detail["log"]), 1)
+        services.transfer_present_list_to_meal_move(
+            {"station": "HN2 SOC", "team": ["Outbound"], "staffIds": ["OPS001", "OPS002"],
+             "timeRaByStaff": {"OPS001": 1000, "OPS002": 1000}, "createdBy": "web"},
+            task_id, new_id)
+        after = [t for t in services.list_tasks()["tasks"] if t["taskId"] == new_id][0]
+        self.assertEqual(after["total"], 2, "list phai thay dot chuyen thu 2 ngay, khong doi het TTL")
+        after_detail = services.get_task_detail(new_id)
+        self.assertEqual(len(after_detail["log"]), 2, "detail phai du ca 2 dot chuyen")
+
     def test_transfer_hint_mismatch_rejected(self):
         # Hint target cua task Ca khac -> reject, khong tron danh sach.
         task_a = self._create_task()

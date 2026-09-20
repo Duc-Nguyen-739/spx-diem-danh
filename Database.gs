@@ -610,6 +610,9 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
   // Task quá lớn (cache >100KB) → warm fail → invalidate như cũ (cold lần đầu, an toàn).
   if (!warmLogRowsCache_(taskId, staffList, startRow)) invalidateLogRows_(taskId);
   try { cache_().remove(CACHE_KEYS.SEARCH_LOG); } catch (e) {} // FIX-7
+  // Append vao task HIEN CO (transfer delta): detail + list phai tuoi ngay (parity batchAppend).
+  invalidateTaskDetailCache_(taskId);
+  invalidateTaskListCache_();
   return rows.length;
 }
 
@@ -625,7 +628,7 @@ function batchInsertLogRows_(taskId, staffList, createdAt) {
  */
 function warmLogRowsCache_(taskId, staffList, startRow) {
   try {
-    const rows = staffList.map(function (s, i) {
+    const fresh = staffList.map(function (s, i) {
       // 2026-08-18: meal-move pre-fill timeRa (giờ Ra = giờ điểm danh) + status OUT —
       // cache phải KHỚP sheet, không thì lần quét đầu đọc PENDING/thiếu giờ Ra.
       const raEpoch = Number(s.timeRaEpoch) || (s.timeRa ? s.timeRa.getTime() : 0) || 0;
@@ -648,7 +651,22 @@ function warmLogRowsCache_(taskId, staffList, startRow) {
         _rowIndex: startRow + i,
       };
     });
-    cache_().put(CACHE_KEYS.LOG_ROWS + taskId, JSON.stringify(rows), CACHE_TTL.LOG_ROWS);
+    // Merge (KHONG put de): LOG_ROWS co the da co dong cu khi append vao task HIEN CO
+    // (transfer delta). Put de xoa dong cu khoi cache -> UI chi hien dot moi nhat
+    // den khi het TTL (sheet van du — append-only). Dedup theo staffId cho chac.
+    let merged = fresh;
+    try {
+      const prev = cache_().get(CACHE_KEYS.LOG_ROWS + taskId);
+      if (prev) {
+        const oldRows = JSON.parse(prev);
+        if (Array.isArray(oldRows) && oldRows.length) {
+          const freshIds = {};
+          fresh.forEach(function (r) { freshIds[String(r.staffId || '').toUpperCase()] = true; });
+          merged = oldRows.filter(function (r) { return !freshIds[String(r.staffId || '').toUpperCase()]; }).concat(fresh);
+        }
+      }
+    } catch (e) { merged = fresh; }
+    cache_().put(CACHE_KEYS.LOG_ROWS + taskId, JSON.stringify(merged), CACHE_TTL.LOG_ROWS);
     return true;
   } catch (e) {
     Logger.log('warmLogRowsCache_ fail (task quá lớn cho cache?): ' + taskId + ' — ' + e.message);  // F3: log để biết đang fallback cold
