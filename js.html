@@ -1567,6 +1567,7 @@
     if (camBtn) camBtn.disabled = !canScan;
     updateFinishBtnState();
     renderTransferBanner();
+    try { if (typeof syncTransferredCacheIfNeeded === 'function') syncTransferredCacheIfNeeded(); } catch (e) {}
     if (canScan && !window.__RC_CAM_OPEN__) {
       var __cm = byId('cameraModal');
       if (!__cm || __cm.style.display !== 'flex') {
@@ -2563,6 +2564,81 @@
   function clearTransferTargets() {
     TRANSFER_TARGETS = {};
     try { if (typeof localStorage !== 'undefined') localStorage.removeItem('rc2_transferTargets'); } catch (e) {}
+    // dong bo badge: xoa ca transferred cache
+    try {
+      TRANSFERRED_IDS = {};
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('rc2_transferredIds');
+    } catch (e2) {}
+  }
+  // TRANSFERRED IDS — tap NV da chuyen sang Ra/Vao (badge chi dem chua chuyen)
+  var TRANSFERRED_IDS = {};
+  try {
+    if (typeof localStorage !== 'undefined') {
+      var savedTransferred = JSON.parse(localStorage.getItem('rc2_transferredIds') || '{}');
+      if (savedTransferred && typeof savedTransferred === 'object') TRANSFERRED_IDS = savedTransferred;
+    }
+  } catch (e) { TRANSFERRED_IDS = {}; }
+  function getTransferredIds(oldTaskId) {
+    var arr = TRANSFERRED_IDS[String(oldTaskId || '')];
+    return Array.isArray(arr) ? arr.slice() : [];
+  }
+  function saveTransferredIds(oldTaskId, ids) {
+    var key = String(oldTaskId || '');
+    if (!key) return;
+    var set = {};
+    (TRANSFERRED_IDS[key] || []).forEach(function (id) { var n = String(id||'').trim().toUpperCase(); if (n) set[n]=String(id).trim(); });
+    (ids || []).forEach(function (id) { var n = String(id||'').trim().toUpperCase(); if (n) set[n]=String(id).trim(); });
+    TRANSFERRED_IDS[key] = Object.keys(set).map(function (k) { return set[k]; });
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('rc2_transferredIds', JSON.stringify(TRANSFERRED_IDS)); } catch (e) {}
+  }
+  function syncTransferredFromTargetDetail(oldTaskId, targetId) {
+    if (!oldTaskId || !targetId) return;
+    try {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok || !Array.isArray(res.log)) return;
+          var ids = [];
+          for (var i=0;i<res.log.length;i++) { var sid = res.log[i] && res.log[i].staffId ? String(res.log[i].staffId).trim() : ''; if (sid) ids.push(sid); }
+          if (ids.length) { saveTransferredIds(oldTaskId, ids); updateTransferBadge(); }
+        })
+        .withFailureHandler(function () {})
+        .getTaskDetailApi(targetId);
+    } catch (e) {}
+  }
+  var _lastTransferredSyncTask = null;
+  var _lastTransferredSyncTs = 0;
+  function syncTransferredCacheIfNeeded() {
+    if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'reconcile' || CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+    var oldTaskId = CURRENT_TASK.taskId;
+    if (!oldTaskId) return;
+    var now = Date.now();
+    if (_lastTransferredSyncTask === oldTaskId && (now - _lastTransferredSyncTs) < 15000) return;
+    _lastTransferredSyncTask = oldTaskId;
+    _lastTransferredSyncTs = now;
+    var hint = getTransferTarget(oldTaskId);
+    if (hint) {
+      syncTransferredFromTargetDetail(oldTaskId, hint);
+      return;
+    }
+    try {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          var tasks = Array.isArray(res) ? res : (res && Array.isArray(res.tasks)) ? res.tasks : [];
+          var found = null;
+          for (var i=0;i<tasks.length;i++) {
+            var t = tasks[i];
+            if (t && t.taskType === 'meal-move' && String(t.sourceTaskId || '') === String(oldTaskId) && t.status === TASK_STATUS_C.OPEN) { found = t.taskId; break; }
+          }
+          if (found) {
+            saveTransferTarget(oldTaskId, found);
+            renderTransferBanner();
+            syncTransferredFromTargetDetail(oldTaskId, found);
+            updateTransferBadge();
+          }
+        })
+        .withFailureHandler(function () {})
+        .getTaskListApi();
+    } catch (e) {}
   }
   // Banner link sang task Ra/Vao trong man Ca — goi sau moi lan mo task + sau chuyen.
   // Dung class .task-note/.tn-text/.tn-actions co san (khong them CSS — luat #9).
@@ -2609,6 +2685,8 @@
     var hint = getTransferTarget(oldTaskId);
     // 1 RPC duy nhat: server giu 1 lock cho resolve/create/append — task Ca GIU OPEN,
     // client O LAI (khong openScan nhu A4 cu).
+    // luu pending ids truoc khi goi RPC de dung sau khi thanh cong
+    var _transferSentIds = (input.staffIds || []).slice();
     google.script.run
       .withSuccessHandler(function (res) {
         BUSY = false;
@@ -2616,6 +2694,7 @@
         loadTaskList();
         if (res.ok && res.taskId) {
           saveTransferTarget(oldTaskId, res.taskId);
+          try { if (typeof saveTransferredIds === 'function' && _transferSentIds.length) saveTransferredIds(oldTaskId, _transferSentIds); } catch (e2) {}
           showToast(res.message, false);
         } else {
           showToast(res.message, true);
@@ -3229,6 +3308,7 @@
   // P1: không cho Kết thúc khi còn lượt quét chờ server (task-closed sẽ mất scan).
   // Badge dem NV se chuyen (Co mat/Du) tren nut Chuyen Tiep (S5) — reuse
   // buildTransferMealInput de dem dung tap server se nhan (SSOT).
+  // 2026-09: chi dem NV CHUA chuyen sang Ra/Vao (da chuyen roi thi khong dem nua) — loc qua TRANSFERRED_IDS.
   function updateTransferBadge() {
     var badge = byId('transferCnt');
     if (!badge) return;
@@ -3236,7 +3316,18 @@
     if (CURRENT_TASK && CURRENT_TASK.taskType === 'reconcile'
         && typeof buildTransferMealInput === 'function' && typeof STATUS_C !== 'undefined') {
       try {
-        n = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT).staffIds.length;
+        var input = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT);
+        var ids = input.staffIds || [];
+        var transferred = typeof getTransferredIds === 'function' ? getTransferredIds(CURRENT_TASK.taskId) : [];
+        if (transferred && transferred.length) {
+          var set = {};
+          for (var ti=0; ti<transferred.length; ti++) { var tn = String(transferred[ti]||'').trim().toUpperCase(); if (tn) set[tn]=true; }
+          var pending = 0;
+          for (var i=0;i<ids.length;i++) { var nn = String(ids[i]||'').trim().toUpperCase(); if (!set[nn]) pending++; }
+          n = pending;
+        } else {
+          n = ids.length;
+        }
       } catch (e) { n = 0; }
     }
     badge.textContent = String(n);
