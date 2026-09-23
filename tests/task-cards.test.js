@@ -97,6 +97,19 @@ test('taskCardHTML: không có thời gian/người tạo → footer chỉ còn 
   assert.ok(!/·\s*$/.test(html), 'footer không được kết thúc bằng dấu ·');
 });
 
+test('taskCardHTML: task-open class chỉ ở task đang mở (aurora Mẫu 3)', () => {
+  const open = ctx.taskCardHTML({
+    taskId: 'O1', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',
+    total: 1, scanned: 0, extra: 0, status: 'open',
+  });
+  assert.ok(open.indexOf('task-card task-open') >= 0, 'task mở phải có class task-open');
+  const done = ctx.taskCardHTML({
+    taskId: 'D1', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',
+    total: 1, scanned: 1, extra: 0, status: 'done',
+  });
+  assert.ok(done.indexOf('task-open') < 0, 'task kết thúc không có task-open');
+});
+
 test('taskCardHTML: escape taskId/creator (chống XSS qua onclick + text)', () => {
   const html = ctx.taskCardHTML({
     taskId: 'R<1>&"', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',

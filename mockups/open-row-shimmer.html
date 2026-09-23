@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>10 Mẫu Lấp Lánh Hàng Task Đang Mở — Điểm Danh HN2 SOC</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --border:#d9dce1; --text:#1f1f1f; --muted:#5f6368;
+  --spx:#ee4d2d; --link:#1a6be0; --ok:#188038; --ok-leaf:#2e7d32;
+  --open-bg:#e6f4ea; --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);padding:0 0 80px;line-height:1.5}
+.gal-head{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.gal-head h1{font-size:19px;font-weight:800}
+.gal-head h1 .accent{color:var(--spx)}
+.gal-head small{color:var(--muted);font-size:12.5px}
+.gal-head .actions{margin-left:auto;display:flex;gap:8px}
+.btn-ghost{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+.btn-ghost:hover{border-color:var(--spx);color:var(--spx)}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 18px;display:flex;flex-direction:column;gap:22px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.num{font-size:12px;font-weight:800;letter-spacing:1px;color:var(--spx)}
+.card-top h3{font-size:15px}
+.tag{font-size:11px;font-weight:700;background:#fff3e0;color:#b45309;border:1px solid #f5d78e;border-radius:999px;padding:2px 10px}
+.tag.hot{background:#fce8e6;color:#b3261e;border-color:#fecaca}
+.card-top p{flex-basis:100%;font-size:12.5px;color:var(--muted)}
+.stage{margin-top:12px;border:1px dashed var(--border);border-radius:12px;padding:12px;background:#fbfbfc;overflow:auto}
+table.demo{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.demo th{background:#f1f3f4;color:var(--muted);font-size:11.5px;text-align:left;padding:8px 10px;white-space:nowrap;position:sticky;top:0}
+.demo td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff}
+.demo tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700}
+.badge.tt-ca{background:rgba(26,107,224,.13);color:var(--link);border:1px solid rgba(26,107,224,.35)}
+.badge.tt-meal{background:rgba(67,160,71,.13);color:var(--leaf-2,#2e7d32);border:1px solid rgba(67,160,71,.38)}
+.badge.open{background:rgba(46,204,113,.14);color:#2e7d32}
+.badge.done{background:rgba(127,142,163,.14);color:#7f8ea3}
+.btn-sm{background:#0b57d0;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.btn-view{background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer}
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.toolbar b{font-size:13px;color:#e37400;letter-spacing:.4px}
+.count{font-family:Consolas,monospace;font-size:12px;background:#e9ecf2;color:var(--muted);border-radius:20px;padding:1px 9px}
+.pick{margin-top:12px;display:flex;align-items:center;gap:10px}
+.pick button{background:linear-gradient(135deg,#ff5f2e,#ee4d2d 55%,#d43b1f);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(238,77,45,.35)}
+.pick button:hover{filter:brightness(1.07)}
+.pick span{font-size:12px;color:var(--muted)}
+tr.row-open{position:relative}
+
+/* ============ M1: Sweep ánh sáng chéo ============ */
+tr.m1 td{background:#eef7ee}
+tr.m1{animation:m1-breath 3s ease-in-out infinite}
+tr.m1 td:first-child{box-shadow:inset 3px 0 0 #2ecc71}
+tr.m1::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.75) 50%,transparent 70%);background-size:250% 100%;animation:m1-sweep 2.6s ease-in-out infinite}
+@keyframes m1-sweep{0%{background-position:120% 0}60%,100%{background-position:-120% 0}}
+@keyframes m1-breath{0%,100%{filter:brightness(1)}50%{filter:brightness(1.035)}}
+
+/* ============ M2: Neon pulse viền xanh ============ */
+tr.m2 td{background:#e9f9ef}
+tr.m2 td:first-child{box-shadow:inset 4px 0 0 #16a34a}
+tr.m2 td:last-child{box-shadow:inset -2px 0 0 rgba(22,163,74,.5)}
+tr.m2{animation:m2-pulse 2s ease-in-out infinite}
+tr.m2 .badge.open{animation:m2-badge 1.6s ease-in-out infinite}
+@keyframes m2-pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(22,163,74,0))}50%{filter:drop-shadow(0 0 10px rgba(22,163,74,.45))}}
+@keyframes m2-badge{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.5)}50%{box-shadow:0 0 0 7px rgba(46,204,113,0)}}
+
+/* ============ M3: Aurora gradient nền trôi ============ */
+tr.m3 td{border-bottom-color:rgba(22,163,74,.18);background:linear-gradient(100deg,#e6f7eb,#d9f2ff 40%,#e6f7eb 70%,#fff7d6 100%);background-size:300% 100%;animation:m3-flow 5s linear infinite}
+tr.m3 td:first-child{box-shadow:inset 4px 0 0 #0b57d0}
+@keyframes m3-flow{0%{background-position:0% 0}100%{background-position:300% 0}}
+
+/* ============ M4: Tia laser quét dọc ============ */
+tr.m4 td{background:#f0faf2}
+tr.m4{position:relative}
+tr.m4::before{content:'';position:absolute;top:0;bottom:0;width:54px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(46,204,113,.4) 45%,#fff 50%,rgba(46,204,113,.4) 55%,transparent);filter:blur(.3px);animation:m4-laser 2.8s ease-in-out infinite}
+tr.m4 td:first-child{box-shadow:inset 3px 0 0 #16a34a}
+@keyframes m4-laser{0%{left:-60px;opacity:0}12%{opacity:1}85%{opacity:1}100%{left:calc(100% - 10px);opacity:0}}
+
+/* ============ M5: Sao lấp lánh twinkle ============ */
+tr.m5 td{background:linear-gradient(180deg,#ecfbf0,#e4f6e9)}
+tr.m5{animation:m5-glow 2.4s ease-in-out infinite}
+tr.m5 td{position:relative}
+tr.m5 .spark{position:absolute;font-size:11px;color:#16a34a;animation:m5-tw 1.8s ease-in-out infinite;pointer-events:none}
+@keyframes m5-glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.06) drop-shadow(0 0 8px rgba(46,204,113,.3))}}
+@keyframes m5-tw{0%,100%{opacity:0;transform:scale(.4) rotate(0)}50%{opacity:1;transform:scale(1.2) rotate(20deg)}}
+
+/* ============ M6: Vạch cạnh trái + badge glow (thanh lịch, kiosk) ============ */
+tr.m6 td{background:#f2faf4}
+tr.m6 td:first-child{box-shadow:inset 4px 0 0 transparent;background:linear-gradient(#16a34a,#2ecc71) left/4px 100% no-repeat,#f2faf4}
+tr.m6 .badge.open{background:#16a34a;color:#fff;box-shadow:0 0 12px rgba(22,163,74,.55);animation:m6-badge 2s ease-in-out infinite}
+@keyframes m6-badge{0%,100%{box-shadow:0 0 6px rgba(22,163,74,.4)}50%{box-shadow:0 0 16px rgba(22,163,74,.8)}}
+
+/* ============ M7: Gold premium ============ */
+tr.m7 td{background:linear-gradient(180deg,#fff8e6,#fff3d0)}
+tr.m7 td:first-child{box-shadow:inset 4px 0 0 #e3a93c}
+tr.m7::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(255,215,130,.85) 50%,transparent 65%);background-size:250% 100%;animation:m1-sweep 3s ease-in-out infinite}
+tr.m7 .badge.open{background:#b45309;color:#fff;box-shadow:0 0 10px rgba(227,169,60,.7)}
+
+/* ============ M8: Dot sống + viền trên sáng (glass) ============ */
+tr.m8 td{background:rgba(230,244,234,.9)}
+tr.m8{animation:m8-float 3s ease-in-out infinite}
+tr.m8 td:first-child{position:relative}
+.dot-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-right:6px;position:relative;vertical-align:1px}
+.dot-live::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid #16a34a;animation:m8-ping 1.6s ease-out infinite}
+@keyframes m8-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(1.4);opacity:0}}
+@keyframes m8-float{0%,100%{filter:brightness(1)}50%{filter:brightness(1.04)}}
+tr.m8 td{box-shadow:inset 0 1px 0 rgba(22,163,74,.35)}
+
+/* ============ M9: Sọc chéo chảy (tiến độ) ============ */
+tr.m9 td{background-color:#eaf7ee;background-image:repeating-linear-gradient(-55deg,rgba(22,163,74,.10) 0 12px,transparent 12px 24px);background-size:200% 100%;animation:m9-slide 4s linear infinite}
+tr.m9 td:first-child{box-shadow:inset 4px 0 0 #16a34a}
+@keyframes m9-slide{0%{background-position:0 0}100%{background-position:80px 0}}
+
+/* ============ M10: Minimal breathing (nhẹ, không mỏi mắt) ============ */
+tr.m10 td{background:#f1f9f2}
+tr.m10{animation:m10-breath 4s ease-in-out infinite}
+tr.m10 td:first-child{box-shadow:inset 3px 0 0 #2e7d32}
+@keyframes m10-breath{0%,100%{opacity:1}50%{opacity:.82}}
+
+@media (prefers-reduced-motion: reduce){
+  tr.m1,tr.m2,tr.m3,tr.m4,tr.m5,tr.m6,tr.m7,tr.m8,tr.m9,tr.m10,
+  tr.m1::after,tr.m1::before,tr.m3 td,tr.m4::before,tr.m7::after,tr.m9 td{animation:none!important}
+  .dot-live::after{display:none}
+}
+body.paused tr[class*="m"]{animation:none!important}
+body.paused tr[class*="m"]::after,body.paused tr[class*="m"]::before{animation:none!important;display:none!important}
+</style>
+</head>
+<body>
+<div class="gal-head">
+  <h1><span class="accent">✦</span> 10 MẪU LẤP LÁNH HÀNG TASK ĐANG MỞ</h1>
+  <small>Hàng 1 = Đang Mở (có hiệu ứng) · Hàng 2–4 = Kết Thúc (đứng yên để so sánh) · Dữ liệu y ảnh bạn gửi</small>
+  <div class="actions">
+    <button class="btn-ghost" onclick="document.body.classList.toggle('paused')">⏸ Tạm dừng / chạy hiệu ứng</button>
+  </div>
+</div>
+<div class="wrap" id="wrap"></div>
+<script>
+var rows = [
+  {stt:1,id:'R20260924-034805979',type:'ca',typeTx:'Điểm danh ca',st:'HN2',ca:'22:00-06:00',team:'Inbound',tot:16,scan:0,extra:0,sttTx:'open',time:'2026-09-24 03:48:05',by:'duc.nguyenvan05',act:'scan'},
+  {stt:2,id:'R20260924-032905772',type:'ca',typeTx:'Điểm danh ca',st:'HN2',ca:'18:00-05:00',team:'Inbound',tot:14,scan:0,extra:0,sttTx:'done',time:'2026-09-24 03:29:05',by:'duc.nguyenvan05',act:'view'},
+  {stt:3,id:'M20260924-020714454',type:'meal',typeTx:'Điểm danh Ra/Vào',st:'HN2',ca:'18:00-05:00, 20:00-06:00, 22:00-06:00',team:'Inbound',tot:61,scan:60,extra:0,sttTx:'done',time:'2026-09-24 02:07:14',by:'duc.nguyenvan05',act:'view'},
+  {stt:4,id:'R20260924-020431401',type:'ca',typeTx:'Điểm danh ca',st:'HN2',ca:'18:00-05:00, 20:00-06:00, 22:00-06:00',team:'Inbound',tot:63,scan:61,extra:0,sttTx:'done',time:'2026-09-24 02:04:31',by:'duc.nguyenvan05',act:'view'}
+];
+var samples = [
+  {n:1,name:'Sweep Ánh Sáng Chéo',desc:'Dải sáng trắng chạy ngang — giống shimmer nút +Task hiện tại, đồng bộ ngôn ngữ app.',tag:'HOT NHẤT',extra:''},
+  {n:2,name:'Neon Pulse Xanh Lá',desc:'Cả hàng phát sáng thở + badge Đang Mở phồng glow — nhìn từ xa 2m vẫn thấy.',tag:'KIOSK',extra:''},
+  {n:3,name:'Aurora Trôi',desc:'Nền gradient xanh–lam–vàng trôi chậm — trend SaaS 2025–2026 (Linear, Stripe).',tag:'TREND 2026',extra:''},
+  {n:4,name:'Tia Laser Quét',desc:'Tia sáng dọc quét trái→phải — gợi máy quét barcode, hợp ngữ cảnh điểm danh.',tag:'HỢP NGỮ CẢNH',extra:''},
+  {n:5,name:'Sao Lấp Lánh ✦',desc:'Nền sáng dần + sao ✦ nhấp nháy ngẫu nhiên — vui mắt, Gen-Z.',tag:'VUI MẮT',extra:'spark'},
+  {n:6,name:'Vạch Trái + Badge Glow',desc:'Thanh lịch nhất: vạch xanh 4px + badge xanh phát sáng — rõ mà không mỏi mắt ca đêm.',tag:'THANH LỊCH',extra:''},
+  {n:7,name:'Gold Premium',desc:'Nền vàng kem + sweep vàng — task đang mở trông như “ưu tiên VIP”.',tag:'VIP',extra:''},
+  {n:8,name:'Chấm Sống ● Ping',desc:'Chấm xanh ping trước mã task + hàng sáng nhẹ — ngôn ngữ realtime (online/dot).',tag:'REALTIME',extra:'dot'},
+  {n:9,name:'Sọc Tiến Độ Chảy',desc:'Sọc chéo xanh trôi đều — cảm giác “đang chạy”, hợp task đang diễn ra.',tag:'ĐANG CHẠY',extra:''},
+  {n:10,name:'Thở Nhẹ Minimal',desc:'Chỉ thở opacity 4s + vạch mờ — nhẹ nhất, hợp kiosk ca đêm, không gây xao nhãng.',tag:'NHẸ NHẤT',extra:''}
+];
+function badge(r){
+  if(r.type==='meal') return '<span class="badge tt-meal">'+r.typeTx+'</span>';
+  return '<span class="badge tt-ca">'+r.typeTx+'</span>';
+}
+function stBadge(r){
+  if(r.sttTx==='open') return '<span class="badge open">Đang Mở</span>';
+  return '<span class="badge done">Kết Thúc</span>';
+}
+function actBtn(r){
+  if(r.act==='scan') return '<button class="btn-sm">Quét</button>';
+  return '<button class="btn-view">Xem</button>';
+}
+function idCell(r, sample){
+  var dot = (sample.extra==='dot' && r.sttTx==='open') ? '<span class="dot-live"></span>' : '';
+  return dot + r.id;
+}
+function sparkles(){
+  return '<span class="spark" style="top:2px;left:30%">✦</span><span class="spark" style="bottom:3px;right:20%;animation-delay:.6s">✦</span><span class="spark" style="top:4px;right:45%;animation-delay:1.1s;font-size:9px">✦</span>';
+}
+var wrap = document.getElementById('wrap');
+samples.forEach(function(s){
+  var cls = 'm'+s.n;
+  var html = '<div class="card"><div class="card-top"><span class="num">MẪU '+s.n+'</span><h3>'+s.name+'</h3><span class="tag'+(s.tag==='HOT NHẤT'?' hot':'')+'">'+s.tag+'</span><p>'+s.desc+'</p></div>';
+  html += '<div class="stage"><table class="demo"><thead><tr><th>STT</th><th>Mã task</th><th>Loại task</th><th>Station</th><th>Ca</th><th>Team</th><th>Tổng NV</th><th>Đã quét</th><th>Dư</th><th>Trạng thái</th><th>Tạo lúc</th><th>Người tạo</th><th>Thao tác</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var isOpen = r.sttTx==='open';
+    var trCls = isOpen ? 'row-open '+cls : '';
+    var spark = (isOpen && s.extra==='spark') ? sparkles() : '';
+    html += '<tr class="'+trCls+'"><td>'+r.stt+'</td><td style="position:relative">'+idCell(r,s)+spark+'</td><td>'+badge(r)+'</td><td>'+r.st+'</td><td>'+r.ca+'</td><td>'+r.team+'</td><td>'+r.tot+'</td><td>'+r.scan+'</td><td>'+r.extra+'</td><td>'+stBadge(r)+'</td><td>'+r.time+'</td><td>'+r.by+'</td><td>'+actBtn(r)+'</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div class="pick"><button onclick="pick('+s.n+')">Chọn mẫu '+s.n+'</button><span>→ Trả lời “Chốt mẫu '+s.n+'” là tôi áp vào app thật (cả bảng desktop + card mobile).</span></div></div>';
+  wrap.insertAdjacentHTML('beforeend', html);
+});
+function pick(n){
+  var s = samples[n-1];
+  alert('Bạn đã xem mẫu '+n+' — '+s.name+'.\nHãy trả lời "Chốt mẫu '+n+'" để tôi áp vào app.');
+}
+</script>
+</body>
+</html>

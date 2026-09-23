@@ -103,6 +103,9 @@
       --err-soft: #fecaca;
       --link: #1a6be0;
       --link-bright: #7dd3fc;
+      --aurora-1: #e6f7eb;
+      --aurora-2: #d9f2ff;
+      --aurora-3: #fff7d6;
       --success-bright: #4ade80;
       --danger-bright: #f87171;
       --warning-bright: #ffab40;
@@ -499,6 +502,21 @@
     .badge.tt-ca   { background: rgba(26, 107, 224, .13); color: var(--link); border: 1px solid rgba(26,107,224,.35); }
     .badge.hidden { background: rgba(238, 77, 45, .14); color: var(--spx-tangerine); border: 1px solid rgba(238,77,45,.4); }
     .badge.tt-meal { background: rgba(67, 160, 71, .13); color: var(--leaf-2); border: 1px solid rgba(67,160,71,.38); }
+    /* Task Dang Mo — Aurora Troi (Mau 3 mockup open-row-shimmer): nen gradient troi cham */
+    #taskListTable tr.task-open td {
+      background: linear-gradient(100deg, var(--aurora-1), var(--aurora-2) 40%, var(--aurora-1) 70%, var(--aurora-3) 100%);
+      background-size: 300% 100%;
+      animation: task-aurora 5s linear infinite;
+      border-bottom-color: rgba(26, 107, 224, .18);
+    }
+    #taskListTable tr.task-open td:first-child { box-shadow: inset 4px 0 0 var(--link); }
+    @keyframes task-aurora {
+      0% { background-position: 0% 0; }
+      100% { background-position: 300% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #taskListTable tr.task-open td { animation: none; }
+    }
 
     /* ===== Scan input ===== */
     .scan-row { display: flex; gap: 10px; flex-wrap: wrap; }  /* camera button xuống dòng khi màn hẹp */

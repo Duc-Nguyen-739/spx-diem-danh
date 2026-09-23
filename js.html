@@ -1142,7 +1142,8 @@
       .join(' · ');
     var foot = String(t.createdAtText || t.createdAt || '');
     if (t.createdBy) foot += (foot ? ' · ' : '') + creatorName(t.createdBy);
-    return '<div class="task-card" data-id="' + escAttr(t.taskId) + '">' +
+    var openCls = t.status === TASK_STATUS_C.OPEN ? ' task-open' : '';
+    return '<div class="task-card' + openCls + '" data-id="' + escAttr(t.taskId) + '">' +
       '<div class="tc-head"><span class="tc-id">' + esc(t.taskId) + '</span>' + statusBadge + '</div>' +
       '<div class="tc-type">' + scope + '</div>' +
       '<div class="tc-mid">' +
@@ -1204,6 +1205,7 @@
     slice.forEach(function (t, i) {
       var idx = start + i;
       var tr = document.createElement('tr');
+      if (t.status === TASK_STATUS_C.OPEN) tr.className = 'task-open';
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
       if (t.isHidden && t.status !== TASK_STATUS_C.DONE) statusBadge += ' <span class="badge hidden">Ẩn</span>';
       tr.innerHTML =

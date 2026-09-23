@@ -164,6 +164,16 @@
     max-width: 100%;
     overflow: hidden;
   }
+  .task-card.task-open {
+    background: linear-gradient(100deg, var(--aurora-1), var(--aurora-2) 45%, var(--aurora-1) 70%, var(--aurora-3) 100%);
+    background-size: 300% 100%;
+    animation: task-aurora 5s linear infinite;
+    border-color: rgba(26, 107, 224, .4);
+    border-left: 4px solid var(--link);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .task-card.task-open { animation: none; }
+  }
   .task-card .tc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .task-card .tc-id {
     font-family: Consolas, 'Courier New', monospace;
