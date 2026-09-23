@@ -2740,7 +2740,8 @@
       if (!getTransferTarget(CURRENT_TASK.taskId)) return;
       if (BUSY) return;
       if (typeof scanBusy === 'function' && scanBusy()) return;
-      if (typeof document !== 'undefined' && document && document.visibilityState === 'hidden') return;
+      // Tab chay nen van chuyen: khong dung o visibility hidden (browser chi
+      // throttle nhe interval 20s; RPC chi goi khi con delta chua chuyen).
       if (typeof byId === 'function') {
         try {
           var vs = byId('viewScan');
@@ -2772,6 +2773,15 @@
       } catch (e) { return; }
       if (pending <= 0) return;
       transferPresentListToMealMove(true);
+    } catch (e) {}
+  }
+  // Vua mo lai tab thi don ngay delta ton (trinh duyet co the tri hoan
+  // interval khi tab an lau, nhat la Safari iOS tam dung JS nen).
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    try {
+      document.addEventListener('visibilitychange', function () {
+        try { if (!document.hidden) transferAutoTick(); } catch (e) {}
+      });
     } catch (e) {}
   }
   // COPY MÃ OPS (2026-08-25): copy toàn bộ mã Ops trong task hiện tại (cả reconcile + meal-move)

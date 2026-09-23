@@ -213,6 +213,20 @@ test('stopTransferAutoPoll xoa timer', () => {
   api.stopTransferAutoPoll();
 });
 
+test('chay nen: tab an van tu dong chuyen delta', () => {
+  setupTask();
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', added: 2, skipped: 0, created: true, count: 2, message: 'ok' };
+  api.transferPresentListToMealMove();
+  global.CURRENT_LOG.push({ staffId: 'OPS7', status: 'Có mặt', timeScanEpoch: 1700000006000 });
+  global.document.visibilityState = 'hidden';
+  const before = callCount;
+  apiResults.transferPresentListToMealMoveApi = { ok: true, taskId: 'M-NEW-1', added: 1, skipped: 2, created: false, count: 1, message: 'nen ok' };
+  api.transferAutoTick();
+  assert.equal(callCount, before + 1, 'tab an van goi RPC delta');
+  assert.equal(toastMsg, 'nen ok', 'added>0 van toast nhu foreground');
+  global.document.visibilityState = 'visible';
+});
+
 test('teardown: tra timer that, dung timer auto', () => {
   try { api.stopTransferAutoPoll(); } catch (e) {}
   global.setInterval = realSetInterval;
