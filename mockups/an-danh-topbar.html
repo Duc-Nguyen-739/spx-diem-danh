@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>5 Mau nut Bat/Tat An Danh — thanh topbar man quet</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #eef0f4; color: #1f1f1f; line-height: 1.5; }
+  .gal-head { background: #0d111a; color: #e2e8f0; padding: 22px 24px; }
+  .gal-head h1 { font-size: 18px; font-weight: 800; }
+  .gal-head h1 .spx { background: linear-gradient(135deg,#ff5f2e,#ee4d2d); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 7px; margin-right: 10px; }
+  .gal-head p { color: #9aa7bd; font-size: 13px; margin-top: 6px; max-width: 780px; }
+  .gal-head p b { color: #ff8a5c; }
+  .gal-nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.95); border-bottom: 1px solid #e2e6ec; display: flex; gap: 8px; padding: 10px 24px; overflow-x: auto; flex-wrap: wrap; }
+  .gal-nav a { text-decoration: none; color: #303844; font-size: 12.5px; font-weight: 700; border: 1px solid #e2e6ec; border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+  .gal-nav a:hover { border-color: #ee4d2d; color: #ee4d2d; }
+  .gal-nav a.rec { border-color: #ee4d2d; color: #ee4d2d; }
+  main { max-width: 1120px; margin: 0 auto; padding: 16px 20px 90px; display: grid; gap: 30px; }
+  .sample-head { display: flex; gap: 14px; align-items: flex-start; }
+  .sample-num { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px; background: #0d111a; color: #ff8a5c; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .sample-head h2 { font-size: 16px; }
+  .sample-head p { color: #5f6368; font-size: 13px; margin-top: 2px; max-width: 740px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; background: #fdeeea; color: #d3461e; border: 1px solid #f8c8ba; border-radius: 999px; padding: 2px 10px; margin-top: 6px; }
+  .tag.hot { background: #ee4d2d; color: #fff; border-color: #ee4d2d; }
+  .stage { border-radius: 18px; padding: 26px 18px; border: 1px solid #e2e6ec; background: #f8f9fb; display: flex; justify-content: center; }
+  /* ---- topbar mo phong man quet that (theme sang) ---- */
+  .topbar { width: 100%; max-width: 980px; background: #fff; border: 1px solid #e2e6ec; border-radius: 14px; padding: 12px 16px; box-shadow: 0 8px 26px rgba(10,20,45,.08); }
+  .tb-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tb-back { border: 1px solid #e2e6ec; background: #fff; border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: #303844; cursor: pointer; font-family: inherit; }
+  .tb-title { flex: 1 1 auto; min-width: 180px; text-align: center; }
+  .tb-title b { font-size: 15px; display: block; }
+  .tb-title small { font-size: 12px; color: #5f6368; }
+  .tb-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .btn { border-radius: 9px; padding: 9px 15px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid #1a6be4; background: #fff; color: #1a6be4; transition: all .15s ease; }
+  .btn:hover { background: #eef4ff; }
+  .btn.finish { background: #188038; border-color: #188038; color: #fff; }
+  .btn.finish:hover { background: #146c30; }
+  .tb-hint { margin-top: 10px; font-size: 12.5px; color: #5f6368; background: #f1f3f4; border-radius: 9px; padding: 8px 12px; }
+  .tb-hint b.on { color: #d43b1f; }
+  .tb-hint b.off { color: #188038; }
+  /* Mau 1: cong tac pill */
+  .hide-switch { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #e2e6ec; background: #fff; border-radius: 9px; padding: 7px 12px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; color: #5f6368; transition: all .15s ease; }
+  .hide-switch .eye { width: 17px; height: 17px; }
+  .hide-switch .sw { position: relative; width: 40px; height: 22px; border-radius: 999px; background: #c3c9d4; transition: background .18s ease; flex: 0 0 auto; }
+  .hide-switch .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .18s ease; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .hide-switch.on { border-color: #ee4d2d; color: #d43b1f; background: #fff5f1; }
+  .hide-switch.on .sw { background: #ee4d2d; }
+  .hide-switch.on .sw::after { left: 20px; }
+  /* Mau 2: nut outline dong bo */
+  .btn.hidebtn { border-color: #c3c9d4; color: #5f6368; display: inline-flex; align-items: center; gap: 7px; }
+  .btn.hidebtn .eye { width: 16px; height: 16px; }
+  .btn.hidebtn.on { background: #ee4d2d; border-color: #ee4d2d; color: #fff; box-shadow: 0 3px 10px rgba(238,77,45,.35); }
+  .btn.hidebtn.on:hover { background: #d43b1f; }
+  /* Mau 3: segmented */
+  .seg { display: inline-flex; background: #f1f3f4; border: 1px solid #e2e6ec; border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: #5f6368; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .seg button.on-pub { background: #1a6be4; color: #fff; }
+  .seg button.on-hide { background: #ee4d2d; color: #fff; }
+  /* Mau 4: nut icon mat */
+  .iconbtn { position: relative; width: 38px; height: 38px; border-radius: 9px; border: 1px solid #c3c9d4; background: #fff; color: #5f6368; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-family: inherit; transition: all .15s ease; }
+  .iconbtn .eye { width: 19px; height: 19px; }
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #188038; border: 2px solid #fff; }
+  .iconbtn.on { border-color: #ee4d2d; color: #fff; background: #ee4d2d; }
+  .iconbtn.on .dot { background: #ffd166; }
+  /* Mau 5: popover xac nhan */
+  .popwrap { position: relative; display: inline-block; }
+  .popover { position: absolute; top: calc(100% + 8px); right: 0; width: 250px; background: #fff; border: 1px solid #e2e6ec; border-radius: 12px; box-shadow: 0 14px 40px rgba(10,20,45,.18); padding: 14px; display: none; z-index: 20; text-align: left; }
+  .popover.show { display: block; }
+  .popover b { font-size: 13.5px; display: block; margin-bottom: 4px; }
+  .popover p { font-size: 12.5px; color: #5f6368; margin-bottom: 10px; }
+  .popover .prow { display: flex; gap: 8px; justify-content: flex-end; }
+  .popover .prow button { border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .popover .pok { background: #ee4d2d; border: 1px solid #ee4d2d; color: #fff; }
+  .popover .pcancel { background: #fff; border: 1px solid #e2e6ec; color: #303844; }
+  .verdict { font-size: 12.5px; color: #5f6368; padding: 0 2px; }
+  .verdict b { color: #1f1f1f; }
+  @media (max-width: 640px) { .tb-title { order: 3; flex-basis: 100%; } }
+</style>
+</head>
+<body>
+<div class="gal-head">
+  <h1><span class="spx">SPX</span>5 mẫu nút Bật/Tắt Ẩn Danh — cùng hàng Copy / Chuyển Tiếp / Hoàn Thành</h1>
+  <p>Nằm trong topbar màn quét (theme sáng, khớp ảnh bạn gửi). Mặc định <b>TẮT</b> = task bình thường, mọi người vào điểm danh được. <b>BẬT</b> = ẩn task với mọi người, không vào được. Bấm thử trực tiếp từng mẫu.</p>
+</div>
+<nav class="gal-nav">
+  <a href="#mau-1" class="rec">Mẫu 1 · Công tắc (khuyên dùng)</a>
+  <a href="#mau-2">Mẫu 2 · Nút Ẩn Danh</a>
+  <a href="#mau-3">Mẫu 3 · Công khai / Ẩn Danh</a>
+  <a href="#mau-4">Mẫu 4 · Icon mắt gọn</a>
+  <a href="#mau-5">Mẫu 5 · Bật có xác nhận</a>
+</nav>
+<main>
+
+  <!-- MAU 1 -->
+  <section class="sample" id="mau-1">
+    <div class="sample-head">
+      <span class="sample-num">01</span>
+      <div><h2>Công tắc Ẩn Danh — đồng bộ với công tắc trong modal tạo task</h2>
+      <p>Cùng ngôn ngữ đã duyệt ở modal (mẫu 1 đợt trước): chữ + công tắc gạt. Trạng thái nhìn là hiểu, 1 chạm đổi ngay.</p>
+      <span class="tag hot">KHUYÊN DÙNG · đồng bộ modal · 1 chạm</span></div>
+    </div>
+    <div class="stage">
+      <div class="topbar">
+        <div class="tb-row">
+          <button class="tb-back">← Danh sách task</button>
+          <div class="tb-title"><b>R20260924-032905772</b><small>Đối chiếu · HN2 · 18:00-05:00 · Inbound · Đang mở</small></div>
+          <div class="tb-actions">
+            <button class="btn">⧉ Copy mã Ops</button>
+            <button class="btn">Chuyển Tiếp</button>
+            <button class="hide-switch" id="m1sw" aria-pressed="false"><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="m1tx">Ẩn Danh: Tắt</span><span class="sw"></span></button>
+            <button class="btn finish">Hoàn Thành</button>
+          </div>
+        </div>
+        <div class="tb-hint" id="m1hint">Đang <b class="off">TẮT</b> — task bình thường, mọi người vào điểm danh được.</div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> rõ nhất, khó bấm nhầm; chiếm chỗ tương đương 1 nút thường nên topbar không vỡ trên mobile.</div>
+  </section>
+
+  <!-- MAU 2 -->
+  <section class="sample" id="mau-2">
+    <div class="sample-head">
+      <span class="sample-num">02</span>
+      <div><h2>Nút Ẩn Danh — cùng kiểu với Copy / Chuyển Tiếp</h2>
+      <p>Nút outline y hệt 2 nút bên cạnh; bật lên thì nền cam chữ trắng. Không thêm ngôn ngữ mới vào topbar.</p>
+      <span class="tag">Đồng bộ topbar hiện tại · gọn</span></div>
+    </div>
+    <div class="stage">
+      <div class="topbar">
+        <div class="tb-row">
+          <button class="tb-back">← Danh sách task</button>
+          <div class="tb-title"><b>R20260924-032905772</b><small>Đối chiếu · HN2 · 18:00-05:00 · Inbound · Đang mở</small></div>
+          <div class="tb-actions">
+            <button class="btn">⧉ Copy mã Ops</button>
+            <button class="btn">Chuyển Tiếp</button>
+            <button class="btn hidebtn" id="m2btn" aria-pressed="false"><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="m2tx">Ẩn Danh: Tắt</span></button>
+            <button class="btn finish">Hoàn Thành</button>
+          </div>
+        </div>
+        <div class="tb-hint" id="m2hint">Đang <b class="off">TẮT</b> — task bình thường, mọi người vào điểm danh được.</div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> gọn và nhất quán nhất với topbar; nhược điểm là trạng thái Bật/Tắt chỉ phân biệt bằng màu nền.</div>
+  </section>
+
+  <!-- MAU 3 -->
+  <section class="sample" id="mau-3">
+    <div class="sample-head">
+      <span class="sample-num">03</span>
+      <div><h2>Thanh chọn Công khai / Ẩn Danh — luôn thấy cả 2 lựa chọn</h2>
+      <p>Không có trạng thái lửng lơ: nhìn là biết task đang ở chế độ nào, bấm là đổi thẳng sang chế độ kia.</p>
+      <span class="tag">Tường minh · chống bấm nhầm</span></div>
+    </div>
+    <div class="stage">
+      <div class="topbar">
+        <div class="tb-row">
+          <button class="tb-back">← Danh sách task</button>
+          <div class="tb-title"><b>R20260924-032905772</b><small>Đối chiếu · HN2 · 18:00-05:00 · Inbound · Đang mở</small></div>
+          <div class="tb-actions">
+            <button class="btn">⧉ Copy mã Ops</button>
+            <button class="btn">Chuyển Tiếp</button>
+            <div class="seg" role="group" aria-label="Ai thấy task này">
+              <button id="m3pub" class="on-pub">Công khai</button>
+              <button id="m3hide">Ẩn Danh</button>
+            </div>
+            <button class="btn finish">Hoàn Thành</button>
+          </div>
+        </div>
+        <div class="tb-hint" id="m3hint">Đang <b class="off">Công khai</b> — task bình thường, mọi người vào điểm danh được.</div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> tường minh nhất nhưng chiếm chỗ rộng nhất — topbar mobile dễ phải xuống dòng.</div>
+  </section>
+
+  <!-- MAU 4 -->
+  <section class="sample" id="mau-4">
+    <div class="sample-head">
+      <span class="sample-num">04</span>
+      <div><h2>Nút icon mắt gọn — tiết kiệm chỗ nhất</h2>
+      <p>Chỉ 1 ô vuông icon mắt + chấm trạng thái (xanh = đang mở công khai, vàng = đang ẩn). Rê chuột/thấy chấm là biết.</p>
+      <span class="tag">Gọn nhất · hợp topbar chật</span></div>
+    </div>
+    <div class="stage">
+      <div class="topbar">
+        <div class="tb-row">
+          <button class="tb-back">← Danh sách task</button>
+          <div class="tb-title"><b>R20260924-032905772</b><small>Đối chiếu · HN2 · 18:00-05:00 · Inbound · Đang mở</small></div>
+          <div class="tb-actions">
+            <button class="btn">⧉ Copy mã Ops</button>
+            <button class="btn">Chuyển Tiếp</button>
+            <button class="iconbtn" id="m4btn" aria-pressed="false" title="Ẩn Danh: đang Tắt — bấm để Bật (ẩn task với mọi người)"><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span class="dot"></span></button>
+            <button class="btn finish">Hoàn Thành</button>
+          </div>
+        </div>
+        <div class="tb-hint" id="m4hint">Đang <b class="off">TẮT</b> — task bình thường, mọi người vào điểm danh được.</div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> gọn nhất nhưng phải học quy ước chấm màu — người mới khó hiểu ngay.</div>
+  </section>
+
+  <!-- MAU 5 -->
+  <section class="sample" id="mau-5">
+    <div class="sample-head">
+      <span class="sample-num">05</span>
+      <div><h2>Công tắc + hộp xác nhận khi Bật — chống bật nhầm giữa ca</h2>
+      <p>Tắt thì đổi ngay; Bật thì hiện hộp hỏi lại (“mọi người sẽ không vào task được”) rồi mới ẩn — an toàn nhất khi đang quét dở.</p>
+      <span class="tag">An toàn nhất · chống bật nhầm</span></div>
+    </div>
+    <div class="stage">
+      <div class="topbar">
+        <div class="tb-row">
+          <button class="tb-back">← Danh sách task</button>
+          <div class="tb-title"><b>R20260924-032905772</b><small>Đối chiếu · HN2 · 18:00-05:00 · Inbound · Đang mở</small></div>
+          <div class="tb-actions">
+            <button class="btn">⧉ Copy mã Ops</button>
+            <button class="btn">Chuyển Tiếp</button>
+            <div class="popwrap">
+              <button class="hide-switch" id="m5sw" aria-pressed="false"><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="m5tx">Ẩn Danh: Tắt</span><span class="sw"></span></button>
+              <div class="popover" id="m5pop" role="dialog" aria-label="Xác nhận bật Ẩn Danh">
+                <b>Bật Ẩn Danh?</b>
+                <p>Mọi người sẽ <b>không thấy và không vào</b> task này nữa. Chỉ bạn quét tiếp được.</p>
+                <div class="prow">
+                  <button class="pcancel" id="m5cancel">Để sau</button>
+                  <button class="pok" id="m5ok">Bật ẩn</button>
+                </div>
+              </div>
+            </div>
+            <button class="btn finish">Hoàn Thành</button>
+          </div>
+        </div>
+        <div class="tb-hint" id="m5hint">Đang <b class="off">TẮT</b> — task bình thường, mọi người vào điểm danh được.</div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> chống nhầm lẫn tốt nhất, nhưng thêm 1 bước mỗi lần bật — hợp nếu coi ẩn task là thao tác nhạy cảm.</div>
+  </section>
+
+</main>
+<script>
+  function paintHint(id, on) {
+    document.getElementById(id).innerHTML = on
+      ? 'Đang <b class="on">BẬT</b> — task đã ẩn với mọi người, không vào được.'
+      : 'Đang <b class="off">TẮT</b> — task bình thường, mọi người vào điểm danh được.';
+  }
+  // Mau 1
+  (function () {
+    var sw = document.getElementById('m1sw'), tx = document.getElementById('m1tx');
+    sw.addEventListener('click', function () {
+      var on = sw.classList.toggle('on');
+      sw.setAttribute('aria-pressed', on ? 'true' : 'false');
+      tx.textContent = on ? 'Ẩn Danh: Bật' : 'Ẩn Danh: Tắt';
+      paintHint('m1hint', on);
+    });
+  })();
+  // Mau 2
+  (function () {
+    var b = document.getElementById('m2btn'), tx = document.getElementById('m2tx');
+    b.addEventListener('click', function () {
+      var on = b.classList.toggle('on');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      tx.textContent = on ? 'Ẩn Danh: Bật' : 'Ẩn Danh: Tắt';
+      paintHint('m2hint', on);
+    });
+  })();
+  // Mau 3
+  (function () {
+    var pub = document.getElementById('m3pub'), hide = document.getElementById('m3hide');
+    pub.addEventListener('click', function () {
+      pub.classList.add('on-pub'); hide.classList.remove('on-hide');
+      document.getElementById('m3hint').innerHTML = 'Đang <b class="off">Công khai</b> — task bình thường, mọi người vào điểm danh được.';
+    });
+    hide.addEventListener('click', function () {
+      hide.classList.add('on-hide'); pub.classList.remove('on-pub');
+      document.getElementById('m3hint').innerHTML = 'Đang <b class="on">Ẩn Danh</b> — task đã ẩn với mọi người, không vào được.';
+    });
+  })();
+  // Mau 4
+  (function () {
+    var b = document.getElementById('m4btn');
+    b.addEventListener('click', function () {
+      var on = b.classList.toggle('on');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.title = on ? 'Ẩn Danh: đang Bật — bấm để Tắt (hiện lại cho mọi người)' : 'Ẩn Danh: đang Tắt — bấm để Bật (ẩn task với mọi người)';
+      paintHint('m4hint', on);
+    });
+  })();
+  // Mau 5
+  (function () {
+    var sw = document.getElementById('m5sw'), tx = document.getElementById('m5tx'), pop = document.getElementById('m5pop');
+    function setOn(on) {
+      sw.classList.toggle('on', on);
+      sw.setAttribute('aria-pressed', on ? 'true' : 'false');
+      tx.textContent = on ? 'Ẩn Danh: Bật' : 'Ẩn Danh: Tắt';
+      paintHint('m5hint', on);
+    }
+    sw.addEventListener('click', function () {
+      if (sw.classList.contains('on')) setOn(false);
+      else pop.classList.add('show');
+    });
+    document.getElementById('m5ok').addEventListener('click', function () { pop.classList.remove('show'); setOn(true); });
+    document.getElementById('m5cancel').addEventListener('click', function () { pop.classList.remove('show'); });
+  })();
+</script>
+</body>
+</html>
