@@ -42,9 +42,11 @@ test('js.html: mo modal reset TAT + dashboard loc task an', () => {
   assert.ok(html.includes('_dashTasks = visibleTasks(tasks)'), 'renderDash phai loc truoc khi gan _dashTasks');
 });
 
-test('js.html: badge An cho task an cua minh (bang + card mobile)', () => {
+test('js.html: badge An cho task an cua minh (bang + card mobile), tat khi Ket Thuc', () => {
   const hits = html.split("badge hidden").length - 1;
   assert.ok(hits >= 2, 'phai co badge An o ca renderTaskList lan taskCardHTML, thay ' + hits);
+  const guards = html.split("if (t.isHidden && t.status !== TASK_STATUS_C.DONE)").length - 1;
+  assert.ok(guards >= 2, 'badge An chi hien khi DANG MO (ca 2 noi render), thay ' + guards);
 });
 
 test('khoi TASK-HIDE chi phu thuoc DOM/localStorage (khong goi google/window/fetch)', () => {
@@ -90,6 +92,7 @@ function resetStubs() {
   };
 }
 
+global.TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 const ctx = vm.runInThisContext(
   '(function () {\n' + block + '\nreturn { toggleHideRow, isHideRowOn, setHideRow, getMyHiddenTasks, rememberHiddenTask, visibleTasks };\n})()'
 );
@@ -131,6 +134,17 @@ test('visibleTasks: an task la cua nguoi khac, giu task minh + task thuong', () 
   ];
   const out = ctx.visibleTasks(tasks).map((t) => t.taskId);
   assert.deepEqual(out, ['R1', 'RMINE', 'R3'], 'loc R2 (an cua nguoi khac), giu lai 3');
+});
+
+test('visibleTasks: task an DA KET THUC -> hien lai nhu thuong cho moi nguoi', () => {
+  resetStubs(); // may khac: khong co taskId trong may minh
+  const tasks = [
+    { taskId: 'R1', isHidden: true, status: 'open' },
+    { taskId: 'R2', isHidden: true, status: 'done' },
+    { taskId: 'R3', isHidden: false, status: 'done' },
+  ];
+  const out = ctx.visibleTasks(tasks).map((t) => t.taskId);
+  assert.deepEqual(out, ['R2', 'R3'], 'chi loc task an DANG MO cua nguoi khac');
 });
 
 test('visibleTasks: localStorage hong -> khong crash, task an deu bi loc', () => {

@@ -65,7 +65,7 @@
 - Station · Ca · Team · Ngày · Loại HĐ
 - Chip filter 1 chạm (kiosk touch)
 - 1 task = 1 tổ hợp `StaffData`
-- **Ẩn Danh** (task Điểm Danh Ca): bật = ẩn khỏi danh sách chung, chỉ thiết bị tạo thấy + badge `Ẩn`
+- **Ẩn Danh** (task Điểm Danh Ca): bật = ẩn khỏi danh sách chung khi đang mở (chỉ thiết bị tạo thấy + badge `Ẩn`); **Hoàn Thành** → hiện lại như thường
 - **meal-move** Station+Team trống → tạo task rỗng rồi paste
 
 </td>
@@ -337,27 +337,27 @@ Mock UI: mở `index.html` trực tiếp — `js.html` tự nạp `mock/mock-goo
 
 ---
 
-## 🧪 Kiểm thử — 531 tests
+## 🧪 Kiểm thử — 532 tests
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node-424%2F424-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Node-425%2F425-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Python-95%2F95-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Chrome-12%2F12-brightgreen?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/total-531%20passing-188038?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/total-532%20passing-188038?style=for-the-badge" />
 </p>
 
 **Workflow chuẩn trước push (§19 AGENTS.md):**
 
 ```bash
 npm run build:local
-npm test              # 424/424 pass — 34 files
+npm test              # 425/425 pass — 34 files
 npm run test:py       # 95/95 pass — 5 files api/test_*.py
 npm run test:chrome   # 12/12 pass (khi đổi UI/scan/mock) — cần Node ≥22 + Chrome
 ```
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 34 file, 424 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR/drift/task-hide | **Mọi commit** |
+| `npm test` | 34 file, 425 tests `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke `.gs` + camera/OCR/drift/task-hide | **Mọi commit** |
 | `npm run test:py` | 95 tests `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run test:chrome` | 12 checks CDP — boot `index.local.html` + mock → task list 30 rows / openScan 6 rows · quét `Ops229444` S+1/A-1 / trùng / Dư+1 / backToList | Đổi **UI/scan/mock** |
 | `npm run check:drift` | guard `KHỚP server` + dead code — audit duplicate client/server | Sau khi tạo hàm mới |

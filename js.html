@@ -765,7 +765,10 @@
     var mine = {};
     getMyHiddenTasks().forEach(function (id) { mine[id] = true; });
     return (tasks || []).filter(function (t) {
-      return !t.isHidden || mine[t.taskId];
+      if (!t.isHidden) return true;
+      // An Danh chi an khi task DANG MO — Ket Thuc thi hien lai nhu thuong.
+      if (t.status === TASK_STATUS_C.DONE) return true;
+      return !!mine[t.taskId];
     });
   }
   // ===== TASK-HIDE-END =====
@@ -1108,7 +1111,7 @@
   // desktop — 1 nguồn task data, chỉ khác hình thức trình bày.
   function taskCardHTML(t) {
     var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
-    if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
+    if (t.isHidden && t.status !== TASK_STATUS_C.DONE) statusBadge += ' <span class="badge hidden">Ẩn</span>';
     var action = t.status === TASK_STATUS_C.OPEN
       ? '<button class="btn btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>'
       : '<button class="btn btn-ghost btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>';
@@ -1181,7 +1184,7 @@
       var idx = start + i;
       var tr = document.createElement('tr');
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
-      if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
+      if (t.isHidden && t.status !== TASK_STATUS_C.DONE) statusBadge += ' <span class="badge hidden">Ẩn</span>';
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +
