@@ -68,6 +68,26 @@ class TestServices(unittest.TestCase):
         })
         self.assertFalse(services.get_task_detail(r2["taskId"])["task"]["isHidden"])
 
+    def test_update_task_hidden_on_off(self):
+        task_id = self._create_task()
+        r = services.update_task_hidden(task_id, True)
+        self.assertTrue(r["ok"])
+        self.assertTrue(r["isHidden"])
+        self.assertTrue(services.get_task_detail(task_id)["task"]["isHidden"])
+        r2 = services.update_task_hidden(task_id, False)
+        self.assertTrue(r2["ok"])
+        self.assertFalse(r2["isHidden"])
+        self.assertFalse(services.get_task_detail(task_id)["task"]["isHidden"])
+
+    def test_update_task_hidden_rejects_missing_and_done(self):
+        r = services.update_task_hidden("NOPE", True)
+        self.assertFalse(r["ok"])
+        task_id = self._create_task()
+        services.complete_task(task_id)
+        r2 = services.update_task_hidden(task_id, True)
+        self.assertFalse(r2["ok"])
+        self.assertIn("kết thúc", r2["message"])
+
     def test_scan_flow_present_duplicate_extra(self):
         task_id = self._create_task()
         r1 = services.scan_staff(task_id, "Ops001")

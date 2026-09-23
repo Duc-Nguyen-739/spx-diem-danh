@@ -682,7 +682,7 @@
   function applyTaskFilter(code, tasks) {
     _taskFilterStaff = String(code || '').trim();
     _taskPage = 1;
-    renderTaskList(tasks || []);
+    renderTaskList(visibleTasks(tasks));
     var skel = document.getElementById('taskSkeleton');
     if (skel) skel.style.display = 'none';
   }
@@ -761,15 +761,36 @@
   function toggleHideRow() {
     setHideRow(!isHideRowOn());
   }
+  function forgetHiddenTask(taskId) {
+    if (!taskId) return;
+    try {
+      var list = getMyHiddenTasks().filter(function (id) { return id !== taskId; });
+      localStorage.setItem(HIDE_MINE_KEY, JSON.stringify(list.slice(0, HIDE_MINE_MAX)));
+    } catch (e) {}
+  }
+  // May nay co bi chan khoi task khong (task an + dang mo + khong phai may tao).
+  function isHiddenFromMe(t) {
+    if (!t || !t.isHidden) return false;
+    // An Danh chi an khi task DANG MO — Ket Thuc thi hien lai nhu thuong.
+    if (t.status === TASK_STATUS_C.DONE) return false;
+    return getMyHiddenTasks().indexOf(t.taskId) === -1;
+  }
   function visibleTasks(tasks) {
-    var mine = {};
-    getMyHiddenTasks().forEach(function (id) { mine[id] = true; });
-    return (tasks || []).filter(function (t) {
-      if (!t.isHidden) return true;
-      // An Danh chi an khi task DANG MO — Ket Thuc thi hien lai nhu thuong.
-      if (t.status === TASK_STATUS_C.DONE) return true;
-      return !!mine[t.taskId];
-    });
+    return (tasks || []).filter(function (t) { return !isHiddenFromMe(t); });
+  }
+  // Nut topbar man quet (mau 1): chi task DANG MO moi co nut.
+  function setHideTopbar(on, canToggle) {
+    var b = document.getElementById('btnHideTask');
+    if (!b) return;
+    b.hidden = !canToggle;
+    b.classList.toggle('on', !!on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    var tx = document.getElementById('hideTopbarTx');
+    if (tx) tx.textContent = on ? 'Ẩn Danh: Bật' : 'Ẩn Danh: Tắt';
+  }
+  function syncHideTopbar(task) {
+    if (!task) { setHideTopbar(false, false); return; }
+    setHideTopbar(!!task.isHidden, task.status === TASK_STATUS_C.OPEN);
   }
   // ===== TASK-HIDE-END =====
   function openCreateModal() {
@@ -1530,9 +1551,11 @@
     startAutoFocusLoop();
     // P2 (SWR an toàn): vừa xem task này xong (<15s) → render NGAY từ bộ nhớ,
     // KHÔNG spinner + RPC nền sync im lặng — hết chờ đợi khi quay lại mở cùng task.
+    // Ngoại lệ: task An Danh của người khác — BỎ cache, đi đường RPC để gate chặn.
     if (CURRENT_TASK && CURRENT_TASK.taskId === taskId
         && LAST_SCAN_VIEW.taskId === taskId
-        && Date.now() - LAST_SCAN_VIEW.ts < SCAN_CACHE_TTL_MS) {
+        && Date.now() - LAST_SCAN_VIEW.ts < SCAN_CACHE_TTL_MS
+        && !isHiddenFromMe(CURRENT_TASK)) {
       renderScanView({ task: CURRENT_TASK, log: CURRENT_LOG, counters: CURRENT_COUNTERS });
       hideLoadingOverlay();  // phòng nếu overlay còn từ lần trước
       loadTaskDetail(taskId, true);  // RPC nền — sync dữ liệu mới nhất (nếu có thay đổi)
@@ -1620,6 +1643,7 @@
     var camBtn = byId('btnCamScan');
     if (camBtn) camBtn.disabled = !canScan;
     updateFinishBtnState();
+    syncHideTopbar(data.task);
     renderTransferBanner();
     try { if (typeof syncTransferredCacheIfNeeded === 'function') syncTransferredCacheIfNeeded(); } catch (e) {}
     if (canScan && !window.__RC_CAM_OPEN__) {
@@ -1643,6 +1667,7 @@
       if (empty) empty.style.display = 'none';
       CURRENT_TASK = null;
       CURRENT_LOG = [];
+      syncHideTopbar(null);
       byId('scanTaskTitle').textContent = 'Đang tải…';
       byId('scanTaskMeta').textContent = '';
       byId('scanInput').value = '';
@@ -1670,6 +1695,12 @@
           return;
         }
         if (!res.ok) { if (!silent) { showToast(res.message, true); backToList(); } return; }
+        // Task An Danh (dang mo, khong phai may tao) -> khong cho vao.
+        if (res.task && isHiddenFromMe(res.task)) {
+          hideLoadingOverlay();
+          if (!silent) { showToast('Task đang Ẩn Danh — chỉ người tạo mở được', true); backToList(); }
+          return;
+        }
         renderScanView(res);
         LAST_SCAN_VIEW = { taskId: taskId, ts: Date.now() };
         hideLoadingOverlay();  // P2: load xong → ẩn spinner
@@ -3696,6 +3727,32 @@ if (res.timeScanText) item.target.timeScanText = res.timeScanText;
     );
   }
 
+  // Nut topbar An Danh (mau 1): lat co isHidden cua task DANG MO qua server.
+  function toggleTaskHidden() {
+    if (typeof BUSY !== 'undefined' && BUSY) return;
+    var t = (typeof CURRENT_TASK !== 'undefined') ? CURRENT_TASK : null;
+    if (!t || !t.taskId || t.status !== TASK_STATUS_C.OPEN) return;
+    var to = !t.isHidden;
+    setHideTopbar(to, true); // lac quan — sai thi revert o duoi
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res && res.ok) {
+          CURRENT_TASK.isHidden = !!res.isHidden;
+          if (res.isHidden) rememberHiddenTask(t.taskId);
+          else forgetHiddenTask(t.taskId);
+          setHideTopbar(!!res.isHidden, true);
+          showToast(res.message, false);
+        } else {
+          setHideTopbar(!!t.isHidden, true);
+          showToast((res && res.message) || 'Lỗi đổi Ẩn Danh', true);
+        }
+      })
+      .withFailureHandler(function (err) {
+        setHideTopbar(!!t.isHidden, true);
+        showToast('Lỗi đổi Ẩn Danh: ' + err.message, true);
+      })
+      .updateTaskHiddenApi(t.taskId, to);
+  }
   function finishTask() {
     if (BUSY || !CURRENT_TASK) return;
     // P1: chặn Kết thúc khi scan đang chờ server (SCAN_PROCESSING) hoặc trong queue —

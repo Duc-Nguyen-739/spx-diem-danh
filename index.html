@@ -184,6 +184,7 @@
       <button class="btn btn-copy-ops" id="btnCopyOps" type="button" onclick="copyAllOpsCodes()" hidden aria-label="Copy toàn bộ mã Ops trong task">⧉ Copy mã Ops</button>
       <button class="btn btn-reopen" id="btnReopen" type="button" onclick="reopenCurrentTask()" hidden aria-label="Mở lại task">↺ Mở Lại</button>
       <button class="btn btn-transfer" id="btnTransferList" type="button" onclick="transferPresentListToMealMove()" hidden aria-label="Chuyển tiếp danh sách Có Mặt/Dư sang task Ra/Vào">Chuyển Tiếp <span class="transfer-cnt" id="transferCnt" hidden>0</span></button>
+      <button class="btn btn-hide-task" id="btnHideTask" type="button" onclick="toggleTaskHidden()" hidden aria-pressed="false" aria-label="Bật hoặc tắt Ẩn Danh cho task này"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="hideTopbarTx">Ẩn Danh: Tắt</span><span class="sw" aria-hidden="true"></span></button>
       <button class="btn" id="btnFinish" onclick="finishTask()" aria-label="Hoàn Thành">Hoàn Thành</button>
     </div>
     <!-- Ghi chú NGOÀI scan-topbar (2026-08-18): trước đây nằm trong topbar sticky —

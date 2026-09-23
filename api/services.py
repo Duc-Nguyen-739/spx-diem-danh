@@ -415,6 +415,26 @@ def reopen_task(task_id):
         _lock.release()
 
 
+def update_task_hidden(task_id, is_hidden):
+    """Bật/Tắt Ẩn Danh cho task ĐANG MỞ (mirror TaskService.gs updateTaskHidden)."""
+    if not task_id:
+        return {"ok": False, "message": "Thiếu taskId"}
+    hidden = is_hidden is True
+    if not _lock.acquire(timeout=10):
+        return {"ok": False, "message": _BUSY_MSG}
+    try:
+        task = database.read_task(task_id)
+        if not task:
+            return {"ok": False, "message": "Không tìm thấy task"}
+        if task["status"] != config.TASK_STATUS["OPEN"]:
+            return {"ok": False, "message": "Task đã kết thúc — không đổi Ẩn Danh được"}
+        database.update_task_hidden(task_id, hidden)
+        return {"ok": True, "isHidden": hidden,
+                "message": "Đã bật Ẩn Danh" if hidden else "Đã tắt Ẩn Danh"}
+    finally:
+        _lock.release()
+
+
 def update_task_note(task_id, note):
     if not task_id:
         return {"ok": False, "message": "Thiếu taskId"}

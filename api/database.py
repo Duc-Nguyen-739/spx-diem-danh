@@ -132,6 +132,20 @@ def insert_task(task):
     invalidate_task_detail_cache(task.get("taskId", ""))
 
 
+def update_task_hidden(task_id, is_hidden):
+    """Bật/Tắt Ẩn Danh 1 ô IS_HIDDEN (mirror TaskService.gs updateTaskHidden)."""
+    c = config.TASK_COLS
+    r = _find_task_row(task_id)
+    if not r:
+        return False
+    sheets.update_values(config.SHEETS["ATTENDANCE_TASK"], r, c["IS_HIDDEN"] + 1,
+                         [[True if is_hidden is True else False]])
+    invalidate_task_list_cache()
+    invalidate_task_cache(task_id)
+    invalidate_task_detail_cache(task_id)
+    return True
+
+
 def update_task_note(task_id, note, row_index=None):
     c = config.TASK_COLS
     r = row_index if row_index is not None else _find_task_row(task_id)

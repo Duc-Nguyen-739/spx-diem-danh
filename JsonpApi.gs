@@ -34,6 +34,7 @@ var API_ACTIONS_ = {
   completeTaskApi: 'completeTaskApi',
   reopenTaskApi: 'reopenTaskApi',
   updateTaskNoteApi: 'updateTaskNoteApi',
+  updateTaskHiddenApi: 'updateTaskHiddenApi',
   searchStaffApi: 'searchStaffApi',
   getStaffIndexApi: 'getStaffIndexApi',
 };

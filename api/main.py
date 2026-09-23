@@ -49,6 +49,7 @@ API_ACTIONS = {
     "completeTaskApi": (services.complete_task, 1),
     "reopenTaskApi": (services.reopen_task, 1),
     "updateTaskNoteApi": (services.update_task_note, 2),
+    "updateTaskHiddenApi": (services.update_task_hidden, 2),
     "searchStaffApi": (services.search_staff, 1),
     "getStaffIndexApi": (services.get_staff_index, 0),
     # probe: KHÔNG dùng bởi frontend — test kết nối service account + đọc sheet

@@ -309,12 +309,12 @@ Chi tiết: `README.md`, `docs/intent/diem-danh-hn2-soc.md`, `docs/spec/2026-08-
 
 | Lệnh | Chạy gì | Khi nào bắt buộc |
 | :--- | :------ | :--------------- |
-| `npm test` | 425 test JS (34 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file `.gs` + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
-| `npm run test:py` | 95 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
+| `npm test` | 432 test JS (34 file, Node `node:test` — ScanLogic/CsvUtil/TaskSearch + smoke 10 file `.gs` + contract mock↔server) — `node --test tests/*.test.js` (glob, tránh sót file) | Mọi commit |
+| `npm run test:py` | 97 test Python (`python3 -m unittest discover -s api -p 'test_*.py'`) — `api/database.py`/`scanlogic.py`/`services.py` mirror GAS | Đổi `*.gs`/`api/*.py` |
 | `npm run build:local` | `scripts/build-local.js` gộp GAS template `index.html` (`<?!= include() ?>` → `css/js/mobile/lib/camera`) → `index.local.html` cho `file://` | Trước `test:chrome` |
 | `npm run test:chrome` | `scripts/test-local-mock.js` — boot Chrome `--headless=new --remote-debugging-port=9222` (tự spawn nếu chưa có) → mở `file://index.local.html` → mock `google.script.run` → 12 check: load mock / task list 30 rows / openScan 6 rows S:3 A:3 E:1 / quét `Ops229444` S+1 A-1 / trùng / Dư+1 / backToList — yêu cầu Node ≥22 (global `WebSocket`), Chrome `google-chrome` | Đổi UI/scan/mock |
 
-> Tổng test hiện tại: 425 JS + 95 Python + 12 Chrome = **532 test** (425 `node:test` + 95 `unittest` + 12 `test:chrome`).
+> Tổng test hiện tại: 432 JS + 97 Python + 12 Chrome = **541 test** (432 `node:test` + 97 `unittest` + 12 `test:chrome`).
 
 **Workflow chuẩn trước push:** `build:local` → `npm test` → `test:py` → `test:chrome` (nếu đổi UI) → commit → push. Không claim pass khi chưa có số liệu (luật 4). `index.local.html` đã `.gitignore`/`.claspignore`.
 

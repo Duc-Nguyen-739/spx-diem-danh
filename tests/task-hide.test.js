@@ -77,13 +77,16 @@ function makeRowEl() {
   return el;
 }
 
-let rowEl, hintEl, store;
+let rowEl, hintEl, topBtn, topTx, store;
 function resetStubs() {
   rowEl = makeRowEl();
   hintEl = { textContent: '' };
+  topBtn = makeRowEl();
+  topBtn.hidden = true;
+  topTx = { textContent: '' };
   store = {};
   global.document = {
-    getElementById: (id) => ({ hideRow: rowEl, hideHint: hintEl }[id] || null),
+    getElementById: (id) => ({ hideRow: rowEl, hideHint: hintEl, btnHideTask: topBtn, hideTopbarTx: topTx }[id] || null),
   };
   global.localStorage = {
     getItem: (k) => (k in store ? store[k] : null),
@@ -94,7 +97,7 @@ function resetStubs() {
 
 global.TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
 const ctx = vm.runInThisContext(
-  '(function () {\n' + block + '\nreturn { toggleHideRow, isHideRowOn, setHideRow, getMyHiddenTasks, rememberHiddenTask, visibleTasks };\n})()'
+  '(function () {\n' + block + '\nreturn { toggleHideRow, isHideRowOn, setHideRow, getMyHiddenTasks, rememberHiddenTask, forgetHiddenTask, isHiddenFromMe, visibleTasks, setHideTopbar, syncHideTopbar };\n})()'
 );
 
 test('toggleHideRow: mac dinh TAT -> bat 1 lan -> ON + aria + hint', () => {
@@ -147,6 +150,39 @@ test('visibleTasks: task an DA KET THUC -> hien lai nhu thuong cho moi nguoi', (
   assert.deepEqual(out, ['R2', 'R3'], 'chi loc task an DANG MO cua nguoi khac');
 });
 
+test('isHiddenFromMe: an+mở+may khac -> chan; cac truong hop con lai -> cho qua', () => {
+  resetStubs();
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open' }), true, 'an cua nguoi khac -> chan');
+  ctx.rememberHiddenTask('R1');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open' }), false, 'may minh -> qua');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done' }), false, 'Ket Thuc -> qua');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R3', isHidden: false, status: 'open' }), false, 'khong an -> qua');
+  assert.equal(ctx.isHiddenFromMe(null), false, 'null -> qua');
+});
+
+test('forgetHiddenTask: tat An Danh -> xoa khoi may minh', () => {
+  resetStubs();
+  ctx.rememberHiddenTask('R1');
+  ctx.forgetHiddenTask('R1');
+  assert.deepEqual(ctx.getMyHiddenTasks(), [], 'da xoa');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open' }), true, 'xoa xong -> lai bi chan');
+});
+
+test('setHideTopbar/syncHideTopbar: nut chi hien khi task DANG MO', () => {
+  resetStubs();
+  ctx.syncHideTopbar({ taskId: 'R1', isHidden: false, status: 'open' });
+  assert.equal(topBtn.hidden, false, 'task mo -> co nut');
+  assert.equal(topTx.textContent, 'Ẩn Danh: Tắt');
+  ctx.syncHideTopbar({ taskId: 'R1', isHidden: true, status: 'open' });
+  assert.ok(topBtn.classList.contains('on'), 'dang an -> nut ON');
+  assert.equal(topTx.textContent, 'Ẩn Danh: Bật');
+  assert.equal(topBtn.attrs['aria-pressed'], 'true');
+  ctx.syncHideTopbar({ taskId: 'R1', isHidden: true, status: 'done' });
+  assert.equal(topBtn.hidden, true, 'Ket Thuc -> an nut');
+  ctx.syncHideTopbar(null);
+  assert.equal(topBtn.hidden, true, 'null -> an nut');
+});
+
 test('visibleTasks: localStorage hong -> khong crash, task an deu bi loc', () => {
   resetStubs();
   store.rc_myHiddenTasks = 'khong-phai-json{{{';
@@ -161,6 +197,35 @@ const cfgGs = fs.readFileSync(path.join(__dirname, '..', 'Config.gs'), 'utf8');
 const pyCfg = fs.readFileSync(path.join(__dirname, '..', 'api', 'config.py'), 'utf8');
 const pyDb = fs.readFileSync(path.join(__dirname, '..', 'api', 'database.py'), 'utf8');
 const pySvc = fs.readFileSync(path.join(__dirname, '..', 'api', 'services.py'), 'utf8');
+
+test('index.html: nut An Danh topbar nam giua Chuyen Tiep va Hoan Thanh', () => {
+  const t = indexHtml.indexOf('id="btnTransferList"');
+  const h = indexHtml.indexOf('id="btnHideTask"');
+  const f = indexHtml.indexOf('id="btnFinish"');
+  assert.ok(t >= 0 && h > t && f > h, 'thu tu: Chuyen Tiep -> btnHideTask -> Hoan Thanh');
+  assert.ok(indexHtml.includes('onclick="toggleTaskHidden()"'), 'nut goi toggleTaskHidden');
+  assert.ok(indexHtml.includes('id="hideTopbarTx"'), 'co nhan trang thai topbar');
+});
+
+test('js.html: gate chan mo task an + dong bo nut + RPC doi co', () => {
+  assert.ok(html.includes('isHiddenFromMe(res.task)'), 'loadTaskDetail gate truoc renderScanView');
+  assert.ok(html.includes('Task đang Ẩn Danh'), 'toast chan ro rang');
+  assert.ok(html.includes('syncHideTopbar(data.task)'), 'renderScanView dong bo nut');
+  assert.ok(html.includes('renderTaskList(visibleTasks(tasks))'), 'ket qua tim kiem loc task an');
+  assert.ok(html.includes('.updateTaskHiddenApi(t.taskId, to)'), 'toggleTaskHidden goi RPC doi co');
+  assert.ok(html.includes('!isHiddenFromMe(CURRENT_TASK)'), 'nhanh cache openScan cung gate task an');
+});
+
+test('server GAS + Python: API doi co An Danh mirror nhau + whitelist', () => {
+  const codeGs = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
+  const jsonpGs = fs.readFileSync(path.join(__dirname, '..', 'JsonpApi.gs'), 'utf8');
+  const pyMain = fs.readFileSync(path.join(__dirname, '..', 'api', 'main.py'), 'utf8');
+  assert.ok(codeGs.includes('function updateTaskHiddenApi(taskId, isHidden)'), 'Code.gs co API');
+  assert.ok(taskSvc.includes('function updateTaskHidden(taskId, isHidden)'), 'TaskService.gs co nghiep vu');
+  assert.ok(taskSvc.includes('Task đã kết thúc'), 'chi task OPEN doi duoc');
+  assert.ok(jsonpGs.includes('updateTaskHiddenApi'), 'whitelist JSONP co API moi');
+  assert.ok(pyMain.includes('"updateTaskHiddenApi"'), 'whitelist Python co API moi');
+});
 
 test('server GAS + Python: schema isHidden mirror nhau', () => {
   assert.ok(cfgGs.includes('IS_HIDDEN: 11'), 'Config.gs co IS_HIDDEN=11');

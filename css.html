@@ -1262,6 +1262,24 @@
   .btn-copy-ops:active { transform: translateY(0) scale(.97); }
   .btn-copy-ops:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
   .btn-copy-ops[hidden] { display: none; }
+  /* Nut An Danh topbar man quet (mau 1): cong tac — cung hang Copy/Chuyen Tiep/Hoan Thanh */
+  .btn-hide-task {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    background: #fff; color: var(--muted); border: 1.5px solid var(--border);
+    font-weight: 700; white-space: nowrap; padding: 9px 16px; border-radius: 10px;
+    transition: all .18s ease; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  .btn-hide-task svg { width: 17px; height: 17px; }
+  .btn-hide-task .sw { position: relative; flex: 0 0 auto; width: 40px; height: 22px; border-radius: 999px; background: var(--gray-line); transition: background .18s ease; }
+  .btn-hide-task .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .18s ease; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .btn-hide-task.on { background: var(--spx); border-color: var(--spx); color: #fff; box-shadow: 0 3px 10px rgba(238, 77, 45, .35); }
+  .btn-hide-task.on .sw { background: rgba(255, 255, 255, .35); }
+  .btn-hide-task.on .sw::after { left: 20px; }
+  .btn-hide-task:hover { transform: translateY(-1px); }
+  .btn-hide-task:active { transform: translateY(0) scale(.97); }
+  .btn-hide-task[hidden] { display: none; }
+  html[data-theme="dark-hud"] .btn-hide-task { background: var(--ink-6); color: var(--slate); border-color: var(--slate-deep); }
+  html[data-theme="dark-hud"] .btn-hide-task.on { background: var(--spx); border-color: var(--spx); color: #fff; }
   .btn-copy-ops.copied { background: var(--success); border-color: var(--success); color: #fff; animation: copyPulse .42s ease; }
   @keyframes copyPulse { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
   .counter.out .num { color: var(--spx-rust); }

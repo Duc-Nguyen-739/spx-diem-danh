@@ -497,6 +497,41 @@ function updateTaskNote(taskId, note) {
   }
 }
 
+/**
+ * Bật/Tắt Ẩn Danh cho task ĐANG MỞ (nút topbar màn quét, mẫu 1).
+ * Chỉ task OPEN đổi được — DONE hiện lại như thường nên giữ cờ cũ vô nghĩa.
+ * @param {string} taskId
+ * @param {boolean} isHidden
+ * @returns {{ok: boolean, isHidden?: boolean, message: string}}
+ */
+function updateTaskHidden(taskId, isHidden) {
+  if (!taskId) return { ok: false, message: 'Thiếu taskId' };
+  const hidden = isHidden === true;
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, message: 'Hệ thống đang bận — thử lại sau giây lát' };
+  }
+  try {
+    const task = readTask_(taskId);
+    if (!task) return { ok: false, message: 'Không tìm thấy task' };
+    if (task.status !== TASK_STATUS.OPEN) {
+      return { ok: false, message: 'Task đã kết thúc — không đổi Ẩn Danh được' };
+    }
+    const sheet = getSheet_(SHEETS.ATTENDANCE_TASK);
+    // Ghi đúng 1 ô IS_HIDDEN (setValue ngoài lastColumn tự mở rộng — sheet cũ 11 cột an toàn).
+    sheet.getRange(task._rowIndex, TASK_COLS.IS_HIDDEN + 1).setValue(hidden);
+    invalidateTaskListCache_();
+    invalidateTaskCache_(taskId);
+    invalidateTaskDetailCache_(taskId);
+    return { ok: true, isHidden: hidden, message: hidden ? 'Đã bật Ẩn Danh' : 'Đã tắt Ẩn Danh' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /** Lấy chi tiết task + toàn bộ log (cho getTaskDetail API) — có cache 15s. */
 function getTaskDetail(taskId) {
   if (!taskId) return detailError_('Thiếu taskId');

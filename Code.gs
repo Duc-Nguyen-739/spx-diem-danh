@@ -361,6 +361,11 @@ function reopenTaskApi(taskId) {
   return reopenTask(taskId);
 }
 
+/** Bật/Tắt Ẩn Danh của task đang mở (nút topbar màn quét). */
+function updateTaskHiddenApi(taskId, isHidden) {
+  return updateTaskHidden(taskId, isHidden);
+}
+
 /** Cập nhật ghi chú của task (sửa trong task — open/done đều được). */
 function updateTaskNoteApi(taskId, note) {
   return updateTaskNote(taskId, note);

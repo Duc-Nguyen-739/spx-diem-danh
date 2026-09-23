@@ -21,6 +21,9 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'js.html'), 'utf8');
 const m = html.match(/HEADER-SEARCH-START([\s\S]*?)HEADER-SEARCH-END/);
 assert.ok(m, 'js.html phải chứa khối HEADER-SEARCH (đánh dấu HEADER-SEARCH-START/END)');
 const block = m[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== HEADER-SEARCH-END.*$/, '');
+const hm = html.match(/TASK-HIDE-START([\s\S]*?)TASK-HIDE-END/);
+assert.ok(hm, 'js.html phai chua khoi TASK-HIDE (applyTaskFilter loc task an)');
+const hideBlock = hm[1].replace(/^[^\n]*\n/, '').replace(/\n\s*\/\/ ===== TASK-HIDE-END.*$/, '');
 
 // ---- DOM stub tối thiểu ----
 function makeEl() {
@@ -68,11 +71,13 @@ function resetStubs() {
 global.renderTaskList = (tasks) => { renderedTasks = tasks; };
 global.loadTaskList = () => { loadTaskListCalls++; };
 global.esc = (s) => (s === null || s === undefined ? '' : String(s));
+global.TASK_STATUS_C = { OPEN: 'open', DONE: 'done' };
+global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
 // Chạy khối trong CÙNG realm → hàm thấy document/renderTaskList/loadTaskList/esc ở global.
 const { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter, onSearchInputCleared } =
   vm.runInThisContext(
-    '(function () {\n' + block + '\nreturn { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter, onSearchInputCleared };\n})()'
+    '(function () {\n' + hideBlock + '\n' + block + '\nreturn { renderSearchResult, renderSearchMessage, hideSearchResult, clearHeaderSearch, applyTaskFilter, onSearchInputCleared };\n})()'
   );
 
 test('khối HEADER-SEARCH không phụ thuộc google/window/fetch (giữ test được)', () => {
@@ -92,6 +97,14 @@ test('applyTaskFilter: code chỉ trong log (NV Dư) → vẫn lọc theo mã', 
   resetStubs();
   applyTaskFilter('Ops999999', [{ taskId: 'R1' }]);
   assert.deepEqual(renderedTasks, [{ taskId: 'R1' }]);
+});
+
+test('applyTaskFilter: task An Danh cua nguoi khac -> loc khoi ket qua tim kiem', () => {
+  resetStubs();
+  const pub = { taskId: 'R1', isHidden: false, status: 'open' };
+  const hid = { taskId: 'R2', isHidden: true, status: 'open' };
+  applyTaskFilter('Ops237511', [pub, hid]);
+  assert.deepEqual(renderedTasks, [pub], 'task an bi loc, task thuong giu lai');
 });
 
 test('applyTaskFilter: tasks rỗng → renderTaskList([])', () => {

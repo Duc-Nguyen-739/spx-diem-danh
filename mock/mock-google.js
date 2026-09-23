@@ -273,6 +273,14 @@
       var log = getLog(taskId);
       return { ok: true, taskId: taskId, count: log.length, message: 'Tạo task thành công: ' + taskId };
     },
+    updateTaskHiddenApi: function (taskId, isHidden) {
+      var hit = null;
+      MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) hit = t; });
+      if (!hit) return { ok: false, message: 'Không tìm thấy task' };
+      if (hit.status !== 'open') return { ok: false, message: 'Task đã kết thúc — không đổi Ẩn Danh được' };
+      hit.isHidden = isHidden === true;
+      return { ok: true, isHidden: hit.isHidden, message: hit.isHidden ? 'Đã bật Ẩn Danh' : 'Đã tắt Ẩn Danh' };
+    },
     updateTaskNoteApi: function (taskId, note) {
       var hit = null;
       MOCK_DATA.tasks.forEach(function (t) { if (t.taskId === taskId) hit = t; });
