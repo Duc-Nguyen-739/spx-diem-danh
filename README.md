@@ -118,7 +118,7 @@
 </tr>
 </table>
 
-> **Kết thúc task** → dòng chưa quét gán **Vắng** (modal confirm) · `PRESENT` có `timeScan` nhưng `PENDING` sẽ auto-repair → `reopenTask` reset `Vắng→PENDING` · **Dư** linh hoạt — mã ngoài hệ thống vẫn ghi `Dư` không chặn luồng · **Chuyển Danh Sách** (task Ca): lần 1 tạo task Ra/Vào link `SOURCE_TASK_ID` + dồn Có mặt/Dư (giữ task Ca mở, ở lại màn Ca); lần 2+ chỉ thêm NV mới (delta, nút thành `Chuyển Tiếp` + banner link).
+> **Kết thúc task** → dòng chưa quét gán **Vắng** (modal confirm) · `PRESENT` có `timeScan` nhưng `PENDING` sẽ auto-repair → `reopenTask` reset `Vắng→PENDING` · **Dư** linh hoạt — mã ngoài hệ thống vẫn ghi `Dư` không chặn luồng · **Chuyển Danh Sách** (task Ca): lần 1 tạo task Ra/Vào link `SOURCE_TASK_ID` + dồn Có mặt/Dư (giữ task Ca mở, ở lại màn Ca); lần 2+ chỉ thêm NV mới (delta, nút thành `Chuyển Tiếp` + banner link). Sau lần ấn đầu tiên, tự động dồn delta Có mặt/Dư chưa chuyển mỗi 20s (chạy im lặng, chỉ gọi RPC khi còn delta).
 
 ---
 

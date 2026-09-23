@@ -2658,23 +2658,28 @@
   // (CURRENT_LOG) -> server tao target Ra/Vao (lan 1) hoac don delta (lan 2..n),
   // ke thua station + team task hien tai. Man hinh O LAI task Ca. Bam nut
   // "Chuyen Danh Sach" canh Hoan Thanh.
-  function transferPresentListToMealMove() {
+  function transferPresentListToMealMove(isAuto) {
+    var _auto = (isAuto === true);
     if (BUSY) return;
     if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'reconcile') return;
     if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) {
+      if (_auto) { try { stopTransferAutoPoll(); } catch (e) {} return; }
       showToast('Task đã kết thúc — không chuyển được', true);
       return;
     }
     if (scanBusy()) {
+      if (_auto) return;
       showToast('Đang xử lý lượt quét — chờ xong rồi chuyển', true);
       return;
     }
     var input = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT);
     if (!input.staffIds.length) {
+      if (_auto) return;
       showToast('Chưa có nhân viên nào Có mặt/Dư để chuyển', true);
       return;
     }
     if (!canSubmitMealCreate(input.station, input.team)) {
+      if (_auto) return;
       showToast('Task thiếu Station/Team — không tạo được task Ra/Vào', true);
       return;
     }
@@ -2695,9 +2700,10 @@
         if (res.ok && res.taskId) {
           saveTransferTarget(oldTaskId, res.taskId);
           try { if (typeof saveTransferredIds === 'function' && _transferSentIds.length) saveTransferredIds(oldTaskId, _transferSentIds); } catch (e2) {}
-          showToast(res.message, false);
+          if (!(_auto && !(res.added > 0))) showToast(res.message, false);
+          try { startTransferAutoPoll(); } catch (e3) {}
         } else {
-          showToast(res.message, true);
+          if (!_auto) showToast(res.message, true);
         }
         renderTransferBanner();
         updateFinishBtnState();
@@ -2705,9 +2711,68 @@
       .withFailureHandler(function (err) {
         BUSY = false;
         if (btn) btn.disabled = false;
-        showToast('Lỗi chuyển danh sách: ' + err.message, true);
+        if (!_auto) showToast('Lỗi chuyển danh sách: ' + err.message, true);
       })
       .transferPresentListToMealMoveApi(input, oldTaskId, hint);
+  }
+  // Tu dong don delta: sau lan an Chuyen Tiep dau tien, moi 20s tu dong chuyen
+  // NV Co mat/Du chua chuyen sang task Ra/Vao. Chi goi RPC khi con delta chua
+  // chuyen; che do tu dong chay im lang (khong toast khi chua co gi moi).
+  var TRANSFER_AUTO_MS = 20000;
+  var transferAutoTimer = null;
+  function startTransferAutoPoll() {
+    if (transferAutoTimer) return;
+    try {
+      transferAutoTimer = setInterval(function () { transferAutoTick(); }, TRANSFER_AUTO_MS);
+      if (transferAutoTimer && typeof transferAutoTimer.unref === 'function') {
+        try { transferAutoTimer.unref(); } catch (e) {}
+      }
+    } catch (e) { transferAutoTimer = null; }
+  }
+  function stopTransferAutoPoll() {
+    try { if (transferAutoTimer) clearInterval(transferAutoTimer); } catch (e) {}
+    transferAutoTimer = null;
+  }
+  function transferAutoTick() {
+    try {
+      if (!CURRENT_TASK || CURRENT_TASK.taskType !== 'reconcile') return;
+      if (CURRENT_TASK.status !== TASK_STATUS_C.OPEN) return;
+      if (!getTransferTarget(CURRENT_TASK.taskId)) return;
+      if (BUSY) return;
+      if (typeof scanBusy === 'function' && scanBusy()) return;
+      if (typeof document !== 'undefined' && document && document.visibilityState === 'hidden') return;
+      if (typeof byId === 'function') {
+        try {
+          var vs = byId('viewScan');
+          if (vs && vs.classList && vs.classList.contains && vs.classList.contains('hidden')) return;
+        } catch (e) {}
+      }
+      if (typeof isPollBlockingModalOpen === 'function') {
+        try { if (isPollBlockingModalOpen()) return; } catch (e) {}
+      }
+      var pending = 0;
+      try {
+        var input = buildTransferMealInput(CURRENT_TASK, CURRENT_LOG, STATUS_C.PRESENT);
+        var ids = (input && input.staffIds) || [];
+        if (!ids.length) return;
+        var transferred = typeof getTransferredIds === 'function' ? getTransferredIds(CURRENT_TASK.taskId) : [];
+        if (transferred && transferred.length) {
+          var set = {};
+          for (var i = 0; i < transferred.length; i++) {
+            var tn = String(transferred[i] || '').trim().toUpperCase();
+            if (tn) set[tn] = true;
+          }
+          for (var j = 0; j < ids.length; j++) {
+            var nn = String(ids[j] || '').trim().toUpperCase();
+            if (!set[nn]) pending++;
+          }
+        } else {
+          pending = ids.length;
+        }
+      } catch (e) { return; }
+      if (pending <= 0) return;
+      transferPresentListToMealMove(true);
+    } catch (e) {}
   }
   // COPY MÃ OPS (2026-08-25): copy toàn bộ mã Ops trong task hiện tại (cả reconcile + meal-move)
   // Nút nằm cùng hàng Hoàn Thành/Chuyển Tiếp — dùng cho cả task open/done.
