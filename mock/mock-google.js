@@ -267,6 +267,7 @@
         taskId: taskId, taskType: 'reconcile', station: input.station, slotCode: input.slotCode,
         team: input.team, date: (input && input.date) || '', status: 'open', createdBy: 'web', createdAtText: '2026-08-02 09:00:00',
         note: String((input && input.note) || ''),
+        isHidden: !!(input && input.isHidden),
       };
       MOCK_DATA.tasks.unshift(task);
       var log = getLog(taskId);

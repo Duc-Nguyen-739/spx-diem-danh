@@ -22,7 +22,7 @@ function makeTaskId_(now) {
 
 /**
  * Tạo task đối chiếu (reconcile) + pre-fill log.
- * @param {{station: string, slotCode: string, team: string, createdBy: string, note?: string}} input
+ * @param {{station: string, slotCode: string, team: string, createdBy: string, note?: string, isHidden?: boolean}} input
  * @returns {{ok: boolean, taskId: string|null, count: number, message: string}}
  */
 function createReconcileTask(input) {
@@ -51,6 +51,8 @@ function createReconcileTask(input) {
   if (createdBy === 'web') createdBy = String((input && input.createdBy) || '').trim() || 'web';
   // Ghi chú (optional) — người tạo thêm khi tạo task; sửa được sau qua updateTaskNote.
   const note = String((input && input.note) || '').trim();
+  // An Danh (nut trong modal Diem Danh Ca): true = an khoi danh sach chung.
+  const isHidden = !!(input && input.isHidden);
 
   if (!station || !filterSlots.length || !filterTeams.length) {
     return { ok: false, taskId: null, count: 0, message: 'Thiếu station/slotCode/team' };
@@ -103,6 +105,7 @@ function createReconcileTask(input) {
       createdBy: createdBy,
       completedAt: null,
       note: note,
+      isHidden: isHidden,
     };
     // P2-7: nguyên tử — nếu pre-fill fail, đóng task vừa tạo để không để lại task ma OPEN 0 dòng
     try {

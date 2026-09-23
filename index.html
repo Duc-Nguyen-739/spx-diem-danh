@@ -369,6 +369,15 @@
       <textarea id="noteInput" rows="2" placeholder="VD: Ca đặc biệt, tổ hợp chuyển kho, NV thêm giờ…" aria-label="Ghi chú task"></textarea>
     </div>
 
+    <div class="create-section" id="hideSectionReconcile">
+      <div class="create-section-label"><span class="create-step-num">👁</span> Hiển thị task</div>
+      <div class="hide-row" id="hideRow" role="switch" aria-checked="false" tabindex="0" onclick="toggleHideRow(event)" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleHideRow(event);}">
+        <span class="hide-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <span class="hide-txt"><b>Ẩn Danh</b><small id="hideHint">Đang tắt — mọi người đều thấy task này</small></span>
+        <span class="sw" aria-hidden="true"></span>
+      </div>
+    </div>
+
     <div class="create-actions">
       <button type="button" class="btn btn-ghost" onclick="closeCreateModal()">Huỷ</button>
       <button type="button" class="btn btn-create-submit" id="btnCreateSubmit" onclick="createTask()">+ Tạo task</button>

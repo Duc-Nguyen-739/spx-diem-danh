@@ -101,7 +101,7 @@ STAFF_HEADER = ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency'
                 'Actual Hours', 'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation',
                 'Team', 'Station']
 
-TASK_HEADER = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']
+TASK_HEADER = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId', 'isHidden']
 LOG_HEADER = ['taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
               'timeRef', 'timeScan', 'status', 'date', 'timeRa', 'agency']
 
@@ -212,6 +212,32 @@ class TestDatabase(unittest.TestCase):
         tasks = database.read_task_list()
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["taskId"], "R20260803-0900")
+
+    def test_insert_and_read_hidden_task(self):
+        now = datetime.datetime(2026, 8, 3, 9, 0, 0, tzinfo=datetime.timezone.utc)
+        database.insert_task({
+            "taskId": "R-HIDE", "taskType": "reconcile", "station": "HN2 SOC",
+            "slotCode": "08:00-17:00", "team": "Outbound", "status": "open",
+            "createdAt": now, "createdBy": "web", "completedAt": None, "note": "",
+            "isHidden": True,
+        })
+        database.insert_task({
+            "taskId": "R-SHOW", "taskType": "reconcile", "station": "HN2 SOC",
+            "slotCode": "08:00-17:00", "team": "Outbound", "status": "open",
+            "createdAt": now, "createdBy": "web", "completedAt": None, "note": "",
+        })
+        self.assertTrue(database.read_task("R-HIDE")["isHidden"])
+        self.assertFalse(database.read_task("R-SHOW")["isHidden"])
+        by_id = {t["taskId"]: t for t in database.read_task_list()}
+        self.assertTrue(by_id["R-HIDE"]["isHidden"])
+        self.assertFalse(by_id["R-SHOW"]["isHidden"])
+
+    def test_legacy_11col_row_reads_as_visible(self):
+        # Sheet cu 11 cot (thieu o isHidden) -> False = hien thi (fail-open).
+        self.fake.set_sheet(config.SHEETS["ATTENDANCE_TASK"], [TASK_HEADER,
+            ["R-OLD", "reconcile", "HN2 SOC", "08:00-17:00", "Outbound", "open",
+             "2026-08-03T09:00:00", "web", "", "", ""]])
+        self.assertFalse(database.read_task("R-OLD")["isHidden"])
 
     def test_formula_injection_sanitized_on_write(self):
         """A1: chuỗi text client bắt đầu bằng ký tự công thức phải bị prefix `'` khi

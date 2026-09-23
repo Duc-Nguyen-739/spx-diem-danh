@@ -50,6 +50,24 @@ class TestServices(unittest.TestCase):
         self.assertEqual(len(detail["log"]), 2)  # OPS001 + OPS002 (Outbound 08:00-17:00)
         self.assertEqual(detail["counters"]["total"], 2)
 
+    def test_create_reconcile_hidden_task(self):
+        r = services.create_reconcile_task({
+            "station": "HN2 SOC", "slotCode": ["08:00-17:00"], "team": ["Outbound"],
+            "contractType": ["FTE", "BPO"], "createdBy": "web", "note": "",
+            "isHidden": True,
+        })
+        self.assertTrue(r["ok"], r.get("message"))
+        detail = services.get_task_detail(r["taskId"])
+        self.assertTrue(detail["task"]["isHidden"])
+        by_id = {t["taskId"]: t for t in services.list_tasks()["tasks"]}
+        self.assertTrue(by_id[r["taskId"]]["isHidden"])
+        # Mac dinh (khong truyen) -> hien thi nhu cu.
+        r2 = services.create_reconcile_task({
+            "station": "HN2 SOC", "slotCode": ["08:00-17:00"], "team": ["Outbound"],
+            "contractType": ["FTE", "BPO"], "createdBy": "web", "note": "",
+        })
+        self.assertFalse(services.get_task_detail(r2["taskId"])["task"]["isHidden"])
+
     def test_scan_flow_present_duplicate_extra(self):
         task_id = self._create_task()
         r1 = services.scan_staff(task_id, "Ops001")

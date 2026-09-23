@@ -94,6 +94,8 @@ def create_reconcile_task(input_):
     filter_contracts = list(inp.get("contractType")) if isinstance(inp.get("contractType"), (list, tuple)) else ([contract_type] if contract_type else [])
     created_by = str(inp.get("createdBy") or "").strip() or "web"
     note = str(inp.get("note") or "").strip()
+    # An Danh (nut trong modal Diem Danh Ca): True = an khoi danh sach chung.
+    is_hidden = bool(inp.get("isHidden"))
 
     if not station or not filter_slots or not filter_teams:
         return {"ok": False, "taskId": None, "count": 0, "message": "Thiếu station/slotCode/team"}
@@ -128,6 +130,7 @@ def create_reconcile_task(input_):
             "station": station, "slotCode": slot_code, "team": team,
             "status": config.TASK_STATUS["OPEN"], "createdAt": now,
             "createdBy": created_by, "completedAt": None, "note": note,
+            "isHidden": is_hidden,
         }
         try:
             database.insert_task(task)

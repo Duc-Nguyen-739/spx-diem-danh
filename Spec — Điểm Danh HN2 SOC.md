@@ -83,6 +83,7 @@ Created → CheckIn → CheckOut → Closed
 - Gắn nhiều Slot Code (checkbox selection)
 - Gắn nhiều Team (checkbox selection)
 - Default: Tất cả Slot Codes + Teams được chọn
+- **Ẩn Danh** (task Điểm Danh Ca): bật = ẩn khỏi danh sách chung, chỉ thiết bị tạo thấy + badge `Ẩn` (cột `isHidden` sheet AttendanceTask)
 
 ### 4.3 Phân quyền
 
@@ -170,6 +171,7 @@ Task được tạo **trên Google Sheet**:
 | Task Type         | Handover / Attendance                 |
 | Allowed Slotcodes | Các Slot Code được phép               |
 | Allowed Teams     | Các Team được phép                    |
+| isHidden          | Ẩn Danh — true = ẩn khỏi danh sách chung |
 
 #### Sheet 3: AttendanceLog
 

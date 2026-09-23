@@ -497,6 +497,7 @@
     .badge.open    { background: rgba(46, 204, 113, .14); color: var(--ok-leaf); }
     .badge.done    { background: rgba(127, 142, 163, .14); color: var(--slate); }
     .badge.tt-ca   { background: rgba(26, 107, 224, .13); color: var(--link); border: 1px solid rgba(26,107,224,.35); }
+    .badge.hidden { background: rgba(238, 77, 45, .14); color: var(--spx-tangerine); border: 1px solid rgba(238,77,45,.4); }
     .badge.tt-meal { background: rgba(67, 160, 71, .13); color: var(--leaf-2); border: 1px solid rgba(67,160,71,.38); }
 
     /* ===== Scan input ===== */
@@ -1163,6 +1164,21 @@
     .create-dialog textarea:focus { outline: 2px solid rgba(255, 138, 92, .45); border-color: var(--spx-tangerine); }
     .create-dialog textarea::placeholder { color: var(--slate-mid); }
     .create-dialog .note-optional { font-weight: 400; color: var(--slate-mid); text-transform: none; letter-spacing: 0; }
+    .create-dialog .hide-row { display: flex; align-items: center; gap: var(--space-3); background: var(--ink); border: 1px solid var(--slate-deep); border-radius: 10px; padding: var(--space-3) var(--space-4); margin-top: var(--space-3); cursor: pointer; }
+    .create-dialog .hide-row.on { border-color: var(--spx); background: rgba(238, 77, 45, .08); }
+    .create-dialog .hide-ic { position: relative; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; background: var(--ink-6); color: var(--slate); display: flex; align-items: center; justify-content: center; }
+    .create-dialog .hide-ic svg { width: 18px; height: 18px; }
+    .create-dialog .hide-row.on .hide-ic { background: var(--spx); color: #fff; }
+    .create-dialog .hide-row.on .hide-ic::after { content: ""; position: absolute; left: 7px; right: 7px; top: 50%; height: 2px; margin-top: -1px; background: #fff; border-radius: 2px; transform: rotate(-45deg); }
+    .create-dialog .hide-txt { flex: 1 1 auto; min-width: 0; }
+    .create-dialog .hide-txt b { font-size: var(--text-md); color: #fff; }
+    .create-dialog .hide-txt small { display: block; font-size: var(--text-sm); color: var(--slate); margin-top: 1px; }
+    .create-dialog .hide-row.on .hide-txt small { color: var(--spx-peach); }
+    .create-dialog .hide-row .sw { position: relative; flex: 0 0 auto; width: 46px; height: 26px; border-radius: 999px; background: var(--slate-deep); border: 1px solid var(--slate-mid); transition: background .18s ease; }
+    .create-dialog .hide-row .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--slate); transition: left .18s ease, background .18s ease; }
+    .create-dialog .hide-row.on .sw { background: var(--spx); border-color: var(--spx); }
+    .create-dialog .hide-row.on .sw::after { left: 22px; background: #fff; }
+    .create-dialog .hide-row:focus-visible { outline: 2px solid var(--spx-tangerine); outline-offset: 2px; }
     /* ===== Ghi chú trong màn hình quét (dưới task-meta) ===== */
     .task-note {
       display: flex; align-items: flex-start; gap: 10px; text-align: left;

@@ -69,6 +69,9 @@ def task_from_row(row):
         "completedAtText": cache.format_date_time(cache.to_datetime(row[c["COMPLETED_AT"]] if len(row) > c["COMPLETED_AT"] else None)),
         "note": str(row[c["NOTE"]] if len(row) > c["NOTE"] else ""),
         "sourceTaskId": str(row[c["SOURCE_TASK_ID"]] if len(row) > c["SOURCE_TASK_ID"] else ""),
+        # An Danh: sheet cu 11 cot thieu o nay -> False = hien thi (mirror Database.gs taskFromRow_).
+        "isHidden": (row[c["IS_HIDDEN"]] if len(row) > c["IS_HIDDEN"] else "") is True
+        or str(row[c["IS_HIDDEN"]] if len(row) > c["IS_HIDDEN"] else "").upper() == "TRUE",
     }
 
 
@@ -81,8 +84,8 @@ def read_task(task_id):
         row = values[i]
         if str(row[config.TASK_COLS["TASK_ID"]] if len(row) > config.TASK_COLS["TASK_ID"] else "").strip() == task_id:
             row_index = i + 2
-            # TASK_COL_COUNT=11 → K, hardcode để FakeSheets test không cần _col_letter
-            full = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"A{row_index}:K{row_index}", unformatted=True)
+            # TASK_COL_COUNT=12 → L, hardcode để FakeSheets test không cần _col_letter
+            full = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_=f"A{row_index}:L{row_index}", unformatted=True)
             if not full:
                 return None
             task = task_from_row(full[0])
@@ -122,6 +125,7 @@ def insert_task(task):
     row[c["COMPLETED_AT"]] = cache.to_iso_cell(task.get("completedAt"))
     row[c["NOTE"]] = sanitize_cell_text(task.get("note", ""))
     row[c["SOURCE_TASK_ID"]] = task.get("sourceTaskId", "")
+    row[c["IS_HIDDEN"]] = True if task.get("isHidden") is True else False
     sheets.append_values(config.SHEETS["ATTENDANCE_TASK"], [row])
     invalidate_task_list_cache()
     invalidate_task_cache(task.get("taskId", ""))
@@ -179,9 +183,9 @@ def read_task_list():
 
 
 def _read_task_list_uncached():
-    # FIX-21: đọc từ A2:K (bỏ header — taskFromRow_ không cần) + chặn độ rộng 11 cột
+    # FIX-21: đọc từ A2:L (bỏ header — taskFromRow_ không cần) + chặn độ rộng 12 cột
     # thay getDataRange toàn sheet (mirror Database.gs readTaskList_).
-    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_="A2:K", unformatted=True)
+    values = sheets.get_values(config.SHEETS["ATTENDANCE_TASK"], range_="A2:L", unformatted=True)
     out = []
     for row in values:
         task = task_from_row(row)

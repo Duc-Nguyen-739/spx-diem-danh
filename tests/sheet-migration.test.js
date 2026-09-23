@@ -101,7 +101,7 @@ function loadHelper() {
   return sandbox.__fn;
 }
 
-const TASK_H = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId'];
+const TASK_H = ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId', 'isHidden'];
 
 test('ensureSheetColumns_: sheet 10 cột → thêm đúng 1 cột + header K chuẩn', () => {
   const fn = loadHelper();
@@ -151,7 +151,7 @@ function loadRepair() {
   const src = extractFn('repairTaskSheetColumns');
   const sandbox = {
     SHEETS: { ATTENDANCE_TASK: 'AttendanceTask' },
-    TASK_COL_COUNT: 11,
+    TASK_COL_COUNT: 12,
     getSheet_: function () { return sandbox.__sheet; },
     isEditor_: function () { return sandbox.__editor; },
   };
@@ -175,10 +175,10 @@ test('repairTaskSheetColumns: xóa 1 lệnh khối cột phụ toàn-trống + v
   const messy = TASK_H.slice(0, 10).concat(new Array(200).fill('note'), ['sourceTaskId']);
   sb.__sheet = makeSheet({ maxCols: 211, lastCol: 211, lastRow: 50, headers: messy });
   const res = sb.__fn();
-  assert.deepEqual(sb.__sheet.deletes, [[12, 200]], 'xóa khối L.. (200 cột) bằng 1 lệnh duy nhất, giữ K=sourceTaskId');
+  assert.deepEqual(sb.__sheet.deletes, [[13, 199]], 'xóa khối M.. (199 cột) bằng 1 lệnh duy nhất, giữ L=isHidden');
   const hdrWrite = sb.__sheet.writes.filter((w) => w.r === 1);
   assert.equal(hdrWrite.length, 1, 'viết lại header chuẩn 1 lần');
-  assert.equal(JSON.stringify(hdrWrite[0].vals[0]), JSON.stringify(TASK_H), 'header về đúng 11 cột chuẩn');
+  assert.equal(JSON.stringify(hdrWrite[0].vals[0]), JSON.stringify(TASK_H), 'header về đúng 12 cột chuẩn');
   assert.ok(String(res).indexOf('OK') >= 0);
 });
 

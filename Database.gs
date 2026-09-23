@@ -77,7 +77,7 @@ function ensureSheets_() {
   getSheet_(SHEETS.CONFIG, ['Key', 'Value']);
   getSheet_(SHEETS.STAFF_DATA, ['No.', 'Date', 'Staff ID', 'Staff Name', 'Staff Email', 'Agency', 'Contract Type', 'Event ID', 'Matching Type', 'Gender', 'Department', 'Clock In Time', 'Clock Out Time', 'Actual Hours', 'Clock In Remark', 'Clock Out Remark', 'Slot Code', 'Workstation', 'Team', 'Station']);
   getSheet_(SHEETS.ATTENDANCE_TASK, [
-    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId',
+    'taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId', 'isHidden',
   ]);
   const logSheet = getSheet_(SHEETS.ATTENDANCE_LOG, [
     'taskId', 'staffId', 'staffName', 'slotCode', 'station', 'team', 'workstation',
@@ -94,7 +94,7 @@ function ensureSheets_() {
   // Migration AttendanceTask: sheet cũ thiếu cột note (10) — tự thêm + đặt header,
   // nếu không insertTask_ ghi 10 giá trị sẽ vỡ trên sheet 9 cột.
   const taskSheet = getSheet_(SHEETS.ATTENDANCE_TASK);
-  ensureSheetColumns_(taskSheet, TASK_COL_COUNT, ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']);
+  ensureSheetColumns_(taskSheet, TASK_COL_COUNT, ['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId', 'isHidden']);
 }
 
 /**
@@ -149,8 +149,8 @@ function repairTaskSheetColumns() {
     if (dirty.length) return 'KHÔNG xóa: còn dữ liệu ở ' + dirty.join(', ') + ' — kiểm tra tay trước';
     sheet.deleteColumns(TASK_COL_COUNT + 1, extra);
   }
-  sheet.getRange(1, 1, 1, TASK_COL_COUNT).setValues([['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId']]);
-  return 'OK: AttendanceTask đã chuẩn 11 cột';
+  sheet.getRange(1, 1, 1, TASK_COL_COUNT).setValues([['taskId', 'taskType', 'station', 'slotCode', 'team', 'status', 'createdAt', 'createdBy', 'completedAt', 'note', 'sourceTaskId', 'isHidden']]);
+  return 'OK: AttendanceTask đã chuẩn 12 cột';
 }
 
 // ===== Cache wrapper + format Date: xem CacheLayer.gs (tách 2026-08-11) =====
@@ -266,6 +266,9 @@ function taskFromRow_(row) {
     completedAtText: formatDateTime_(completedAt),
     note: String(row[TASK_COLS.NOTE] || ''),
     sourceTaskId: String(row[TASK_COLS.SOURCE_TASK_ID] || ''),
+    // An Danh: sheet cu 11 cot thieu o nay (undefined) -> false = hien thi (fail-open an toan).
+    isHidden: row[TASK_COLS.IS_HIDDEN] === true
+      || String(row[TASK_COLS.IS_HIDDEN] || '').toUpperCase() === 'TRUE',
   };
 }
 
@@ -341,7 +344,7 @@ function insertTask_(task) {
     task.taskId, task.taskType,
     sanitizeCellText_(task.station), sanitizeCellText_(task.slotCode), sanitizeCellText_(task.team),
     task.status, task.createdAt, sanitizeCellText_(task.createdBy), task.completedAt || '', sanitizeCellText_(task.note),
-    task.sourceTaskId || '',
+    task.sourceTaskId || '', task.isHidden === true,
   ]);
   invalidateTaskListCache_();
   invalidateTaskCache_(task.taskId);  // F8: phá negative-cache readTaskCached_ (taskId giờ-tạo có thể trùng)

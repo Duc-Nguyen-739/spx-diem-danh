@@ -723,6 +723,52 @@
     else openCreateModal();
   }
   // ===== TASK-MENU-END =====
+  // ===== TASK-HIDE-START =====
+  // ===== Nut An Danh (mau 1): cong tac trong modal Diem Danh Ca =====
+  // Task an chi hien tren thiet bi da tao (luu localStorage) — thiet bi khac loc bo.
+  var HIDE_MINE_KEY = 'rc_myHiddenTasks';
+  var HIDE_MINE_MAX = 200;
+  function getMyHiddenTasks() {
+    try {
+      var v = JSON.parse(localStorage.getItem(HIDE_MINE_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function rememberHiddenTask(taskId) {
+    if (!taskId) return;
+    try {
+      var list = getMyHiddenTasks();
+      if (list.indexOf(taskId) === -1) {
+        list.unshift(taskId);
+        localStorage.setItem(HIDE_MINE_KEY, JSON.stringify(list.slice(0, HIDE_MINE_MAX)));
+      }
+    } catch (e) {}
+  }
+  function isHideRowOn() {
+    var r = document.getElementById('hideRow');
+    return !!(r && r.classList.contains('on'));
+  }
+  function setHideRow(on) {
+    var r = document.getElementById('hideRow');
+    if (!r) return;
+    r.classList.toggle('on', !!on);
+    r.setAttribute('aria-checked', on ? 'true' : 'false');
+    var hint = document.getElementById('hideHint');
+    if (hint) hint.textContent = on
+      ? 'Đang bật — task ẩn khỏi danh sách của người khác'
+      : 'Đang tắt — mọi người đều thấy task này';
+  }
+  function toggleHideRow() {
+    setHideRow(!isHideRowOn());
+  }
+  function visibleTasks(tasks) {
+    var mine = {};
+    getMyHiddenTasks().forEach(function (id) { mine[id] = true; });
+    return (tasks || []).filter(function (t) {
+      return !t.isHidden || mine[t.taskId];
+    });
+  }
+  // ===== TASK-HIDE-END =====
   function openCreateModal() {
     var m = byId('createModal');
     if (!m) return;
@@ -739,6 +785,7 @@
     var hintEl = byId('createPreviewHint');
     if (hintEl) hintEl.textContent = '';
     updateHud('', '—', 0, 0);
+    setHideRow(false);
     updateCreateSubmitState();
     m.setAttribute('aria-hidden', 'false');  // I10
     m.classList.add('open');
@@ -1061,6 +1108,7 @@
   // desktop — 1 nguồn task data, chỉ khác hình thức trình bày.
   function taskCardHTML(t) {
     var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
+    if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
     var action = t.status === TASK_STATUS_C.OPEN
       ? '<button class="btn btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>'
       : '<button class="btn btn-ghost btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>';
@@ -1133,6 +1181,7 @@
       var idx = start + i;
       var tr = document.createElement('tr');
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
+      if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +
@@ -1267,7 +1316,7 @@
     // thật sự chọn (radio ≠ 'all' hoặc có box nào unchecked) — lần render đầu giữ default.
     var prev = dashState();
     var hasFilter = prev.st !== 'all' || prev.type.length || prev.stn.length || prev.ca.length || prev.team.length;
-    _dashTasks = tasks || [];
+    _dashTasks = visibleTasks(tasks);
     var total = _dashTasks.length;
     var open = _dashTasks.filter(function (t) { return t.status !== TASK_STATUS_C.DONE; }).length;
     var scan = _dashTasks.reduce(function (a, t) { return a + (t.scanned || 0); }, 0);
@@ -1414,7 +1463,8 @@
       team: getSelectedChips('fTeam'),
       date: byId('fDate').value,
       contractType: getSelectedChips('fContractType'),
-      note: noteEl ? noteEl.value.trim() : ''
+      note: noteEl ? noteEl.value.trim() : '',
+      isHidden: isHideRowOn()
     };
     if (!input.station || !input.slotCode.length || !input.team.length) {
       showToast('Vui lòng chọn đủ Station, Team và Ca', true);
@@ -1428,6 +1478,7 @@
         BUSY = false;
         if (btn) btn.disabled = false;
         if (res.ok) {
+          if (input.isHidden && res.taskId) rememberHiddenTask(res.taskId);
           closeCreateModal();
           showToast(res.message + ' — ' + res.count + ' NV', false);
           loadTaskList();

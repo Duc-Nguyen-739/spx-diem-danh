@@ -63,8 +63,9 @@ const TASK_COLS = {
   COMPLETED_AT: 8,
   NOTE: 9,    // Ghi chú của task (người tạo thêm; sửa được trong task) — 2026-08-08
   SOURCE_TASK_ID: 10,  // task Ca goc (link Ca -> Ra/Vao, transfer incremental)
+  IS_HIDDEN: 11,  // An Danh (task Diem Danh Ca): true = an khoi danh sach chung
 };
-const TASK_COL_COUNT = 11;
+const TASK_COL_COUNT = 12;
 
 // ===== Cột AttendanceLog (1 dòng / NV) =====
 // Lưu ý: bỏ cardIn/cardOut (2026-08-03) — StaffData GIỮ NGUYÊN; log không copy 2 cột này nữa.
