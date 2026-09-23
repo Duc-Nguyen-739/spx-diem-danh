@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>5 Mau nut An Danh — Task Diem Danh Ca</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0d111a; color: #e2e8f0; line-height: 1.5;
+  }
+  .gal-head { padding: 22px 24px; border-bottom: 1px solid #2a3142; }
+  .gal-head h1 { font-size: 18px; font-weight: 800; }
+  .gal-head h1 .spx { background: linear-gradient(135deg,#ff5f2e,#ee4d2d); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 7px; margin-right: 10px; }
+  .gal-head p { color: #9aa7bd; font-size: 13px; margin-top: 6px; max-width: 760px; }
+  .gal-head p b { color: #ff8a5c; }
+  .gal-nav { position: sticky; top: 0; z-index: 50; background: rgba(13,17,26,.94); border-bottom: 1px solid #2a3142; display: flex; gap: 8px; padding: 10px 24px; overflow-x: auto; flex-wrap: wrap; }
+  .gal-nav a { text-decoration: none; color: #cbd5e1; font-size: 12.5px; font-weight: 700; border: 1px solid #2a3142; border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+  .gal-nav a:hover { border-color: #ee4d2d; color: #ff8a5c; }
+  .gal-nav a.rec { border-color: #ee4d2d; color: #ff8a5c; }
+  main { max-width: 1120px; margin: 0 auto; padding: 16px 20px 90px; display: grid; gap: 30px; }
+  .sample-head { display: flex; gap: 14px; align-items: flex-start; }
+  .sample-num { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px; background: #1a2233; color: #ff8a5c; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 1px solid #2a3142; }
+  .sample-head h2 { font-size: 16px; }
+  .sample-head p { color: #9aa7bd; font-size: 13px; margin-top: 2px; max-width: 740px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; background: rgba(238,77,45,.14); color: #ff8a5c; border: 1px solid rgba(238,77,45,.4); border-radius: 999px; padding: 2px 10px; margin-top: 6px; }
+  .tag.hot { background: #ee4d2d; color: #fff; border-color: #ee4d2d; }
+  .stage { border-radius: 18px; padding: 30px 18px; display: flex; align-items: center; justify-content: center; border: 1px solid #2a3142; background: radial-gradient(circle at 20% 10%, rgba(238,77,45,.08), transparent 45%), #111625; }
+  /* ---- modal giong man hinh that ---- */
+  .dlg { width: 100%; max-width: 520px; border-radius: 16px; background: #161c2b; border: 1px solid #2a3142; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+  .hud-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #2a3142; font-size: 11px; letter-spacing: 1px; color: #8b98ab; }
+  .hud-dot { width: 8px; height: 8px; border-radius: 50%; background: #ee4d2d; box-shadow: 0 0 8px #ee4d2d; }
+  .hud-st { margin-left: auto; }
+  .dlg-body { padding: 16px 18px; }
+  .dlg-body h3 { font-size: 16px; }
+  .dlg-body .sub { font-size: 12.5px; color: #9aa7bd; margin: 2px 0 12px; }
+  .fld { margin-top: 12px; }
+  .fld > label { display: block; font-size: 12.5px; font-weight: 600; color: #9aa7bd; margin-bottom: 6px; }
+  .sel { width: 100%; padding: 10px 12px; border: 1px solid #2a3142; border-radius: 10px; background: #0f1522; color: #e2e8f0; font-size: 13.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { border: 1px solid #2a3142; background: #0f1522; color: #cbd5e1; border-radius: 999px; padding: 7px 13px; font-size: 12.5px; cursor: pointer; }
+  .chip.on { background: #ee4d2d; border-color: #ee4d2d; color: #fff; }
+  textarea.ta { width: 100%; min-height: 52px; padding: 10px 12px; border: 1px solid #2a3142; border-radius: 10px; background: #0f1522; color: #e2e8f0; font-size: 13px; font-family: inherit; resize: vertical; }
+  .acts { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 18px 18px; }
+  .btn { border-radius: 10px; padding: 10px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: 1px solid #2a3142; }
+  .btn.ghost { background: transparent; color: #cbd5e1; }
+  .btn.pri { background: #ee4d2d; border-color: #ee4d2d; color: #fff; }
+  .sec-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .6px; color: #ff8a5c; margin: 14px 0 4px; }
+  .step-n { width: 20px; height: 20px; border-radius: 50%; background: #ee4d2d; color: #fff; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  /* ---- cac kieu nut An Danh ---- */
+  .hide-row { display: flex; align-items: center; gap: 12px; background: #0f1522; border: 1px solid #2a3142; border-radius: 12px; padding: 12px 14px; margin-top: 14px; cursor: pointer; }
+  .hide-row.on { border-color: rgba(238,77,45,.6); background: rgba(238,77,45,.08); }
+  .hide-ic { position: relative; width: 34px; height: 34px; border-radius: 10px; background: #1a2233; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #9aa7bd; }
+  .hide-ic svg { width: 18px; height: 18px; }
+  .hide-row.on .hide-ic { color: #fff; }
+  .hide-row.on .hide-ic::after { content: ""; position: absolute; left: 7px; right: 7px; top: 50%; height: 2px; margin-top: -1px; background: #fff; border-radius: 2px; transform: rotate(-45deg); }
+  .hide-row.on .hide-ic { background: #ee4d2d; }
+  .hide-txt { flex: 1; min-width: 0; }
+  .hide-txt b { font-size: 13.5px; display: block; }
+  .hide-txt small { font-size: 12px; color: #9aa7bd; display: block; margin-top: 1px; }
+  .hide-row.on .hide-txt small { color: #ffb59a; }
+  .sw { position: relative; width: 46px; height: 26px; border-radius: 999px; background: #2a3142; border: 1px solid #3a4358; transition: all .18s ease; flex: 0 0 auto; }
+  .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #8b98ab; transition: all .18s ease; }
+  .hide-row.on .sw { background: #ee4d2d; border-color: #ee4d2d; }
+  .hide-row.on .sw::after { left: 22px; background: #fff; }
+  .chk-card { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: #0f1522; border: 1px solid #2a3142; border-radius: 12px; padding: 12px 14px; margin-top: 14px; cursor: pointer; color: #e2e8f0; font-family: inherit; }
+  .chk-card.on { border-color: rgba(238,77,45,.6); background: rgba(238,77,45,.08); }
+  .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #3a4358; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 13px; color: transparent; margin-top: 1px; }
+  .chk-card.on .box { background: #ee4d2d; border-color: #ee4d2d; color: #fff; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: #0f1522; border: 1px solid #2a3142; border-radius: 12px; padding: 4px; margin-top: 8px; }
+  .seg button { border: 0; background: transparent; color: #9aa7bd; border-radius: 9px; padding: 9px 6px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .seg button.on { background: #ee4d2d; color: #fff; }
+  .seg button.on.pub { background: #1f6feb; }
+  .warn { margin-top: 10px; font-size: 12px; color: #ffb59a; background: rgba(238,77,45,.1); border: 1px dashed rgba(238,77,45,.5); border-radius: 10px; padding: 8px 12px; display: none; }
+  .warn.show { display: block; }
+  .mini-list { margin-top: 10px; border: 1px solid #2a3142; border-radius: 10px; overflow: hidden; font-size: 12px; display: none; }
+  .mini-list.show { display: block; }
+  .mini-list .mr { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #0f1522; border-top: 1px solid #1c2333; }
+  .mini-list .mr:first-child { border-top: 0; }
+  .mini-list .mr.dim { opacity: .45; }
+  .badge-an { font-size: 10px; font-weight: 800; background: #ee4d2d; color: #fff; border-radius: 999px; padding: 1px 8px; }
+  .verdict { display: flex; gap: 10px; align-items: center; padding: 0 2px; font-size: 12.5px; color: #9aa7bd; }
+  .verdict b { color: #e2e8f0; }
+  @media (max-width: 640px) { .stage { padding: 18px 10px; } }
+</style>
+</head>
+<body>
+<div class="gal-head">
+  <h1><span class="spx">SPX</span>5 mẫu nút Ẩn Danh — modal Tạo task Điểm Danh Ca</h1>
+  <p>Vị trí đề xuất chung: nằm giữa <b>Ghi chú</b> và 2 nút <b>Huỷ / + Tạo task</b> (khớp ảnh bạn gửi). Mặc định <b>TẮT</b> = logic bình thường, ai cũng thấy task. Bật = task ẩn khỏi danh sách chung, chỉ người tạo mở được. Bấm thử trực tiếp từng mẫu dưới đây.</p>
+</div>
+<nav class="gal-nav">
+  <a href="#mau-1" class="rec">Mẫu 1 · Công tắc (khuyên dùng)</a>
+  <a href="#mau-2">Mẫu 2 · Checkbox thẻ</a>
+  <a href="#mau-3">Mẫu 3 · Chip Ẩn Danh</a>
+  <a href="#mau-4">Mẫu 4 · Công khai / Ẩn Danh</a>
+  <a href="#mau-5">Mẫu 5 · Công tắc + cảnh báo</a>
+</nav>
+<main>
+
+  <!-- MAU 1 -->
+  <section class="sample" id="mau-1">
+    <div class="sample-head">
+      <span class="sample-num">01</span>
+      <div><h2>Công tắc Ẩn Danh — hàng riêng dưới Ghi chú</h2>
+      <p>Một hàng duy nhất: icon mắt + chữ + công tắc gạt. Trạng thái nhìn là hiểu ngay, thao tác 1 chạm, hợp nhất với modal tối hiện tại.</p>
+      <span class="tag hot">KHUYÊN DÙNG · 1 chạm · rõ trạng thái</span></div>
+    </div>
+    <div class="stage">
+      <div class="dlg">
+        <div class="hud-bar"><span class="hud-dot"></span>TASK-CREATE · RECONCILE<span class="hud-st">KHO —</span></div>
+        <div class="dlg-body">
+          <h3>+ Tạo task điểm danh</h3>
+          <p class="sub">Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
+          <div class="fld"><label>Station</label><select class="sel"><option>-- Chọn station --</option></select></div>
+          <div class="fld"><label>Ghi chú (không bắt buộc)</label><textarea class="ta" placeholder="VD: Ca đặc biệt, tổ hợp chuyển kho…"></textarea></div>
+          <div class="sec-label"><span class="step-n"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span> HIỂN THỊ TASK</div>
+          <div class="hide-row" id="m1row" role="switch" aria-checked="false" tabindex="0">
+            <span class="hide-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span class="hide-txt"><b>Ẩn Danh</b><small id="m1hint">Đang TẮT — mọi người đều thấy task này</small></span>
+            <span class="sw"></span>
+          </div>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri">+ Tạo task</button></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> thêm đúng 1 hàng, không vỡ layout mobile; chữ TẮT/BẬT + màu cam khi bật nên khó bấm nhầm.</div>
+  </section>
+
+  <!-- MAU 2 -->
+  <section class="sample" id="mau-2">
+    <div class="sample-head">
+      <span class="sample-num">02</span>
+      <div><h2>Checkbox thẻ — ô tick vuông kèm giải thích</h2>
+      <p>Kiểu form truyền thống: tick vào ô vuông để ẩn. Dễ hiểu với người lớn tuổi, vùng bấm cả thẻ nên vẫn thao tác tốt trên kiosk cảm ứng.</p>
+      <span class="tag">Form quen thuộc · vùng bấm rộng</span></div>
+    </div>
+    <div class="stage">
+      <div class="dlg">
+        <div class="hud-bar"><span class="hud-dot"></span>TASK-CREATE · RECONCILE<span class="hud-st">KHO —</span></div>
+        <div class="dlg-body">
+          <h3>+ Tạo task điểm danh</h3>
+          <p class="sub">Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
+          <div class="fld"><label>Ghi chú (không bắt buộc)</label><textarea class="ta" placeholder="VD: Ca đặc biệt…"></textarea></div>
+          <button class="chk-card" id="m2card" aria-pressed="false">
+            <span class="box">✓</span>
+            <span><b style="font-size:13.5px;">Ẩn Danh task này</b><br><small id="m2hint" style="color:#9aa7bd;font-size:12px;">Không tick — task hiện công khai trong danh sách chung</small></span>
+          </button>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri">+ Tạo task</button></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> rõ nghĩa nhất về mặt câu chữ, nhưng tốn chiều cao hơn mẫu 1 và kém “kiosk” hơn công tắc gạt.</div>
+  </section>
+
+  <!-- MAU 3 -->
+  <section class="sample" id="mau-3">
+    <div class="sample-head">
+      <span class="sample-num">03</span>
+      <div><h2>Chip Ẩn Danh — cùng ngôn ngữ với chip Ca / Team</h2>
+      <p>Đặt trong nhóm chip “Quyền hiển thị”: bấm chip <b>Ẩn Danh</b> để bật/tắt, đồng bộ với cách chọn Ca/Team sẵn có trong modal.</p>
+      <span class="tag">Đồng bộ chip Ca/Team · gọn 1 dòng</span></div>
+    </div>
+    <div class="stage">
+      <div class="dlg">
+        <div class="hud-bar"><span class="hud-dot"></span>TASK-CREATE · RECONCILE<span class="hud-st">KHO —</span></div>
+        <div class="dlg-body">
+          <h3>+ Tạo task điểm danh</h3>
+          <p class="sub">Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
+          <div class="fld"><label>Quyền hiển thị</label>
+            <div class="chips">
+              <button class="chip on" id="m3pub">Công khai</button>
+              <button class="chip" id="m3hide">Ẩn Danh</button>
+            </div>
+          </div>
+          <div class="fld"><label>Ghi chú (không bắt buộc)</label><textarea class="ta" placeholder="VD: Ca đặc biệt…"></textarea></div>
+          <p id="m3hint" style="font-size:12px;color:#9aa7bd;margin-top:8px;">Đang chọn: Công khai — mọi người đều thấy task.</p>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri">+ Tạo task</button></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> gọn và nhất quán với chip Ca/Team, nhưng trạng thái bật/tắt kém nổi bật hơn công tắc — dễ bị lướt qua không để ý.</div>
+  </section>
+
+  <!-- MAU 4 -->
+  <section class="sample" id="mau-4">
+    <div class="sample-head">
+      <span class="sample-num">04</span>
+      <div><h2>Thanh gạt Công khai / Ẩn Danh — chọn 1 trong 2</h2>
+      <p>Luôn hiện cả 2 lựa chọn cạnh nhau, không có trạng thái “lửng lơ”. Người tạo buộc thấy mình đang để chế độ nào trước khi bấm Tạo task.</p>
+      <span class="tag">Không trạng thái lửng · chống bấm nhầm</span></div>
+    </div>
+    <div class="stage">
+      <div class="dlg">
+        <div class="hud-bar"><span class="hud-dot"></span>TASK-CREATE · RECONCILE<span class="hud-st">KHO —</span></div>
+        <div class="dlg-body">
+          <h3>+ Tạo task điểm danh</h3>
+          <p class="sub">Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
+          <div class="fld"><label>Ai thấy task này?</label>
+            <div class="seg">
+              <button id="m4pub" class="pub on">Công khai</button>
+              <button id="m4hide">Ẩn Danh</button>
+            </div>
+          </div>
+          <div class="fld"><label>Ghi chú (không bắt buộc)</label><textarea class="ta" placeholder="VD: Ca đặc biệt…"></textarea></div>
+          <p id="m4hint" style="font-size:12px;color:#9aa7bd;margin-top:8px;">Công khai — task hiện trong danh sách của mọi kiosk.</p>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri">+ Tạo task</button></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> tường minh nhất (“ai thấy task”), chiếm đúng 1 khối gọn; nhược điểm duy nhất là thêm 1 nhãn mới vào modal vốn đã dài.</div>
+  </section>
+
+  <!-- MAU 5 -->
+  <section class="sample" id="mau-5">
+    <div class="sample-head">
+      <span class="sample-num">05</span>
+      <div><h2>Công tắc + cảnh báo + xem trước danh sách</h2>
+      <p>Bản “chắc ăn” nhất: bật Ẩn Danh thì hiện hộp cảnh báo và xem trước task bị mờ khỏi danh sách chung — người tạo thấy trước hậu quả.</p>
+      <span class="tag">An toàn nhất · thấy trước kết quả</span></div>
+    </div>
+    <div class="stage">
+      <div class="dlg">
+        <div class="hud-bar"><span class="hud-dot"></span>TASK-CREATE · RECONCILE<span class="hud-st">KHO —</span></div>
+        <div class="dlg-body">
+          <h3>+ Tạo task điểm danh</h3>
+          <p class="sub">Quét mã <b>Ops</b> để điểm danh — chọn nhóm NV cho task.</p>
+          <div class="fld"><label>Ghi chú (không bắt buộc)</label><textarea class="ta" placeholder="VD: Ca đặc biệt…"></textarea></div>
+          <div class="hide-row" id="m5row" role="switch" aria-checked="false" tabindex="0">
+            <span class="hide-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span class="hide-txt"><b>Ẩn Danh <span class="badge-an" id="m5badge" style="display:none;">ẨN</span></b><small id="m5hint">Đang TẮT — mọi người đều thấy task này</small></span>
+            <span class="sw"></span>
+          </div>
+          <div class="warn" id="m5warn">Task ẩn sẽ <b>không hiện</b> trong danh sách chung và dashboard của người khác — chỉ bạn mở được để quét.</div>
+          <div class="mini-list" id="m5list">
+            <div class="mr"><span>R20260923-101500 · HN2 · Sáng</span></div>
+            <div class="mr dim" id="m5new"><span>R20260923-102300 · HN2 · Tối</span><span class="badge-an">ẨN</span></div>
+          </div>
+        </div>
+        <div class="acts"><button class="btn ghost">Huỷ</button><button class="btn pri">+ Tạo task</button></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Nhận xét:</b> chống nhầm lẫn tốt nhất, nhưng dài nhất — phù hợp nếu task ẩn là thao tác nhạy cảm cần xác nhận kỹ.</div>
+  </section>
+
+</main>
+<script>
+  function bindToggle(rowId, fn) {
+    var row = document.getElementById(rowId);
+    if (!row) return;
+    function go() { row.classList.toggle('on'); fn(row.classList.contains('on')); }
+    row.addEventListener('click', go);
+    row.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); go(); } });
+  }
+  bindToggle('m1row', function (on) {
+    var r = document.getElementById('m1row');
+    r.setAttribute('aria-checked', on ? 'true' : 'false');
+    document.getElementById('m1hint').textContent = on ? 'Đang BẬT — task ẩn khỏi danh sách của người khác' : 'Đang TẮT — mọi người đều thấy task này';
+  });
+  (function () {
+    var card = document.getElementById('m2card');
+    card.addEventListener('click', function () {
+      var on = card.classList.toggle('on');
+      card.setAttribute('aria-pressed', on ? 'true' : 'false');
+      document.getElementById('m2hint').textContent = on ? 'Đã tick — task sẽ ẨN với mọi người khác' : 'Không tick — task hiện công khai trong danh sách chung';
+    });
+  })();
+  (function () {
+    var pub = document.getElementById('m3pub'), hide = document.getElementById('m3hide'), hint = document.getElementById('m3hint');
+    function set(h) {
+      hide.classList.toggle('on', h); pub.classList.toggle('on', !h);
+      hint.textContent = h ? 'Đang chọn: Ẩn Danh — task ẩn với mọi người khác.' : 'Đang chọn: Công khai — mọi người đều thấy task.';
+    }
+    pub.addEventListener('click', function () { set(false); });
+    hide.addEventListener('click', function () { set(true); });
+  })();
+  (function () {
+    var pub = document.getElementById('m4pub'), hide = document.getElementById('m4hide'), hint = document.getElementById('m4hint');
+    pub.addEventListener('click', function () {
+      pub.classList.add('on'); hide.classList.remove('on');
+      hint.textContent = 'Công khai — task hiện trong danh sách của mọi kiosk.';
+    });
+    hide.addEventListener('click', function () {
+      hide.classList.add('on'); pub.classList.remove('on');
+      hint.textContent = 'Ẩn Danh — task ẩn với mọi người khác, chỉ bạn mở được.';
+    });
+  })();
+  bindToggle('m5row', function (on) {
+    var r = document.getElementById('m5row');
+    r.setAttribute('aria-checked', on ? 'true' : 'false');
+    document.getElementById('m5badge').style.display = on ? '' : 'none';
+    document.getElementById('m5hint').textContent = on ? 'Đang BẬT — task ẩn khỏi danh sách của người khác' : 'Đang TẮT — mọi người đều thấy task này';
+    document.getElementById('m5warn').classList.toggle('show', on);
+    document.getElementById('m5list').classList.toggle('show', on);
+  });
+</script>
+</body>
+</html>
