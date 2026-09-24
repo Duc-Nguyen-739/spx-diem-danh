@@ -1141,6 +1141,8 @@
     var foot = String(t.createdAtText || t.createdAt || '');
     if (t.createdBy) foot += (foot ? ' · ' : '') + creatorName(t.createdBy);
     var openCls = t.status === TASK_STATUS_C.OPEN ? ' task-open' : '';
+    var pct = t.total > 0 ? Math.round((t.scanned || 0) / t.total * 100) : 0;
+    var pbar = t.status === TASK_STATUS_C.OPEN ? '<div class="tc-pbar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" title="Đã quét ' + pct + '%"><i style="width:' + pct + '%"></i></div>' : '';
     return '<div class="task-card' + openCls + '" data-id="' + escAttr(t.taskId) + '">' +
       '<div class="tc-head"><span class="tc-id">' + esc(t.taskId) + '</span>' + statusBadge + '</div>' +
       '<div class="tc-type">' + scope + '</div>' +
@@ -1150,6 +1152,7 @@
         '<span class="tc-count extra"><b>' + (t.extra || 0) + '</b> Dư</span>' +
         action +
       '</div>' +
+      pbar +
       '<div class="tc-foot">' + esc(foot) + '</div>' +
     '</div>';
   }
@@ -1206,6 +1209,10 @@
       if (t.status === TASK_STATUS_C.OPEN) tr.className = 'task-open';
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
       if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
+      if (t.status === TASK_STATUS_C.OPEN) {
+        var pct = t.total > 0 ? Math.round((t.scanned || 0) / t.total * 100) : 0;
+        statusBadge += '<div class="tl-pbar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" title="Đã quét ' + pct + '%"><i style="width:' + pct + '%"></i></div>';
+      }
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +

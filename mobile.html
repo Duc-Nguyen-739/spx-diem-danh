@@ -199,6 +199,8 @@
     margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--border);
     word-break: break-word; min-width: 0;
   }
+  .task-card .tc-pbar { height: 5px; border-radius: 99px; background: var(--surface-muted); overflow: hidden; margin-top: 9px; }
+  .task-card .tc-pbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--link), var(--ok-deep)); }
   /* ===== Bảng NV trong task — dạng CARD trên mobile (2026-08-13) =====
      Bảng 10 cột (reconcile 8, meal-move 10) kéo dài ngang quá khổ màn hình điện thoại
      → renderScanTable đổi sang card (js.html tự quyết qua matchMedia <=600px; desktop

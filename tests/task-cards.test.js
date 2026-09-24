@@ -97,6 +97,26 @@ test('taskCardHTML: không có thời gian/người tạo → footer chỉ còn 
   assert.ok(!/·\s*$/.test(html), 'footer không được kết thúc bằng dấu ·');
 });
 
+test('taskCardHTML: task mở có thanh tiến độ Đã quét/Tổng (mẫu 1 Aurora)', () => {
+  const html = ctx.taskCardHTML({
+    taskId: 'P1', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',
+    total: 16, scanned: 9, extra: 1, status: 'open',
+  });
+  assert.ok(html.indexOf('tc-pbar') >= 0, 'task mở phải có thanh tiến độ');
+  assert.ok(html.indexOf('width:56%') >= 0, '9/16 phải là 56%: ' + html);
+  assert.ok(html.indexOf('role="progressbar"') >= 0, 'pbar phải có role progressbar');
+  const done = ctx.taskCardHTML({
+    taskId: 'P2', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',
+    total: 16, scanned: 16, extra: 0, status: 'done',
+  });
+  assert.ok(done.indexOf('tc-pbar') < 0, 'task kết thúc không có pbar');
+  const zero = ctx.taskCardHTML({
+    taskId: 'P3', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',
+    total: 0, scanned: 0, extra: 0, status: 'open',
+  });
+  assert.ok(zero.indexOf('width:0%') >= 0, 'total=0 phải về 0%, không NaN');
+});
+
 test('taskCardHTML: task-open class chỉ ở task đang mở (aurora Mẫu 3)', () => {
   const open = ctx.taskCardHTML({
     taskId: 'O1', taskType: 'reconcile', station: 'A', slotCode: 'B', team: 'C',

@@ -517,6 +517,8 @@
     @media (prefers-reduced-motion: reduce) {
       #taskListTable tr.task-open td { animation: none; }
     }
+    .tl-pbar { height: 4px; border-radius: 99px; background: var(--surface-muted); overflow: hidden; margin-top: 5px; min-width: 64px; }
+    .tl-pbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--link), var(--ok-deep)); }
 
     /* ===== Scan input ===== */
     .scan-row { display: flex; gap: 10px; flex-wrap: wrap; }  /* camera button xuống dòng khi màn hẹp */
