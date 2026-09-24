@@ -499,7 +499,7 @@ function updateTaskNote(taskId, note) {
 
 /**
  * Bật/Tắt Ẩn Danh cho task ĐANG MỞ (nút topbar màn quét, mẫu 1).
- * Chỉ task OPEN đổi được — DONE hiện lại như thường nên giữ cờ cũ vô nghĩa.
+ * Chỉ task OPEN đổi được — task DONE giữ nguyên cờ (task ẩn vẫn ẩn với máy khác sau Kết Thúc).
  * @param {string} taskId
  * @param {boolean} isHidden
  * @returns {{ok: boolean, isHidden?: boolean, message: string}}

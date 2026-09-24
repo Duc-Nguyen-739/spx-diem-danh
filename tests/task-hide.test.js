@@ -2,7 +2,8 @@
  * tests/task-hide.test.js — Nut "An Danh" (mau 1: cong tac) trong modal Diem Danh Ca.
  *
  * Luat: TAT (mac dinh) = logic binh thuong, ai cung thay task; BAT = task an
- * khoi danh sach chung, chi thiet bi da tao thay (localStorage rc_myHiddenTasks).
+ * khoi danh sach chung, chi thiet bi da tao thay (localStorage rc_myHiddenTasks)
+ * — ke ca sau Ket Thuc van an voi may khac.
  *
  * Cach load: khoi TASK-HIDE trong js.html duoc danh dau "TASK-HIDE-START"/
  * "TASK-HIDE-END". Test trich khoi do, chay trong vm voi DOM stub toi thieu
@@ -42,11 +43,11 @@ test('js.html: mo modal reset TAT + dashboard loc task an', () => {
   assert.ok(html.includes('_dashTasks = visibleTasks(tasks)'), 'renderDash phai loc truoc khi gan _dashTasks');
 });
 
-test('js.html: badge An cho task an cua minh (bang + card mobile), tat khi Ket Thuc', () => {
+test('js.html: badge An cho task an cua minh (bang + card mobile), giu ca sau Ket Thuc', () => {
   const hits = html.split("badge hidden").length - 1;
   assert.ok(hits >= 2, 'phai co badge An o ca renderTaskList lan taskCardHTML, thay ' + hits);
-  const guards = html.split("if (t.isHidden && t.status !== TASK_STATUS_C.DONE)").length - 1;
-  assert.ok(guards >= 2, 'badge An chi hien khi DANG MO (ca 2 noi render), thay ' + guards);
+  const guards = html.split("if (t.isHidden)").length - 1;
+  assert.ok(guards >= 2, 'badge An hien ca sau Ket Thuc (ca 2 noi render), thay ' + guards);
 });
 
 test('khoi TASK-HIDE chi phu thuoc DOM/localStorage (khong goi google/window/fetch)', () => {
@@ -139,7 +140,7 @@ test('visibleTasks: an task la cua nguoi khac, giu task minh + task thuong', () 
   assert.deepEqual(out, ['R1', 'RMINE', 'R3'], 'loc R2 (an cua nguoi khac), giu lai 3');
 });
 
-test('visibleTasks: task an DA KET THUC -> hien lai nhu thuong cho moi nguoi', () => {
+test('visibleTasks: task an DA KET THUC van an voi may khac, chi may minh thay', () => {
   resetStubs(); // may khac: khong co taskId trong may minh
   const tasks = [
     { taskId: 'R1', isHidden: true, status: 'open' },
@@ -147,15 +148,20 @@ test('visibleTasks: task an DA KET THUC -> hien lai nhu thuong cho moi nguoi', (
     { taskId: 'R3', isHidden: false, status: 'done' },
   ];
   const out = ctx.visibleTasks(tasks).map((t) => t.taskId);
-  assert.deepEqual(out, ['R2', 'R3'], 'chi loc task an DANG MO cua nguoi khac');
+  assert.deepEqual(out, ['R3'], 'loc ca task an DA KET THUC cua nguoi khac');
+  ctx.rememberHiddenTask('R2');
+  const out2 = ctx.visibleTasks(tasks).map((t) => t.taskId);
+  assert.deepEqual(out2, ['R2', 'R3'], 'may minh van thay task an DA KET THUC');
 });
 
-test('isHiddenFromMe: an+mở+may khac -> chan; cac truong hop con lai -> cho qua', () => {
+test('isHiddenFromMe: task an -> chan may khac (ke ca DONE); may minh -> qua', () => {
   resetStubs();
   assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open' }), true, 'an cua nguoi khac -> chan');
   ctx.rememberHiddenTask('R1');
   assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open' }), false, 'may minh -> qua');
-  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done' }), false, 'Ket Thuc -> qua');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done' }), true, 'an DA KET THUC cua nguoi khac -> chan');
+  ctx.rememberHiddenTask('R2');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done' }), false, 'an DA KET THUC cua may minh -> qua');
   assert.equal(ctx.isHiddenFromMe({ taskId: 'R3', isHidden: false, status: 'open' }), false, 'khong an -> qua');
   assert.equal(ctx.isHiddenFromMe(null), false, 'null -> qua');
 });

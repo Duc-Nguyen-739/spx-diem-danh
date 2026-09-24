@@ -755,7 +755,7 @@
     r.setAttribute('aria-checked', on ? 'true' : 'false');
     var hint = document.getElementById('hideHint');
     if (hint) hint.textContent = on
-      ? 'Đang bật — task ẩn khỏi danh sách của người khác'
+      ? 'Đang bật — task ẩn với người khác, kể cả sau Kết Thúc'
       : 'Đang tắt — mọi người đều thấy task này';
   }
   function toggleHideRow() {
@@ -768,11 +768,9 @@
       localStorage.setItem(HIDE_MINE_KEY, JSON.stringify(list.slice(0, HIDE_MINE_MAX)));
     } catch (e) {}
   }
-  // May nay co bi chan khoi task khong (task an + dang mo + khong phai may tao).
+  // May nay co bi chan khoi task khong (task an + khong phai may tao — ke ca da Ket Thuc).
   function isHiddenFromMe(t) {
     if (!t || !t.isHidden) return false;
-    // An Danh chi an khi task DANG MO — Ket Thuc thi hien lai nhu thuong.
-    if (t.status === TASK_STATUS_C.DONE) return false;
     return getMyHiddenTasks().indexOf(t.taskId) === -1;
   }
   function visibleTasks(tasks) {
@@ -1132,7 +1130,7 @@
   // desktop — 1 nguồn task data, chỉ khác hình thức trình bày.
   function taskCardHTML(t) {
     var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
-    if (t.isHidden && t.status !== TASK_STATUS_C.DONE) statusBadge += ' <span class="badge hidden">Ẩn</span>';
+    if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
     var action = t.status === TASK_STATUS_C.OPEN
       ? '<button class="btn btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Quét</button>'
       : '<button class="btn btn-ghost btn-sm tc-btn" onclick="openScan(\'' + escAttr(t.taskId) + '\')">Xem</button>';
@@ -1207,7 +1205,7 @@
       var tr = document.createElement('tr');
       if (t.status === TASK_STATUS_C.OPEN) tr.className = 'task-open';
       var statusBadge = t.status === TASK_STATUS_C.DONE ? '<span class="badge done">Kết Thúc</span>' : '<span class="badge open">Đang Mở</span>';
-      if (t.isHidden && t.status !== TASK_STATUS_C.DONE) statusBadge += ' <span class="badge hidden">Ẩn</span>';
+      if (t.isHidden) statusBadge += ' <span class="badge hidden">Ẩn</span>';
       tr.innerHTML =
         '<td class="stt">' + (idx + 1) + '</td>' +
         '<td>' + esc(t.taskId) + '</td>' +

@@ -83,7 +83,7 @@ Created → CheckIn → CheckOut → Closed
 - Gắn nhiều Slot Code (checkbox selection)
 - Gắn nhiều Team (checkbox selection)
 - Default: Tất cả Slot Codes + Teams được chọn
-- **Ẩn Danh** (task Điểm Danh Ca): công tắc lúc tạo + nút Bật/Tắt trên topbar màn quét — bật = ẩn khỏi danh sách chung khi đang mở (chỉ thiết bị tạo thấy + badge `Ẩn`, người khác không mở được); **Tắt**/**Hoàn Thành** → hiện lại như thường (cột `isHidden` sheet AttendanceTask)
+- **Ẩn Danh** (task Điểm Danh Ca): công tắc lúc tạo + nút Bật/Tắt trên topbar màn quét — bật = ẩn khỏi danh sách chung (chỉ thiết bị tạo thấy + badge `Ẩn`, người khác không mở được — kể cả sau **Hoàn Thành** vẫn ẩn); **Tắt** → hiện lại như thường (cột `isHidden` sheet AttendanceTask)
 
 ### 4.3 Phân quyền
 
