@@ -182,7 +182,7 @@
 
   var handlers = {
     getMeta: function () {
-      return { ok: true, appTitle: MOCK_DATA.meta.appTitle, labels: MOCK_DATA.meta.labels, tableHeaders: MOCK_DATA.meta.tableHeaders, currentUser: MOCK_CURRENT_USER };
+      return { ok: true, appTitle: MOCK_DATA.meta.appTitle, labels: MOCK_DATA.meta.labels, tableHeaders: MOCK_DATA.meta.tableHeaders, currentUser: MOCK_CURRENT_USER, ownerEmail: MOCK_CURRENT_USER };
     },
     getFilterOptions: function () {
       // contractTypes đọc distinct từ staff (khớp server 2026-08-12) — sort A-Z, lọc rỗng

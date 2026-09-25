@@ -86,6 +86,8 @@ function resetStubs() {
   topBtn.hidden = true;
   topTx = { textContent: '' };
   store = {};
+  global.CURRENT_USER_EMAIL = '';
+  global.OWNER_EMAIL = '';
   global.document = {
     getElementById: (id) => ({ hideRow: rowEl, hideHint: hintEl, btnHideTask: topBtn, hideTopbarTx: topTx }[id] || null),
   };
@@ -164,6 +166,37 @@ test('isHiddenFromMe: task an -> chan may khac (ke ca DONE); may minh -> qua', (
   assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done' }), false, 'an DA KET THUC cua may minh -> qua');
   assert.equal(ctx.isHiddenFromMe({ taskId: 'R3', isHidden: false, status: 'open' }), false, 'khong an -> qua');
   assert.equal(ctx.isHiddenFromMe(null), false, 'null -> qua');
+});
+
+test('isHiddenFromMe: email tao task (createdBy) thay moi trang thai, moi thiet bi', () => {
+  resetStubs();
+  global.CURRENT_USER_EMAIL = 'me@spxexpress.com';
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open', createdBy: 'Me@SpxExpress.com' }), false, 'creator thay task mo');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done', createdBy: 'me@spxexpress.com' }), false, 'creator thay task da ket thuc');
+  const out = ctx.visibleTasks([
+    { taskId: 'R1', isHidden: true, status: 'open', createdBy: 'me@spxexpress.com' },
+    { taskId: 'R2', isHidden: true, status: 'done', createdBy: 'me@spxexpress.com' },
+  ]).map((t) => t.taskId);
+  assert.deepEqual(out, ['R1', 'R2'], 'creator thay het, khong can nho thiet bi');
+});
+
+test('isHiddenFromMe: email chu script (OWNER_EMAIL) thay moi task an, moi trang thai', () => {
+  resetStubs();
+  global.CURRENT_USER_EMAIL = 'owner@spxexpress.com';
+  global.OWNER_EMAIL = 'owner@spxexpress.com';
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open', createdBy: 'khac@spxexpress.com' }), false, 'owner thay task mo cua nguoi khac');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done', createdBy: 'khac@spxexpress.com' }), false, 'owner thay task ket thuc cua nguoi khac');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R3', isHidden: true, status: 'done', createdBy: 'web' }), false, 'owner thay ca task kiosk anonymous');
+});
+
+test('isHiddenFromMe: email la van bi loc theo thiet bi cu (open + done)', () => {
+  resetStubs();
+  global.CURRENT_USER_EMAIL = 'la@spxexpress.com';
+  global.OWNER_EMAIL = 'owner@spxexpress.com';
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open', createdBy: 'khac@spxexpress.com' }), true, 'email la -> chan task mo');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R2', isHidden: true, status: 'done', createdBy: 'khac@spxexpress.com' }), true, 'email la -> chan ca task ket thuc');
+  ctx.rememberHiddenTask('R1');
+  assert.equal(ctx.isHiddenFromMe({ taskId: 'R1', isHidden: true, status: 'open', createdBy: 'khac@spxexpress.com' }), false, 'may tung tao/mo task (da nho taskId) van thay — giu logic thiet bi cu');
 });
 
 test('forgetHiddenTask: tat An Danh -> xoa khoi may minh', () => {

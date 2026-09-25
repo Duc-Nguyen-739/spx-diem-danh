@@ -65,7 +65,7 @@
 - Station · Ca · Team · Ngày · Loại HĐ
 - Chip filter 1 chạm (kiosk touch)
 - 1 task = 1 tổ hợp `StaffData`
-- **Ẩn Danh** (task Điểm Danh Ca): công tắc lúc tạo + nút Bật/Tắt trên topbar màn quét — bật = ẩn khỏi danh sách chung (chỉ thiết bị tạo thấy + badge `Ẩn`, người khác không mở được — kể cả sau **Hoàn Thành** vẫn ẩn); **Tắt** → hiện lại như thường
+- **Ẩn Danh** (task Điểm Danh Ca): công tắc lúc tạo + nút Bật/Tắt trên topbar màn quét — bật = ẩn khỏi danh sách chung (email tạo task + email chủ script thấy mọi task ẩn ở mọi trạng thái trên mọi thiết bị + badge `Ẩn`; email khác giữ lọc theo thiết bị tạo, không mở được — kể cả sau **Hoàn Thành** vẫn ẩn); **Tắt** → hiện lại như thường
 - **meal-move** Station+Team trống → tạo task rỗng rồi paste
 
 </td>

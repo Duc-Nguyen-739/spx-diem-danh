@@ -143,6 +143,9 @@
   // Email người dùng hiện tại (từ getMeta) — phân quyền chuyển Ra/Vào meal-move:
   // CHỈ email tạo task (createdBy) được dùng mode 'ra' (Quét Danh Sách); người khác khóa 'vao'.
   var CURRENT_USER_EMAIL = '';
+  // Email chủ script (deployer, từ getMeta.ownerEmail) — bypass Ẩn Danh: thấy mọi task ẩn
+  // ở mọi trạng thái trên mọi thiết bị; email khác giữ logic lọc theo thiết bị cũ.
+  var OWNER_EMAIL = '';
   // ===== STAFF-CACHE-START =====
   // Client staff index cache (staffId → thông tin hiển thị) — scan NV lạ (Dư) hiện thông tin
   // NGAY từ cache, không chờ server round-trip (yêu cầu 2026-08-11). Tải lúc boot + tạo task.
@@ -768,9 +771,20 @@
       localStorage.setItem(HIDE_MINE_KEY, JSON.stringify(list.slice(0, HIDE_MINE_MAX)));
     } catch (e) {}
   }
-  // May nay co bi chan khoi task khong (task an + khong phai may tao — ke ca da Ket Thuc).
+  // May nay co bi chan khoi task khong. Bypass theo email (moi trang thai open/done):
+  // email tao task (createdBy) hoac email chu script (OWNER_EMAIL) thay moi task an tren
+  // moi thiet bi; email khac (ke ca anonymous) giu logic cu — loc theo thiet bi tao.
   function isHiddenFromMe(t) {
     if (!t || !t.isHidden) return false;
+    var me = (typeof CURRENT_USER_EMAIL !== 'undefined' && CURRENT_USER_EMAIL)
+      ? String(CURRENT_USER_EMAIL).trim().toLowerCase() : '';
+    if (me) {
+      var by = String(t.createdBy || '').trim().toLowerCase();
+      if (by && by === me) return false;
+      var ow = (typeof OWNER_EMAIL !== 'undefined' && OWNER_EMAIL)
+        ? String(OWNER_EMAIL).trim().toLowerCase() : '';
+      if (ow && ow === me) return false;
+    }
     return getMyHiddenTasks().indexOf(t.taskId) === -1;
   }
   function visibleTasks(tasks) {
@@ -903,6 +917,7 @@
         META = meta;
         // Email người dùng hiện tại (GAS Session) — phân quyền chuyển Ra/Vào meal-move
         CURRENT_USER_EMAIL = String((meta && meta.currentUser) || '').trim().toLowerCase();
+        OWNER_EMAIL = String((meta && meta.ownerEmail) || '').trim().toLowerCase();
         // Header mới không còn #appTitle — cập nhật brand title nếu có
         var brand = byId('brandTitle');
         if (brand && meta.appTitle) brand.textContent = meta.appTitle;

@@ -39,6 +39,7 @@ def get_meta():
         "ok": True,
         "appTitle": config.UI_LABELS["APP_TITLE"],
         "currentUser": "",  # standalone anonymous — không session (khác GAS có email)
+        "ownerEmail": "",  # standalone anonymous — không deployer (mirror Code.gs getMeta)
     }
 
 

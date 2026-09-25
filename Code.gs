@@ -158,16 +158,22 @@ function debugState() {
   return out;
 }
 
-/** Meta cho UI: title + email người dùng hiện tại (phân quyền chuyển Ra/Vào meal-move). */
+/** Meta cho UI: title + email người dùng hiện tại (phân quyền chuyển Ra/Vào meal-move)
+ * + ownerEmail (deployer — bypass Ẩn Danh: thấy mọi task ẩn ở mọi trạng thái). */
 function getMeta() {
   let currentUser = '';
   try {
     currentUser = String(Session.getActiveUser().getEmail() || '').trim();
   } catch (e) { /* anonymous web app → '' → client fallback + server tự ép quyền */ }
+  let ownerEmail = '';
+  try {
+    ownerEmail = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (e) { /* không lấy được → '' → client chỉ còn bypass theo createdBy */ }
   return {
     ok: true,
     appTitle: UI_LABELS.APP_TITLE,
     currentUser: currentUser,
+    ownerEmail: ownerEmail,
   };
 }
 
